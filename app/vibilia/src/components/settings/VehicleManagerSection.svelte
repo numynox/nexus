@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Car, Plus, Trash2, Users } from "lucide-svelte";
+  import { Fuel, Plus, Trash2, Users } from "lucide-svelte";
   import { onMount } from "svelte";
   import {
     createCarForUser,
@@ -10,15 +10,24 @@
   } from "../../lib/data";
   import { session } from "../../lib/stores";
 
-  let cars: any[] = [];
-  let loading = true;
-  let showAddCar = false;
-  let newCarName = "";
-  let newCarCapacity = 50;
+  interface Props {
+    selectedFuelType: string;
+    savingFuelPreference: boolean;
+    onFuelTypeChange: (type: string) => void;
+  }
 
-  let sharingCarId: string | null = null;
-  let shareEmail = "";
-  let shareMessage = "";
+  let { selectedFuelType, savingFuelPreference, onFuelTypeChange }: Props =
+    $props();
+
+  let cars = $state<any[]>([]);
+  let loading = $state(true);
+  let showAddCar = $state(false);
+  let newCarName = $state("");
+  let newCarCapacity = $state(50);
+
+  let sharingCarId = $state<string | null>(null);
+  let shareEmail = $state("");
+  let shareMessage = $state("");
 
   onMount(() => {
     fetchCars();
@@ -104,141 +113,166 @@
   }
 </script>
 
-<div class="space-y-6">
-  <div class="flex items-center justify-between">
-    <h3 class="text-xl font-bold flex items-center gap-2">
-      <Car class="w-5 h-5 text-primary" />
-      Manage Vehicles
-    </h3>
-    <button
-      class="btn btn-primary btn-sm rounded-full gap-2"
-      onclick={() => (showAddCar = !showAddCar)}
-    >
-      <Plus class="w-4 h-4" /> Add Car
-    </button>
-  </div>
+<section class="card bg-base-200 shadow-sm overflow-hidden">
+  <div class="card-body p-6 lg:p-8 space-y-6">
+    <div class="flex items-center justify-between">
+      <h2 class="text-xl font-bold flex items-center gap-2">
+        <span>🚗</span> Vehicles
+      </h2>
+      <button
+        class="btn btn-primary btn-sm rounded-full gap-2"
+        onclick={() => (showAddCar = !showAddCar)}
+      >
+        <Plus class="w-4 h-4" /> Add Car
+      </button>
+    </div>
 
-  {#if showAddCar}
-    <div class="card bg-base-300 border border-primary/20">
-      <div class="card-body p-4">
-        <h4 class="font-bold mb-2">New Vehicle</h4>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div class="form-control">
-            <label class="label" for="mgr-newCarName"
-              ><span class="label-text">Name</span></label
+    {#if showAddCar}
+      <div class="card bg-base-300 border border-primary/20">
+        <div class="card-body p-4">
+          <h4 class="font-bold mb-2">New Vehicle</h4>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="form-control">
+              <label class="label" for="mgr-newCarName"
+                ><span class="label-text">Name</span></label
+              >
+              <input
+                type="text"
+                id="mgr-newCarName"
+                bind:value={newCarName}
+                class="input input-bordered input-sm"
+                placeholder="e.g. Blue Golf"
+              />
+            </div>
+            <div class="form-control">
+              <label class="label" for="mgr-newCarCapacity"
+                ><span class="label-text">Tank Capacity (L)</span></label
+              >
+              <input
+                type="number"
+                id="mgr-newCarCapacity"
+                bind:value={newCarCapacity}
+                class="input input-bordered input-sm"
+              />
+            </div>
+          </div>
+          <div class="card-actions justify-end mt-4">
+            <button
+              class="btn btn-ghost btn-sm"
+              onclick={() => (showAddCar = false)}>Cancel</button
             >
+            <button class="btn btn-primary btn-sm" onclick={addCar}
+              >Save Vehicle</button
+            >
+          </div>
+        </div>
+      </div>
+    {/if}
+
+    {#if sharingCarId}
+      <div class="modal modal-open">
+        <div class="modal-box">
+          <h3 class="font-bold text-lg flex items-center gap-2">
+            <Users class="w-5 h-5" /> Share {cars.find(
+              (c) => c.id === sharingCarId,
+            )?.name}
+          </h3>
+          <p class="py-4 text-sm text-base-content/70">
+            Enter the User ID of the person you want to share this vehicle with.
+            They will be able to see prices and log refuels.
+          </p>
+          <div class="form-control">
             <input
               type="text"
-              id="mgr-newCarName"
-              bind:value={newCarName}
-              class="input input-bordered input-sm"
-              placeholder="e.g. Blue Golf"
+              bind:value={shareEmail}
+              class="input input-bordered"
+              placeholder="User ID"
             />
+            {#if shareMessage}
+              <p
+                class="mt-2 text-xs {shareMessage.includes('success')
+                  ? 'text-success'
+                  : 'text-error'}"
+              >
+                {shareMessage}
+              </p>
+            {/if}
           </div>
-          <div class="form-control">
-            <label class="label" for="mgr-newCarCapacity"
-              ><span class="label-text">Tank Capacity (L)</span></label
+          <div class="modal-action">
+            <button class="btn btn-ghost" onclick={() => (sharingCarId = null)}
+              >Close</button
             >
-            <input
-              type="number"
-              id="mgr-newCarCapacity"
-              bind:value={newCarCapacity}
-              class="input input-bordered input-sm"
-            />
+            <button class="btn btn-primary" onclick={shareCar}
+              >Share Access</button
+            >
           </div>
-        </div>
-        <div class="card-actions justify-end mt-4">
-          <button
-            class="btn btn-ghost btn-sm"
-            onclick={() => (showAddCar = false)}>Cancel</button
-          >
-          <button class="btn btn-primary btn-sm" onclick={addCar}
-            >Save Vehicle</button
-          >
         </div>
       </div>
-    </div>
-  {/if}
+    {/if}
 
-  {#if sharingCarId}
-    <div class="modal modal-open">
-      <div class="modal-box">
-        <h3 class="font-bold text-lg flex items-center gap-2">
-          <Users class="w-5 h-5" /> Share {cars.find(
-            (c) => c.id === sharingCarId,
-          )?.name}
-        </h3>
-        <p class="py-4 text-sm text-base-content/70">
-          Enter the User ID of the person you want to share this vehicle with.
-          They will be able to see prices and log refuels.
-        </p>
-        <div class="form-control">
-          <input
-            type="text"
-            bind:value={shareEmail}
-            class="input input-bordered"
-            placeholder="User ID"
-          />
-          {#if shareMessage}
-            <p
-              class="mt-2 text-xs {shareMessage.includes('success')
-                ? 'text-success'
-                : 'text-error'}"
-            >
-              {shareMessage}
-            </p>
-          {/if}
-        </div>
-        <div class="modal-action">
-          <button class="btn btn-ghost" onclick={() => (sharingCarId = null)}
-            >Close</button
-          >
-          <button class="btn btn-primary" onclick={shareCar}
-            >Share Access</button
-          >
-        </div>
+    {#if loading}
+      <div class="flex justify-center py-4">
+        <span class="loading loading-spinner text-primary"></span>
       </div>
-    </div>
-  {/if}
-
-  {#if loading}
-    <div class="flex justify-center py-4">
-      <span class="loading loading-spinner text-primary"></span>
-    </div>
-  {:else}
-    <div class="space-y-3">
-      {#each cars as car (car.id)}
-        <div class="card bg-base-200 border border-base-content/5">
-          <div class="card-body p-4 flex flex-row items-center justify-between">
-            <div>
-              <div class="font-bold">{car.name}</div>
-              <div class="text-xs text-base-content/50">
-                {car.tank_capacity}L Capacity
+    {:else}
+      <div class="space-y-3">
+        {#each cars as car (car.id)}
+          <div class="card bg-base-200 border border-base-content/5">
+            <div
+              class="card-body p-4 flex flex-row items-center justify-between"
+            >
+              <div>
+                <div class="font-bold">{car.name}</div>
+                <div class="text-xs text-base-content/50">
+                  {car.tank_capacity}L Capacity
+                </div>
+              </div>
+              <div class="flex gap-1">
+                <button
+                  class="btn btn-ghost btn-sm btn-square"
+                  onclick={() => openShare(car.id)}
+                  title="Share"
+                >
+                  <Users class="w-4 h-4" />
+                </button>
+                <button
+                  class="btn btn-ghost btn-sm btn-square text-error"
+                  onclick={() => deleteCar(car.id)}
+                  title="Delete"
+                >
+                  <Trash2 class="w-4 h-4" />
+                </button>
               </div>
             </div>
-            <div class="flex gap-1">
-              <button
-                class="btn btn-ghost btn-sm btn-square"
-                onclick={() => openShare(car.id)}
-                title="Share"
-              >
-                <Users class="w-4 h-4" />
-              </button>
-              <button
-                class="btn btn-ghost btn-sm btn-square text-error"
-                onclick={() => deleteCar(car.id)}
-                title="Delete"
-              >
-                <Trash2 class="w-4 h-4" />
-              </button>
-            </div>
           </div>
-        </div>
-      {:else}
-        <p class="text-center py-4 text-sm text-base-content/40 italic">
-          You haven't added any vehicles yet.
-        </p>
-      {/each}
+        {:else}
+          <p class="text-center py-4 text-sm text-base-content/40 italic">
+            You haven't added any vehicles yet.
+          </p>
+        {/each}
+      </div>
+    {/if}
+
+    <div class="divider my-0"></div>
+
+    <div class="space-y-3">
+      <h3 class="text-base font-semibold flex items-center gap-2">
+        <Fuel class="w-4 h-4 text-primary" /> Preferred Fuel Type
+      </h3>
+      <p class="text-sm text-base-content/70">
+        Select the fuel type to show in the dashboard and statistics.
+      </p>
+      <div class="flex flex-wrap gap-2">
+        {#each ["E5", "E10", "Diesel"] as type}
+          <button
+            class="btn {selectedFuelType === type ? 'btn-primary' : 'btn-soft'}"
+            disabled={savingFuelPreference}
+            onclick={() => onFuelTypeChange(type)}
+          >
+            {type}
+          </button>
+        {/each}
+      </div>
     </div>
-  {/if}
-</div>
+  </div>
+</section>

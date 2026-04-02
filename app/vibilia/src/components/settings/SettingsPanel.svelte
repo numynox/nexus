@@ -1,11 +1,55 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { signOut, updatePreferredFuelType } from "../../lib/data";
+  import { getTheme, setTheme } from "../../lib/storage";
   import { preferredFuelType, session } from "../../lib/stores";
   import AccountSection from "./AccountSection.svelte";
-  import FuelPreferencesSection from "./FuelPreferencesSection.svelte";
+  import AppearanceSection from "./AppearanceSection.svelte";
   import VehicleManagerSection from "./VehicleManagerSection.svelte";
 
-  let saving = false;
+  let saving = $state(false);
+  let isBusy = $state(false);
+  let authError = $state("");
+  let currentTheme = $state<string>("auto");
+
+  const daisyThemes = [
+    "light",
+    "dark",
+    "cupcake",
+    "bumblebee",
+    "emerald",
+    "corporate",
+    "synthwave",
+    "retro",
+    "cyberpunk",
+    "valentine",
+    "halloween",
+    "garden",
+    "forest",
+    "aqua",
+    "lofi",
+    "pastel",
+    "fantasy",
+    "wireframe",
+    "black",
+    "luxury",
+    "dracula",
+    "cmyk",
+    "autumn",
+    "business",
+    "acid",
+    "lemonade",
+    "night",
+    "coffee",
+    "winter",
+    "dim",
+    "nord",
+    "sunset",
+  ];
+
+  onMount(() => {
+    currentTheme = getTheme();
+  });
 
   async function updateFuelPreference(type: string) {
     saving = true;
@@ -20,11 +64,27 @@
   }
 
   async function handleLogout() {
-    await signOut();
+    authError = "";
+    isBusy = true;
+
+    try {
+      await signOut();
+    } catch (error) {
+      authError = error instanceof Error ? error.message : String(error);
+    } finally {
+      isBusy = false;
+    }
+  }
+
+  function handleThemeChange(theme: string) {
+    currentTheme = theme;
+    setTheme(theme);
   }
 </script>
 
-<div class="space-y-8 animate-in slide-in-from-bottom duration-500">
+<div
+  class="max-w-2xl mx-auto space-y-8 animate-in slide-in-from-bottom duration-500"
+>
   <div>
     <h1 class="text-3xl font-black text-base-content">Settings</h1>
     <p class="text-sm text-base-content/60">
@@ -32,17 +92,22 @@
     </p>
   </div>
 
-  <FuelPreferencesSection
-    selectedType={$preferredFuelType}
-    {saving}
-    onSelect={updateFuelPreference}
+  <VehicleManagerSection
+    selectedFuelType={$preferredFuelType}
+    savingFuelPreference={saving}
+    onFuelTypeChange={updateFuelPreference}
   />
 
-  <div class="divider"></div>
+  <AppearanceSection
+    {currentTheme}
+    {daisyThemes}
+    onThemeChange={handleThemeChange}
+  />
 
-  <!-- Vehicle Management (Moved from separate tab as requested) -->
-  <VehicleManagerSection />
-
-  <!-- Logout for Mobile (duplicated in drawer but useful here) -->
-  <AccountSection onLogout={handleLogout} />
+  <AccountSection
+    userEmail={$session?.user?.email || ""}
+    {authError}
+    {isBusy}
+    onLogout={handleLogout}
+  />
 </div>

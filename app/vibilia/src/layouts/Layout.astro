@@ -57,9 +57,18 @@ const themeColor = "#242933";
     <script is:inline>
       (function () {
         const theme = localStorage.getItem("vibilia_theme");
-        if (theme) {
-          document.documentElement.setAttribute("data-theme", theme);
+        const prefersDark = window.matchMedia(
+          "(prefers-color-scheme: dark)",
+        ).matches;
+
+        let actualTheme = "dark";
+        if (theme && theme !== '"auto"') {
+          actualTheme = JSON.parse(theme);
+        } else if (!prefersDark) {
+          actualTheme = "light";
         }
+
+        document.documentElement.setAttribute("data-theme", actualTheme);
       })();
     </script>
 
