@@ -52,27 +52,33 @@
     },
     "VsCodeTaskButtons.tasks": [
         {
-            "label": "Build Website",
-            "task": "Build Website",
+            "label": "Build",
+            "task": "Build",
         },
         {
-            "label": "Dev Server",
-            "task": "Dev Server",
+            "label": "DB Start",
+            "task": "DB Start",
+            "color": "error"
+        },
+        {
+            "label": "DB Stop",
+            "task": "DB Stop",
+            "color": "error"
+        },
+        {
+            "label": "Dev Noctua",
+            "task": "Dev Noctua",
             "color": "warning"
         },
         {
-            "label": "Supabase",
-            "task": "Supabase",
-            "color": "error"
+            "label": "Dev Vibilia",
+            "task": "Dev Vibilia",
+            "color": "warning"
         },
         {
-            "label": "Supabase Functions",
-            "task": "Supabase Functions",
+            "label": "DB Functions",
+            "task": "DB Functions",
             "color": "error"
-        },
-        {
-            "label": "Fetch RSS",
-            "task": "Fetch RSS"
         }
     ]
 }

@@ -2,7 +2,7 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Build Website",
+            "label": "Build",
             "type": "shell",
             "command": "npm",
             "args": [
@@ -23,7 +23,7 @@
             "problemMatcher": []
         },
         {
-            "label": "Dev Server",
+            "label": "Dev Noctua",
             "type": "shell",
             "command": "npm",
             "args": [
@@ -40,7 +40,7 @@
             }
         },
         {
-            "label": "Dev Server Vibilia",
+            "label": "Dev Vibilia",
             "type": "shell",
             "command": "npm",
             "args": [
@@ -57,12 +57,12 @@
             }
         },
         {
-            "label": "Supabase",
+            "label": "DB Start",
             "type": "shell",
             "command": "npm",
             "args": [
                 "run",
-                "supabase:start"
+                "db:start"
             ],
             "options": {
                 "cwd": "${workspaceFolder}"
@@ -74,12 +74,12 @@
             }
         },
         {
-            "label": "Supabase Functions",
+            "label": "DB Stop",
             "type": "shell",
             "command": "npm",
             "args": [
                 "run",
-                "supabase:functions:serve"
+                "db:stop"
             ],
             "options": {
                 "cwd": "${workspaceFolder}"
@@ -91,21 +91,21 @@
             }
         },
         {
-            "label": "Fetch RSS",
+            "label": "DB Functions",
             "type": "shell",
-            "command": "bash",
+            "command": "npm",
             "args": [
-                "-c",
-                "set -a; [ -f ./.env ] && . ./.env; set +a; if [ -z \"${FETCH_RSS_INVOKE_SECRET:-}\" ]; then echo \"FETCH_RSS_INVOKE_SECRET is not set (.env or environment)\"; exit 1; fi; curl -L -X POST \"http://127.0.0.1:54321/functions/v1/fetch-rss\" -H \"Authorization: Bearer ${FETCH_RSS_INVOKE_SECRET}\" -H \"Content-Type: application/json\" --data \"{\\\"name\\\":\\\"Functions\\\"}\""
+                "run",
+                "db:functions:serve"
             ],
             "options": {
                 "cwd": "${workspaceFolder}"
             },
+            "isBackground": true,
             "presentation": {
                 "reveal": "always",
                 "panel": "dedicated"
-            },
-            "problemMatcher": []
+            }
         }
     ]
 }

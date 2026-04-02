@@ -1,0 +1,25 @@
+meta {
+  name: Refresh Fuel Prices
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{SUPABASE_URL}}/functions/v1/refresh-fuel-prices
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{FUEL_PRICE_INVOKE_SECRET}}
+}
+
+body:json {
+  {
+    "name": "Functions"
+  }
+}
