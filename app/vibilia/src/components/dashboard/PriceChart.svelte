@@ -196,6 +196,30 @@
   const options = $derived.by(() => ({
     responsive: true,
     maintainAspectRatio: false,
+    animation: false,
+    animations: false,
+    transitions: {
+      active: {
+        animation: {
+          duration: 0,
+        },
+      },
+      resize: {
+        animation: {
+          duration: 0,
+        },
+      },
+      show: {
+        animation: {
+          duration: 0,
+        },
+      },
+      hide: {
+        animation: {
+          duration: 0,
+        },
+      },
+    },
     plugins: {
       legend: {
         display: false,
