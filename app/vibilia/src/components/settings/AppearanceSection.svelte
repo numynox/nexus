@@ -2,10 +2,23 @@
   interface Props {
     currentTheme: string;
     daisyThemes: string[];
+    dashboardPreviousDays: number;
     onThemeChange: (theme: string) => void;
+    onDashboardPreviousDaysChange: (days: number) => void;
   }
 
-  let { currentTheme, daisyThemes, onThemeChange }: Props = $props();
+  let {
+    currentTheme,
+    daisyThemes,
+    dashboardPreviousDays,
+    onThemeChange,
+    onDashboardPreviousDaysChange,
+  }: Props = $props();
+
+  function handlePreviousDaysChange(event: Event) {
+    const select = event.currentTarget as HTMLSelectElement;
+    onDashboardPreviousDaysChange(Number(select.value));
+  }
 </script>
 
 <section class="card bg-base-200 shadow-sm overflow-hidden">
@@ -58,6 +71,28 @@
             Theme selection is disabled when Auto is active
           </p>
         {/if}
+      </div>
+
+      <div class="space-y-2">
+        <div class="text-sm font-medium text-base-content/70">Dashboard</div>
+        <label class="flex items-center justify-between gap-4">
+          <div class="text-sm text-base-content/70">
+            Previous days in price plot
+          </div>
+          <select
+            class="select select-bordered select-sm w-28"
+            value={dashboardPreviousDays}
+            onchange={handlePreviousDaysChange}
+          >
+            <option value={1}>1</option>
+            <option value={2}>2</option>
+            <option value={3}>3</option>
+            <option value={4}>4</option>
+            <option value={5}>5</option>
+            <option value={6}>6</option>
+            <option value={7}>7</option>
+          </select>
+        </label>
       </div>
     </div>
   </div>

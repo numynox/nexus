@@ -1,11 +1,12 @@
 <script lang="ts">
+  import dayjs from "dayjs";
   import { Plus, RefreshCw } from "lucide-svelte";
-  import { onMount } from "svelte";
   import {
     fetchFuelPriceHistory,
     fetchFuelStationsWithPrices,
     invokeRefreshFuelPrices,
   } from "../../lib/data";
+  import { getDashboardPreviousDays } from "../../lib/storage";
   import { preferredFuelType } from "../../lib/stores";
   import PriceChart from "./PriceChart.svelte";
   import StationList from "./StationList.svelte";
@@ -16,10 +17,7 @@
   let history = $state<any[]>([]);
   let loading = $state(true);
   let refreshing = $state(false);
-
-  onMount(() => {
-    fetchData();
-  });
+  let previousDays = $state(getDashboardPreviousDays());
 
   async function fetchData() {
     loading = true;
@@ -40,13 +38,11 @@
         (a: any, b: any) => (a.currentPrice || 999) - (b.currentPrice || 999),
       );
 
-    const seventyTwoHoursAgo = new Date(
-      Date.now() - 72 * 60 * 60 * 1000,
-    ).toISOString();
-    history = await fetchFuelPriceHistory(
-      $preferredFuelType,
-      seventyTwoHoursAgo,
-    );
+    const sinceIso = dayjs()
+      .startOf("day")
+      .subtract(previousDays, "day")
+      .toISOString();
+    history = await fetchFuelPriceHistory($preferredFuelType, sinceIso);
     loading = false;
   }
 
@@ -63,6 +59,7 @@
   }
 
   $effect(() => {
+    previousDays;
     if ($preferredFuelType) fetchData();
   });
 </script>
@@ -72,7 +69,7 @@
     <div>
       <h1 class="text-3xl font-black text-base-content">Dashboard</h1>
       <p class="text-sm text-base-content/60">
-        Lowest prices for {$preferredFuelType} (last 72h)
+        Minimum {$preferredFuelType} price by time of day
       </p>
     </div>
     <div class="flex gap-2">
@@ -102,7 +99,7 @@
       class="card bg-base-200 shadow-xl overflow-hidden border border-primary/5"
     >
       <div class="card-body p-2 sm:p-6 h-80 sm:h-96">
-        <PriceChart {history} />
+        <PriceChart {history} {previousDays} />
       </div>
     </div>
 

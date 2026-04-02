@@ -1,7 +1,12 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { signOut, updatePreferredFuelType } from "../../lib/data";
-  import { getTheme, setTheme } from "../../lib/storage";
+  import {
+    getDashboardPreviousDays,
+    getTheme,
+    setDashboardPreviousDays,
+    setTheme,
+  } from "../../lib/storage";
   import { preferredFuelType, session } from "../../lib/stores";
   import AccountSection from "./AccountSection.svelte";
   import AppearanceSection from "./AppearanceSection.svelte";
@@ -11,6 +16,7 @@
   let isBusy = $state(false);
   let authError = $state("");
   let currentTheme = $state<string>("auto");
+  let dashboardPreviousDays = $state<number>(3);
 
   const daisyThemes = [
     "light",
@@ -49,6 +55,7 @@
 
   onMount(() => {
     currentTheme = getTheme();
+    dashboardPreviousDays = getDashboardPreviousDays();
   });
 
   async function updateFuelPreference(type: string) {
@@ -80,6 +87,11 @@
     currentTheme = theme;
     setTheme(theme);
   }
+
+  function handleDashboardPreviousDaysChange(days: number) {
+    dashboardPreviousDays = days;
+    setDashboardPreviousDays(days);
+  }
 </script>
 
 <div
@@ -101,7 +113,9 @@
   <AppearanceSection
     {currentTheme}
     {daisyThemes}
+    {dashboardPreviousDays}
     onThemeChange={handleThemeChange}
+    onDashboardPreviousDaysChange={handleDashboardPreviousDaysChange}
   />
 
   <AccountSection
