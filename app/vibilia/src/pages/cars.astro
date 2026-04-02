@@ -1,0 +1,8 @@
+---
+import CarsRoute from "../components/routes/CarsRoute.svelte";
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Vehicle Logs">
+  <CarsRoute client:only="svelte" />
+</Layout>

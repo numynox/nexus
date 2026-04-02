@@ -1,25 +1,94 @@
 ---
-import '../styles/global.css';
+import "../styles/global.css";
+import {
+  getBaseUrl,
+  getWebsiteDescription,
+  getWebsiteTitle,
+} from "../lib/config";
 
 interface Props {
-	title: string;
+  title?: string;
+  description?: string;
 }
 
-const { title } = Astro.props;
-const baseUrl = import.meta.env.BASE_URL;
+const baseUrl = getBaseUrl();
+const assetBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+const siteTitle = getWebsiteTitle();
+const siteDescription = getWebsiteDescription();
+const { title = "", description = siteDescription } = Astro.props;
+const themeColor = "#242933";
 ---
 
 <!doctype html>
-<html lang="en" data-theme="dark">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="description" content="Vibilia - Fuel Price Tracker" />
-		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
-		<link rel="icon" type="image/svg+xml" href={`${baseUrl}favicon.svg`} />
-		<meta name="generator" content={Astro.generator} />
-		<title>{title}</title>
-	</head>
-	<body>
-		<slot />
-	</body>
+<html
+  lang="en"
+  data-theme="dark"
+  data-base-url={baseUrl}
+  data-site-title={siteTitle}
+>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="description" content={description} />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="manifest" href={assetBase + "manifest.webmanifest"} />
+    <link rel="shortcut icon" href={`${assetBase}favicon.ico`} />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href={`${assetBase}favicon-32x32.png`}
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="16x16"
+      href={`${assetBase}favicon-16x16.png`}
+    />
+    <link rel="icon" type="image/x-icon" href={`${assetBase}favicon.ico`} />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href={`${assetBase}apple-touch-icon.png`}
+    />
+    <meta name="generator" content={Astro.generator} />
+    <meta name="theme-color" content={themeColor} />
+    <title>{title ? `${title} | ${siteTitle}` : siteTitle}</title>
+
+    <script is:inline>
+      (function () {
+        const theme = localStorage.getItem("vibilia_theme");
+        if (theme) {
+          document.documentElement.setAttribute("data-theme", theme);
+        }
+      })();
+    </script>
+
+    <script is:inline>
+      (function () {
+        if (
+          "serviceWorker" in navigator &&
+          window.location.protocol !== "file:"
+        ) {
+          window.addEventListener("load", function () {
+            try {
+              navigator.serviceWorker
+                .register(
+                  (document.documentElement.dataset.baseUrl?.endsWith("/")
+                    ? document.documentElement.dataset.baseUrl
+                    : document.documentElement.dataset.baseUrl + "/") + "sw.js",
+                )
+                .catch((e) => {
+                  console.error("Service worker registration failed:", e);
+                });
+            } catch (e) {
+              console.error("Service worker registration failed:", e);
+            }
+          });
+        }
+      })();
+    </script>
+  </head>
+  <body class="bg-base-100 text-base-content overflow-x-hidden">
+    <slot />
+  </body>
 </html>

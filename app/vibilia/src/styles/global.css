@@ -2,7 +2,17 @@
 @plugin "daisyui";
 
 :root {
-  --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-family: "system-ui", -apple-system, sans-serif;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  font-size: 16px;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
 }
 
 body {

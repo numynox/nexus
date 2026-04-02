@@ -1,11 +1,15 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { supabase } from '../lib/supabase';
-  import { preferredFuelType } from '../lib/stores';
-  import PriceChart from './PriceChart.svelte';
-  import StationList from './StationList.svelte';
-  import { RefreshCw, Plus } from 'lucide-svelte';
- 
+  import { Plus, RefreshCw } from "lucide-svelte";
+  import { onMount } from "svelte";
+  import {
+    fetchFuelPriceHistory,
+    fetchFuelStationsWithPrices,
+    invokeRefreshFuelPrices,
+  } from "../../lib/data";
+  import { preferredFuelType } from "../../lib/stores";
+  import PriceChart from "./PriceChart.svelte";
+  import StationList from "./StationList.svelte";
+
   let { onRefuel } = $props();
 
   let stations = $state<any[]>([]);
@@ -19,37 +23,37 @@
 
   async function fetchData() {
     loading = true;
-    const { data: st, error: stErr } = await supabase
-      .from('fuel_stations')
-      .select('*, fuel_prices(price, fuel_type, checked_at)')
-      .order('name');
-    
-    if (st) {
-      stations = st.map((s: any) => {
+    const st = await fetchFuelStationsWithPrices();
+
+    stations = st
+      .map((s: any) => {
         const latestPrices = s.fuel_prices
           .filter((p: any) => p.fuel_type === $preferredFuelType)
-          .sort((a: any, b: any) => new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime());
+          .sort(
+            (a: any, b: any) =>
+              new Date(b.checked_at).getTime() -
+              new Date(a.checked_at).getTime(),
+          );
         return { ...s, currentPrice: latestPrices[0]?.price };
-      }).sort((a: any, b: any) => (a.currentPrice || 999) - (b.currentPrice || 999));
-    }
+      })
+      .sort(
+        (a: any, b: any) => (a.currentPrice || 999) - (b.currentPrice || 999),
+      );
 
-    const seventyTwoHoursAgo = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
-    const { data: hist, error: histErr } = await supabase
-      .from('fuel_prices')
-      .select('price, checked_at')
-      .eq('fuel_type', $preferredFuelType)
-      .gt('checked_at', seventyTwoHoursAgo)
-      .order('checked_at');
-
-    if (hist) history = hist;
+    const seventyTwoHoursAgo = new Date(
+      Date.now() - 72 * 60 * 60 * 1000,
+    ).toISOString();
+    history = await fetchFuelPriceHistory(
+      $preferredFuelType,
+      seventyTwoHoursAgo,
+    );
     loading = false;
   }
 
   async function manualRefresh() {
     refreshing = true;
     try {
-      const { data, error } = await supabase.functions.invoke('refresh-fuel-prices');
-      if (error) throw error;
+      await invokeRefreshFuelPrices();
       await fetchData();
     } catch (e) {
       console.error(e);
@@ -67,17 +71,22 @@
   <div class="flex items-center justify-between">
     <div>
       <h1 class="text-3xl font-black text-base-content">Dashboard</h1>
-      <p class="text-sm text-base-content/60">Lowest prices for {$preferredFuelType} (last 72h)</p>
+      <p class="text-sm text-base-content/60">
+        Lowest prices for {$preferredFuelType} (last 72h)
+      </p>
     </div>
     <div class="flex gap-2">
-      <button 
-        class="btn btn-circle btn-ghost btn-sm" 
+      <button
+        class="btn btn-circle btn-ghost btn-sm"
         onclick={manualRefresh}
         disabled={refreshing}
       >
         <RefreshCw class="w-4 h-4 {refreshing ? 'animate-spin' : ''}" />
       </button>
-      <button class="btn btn-primary btn-sm rounded-full gap-2" onclick={onRefuel}>
+      <button
+        class="btn btn-primary btn-sm rounded-full gap-2"
+        onclick={onRefuel}
+      >
         <Plus class="w-4 h-4" />
         <span class="hidden sm:inline">Refuel</span>
       </button>
@@ -89,7 +98,9 @@
       <span class="loading loading-dots loading-lg text-primary"></span>
     </div>
   {:else}
-    <div class="card bg-base-200 shadow-xl overflow-hidden border border-primary/5">
+    <div
+      class="card bg-base-200 shadow-xl overflow-hidden border border-primary/5"
+    >
       <div class="card-body p-2 sm:p-6 h-80 sm:h-96">
         <PriceChart {history} />
       </div>

@@ -1,8 +1,8 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import App from '../App.svelte';
+import DashboardRoute from "../components/routes/DashboardRoute.svelte";
+import Layout from "../layouts/Layout.astro";
 ---
 
-<Layout title="Vibilia - Fuel Tracker">
-	<App client:only="svelte" />
+<Layout title="Dashboard">
+  <DashboardRoute client:only="svelte" />
 </Layout>
