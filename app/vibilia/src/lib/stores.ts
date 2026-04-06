@@ -3,5 +3,4 @@ import { writable } from "svelte/store";
 import { getPreferredFuelType } from "./storage";
 
 export const session = writable<Session | null>(null);
-export const userProfile = writable<any>(null);
 export const preferredFuelType = writable<string>(getPreferredFuelType());

@@ -2,8 +2,8 @@
   import type { Snippet } from "svelte";
   import { onMount } from "svelte";
   import { getBaseUrl, getWebsiteTitle } from "../lib/config";
-  import { fetchProfile, getSession, onAuthStateChange } from "../lib/data";
-  import { session, userProfile } from "../lib/stores";
+  import { getSession, onAuthStateChange } from "../lib/data";
+  import { session } from "../lib/stores";
   import LoginPanel from "./LoginPanel.svelte";
   import Sidebar from "./Sidebar.svelte";
 
@@ -22,7 +22,6 @@
     getSession()
       .then((s) => {
         session.set(s);
-        if (s) fetchAndStoreProfile(s.user.id);
         loading = false;
       })
       .catch(() => {
@@ -33,23 +32,10 @@
       data: { subscription },
     } = onAuthStateChange((_event, s) => {
       session.set(s);
-      if (s) fetchAndStoreProfile(s.user.id);
-      else userProfile.set(null);
     });
 
     return () => subscription.unsubscribe();
   });
-
-  async function fetchAndStoreProfile(userId: string) {
-    try {
-      const data = await fetchProfile(userId);
-      if (data) {
-        userProfile.set(data);
-      }
-    } catch {
-      // Keep UI functional even when profile loading fails.
-    }
-  }
 </script>
 
 {#if loading}

@@ -1,10 +1,9 @@
 <script lang="ts">
   import dayjs from "dayjs";
-  import { Plus, RefreshCw } from "lucide-svelte";
+  import { Plus } from "lucide-svelte";
   import {
     fetchFuelPricePlotHistory,
     fetchFuelStationsCurrentPrices,
-    invokeRefreshFuelPrices,
   } from "../../lib/data";
   import { getDashboardPreviousDays } from "../../lib/storage";
   import { preferredFuelType } from "../../lib/stores";
@@ -16,7 +15,6 @@
   let stations = $state<any[]>([]);
   let history = $state<any[]>([]);
   let loading = $state(true);
-  let refreshing = $state(false);
   let previousDays = $state(getDashboardPreviousDays());
 
   async function fetchData() {
@@ -45,18 +43,6 @@
     loading = false;
   }
 
-  async function manualRefresh() {
-    refreshing = true;
-    try {
-      await invokeRefreshFuelPrices();
-      await fetchData();
-    } catch (e) {
-      console.error(e);
-    } finally {
-      refreshing = false;
-    }
-  }
-
   $effect(() => {
     previousDays;
     if ($preferredFuelType) fetchData();
@@ -71,25 +57,16 @@
         Minimum {$preferredFuelType} price by time of day
       </p>
     </div>
-    <div class="flex gap-2">
-      <button
-        class="btn btn-circle btn-ghost btn-sm"
-        onclick={manualRefresh}
-        disabled={refreshing}
-      >
-        <RefreshCw class="w-4 h-4 {refreshing ? 'animate-spin' : ''}" />
-      </button>
-      <button
-        class="btn btn-primary btn-sm rounded-full gap-2"
-        onclick={onRefuel}
-      >
-        <Plus class="w-4 h-4" />
-        <span class="hidden sm:inline">Refuel</span>
-      </button>
-    </div>
+    <button
+      class="btn btn-primary btn-sm rounded-full gap-2"
+      onclick={onRefuel}
+    >
+      <Plus class="w-4 h-4" />
+      <span class="hidden sm:inline">Refuel</span>
+    </button>
   </div>
 
-  {#if loading && !refreshing}
+  {#if loading}
     <div class="h-64 flex items-center justify-center">
       <span class="loading loading-dots loading-lg text-primary"></span>
     </div>

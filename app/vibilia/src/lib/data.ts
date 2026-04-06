@@ -54,29 +54,6 @@ export async function signOut(): Promise<void> {
   if (error) throw error;
 }
 
-export async function fetchProfile(userId: string): Promise<any | null> {
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (error) throw error;
-  return data;
-}
-
-export async function fetchFuelStationsWithPrices(): Promise<any[]> {
-  return fetchFuelStationsCurrentPrices("E10");
-}
-
-export async function fetchFuelPriceHistory(
-  fuelType: string,
-  sinceIso: string,
-): Promise<any[]> {
-  return fetchFuelPricePlotHistory(fuelType, sinceIso, 10, "UTC");
-}
-
 export async function fetchFuelStationsCurrentPrices(
   fuelType: string,
 ): Promise<any[]> {
@@ -111,16 +88,6 @@ export async function fetchFuelPricePlotHistory(
 
   if (error) throw error;
   return data || [];
-}
-
-export async function invokeRefreshFuelPrices(): Promise<any> {
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase.functions.invoke(
-    "refresh-fuel-prices",
-  );
-
-  if (error) throw error;
-  return data;
 }
 
 export async function fetchCarsForUser(userId: string): Promise<any[]> {
