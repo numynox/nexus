@@ -1,6 +1,7 @@
-import { writable } from 'svelte/store';
-import type { Session } from '@supabase/supabase-js';
+import type { Session } from "@supabase/supabase-js";
+import { writable } from "svelte/store";
+import { getPreferredFuelType } from "./storage";
 
 export const session = writable<Session | null>(null);
 export const userProfile = writable<any>(null);
-export const preferredFuelType = writable<string>('E10');
+export const preferredFuelType = writable<string>(getPreferredFuelType());

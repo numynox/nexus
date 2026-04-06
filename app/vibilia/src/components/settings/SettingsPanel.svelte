@@ -1,10 +1,12 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { signOut, updatePreferredFuelType } from "../../lib/data";
+  import { signOut } from "../../lib/data";
   import {
     getDashboardPreviousDays,
+    getPreferredFuelType,
     getTheme,
     setDashboardPreviousDays,
+    setPreferredFuelType,
     setTheme,
   } from "../../lib/storage";
   import { preferredFuelType, session } from "../../lib/stores";
@@ -56,18 +58,14 @@
   onMount(() => {
     currentTheme = getTheme();
     dashboardPreviousDays = getDashboardPreviousDays();
+    preferredFuelType.set(getPreferredFuelType());
   });
 
-  async function updateFuelPreference(type: string) {
+  function updateFuelPreference(type: string) {
     saving = true;
     preferredFuelType.set(type);
-    try {
-      if ($session?.user?.id) {
-        await updatePreferredFuelType($session.user.id, type);
-      }
-    } finally {
-      saving = false;
-    }
+    setPreferredFuelType(type);
+    saving = false;
   }
 
   async function handleLogout() {

@@ -3,10 +3,23 @@ const isBrowser = (): boolean => typeof window !== "undefined";
 const STORAGE_KEYS = {
   THEME: "vibilia_theme",
   DASHBOARD_PREVIOUS_DAYS: "vibilia_dashboard_previous_days",
+  PREFERRED_FUEL_TYPE: "vibilia_preferred_fuel_type",
 } as const;
 
 const DASHBOARD_PREVIOUS_DAYS_MIN = 1;
 const DASHBOARD_PREVIOUS_DAYS_MAX = 7;
+const VALID_FUEL_TYPES = ["E5", "E10", "Diesel"] as const;
+
+function normalizePreferredFuelType(value: unknown): string {
+  if (
+    typeof value === "string" &&
+    VALID_FUEL_TYPES.includes(value as (typeof VALID_FUEL_TYPES)[number])
+  ) {
+    return value;
+  }
+
+  return "E10";
+}
 
 function clampDashboardPreviousDays(value: number): number {
   if (!Number.isFinite(value)) return 3;
@@ -58,6 +71,22 @@ export function setDashboardPreviousDays(days: number): void {
   setStorageItem(
     STORAGE_KEYS.DASHBOARD_PREVIOUS_DAYS,
     clampDashboardPreviousDays(days),
+  );
+}
+
+export function getPreferredFuelType(): string {
+  const storedValue = getStorageItem<string>(
+    STORAGE_KEYS.PREFERRED_FUEL_TYPE,
+    "E10",
+  );
+
+  return normalizePreferredFuelType(storedValue);
+}
+
+export function setPreferredFuelType(fuelType: string): void {
+  setStorageItem(
+    STORAGE_KEYS.PREFERRED_FUEL_TYPE,
+    normalizePreferredFuelType(fuelType),
   );
 }
 

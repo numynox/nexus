@@ -74,7 +74,7 @@
       </div>
 
       <div class="space-y-2">
-        <div class="text-sm font-medium text-base-content/70">Dashboard</div>
+        <div class="font-semibold text-sm">Dashboard</div>
         <label class="flex items-center justify-between gap-4">
           <div class="text-sm text-base-content/70">
             Previous days in price plot

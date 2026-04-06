@@ -66,19 +66,6 @@ export async function fetchProfile(userId: string): Promise<any | null> {
   return data;
 }
 
-export async function updatePreferredFuelType(
-  userId: string,
-  fuelType: string,
-) {
-  const supabase = getSupabaseClient();
-  const { error } = await supabase
-    .from("profiles")
-    .update({ preferred_fuel_type: fuelType })
-    .eq("id", userId);
-
-  if (error) throw error;
-}
-
 export async function fetchFuelStationsWithPrices(): Promise<any[]> {
   return fetchFuelStationsCurrentPrices("E10");
 }

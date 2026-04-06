@@ -3,7 +3,7 @@
   import { onMount } from "svelte";
   import { getBaseUrl, getWebsiteTitle } from "../lib/config";
   import { fetchProfile, getSession, onAuthStateChange } from "../lib/data";
-  import { preferredFuelType, session, userProfile } from "../lib/stores";
+  import { session, userProfile } from "../lib/stores";
   import LoginPanel from "./LoginPanel.svelte";
   import Sidebar from "./Sidebar.svelte";
 
@@ -45,7 +45,6 @@
       const data = await fetchProfile(userId);
       if (data) {
         userProfile.set(data);
-        preferredFuelType.set(data.preferred_fuel_type);
       }
     } catch {
       // Keep UI functional even when profile loading fails.
