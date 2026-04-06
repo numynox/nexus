@@ -33,14 +33,6 @@ export async function signInWithPassword(email: string, password: string) {
   return data;
 }
 
-export async function signUp(email: string, password: string) {
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase.auth.signUp({ email, password });
-
-  if (error) throw error;
-  return data;
-}
-
 export function onAuthStateChange(
   callback: (event: AuthChangeEvent, session: Session | null) => void,
 ) {
