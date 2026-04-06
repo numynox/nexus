@@ -5,6 +5,8 @@
 
   const baseUrl = getBaseUrl();
 
+  let { priceBucketMinutes = 10 } = $props();
+
   function navigateToCars() {
     const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/$/, "");
     window.location.href = `${normalizedBase}/cars`;
@@ -12,5 +14,5 @@
 </script>
 
 <AppShell activeId="dashboard">
-  <DashboardPanel onRefuel={navigateToCars} />
+  <DashboardPanel onRefuel={navigateToCars} {priceBucketMinutes} />
 </AppShell>

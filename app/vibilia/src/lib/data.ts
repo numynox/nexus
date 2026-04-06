@@ -80,27 +80,47 @@ export async function updatePreferredFuelType(
 }
 
 export async function fetchFuelStationsWithPrices(): Promise<any[]> {
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase
-    .from("fuel_stations")
-    .select("*, fuel_prices(price, fuel_type, checked_at)")
-    .order("name");
-
-  if (error) throw error;
-  return data || [];
+  return fetchFuelStationsCurrentPrices("E10");
 }
 
 export async function fetchFuelPriceHistory(
   fuelType: string,
   sinceIso: string,
 ): Promise<any[]> {
+  return fetchFuelPricePlotHistory(fuelType, sinceIso, 10, "UTC");
+}
+
+export async function fetchFuelStationsCurrentPrices(
+  fuelType: string,
+): Promise<any[]> {
   const supabase = getSupabaseClient();
-  const { data, error } = await supabase
-    .from("fuel_prices")
-    .select("price, checked_at")
-    .eq("fuel_type", fuelType)
-    .gt("checked_at", sinceIso)
-    .order("checked_at");
+  const { data, error } = await (supabase as any).rpc(
+    "get_fuel_stations_current_prices",
+    {
+      p_fuel_type: fuelType,
+    },
+  );
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function fetchFuelPricePlotHistory(
+  fuelType: string,
+  sinceIso: string,
+  bucketMinutes: number,
+  timeZone: string,
+): Promise<any[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await (supabase as any).rpc(
+    "get_fuel_price_plot_history",
+    {
+      p_fuel_type: fuelType,
+      p_since: sinceIso,
+      p_bucket_minutes: bucketMinutes,
+      p_time_zone: timeZone,
+    },
+  );
 
   if (error) throw error;
   return data || [];

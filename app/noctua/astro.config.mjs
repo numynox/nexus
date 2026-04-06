@@ -19,7 +19,7 @@ export default defineConfig({
   outDir: `../../${outputBase}/pages/noctua`,
 
   // Base path - adjust for GitHub Pages
-  base: config.settings?.website?.base_url || "/",
+  base: config.settings?.noctua?.base_url || "/",
 
   // Build options
   build: {

@@ -12,8 +12,9 @@
   import { Line } from "svelte-chartjs";
 
   interface FuelPricePoint {
-    price: number;
-    checked_at: string;
+    day_key: string;
+    bucket_minute: number;
+    min_price: number | string;
   }
 
   interface ChartPoint {
@@ -72,7 +73,10 @@
   let {
     history,
     previousDays = 3,
-  }: { history: FuelPricePoint[]; previousDays?: number } = $props();
+  }: {
+    history: FuelPricePoint[];
+    previousDays?: number;
+  } = $props();
 
   let nowTick = $state(Date.now());
   let isDarkTheme = $state(true);
@@ -131,15 +135,17 @@
     }
 
     for (const point of history) {
-      const parsed = dayjs(point.checked_at);
-      const dayKey = parsed.format("YYYY-MM-DD");
+      const dayKey = point.day_key;
       const dayMap = minimumByMinuteByDay.get(dayKey);
       if (!dayMap) continue;
 
-      const minuteOfDay = parsed.hour() * 60 + parsed.minute();
-      const currentMin = dayMap.get(minuteOfDay);
-      if (currentMin === undefined || point.price < currentMin) {
-        dayMap.set(minuteOfDay, point.price);
+      const bucketKey = Number(point.bucket_minute);
+      const price = Number(point.min_price);
+      if (!Number.isFinite(bucketKey) || !Number.isFinite(price)) continue;
+
+      const currentMin = dayMap.get(bucketKey);
+      if (currentMin === undefined || price < currentMin) {
+        dayMap.set(bucketKey, price);
       }
     }
 
@@ -196,8 +202,7 @@
   const options = $derived.by(() => ({
     responsive: true,
     maintainAspectRatio: false,
-    animation: false,
-    animations: false,
+    animation: false as const,
     transitions: {
       active: {
         animation: {

@@ -15,22 +15,22 @@ export function loadConfig() {
 
 export function getBaseUrl(): string {
   const config = loadConfig();
-  return config.settings?.website?.base_url || "/";
+  return config.settings?.noctua?.base_url || "/";
 }
 
 export function getWebsiteTitle(): string {
   const config = loadConfig();
-  return config.settings?.website?.title || "Noctua";
+  return config.settings?.noctua?.title || "Noctua";
 }
 
 export function getWebsiteDescription(): string {
   const config = loadConfig();
-  return config.settings?.website?.description || "An RSS feed reader.";
+  return config.settings?.noctua?.description || "An RSS feed reader.";
 }
 
 export function getArticleFetchLimit(): number {
   const config = loadConfig();
-  const value = config.settings?.website?.article_fetch_limit;
+  const value = config.settings?.noctua?.article_fetch_limit;
   const parsed = Number(value);
 
   if (Number.isInteger(parsed) && parsed > 0) {
@@ -42,7 +42,7 @@ export function getArticleFetchLimit(): number {
 
 export function getStatisticsWeeks(): number {
   const config = loadConfig();
-  const value = config.settings?.website?.statistics_weeks;
+  const value = config.settings?.noctua?.statistics_weeks;
   const parsed = Number(value);
 
   if (Number.isInteger(parsed) && parsed > 0) {

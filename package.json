@@ -28,17 +28,19 @@
     "db:dump:data": "npx supabase db dump --data-only --schema public --file supabase/remote_data.sql",
     "db:start": "npx supabase start",
     "db:stop": "npx supabase stop",
+    "db:reset": "npx supabase db reset",
     "db:functions:serve": "npx supabase functions serve --env-file .env",
     "db:functions:list": "npx supabase functions list",
     "db:functions:deploy": "npx supabase functions deploy",
     "db:functions:deploy:fetch-rss": "npx supabase functions deploy fetch-rss",
-    "db:functions:deploy:refresh-fuel-prices": "npx supabase functions deploy refresh-fuel-prices"
+    "db:functions:deploy:refresh-fuel-prices": "npx supabase functions deploy refresh-fuel-prices",
+    "db:seed:fuel-prices": "node --env-file=.env scripts/seed-fuel-prices.mjs"
   },
   "license": "AGPL-3.0-only",
   "engines": {
     "node": ">=20.0.0"
   },
   "devDependencies": {
-    "supabase": "^2.76.8"
+    "supabase": "^2.84.2"
   }
 }

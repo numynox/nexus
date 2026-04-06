@@ -2,8 +2,8 @@
   import dayjs from "dayjs";
   import { Plus, RefreshCw } from "lucide-svelte";
   import {
-    fetchFuelPriceHistory,
-    fetchFuelStationsWithPrices,
+    fetchFuelPricePlotHistory,
+    fetchFuelStationsCurrentPrices,
     invokeRefreshFuelPrices,
   } from "../../lib/data";
   import { getDashboardPreviousDays } from "../../lib/storage";
@@ -11,7 +11,7 @@
   import PriceChart from "./PriceChart.svelte";
   import StationList from "./StationList.svelte";
 
-  let { onRefuel } = $props();
+  let { onRefuel, priceBucketMinutes = 10 } = $props();
 
   let stations = $state<any[]>([]);
   let history = $state<any[]>([]);
@@ -21,28 +21,27 @@
 
   async function fetchData() {
     loading = true;
-    const st = await fetchFuelStationsWithPrices();
+    const st = await fetchFuelStationsCurrentPrices($preferredFuelType);
 
-    stations = st
-      .map((s: any) => {
-        const latestPrices = s.fuel_prices
-          .filter((p: any) => p.fuel_type === $preferredFuelType)
-          .sort(
-            (a: any, b: any) =>
-              new Date(b.checked_at).getTime() -
-              new Date(a.checked_at).getTime(),
-          );
-        return { ...s, currentPrice: latestPrices[0]?.price };
-      })
-      .sort(
-        (a: any, b: any) => (a.currentPrice || 999) - (b.currentPrice || 999),
-      );
+    stations = st.map((s: any) => ({
+      ...s,
+      currentPrice:
+        s.current_price === null || s.current_price === undefined
+          ? undefined
+          : Number(s.current_price),
+    }));
 
     const sinceIso = dayjs()
       .startOf("day")
       .subtract(previousDays, "day")
       .toISOString();
-    history = await fetchFuelPriceHistory($preferredFuelType, sinceIso);
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    history = await fetchFuelPricePlotHistory(
+      $preferredFuelType,
+      sinceIso,
+      priceBucketMinutes,
+      timeZone,
+    );
     loading = false;
   }
 

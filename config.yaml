@@ -1,9 +1,11 @@
-# Noctua RSS Feed Configuration
+# Application Configuration
 settings:
   output_base: "output"
-  website:
+  noctua:
     title: "Noctua"
     description: "An RSS feed reader."
     base_url: "/nexus/noctua"
     article_fetch_limit: 300 # Applies per section
     statistics_weeks: 8 # Window for weekly average cards/charts
+  vibilia:
+    price_bucket_minutes: 10 # Bucket fuel price readings by this interval for chart visualization
