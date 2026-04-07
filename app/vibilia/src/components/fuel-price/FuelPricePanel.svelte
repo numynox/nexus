@@ -5,7 +5,7 @@
     fetchFuelPricePlotHistory,
     fetchFuelStationsCurrentPrices,
   } from "../../lib/data";
-  import { getDashboardPreviousDays } from "../../lib/storage";
+  import { getFuelPricePreviousDays } from "../../lib/storage";
   import { preferredFuelType } from "../../lib/stores";
   import PriceChart from "./PriceChart.svelte";
   import StationList from "./StationList.svelte";
@@ -15,7 +15,7 @@
   let stations = $state<any[]>([]);
   let history = $state<any[]>([]);
   let loading = $state(true);
-  let previousDays = $state(getDashboardPreviousDays());
+  let previousDays = $state(getFuelPricePreviousDays());
 
   async function fetchData() {
     loading = true;

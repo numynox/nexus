@@ -1,7 +1,7 @@
 <script lang="ts">
   import { getBaseUrl } from "../../lib/config";
   import AppShell from "../AppShell.svelte";
-  import DashboardPanel from "../dashboard/DashboardPanel.svelte";
+  import FuelPricePanel from "../fuel-price/FuelPricePanel.svelte";
 
   const baseUrl = getBaseUrl();
 
@@ -13,6 +13,6 @@
   }
 </script>
 
-<AppShell activeId="dashboard">
-  <DashboardPanel onRefuel={navigateToCars} {priceBucketMinutes} />
+<AppShell activeId="fuel-price">
+  <FuelPricePanel onRefuel={navigateToCars} {priceBucketMinutes} />
 </AppShell>

@@ -260,7 +260,7 @@
         <Fuel class="w-4 h-4 text-primary" /> Preferred Fuel Type
       </h3>
       <p class="text-sm text-base-content/70">
-        Select the fuel type to show in the dashboard and statistics.
+        Select the fuel type to show in Fuel Price and statistics.
       </p>
       <div class="flex flex-wrap gap-2">
         {#each ["E5", "E10", "Diesel"] as type}

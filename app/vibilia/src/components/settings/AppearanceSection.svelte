@@ -2,22 +2,22 @@
   interface Props {
     currentTheme: string;
     daisyThemes: string[];
-    dashboardPreviousDays: number;
+    previousDays: number;
     onThemeChange: (theme: string) => void;
-    onDashboardPreviousDaysChange: (days: number) => void;
+    onPreviousDaysChange: (days: number) => void;
   }
 
   let {
     currentTheme,
     daisyThemes,
-    dashboardPreviousDays,
+    previousDays,
     onThemeChange,
-    onDashboardPreviousDaysChange,
+    onPreviousDaysChange,
   }: Props = $props();
 
   function handlePreviousDaysChange(event: Event) {
     const select = event.currentTarget as HTMLSelectElement;
-    onDashboardPreviousDaysChange(Number(select.value));
+    onPreviousDaysChange(Number(select.value));
   }
 </script>
 
@@ -74,14 +74,14 @@
       </div>
 
       <div class="space-y-2">
-        <div class="font-semibold text-sm">Dashboard</div>
+        <div class="font-semibold text-sm">Fuel Price</div>
         <label class="flex items-center justify-between gap-4">
           <div class="text-sm text-base-content/70">
             Previous days in price plot
           </div>
           <select
             class="select select-bordered select-sm w-28"
-            value={dashboardPreviousDays}
+            value={previousDays}
             onchange={handlePreviousDaysChange}
           >
             <option value={1}>1</option>

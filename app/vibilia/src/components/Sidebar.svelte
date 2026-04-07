@@ -2,13 +2,13 @@
   import { Car, ChartColumnBig, Settings } from "lucide-svelte";
 
   interface Props {
-    activeId?: "dashboard" | "cars" | "settings";
+    activeId?: "fuel-price" | "cars" | "settings";
     baseUrl?: string;
     siteTitle?: string;
   }
 
   let {
-    activeId = "dashboard",
+    activeId = "fuel-price",
     baseUrl = "/",
     siteTitle = "Vibilia",
   }: Props = $props();
@@ -16,11 +16,12 @@
   let isMobileMenuOpen = $state(false);
 
   function rootHref() {
-    return baseUrl;
+    return fuelPriceHref();
   }
 
-  function dashboardHref() {
-    return baseUrl;
+  function fuelPriceHref() {
+    const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/$/, "");
+    return `${normalizedBase}/fuel-price`;
   }
 
   function carsHref() {
@@ -94,15 +95,15 @@
   <nav class="flex-1 overflow-y-auto px-4 pb-6">
     <div class="space-y-2">
       <a
-        href={dashboardHref()}
+        href={fuelPriceHref()}
         class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all
-        {activeId === 'dashboard'
+        {activeId === 'fuel-price'
           ? 'bg-primary text-primary-content font-semibold shadow-md'
           : 'hover:bg-base-300 text-base-content/80'}"
         onclick={closeMobileMenu}
       >
         <ChartColumnBig class="w-5 h-5" />
-        <span>Dashboard</span>
+        <span>Fuel Price</span>
       </a>
 
       <a

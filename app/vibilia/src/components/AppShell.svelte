@@ -8,11 +8,11 @@
   import Sidebar from "./Sidebar.svelte";
 
   interface Props {
-    activeId?: "dashboard" | "cars" | "settings";
+    activeId?: "fuel-price" | "cars" | "settings";
     children?: Snippet;
   }
 
-  let { activeId = "dashboard", children }: Props = $props();
+  let { activeId = "fuel-price", children }: Props = $props();
 
   const baseUrl = getBaseUrl();
   const siteTitle = getWebsiteTitle();

@@ -2,10 +2,10 @@
   import { onMount } from "svelte";
   import { signOut } from "../../lib/data";
   import {
-    getDashboardPreviousDays,
+    getFuelPricePreviousDays,
     getPreferredFuelType,
     getTheme,
-    setDashboardPreviousDays,
+    setFuelPricePreviousDays,
     setPreferredFuelType,
     setTheme,
   } from "../../lib/storage";
@@ -18,7 +18,7 @@
   let isBusy = $state(false);
   let authError = $state("");
   let currentTheme = $state<string>("auto");
-  let dashboardPreviousDays = $state<number>(3);
+  let fuelPricePreviousDays = $state<number>(3);
 
   const daisyThemes = [
     "light",
@@ -57,7 +57,7 @@
 
   onMount(() => {
     currentTheme = getTheme();
-    dashboardPreviousDays = getDashboardPreviousDays();
+    fuelPricePreviousDays = getFuelPricePreviousDays();
     preferredFuelType.set(getPreferredFuelType());
   });
 
@@ -86,9 +86,9 @@
     setTheme(theme);
   }
 
-  function handleDashboardPreviousDaysChange(days: number) {
-    dashboardPreviousDays = days;
-    setDashboardPreviousDays(days);
+  function handleFuelPricePreviousDaysChange(days: number) {
+    fuelPricePreviousDays = days;
+    setFuelPricePreviousDays(days);
   }
 </script>
 
@@ -111,9 +111,9 @@
   <AppearanceSection
     {currentTheme}
     {daisyThemes}
-    {dashboardPreviousDays}
+    previousDays={fuelPricePreviousDays}
     onThemeChange={handleThemeChange}
-    onDashboardPreviousDaysChange={handleDashboardPreviousDaysChange}
+    onPreviousDaysChange={handleFuelPricePreviousDaysChange}
   />
 
   <AccountSection

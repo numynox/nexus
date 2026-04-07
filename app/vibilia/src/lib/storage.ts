@@ -2,12 +2,12 @@ const isBrowser = (): boolean => typeof window !== "undefined";
 
 const STORAGE_KEYS = {
   THEME: "vibilia_theme",
-  DASHBOARD_PREVIOUS_DAYS: "vibilia_dashboard_previous_days",
+  FUEL_PRICE_PREVIOUS_DAYS: "vibilia_fuel_price_previous_days",
   PREFERRED_FUEL_TYPE: "vibilia_preferred_fuel_type",
 } as const;
 
-const DASHBOARD_PREVIOUS_DAYS_MIN = 1;
-const DASHBOARD_PREVIOUS_DAYS_MAX = 7;
+const FUEL_PRICE_PREVIOUS_DAYS_MIN = 1;
+const FUEL_PRICE_PREVIOUS_DAYS_MAX = 7;
 const VALID_FUEL_TYPES = ["E5", "E10", "Diesel"] as const;
 
 function normalizePreferredFuelType(value: unknown): string {
@@ -21,11 +21,11 @@ function normalizePreferredFuelType(value: unknown): string {
   return "E10";
 }
 
-function clampDashboardPreviousDays(value: number): number {
+function clampFuelPricePreviousDays(value: number): number {
   if (!Number.isFinite(value)) return 3;
   return Math.min(
-    DASHBOARD_PREVIOUS_DAYS_MAX,
-    Math.max(DASHBOARD_PREVIOUS_DAYS_MIN, Math.round(value)),
+    FUEL_PRICE_PREVIOUS_DAYS_MAX,
+    Math.max(FUEL_PRICE_PREVIOUS_DAYS_MIN, Math.round(value)),
   );
 }
 
@@ -59,18 +59,18 @@ export function setTheme(theme: string): void {
   applyTheme(theme, { animated: true });
 }
 
-export function getDashboardPreviousDays(): number {
+export function getFuelPricePreviousDays(): number {
   const storedValue = getStorageItem<number>(
-    STORAGE_KEYS.DASHBOARD_PREVIOUS_DAYS,
+    STORAGE_KEYS.FUEL_PRICE_PREVIOUS_DAYS,
     3,
   );
-  return clampDashboardPreviousDays(storedValue);
+  return clampFuelPricePreviousDays(storedValue);
 }
 
-export function setDashboardPreviousDays(days: number): void {
+export function setFuelPricePreviousDays(days: number): void {
   setStorageItem(
-    STORAGE_KEYS.DASHBOARD_PREVIOUS_DAYS,
-    clampDashboardPreviousDays(days),
+    STORAGE_KEYS.FUEL_PRICE_PREVIOUS_DAYS,
+    clampFuelPricePreviousDays(days),
   );
 }
 
