@@ -1,7 +1,14 @@
 <script lang="ts">
-  import { MapPin } from "lucide-svelte";
+  import { ChevronDown, Clock3, Fuel } from "lucide-svelte";
+  import { slide } from "svelte/transition";
 
+  type OpeningTimeEntry = {
+    text?: string;
+    start?: string;
+    end?: string;
+  };
   let { stations } = $props();
+  let openStationId = $state<string | number | null>(null);
 
   const lowestCurrentPrice = $derived.by(() => {
     const prices = stations
@@ -22,9 +29,54 @@
       superscript: fixed.slice(-1),
     };
   }
+
+  function toggleStation(stationId: string | number) {
+    openStationId = openStationId === stationId ? null : stationId;
+  }
+
+  function normalizeOpeningTimes(openingTimes: unknown): OpeningTimeEntry[] {
+    if (Array.isArray(openingTimes)) {
+      return openingTimes.filter(
+        (entry): entry is OpeningTimeEntry =>
+          typeof entry === "object" && entry !== null,
+      );
+    }
+
+    if (typeof openingTimes === "string") {
+      try {
+        const parsed = JSON.parse(openingTimes);
+        return Array.isArray(parsed)
+          ? parsed.filter(
+              (entry): entry is OpeningTimeEntry =>
+                typeof entry === "object" && entry !== null,
+            )
+          : [];
+      } catch {
+        return [];
+      }
+    }
+
+    return [];
+  }
+
+  function formatTime(time: string | undefined): string {
+    if (!time) return "";
+    return time.slice(0, 5);
+  }
+
+  function formatOpeningLabel(entry: OpeningTimeEntry): string {
+    return (entry.text || "Opening Time").trim();
+  }
+
+  function formatOpeningTimeRange(entry: OpeningTimeEntry): string {
+    const start = formatTime(entry.start);
+    const end = formatTime(entry.end);
+
+    return start && end ? `${start} - ${end}` : start || end || "";
+  }
 </script>
 
-<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
   {#each stations as s (s.id)}
     {@const isLowest =
       lowestCurrentPrice !== null &&
@@ -32,53 +84,123 @@
       s.currentPrice === lowestCurrentPrice}
     {@const displayBrand = (s.brand || s.name || "").trim()}
     {@const displayPlace = (s.place || "").trim()}
+    {@const openingTimes = normalizeOpeningTimes(
+      s.opening_times ?? s.openingTimes,
+    )}
+    {@const isOpen = openStationId === s.id}
+
     <div
-      class="card shadow-sm hover:shadow-md transition-all border {isLowest
+      class="card h-fit shadow-sm hover:shadow-md transition-all border {isLowest
         ? 'bg-secondary/10 border-secondary/25'
         : 'bg-base-200 border-base-content/5'}"
     >
-      <div class="card-body p-4 flex flex-row items-center justify-between">
-        <div class="flex items-start gap-3">
-          <div class="mt-1">
-            <MapPin class="w-4 h-4 text-accent" />
-          </div>
-          <div>
-            <h3 class="font-bold text-base-content leading-tight">
-              {displayBrand}{displayPlace ? ` • ${displayPlace}` : ""}
-            </h3>
-            <div
-              class="flex items-center gap-1 mt-1 text-[10px] text-base-content/40"
-            >
-              {#if s.whole_day}
-                <span class="badge badge-secondary badge-xs text-[9px] h-3"
-                  >24h</span
-                >
-              {/if}
-              <span>
-                {s.street || ""}
-                {s.house_number || ""}
-              </span>
+      <button
+        type="button"
+        class="card-body p-4 w-full text-left cursor-pointer"
+        aria-expanded={isOpen}
+        onclick={() => toggleStation(s.id)}
+      >
+        <div class="flex flex-row items-center justify-between gap-3">
+          <div class="flex items-start gap-3 min-w-0">
+            <div class="shrink-0 self-center">
+              <Fuel class="w-4 h-4 text-accent" />
             </div>
-          </div>
-        </div>
-        <div
-          class="flex items-center justify-end shrink-0 min-w-[6.75rem] text-right self-center"
-        >
-          {#if s.currentPrice}
-            {@const priceParts = formatPriceParts(s.currentPrice)}
-            <div
-              class="text-2xl font-black text-accent whitespace-nowrap leading-none"
-            >
-              {priceParts.base}<sup class="text-xs align-super"
-                >{priceParts.superscript}</sup
+            <div class="min-w-0">
+              <h3 class="font-bold text-base-content leading-tight">
+                {displayBrand}{displayPlace ? ` • ${displayPlace}` : ""}
+              </h3>
+              <div
+                class="flex flex-wrap items-center gap-1 mt-1 text-[10px] text-base-content/40"
               >
-              <span class="text-xs font-normal ml-0.5">€</span>
+                {#if s.whole_day}
+                  <span class="badge badge-secondary badge-xs text-[9px] h-3"
+                    >24h</span
+                  >
+                {/if}
+                <span>
+                  {s.street || ""}
+                  {s.house_number || ""}
+                </span>
+              </div>
             </div>
-          {:else}
-            <div class="badge badge-ghost text-[10px]">No Price</div>
-          {/if}
+          </div>
+
+          <div class="flex items-center gap-3 shrink-0 self-center">
+            <div
+              class="flex items-center justify-end min-w-[6.75rem] text-right"
+            >
+              {#if typeof s.currentPrice === "number"}
+                {@const priceParts = formatPriceParts(s.currentPrice)}
+                <div
+                  class="inline-flex items-center gap-0.5 rounded-md bg-base-100 p-1.5 pb-0.5 text-accent leading-none shadow-inner"
+                >
+                  <span
+                    class="text-2xl font-black font-mono tabular-nums tracking-tight"
+                    >{priceParts.base}</span
+                  ><sup class="relative top-[-4px] text-xs font-mono"
+                    >{priceParts.superscript}</sup
+                  >
+                </div>
+              {:else}
+                <div class="badge badge-ghost text-[10px]">No Price</div>
+              {/if}
+            </div>
+
+            <ChevronDown
+              class="w-4 h-4 text-base-content/40 transition-transform duration-200 {isOpen
+                ? 'rotate-180'
+                : ''}"
+            />
+          </div>
         </div>
-      </div>
+      </button>
+
+      {#if isOpen}
+        <div class="px-4 pb-4 pt-0" transition:slide={{ duration: 180 }}>
+          <div class="border-t border-base-content/10 pt-3">
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <div
+                class="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-base-content/45"
+              >
+                <Clock3 class="w-3 h-3" />
+                Opening Hours
+              </div>
+            </div>
+
+            {#if s.whole_day}
+              <div class="text-sm font-semibold text-secondary">Open 24h</div>
+            {:else if openingTimes.length > 0}
+              <div class="space-y-2 max-h-44 overflow-y-auto pr-1">
+                {#each openingTimes as openingTime, index (`${s.id}-${index}`)}
+                  {@const openingLabel = formatOpeningLabel(openingTime)}
+                  {@const openingTimeRange =
+                    formatOpeningTimeRange(openingTime)}
+                  {#if openingLabel || openingTimeRange}
+                    <div
+                      class="rounded-lg border border-base-content/10 bg-base-100/50 px-3 py-2 flex items-start justify-between gap-3"
+                    >
+                      <div
+                        class="text-xs font-semibold text-base-content/80 leading-snug"
+                      >
+                        {openingLabel}
+                      </div>
+                      <div
+                        class="text-sm text-base-content/70 whitespace-nowrap"
+                      >
+                        {openingTimeRange}
+                      </div>
+                    </div>
+                  {/if}
+                {/each}
+              </div>
+            {:else}
+              <div class="text-sm text-base-content/50">
+                No opening hours available
+              </div>
+            {/if}
+          </div>
+        </div>
+      {/if}
     </div>
   {:else}
     <div

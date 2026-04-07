@@ -52,9 +52,10 @@
 <div class="space-y-8 animate-in fade-in duration-500">
   <div class="flex items-center justify-between">
     <div>
-      <h1 class="text-3xl font-black text-base-content">Dashboard</h1>
+      <h1 class="text-3xl font-black text-base-content">Fuel Price</h1>
       <p class="text-sm text-base-content/60">
-        Minimum {$preferredFuelType} price by time of day
+        Minimum <span class="text-accent/80">{$preferredFuelType}</span> price by
+        time of day
       </p>
     </div>
     <button
