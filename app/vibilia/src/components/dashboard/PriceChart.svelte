@@ -79,29 +79,87 @@
   } = $props();
 
   let nowTick = $state(Date.now());
-  let isDarkTheme = $state(true);
+  let accentColor = $state("rgb(255, 120, 0)");
+  let secondaryColor = $state("rgb(255, 255, 255)");
 
-  onMount(() => {
-    const updateThemeMode = () => {
-      const html = document.documentElement;
-      const themeName = html.getAttribute("data-theme") || "";
-      if (themeName === "light") {
-        isDarkTheme = false;
-        return;
+  // Convert oklch to RGB properly
+  function oklchToRgb(oklchStr: string): string {
+    const match = oklchStr.match(/oklch\(([\d.]+)\s+([\d.]+)\s+([\d.]+)\)/);
+    if (!match) return "rgb(255, 255, 255)";
+
+    const L = parseFloat(match[1]);
+    const C = parseFloat(match[2]);
+    const H = parseFloat(match[3]);
+
+    // oklch to oklab (polar to cartesian)
+    const hRad = (H * Math.PI) / 180;
+    const a = C * Math.cos(hRad);
+    const b = C * Math.sin(hRad);
+
+    // oklab to linear sRGB
+    const l_ = L + 0.3963377774 * a + 0.2158037573 * b;
+    const m_ = L - 0.1055613458 * a - 0.0638541728 * b;
+    const s_ = L - 0.0894841775 * a - 1.291486575 * b;
+
+    const l = l_ * l_ * l_;
+    const m = m_ * m_ * m_;
+    const s = s_ * s_ * s_;
+
+    let r = 4.0767416621 * l - 3.3077363322 * m + 0.2309101289 * s;
+    let g = -1.2684380046 * l + 2.6097574011 * m - 0.3413193761 * s;
+    let blue = -0.004182625034 * l - 0.7418775388 * m + 1.2207787925 * s;
+
+    // Apply sRGB gamma correction
+    const gammaCorrect = (c: number): number => {
+      if (Math.abs(c) <= 0.0031308) {
+        return 12.92 * c;
       }
-
-      if (themeName === "dark" || html.classList.contains("dark")) {
-        isDarkTheme = true;
-        return;
-      }
-
-      isDarkTheme = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      return (1 + 0.055) * Math.pow(Math.abs(c), 1 / 2.4) - 0.055;
     };
 
-    updateThemeMode();
+    r = gammaCorrect(r);
+    g = gammaCorrect(g);
+    blue = gammaCorrect(blue);
+
+    // Clamp and convert to 0-255
+    const toInt = (c: number) => Math.round(Math.max(0, Math.min(1, c)) * 255);
+    return `rgb(${toInt(r)}, ${toInt(g)}, ${toInt(blue)})`;
+  }
+
+  // Extract background color from a temporary element with DaisyUI class
+  function getColorFromClass(className: string): string {
+    const temp = document.createElement("div");
+    temp.className = className;
+    temp.style.position = "absolute";
+    temp.style.visibility = "hidden";
+    document.body.appendChild(temp);
+
+    const colorStr = getComputedStyle(temp).backgroundColor;
+    document.body.removeChild(temp);
+
+    console.log(`Background color from ${className}:`, colorStr);
+
+    // Convert oklch to rgb if needed
+    if (colorStr.includes("oklch")) {
+      return oklchToRgb(colorStr);
+    }
+    return colorStr || "rgb(255, 255, 255)";
+  }
+
+  onMount(() => {
+    const updateThemeColors = () => {
+      accentColor = getColorFromClass("btn btn-primary");
+      secondaryColor = getColorFromClass("btn btn-secondary");
+
+      console.log("Final accent:", accentColor);
+      console.log("Final secondary:", secondaryColor);
+    };
+
+    // Update immediately and on theme changes
+    updateThemeColors();
 
     const observer = new MutationObserver(() => {
-      updateThemeMode();
+      updateThemeColors();
     });
     observer.observe(document.documentElement, {
       attributes: true,
@@ -120,7 +178,8 @@
 
   const processedData = $derived.by(() => {
     nowTick;
-    isDarkTheme;
+    accentColor;
+    secondaryColor;
     if (!history || history.length === 0) return { datasets: [] };
 
     const today = dayjs().startOf("day");
@@ -164,15 +223,21 @@
         const isToday = index === 0;
         const isYesterday = index === 1;
         const label = isToday ? "Today" : dayjs(dayKey).format("ddd, MMM D");
-        const yesterdayBase = isDarkTheme
-          ? "rgba(255, 255, 255"
-          : "rgba(15, 23, 42";
-        const olderAlpha = Math.max(0.25, 0.95 - (index - 1) * 0.2);
-        const lineColor = isToday
-          ? "rgba(255, 120, 0, 1)"
-          : isYesterday
-            ? `${yesterdayBase}, 0.95)`
-            : `${yesterdayBase}, ${olderAlpha})`;
+
+        // Parse RGB values and add alpha channel (opacity)
+        const getRgbaWithAlpha = (rgbStr: string, alpha: number): string => {
+          const match = rgbStr.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+          if (!match) return `rgba(255, 255, 255, ${alpha})`;
+          return `rgba(${match[1]}, ${match[2]}, ${match[3]}, ${alpha})`;
+        };
+
+        let lineColor: string;
+        if (isToday) {
+          lineColor = getRgbaWithAlpha(accentColor, 1);
+        } else {
+          const olderAlpha = Math.max(0.2, 0.95 - (index - 1) * 0.5);
+          lineColor = getRgbaWithAlpha(secondaryColor, olderAlpha);
+        }
 
         return {
           label,
@@ -204,26 +269,10 @@
     maintainAspectRatio: false,
     animation: false as const,
     transitions: {
-      active: {
-        animation: {
-          duration: 0,
-        },
-      },
-      resize: {
-        animation: {
-          duration: 0,
-        },
-      },
-      show: {
-        animation: {
-          duration: 0,
-        },
-      },
-      hide: {
-        animation: {
-          duration: 0,
-        },
-      },
+      active: { animation: { duration: 0 } },
+      resize: { animation: { duration: 0 } },
+      show: { animation: { duration: 0 } },
+      hide: { animation: { duration: 0 } },
     },
     plugins: {
       legend: {
@@ -261,9 +310,7 @@
         type: "linear" as const,
         min: 0,
         max: 24,
-        grid: {
-          color: "rgba(148, 163, 184, 0.1)",
-        },
+        grid: { color: "rgba(148, 163, 184, 0.1)" },
         ticks: {
           stepSize: 2,
           color: "#9ca3af",
@@ -272,9 +319,7 @@
       },
       y: {
         beginAtZero: false,
-        grid: {
-          color: "rgba(156, 163, 175, 0.1)",
-        },
+        grid: { color: "rgba(156, 163, 175, 0.1)" },
         ticks: {
           color: "#9ca3af",
           font: { size: 10 },
