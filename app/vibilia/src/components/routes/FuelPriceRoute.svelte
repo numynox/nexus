@@ -1,5 +1,6 @@
 <script lang="ts">
   import { getBaseUrl } from "../../lib/config";
+  import { getLastSelectedCarId } from "../../lib/storage";
   import AppShell from "../AppShell.svelte";
   import FuelPricePanel from "../fuel-price/FuelPricePanel.svelte";
 
@@ -9,7 +10,14 @@
 
   function navigateToCars() {
     const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/$/, "");
-    window.location.href = `${normalizedBase}/cars`;
+    const selectedCarId = getLastSelectedCarId();
+    const params = new URLSearchParams({ newRefuel: "1" });
+
+    if (selectedCarId) {
+      params.set("car", selectedCarId);
+    }
+
+    window.location.href = `${normalizedBase}/cars?${params.toString()}`;
   }
 </script>
 

@@ -1,17 +1,51 @@
 <script lang="ts">
   import dayjs from "dayjs";
   import { Banknote, Droplets, Gauge, History, Plus } from "lucide-svelte";
-  import { onMount } from "svelte";
   import { fetchRefuelEventsForCar } from "../../lib/data";
   import RefuelForm from "./RefuelForm.svelte";
 
-  let { car } = $props();
+  interface Props {
+    car: any;
+  }
+
+  let { car }: Props = $props();
   let events = $state<any[]>([]);
   let loading = $state(true);
   let showForm = $state(false);
+  let appliedInitialFormOpen = $state(false);
 
-  onMount(() => {
+  function clearNewRefuelQueryParam() {
+    if (typeof window === "undefined") return;
+
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("newRefuel")) return;
+
+    url.searchParams.delete("newRefuel");
+    const nextSearch = url.searchParams.toString();
+    const nextUrl = `${url.pathname}${nextSearch ? `?${nextSearch}` : ""}${url.hash}`;
+    window.history.replaceState({}, "", nextUrl);
+  }
+
+  $effect(() => {
+    if (!car?.id) return;
     fetchEvents();
+  });
+
+  $effect(() => {
+    if (appliedInitialFormOpen || !car?.id || typeof window === "undefined")
+      return;
+
+    const shouldOpenFromUrl =
+      new URLSearchParams(window.location.search).get("newRefuel") === "1";
+
+    if (!shouldOpenFromUrl) {
+      appliedInitialFormOpen = true;
+      return;
+    }
+
+    showForm = true;
+    appliedInitialFormOpen = true;
+    clearNewRefuelQueryParam();
   });
 
   async function fetchEvents() {
@@ -38,13 +72,12 @@
 <div class="space-y-6">
   <div class="flex items-center justify-between">
     <div>
-      <h2 class="text-2xl font-black">{car.name}</h2>
-      <p class="text-sm text-base-content/60">Refuel History & Logs</p>
+      <div class="flex items-baseline gap-3">
+        <h2 class="text-2xl font-black">{car.name}</h2>
+        <span class="badge badge-lg badge-neutral">{car.tank_capacity}L</span>
+      </div>
     </div>
-    <button
-      class="btn btn-primary rounded-full gap-2"
-      onclick={() => (showForm = true)}
-    >
+    <button class="btn btn-primary gap-2" onclick={() => (showForm = true)}>
       <Plus class="w-4 h-4" /> Log Refuel
     </button>
   </div>
@@ -54,6 +87,7 @@
       <div class="card-body">
         <RefuelForm
           {car}
+          lastMileage={events[0]?.mileage ?? null}
           onSuccess={() => {
             showForm = false;
             fetchEvents();

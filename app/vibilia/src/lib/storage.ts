@@ -4,6 +4,7 @@ const STORAGE_KEYS = {
   THEME: "vibilia_theme",
   FUEL_PRICE_PREVIOUS_DAYS: "vibilia_fuel_price_previous_days",
   PREFERRED_FUEL_TYPE: "vibilia_preferred_fuel_type",
+  LAST_SELECTED_CAR_ID: "vibilia_last_selected_car_id",
 } as const;
 
 const FUEL_PRICE_PREVIOUS_DAYS_MIN = 1;
@@ -88,6 +89,32 @@ export function setPreferredFuelType(fuelType: string): void {
     STORAGE_KEYS.PREFERRED_FUEL_TYPE,
     normalizePreferredFuelType(fuelType),
   );
+}
+
+export function getLastSelectedCarId(): string | null {
+  const storedValue = getStorageItem<string | null>(
+    STORAGE_KEYS.LAST_SELECTED_CAR_ID,
+    null,
+  );
+
+  return typeof storedValue === "string" && storedValue.length > 0
+    ? storedValue
+    : null;
+}
+
+export function setLastSelectedCarId(carId: string): void {
+  if (typeof carId !== "string" || carId.length === 0) return;
+  setStorageItem(STORAGE_KEYS.LAST_SELECTED_CAR_ID, carId);
+}
+
+export function clearLastSelectedCarId(): void {
+  if (!isBrowser()) return;
+
+  try {
+    localStorage.removeItem(STORAGE_KEYS.LAST_SELECTED_CAR_ID);
+  } catch (error) {
+    console.warn("Failed to remove from localStorage:", error);
+  }
 }
 
 function applyTheme(theme: string, options: { animated?: boolean } = {}): void {
