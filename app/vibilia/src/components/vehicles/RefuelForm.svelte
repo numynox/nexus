@@ -8,17 +8,27 @@
     Rows3,
   } from "lucide-svelte";
   import { onMount } from "svelte";
-  import { createRefuelEvent, fetchFuelStations } from "../../lib/data";
+  import {
+    createRefuelEvent,
+    fetchFuelStations,
+    updateRefuelEvent,
+  } from "../../lib/data";
   import { session } from "../../lib/stores";
 
   let {
     car,
-    lastMileage = null,
+    previousMileage = null,
+    nextMileage = null,
+    existingEvent = null,
+    submitLabel = null,
     onSuccess,
     onCancel,
   } = $props<{
     car: any;
-    lastMileage?: number | null;
+    previousMileage?: number | null;
+    nextMileage?: number | null;
+    existingEvent?: any | null;
+    submitLabel?: string | null;
     onSuccess: () => void;
     onCancel: () => void;
   }>();
@@ -52,8 +62,36 @@
       .trim();
   }
 
+  function applyInitialFormValues() {
+    if (!existingEvent) {
+      fueledAtLocal = formatDateTimeLocal(new Date());
+      selectedFuelStationId = "__unknown__";
+      return;
+    }
+
+    mileage = existingEvent.mileage ?? 0;
+    liters = Number(existingEvent.liters ?? 0);
+    totalPrice = Number(existingEvent.total_price ?? 0);
+
+    const levelPercent = Math.round(
+      ((Number(existingEvent.fuel_level_after) || 0) / car.tank_capacity) * 100,
+    );
+
+    fuelLevelPercent = Math.min(100, Math.max(0, levelPercent));
+    isFull = fuelLevelPercent >= 100;
+    fueledAtLocal = formatDateTimeLocal(
+      new Date(
+        existingEvent.fueled_at || existingEvent.timestamp || new Date(),
+      ),
+    );
+    selectedFuelStationId =
+      existingEvent.fuel_station_id ||
+      existingEvent.fuel_station?.id ||
+      "__unknown__";
+  }
+
   onMount(async () => {
-    fueledAtLocal = formatDateTimeLocal(new Date());
+    applyInitialFormValues();
     try {
       stations = await fetchFuelStations();
     } catch (error) {
@@ -70,9 +108,11 @@
         ? "Enter a mileage greater than 0 km."
         : mileage >= 1_000_000
           ? "Mileage must be below 1,000,000 km."
-          : lastMileage !== null && mileage <= lastMileage
-            ? `Must be higher than the previous entry (${lastMileage.toLocaleString()} km).`
-            : null,
+          : previousMileage !== null && mileage <= previousMileage
+            ? `Must be higher than the previous entry (${previousMileage.toLocaleString()} km).`
+            : nextMileage !== null && mileage >= nextMileage
+              ? `Must be lower than the next entry (${nextMileage.toLocaleString()} km).`
+              : null,
   );
 
   const litersError = $derived(
@@ -112,7 +152,8 @@
   const formIsValid = $derived(
     mileage > 0 &&
       mileage < 1_000_000 &&
-      (lastMileage === null || mileage > lastMileage) &&
+      (previousMileage === null || mileage > previousMileage) &&
+      (nextMileage === null || mileage < nextMileage) &&
       liters >= 5 &&
       liters <= 200 &&
       liters <= car.tank_capacity &&
@@ -128,12 +169,6 @@
 
     if (!formIsValid) return;
 
-    const userId = $session?.user?.id;
-    if (!userId) {
-      alert("You must be signed in to add a refuel entry.");
-      return;
-    }
-
     loading = true;
 
     // Logic: Convert percentage to liters (current level in tank after refuel)
@@ -143,22 +178,35 @@
       : (fuelLevelPercent / 100) * car.tank_capacity;
     const pricePerLiter = totalPrice / liters;
     const fueledAtIso = new Date(fueledAtLocal).toISOString();
+    const payload = {
+      mileage,
+      liters,
+      total_price: totalPrice,
+      fuel_level_after: levelInLiters,
+      price_per_liter_calculated: pricePerLiter,
+      fueled_at: fueledAtIso,
+      fuel_station_id:
+        selectedFuelStationId === "__unknown__" ? null : selectedFuelStationId,
+    };
 
     try {
-      await createRefuelEvent({
-        car_id: car.id,
-        user_id: userId,
-        mileage,
-        liters,
-        total_price: totalPrice,
-        fuel_level_after: levelInLiters,
-        price_per_liter_calculated: pricePerLiter,
-        fueled_at: fueledAtIso,
-        fuel_station_id:
-          selectedFuelStationId === "__unknown__"
-            ? null
-            : selectedFuelStationId,
-      });
+      if (existingEvent?.id) {
+        await updateRefuelEvent(existingEvent.id, payload);
+      } else {
+        const userId = $session?.user?.id;
+        if (!userId) {
+          alert("You must be signed in to add a refuel entry.");
+          loading = false;
+          return;
+        }
+
+        await createRefuelEvent({
+          car_id: car.id,
+          user_id: userId,
+          ...payload,
+        });
+      }
+
       onSuccess();
     } catch (error) {
       alert(error instanceof Error ? error.message : String(error));
@@ -168,8 +216,8 @@
   }
 
   const kmSinceLastRefuel = $derived(
-    lastMileage !== null && mileage > lastMileage
-      ? mileage - lastMileage
+    previousMileage !== null && mileage > previousMileage
+      ? mileage - previousMileage
       : null,
   );
 
@@ -185,7 +233,11 @@
       : null,
   );
 
-  const numTiles = $derived(lastMileage !== null ? 4 : 3);
+  const numTiles = $derived(previousMileage !== null ? 4 : 3);
+
+  const primaryActionLabel = $derived(
+    submitLabel || (existingEvent ? "Update Refuel" : "Save Refuel"),
+  );
 
   $effect(() => {
     if (isFull) fuelLevelPercent = 100;
@@ -222,9 +274,14 @@
           : 'focus:input-primary'}"
         required
       />
-      {#if lastMileage !== null}
+      {#if previousMileage !== null}
         <p class="text-xs text-base-content/50 mt-1">
-          Previous: {lastMileage.toLocaleString()} km
+          Previous: {previousMileage.toLocaleString()} km
+        </p>
+      {/if}
+      {#if nextMileage !== null}
+        <p class="text-xs text-base-content/50 mt-1">
+          Next: {nextMileage.toLocaleString()} km
         </p>
       {/if}
       {#if mileageError}
@@ -373,7 +430,7 @@
       ? 'sm:grid-cols-4'
       : 'sm:grid-cols-3'}"
   >
-    {#if lastMileage !== null}
+    {#if previousMileage !== null}
       <div class="text-center py-2">
         <div
           class="text-xs text-base-content/60 uppercase tracking-wider font-semibold"
@@ -417,7 +474,7 @@
         <div class="text-base font-bold text-base-content/20">&mdash;</div>
       {/if}
     </div>
-    {#if lastMileage !== null}
+    {#if previousMileage !== null}
       <div class="text-center py-2">
         <div
           class="text-xs text-base-content/60 uppercase tracking-wider font-semibold"
@@ -454,7 +511,7 @@
       {:else}
         <Droplets class="w-4 h-4" />
       {/if}
-      Save
+      {primaryActionLabel}
     </button>
   </div>
 </form>

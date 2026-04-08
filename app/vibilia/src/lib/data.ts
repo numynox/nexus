@@ -1,9 +1,7 @@
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import { getSupabaseClient } from "./supabase";
 
-interface RefuelEventInsert {
-  car_id: string;
-  user_id: string;
+interface RefuelEventMutation {
   mileage: number;
   liters: number;
   total_price: number;
@@ -12,6 +10,13 @@ interface RefuelEventInsert {
   fueled_at: string;
   fuel_station_id: string | null;
 }
+
+interface RefuelEventInsert extends RefuelEventMutation {
+  car_id: string;
+  user_id: string;
+}
+
+interface RefuelEventUpdate extends RefuelEventMutation {}
 
 export async function getSession(): Promise<Session | null> {
   const supabase = getSupabaseClient();
@@ -199,6 +204,19 @@ export async function fetchRefuelEventsForCar(carId: string): Promise<any[]> {
 export async function createRefuelEvent(payload: RefuelEventInsert) {
   const supabase = getSupabaseClient();
   const { error } = await supabase.from("refuel_events").insert([payload]);
+
+  if (error) throw error;
+}
+
+export async function updateRefuelEvent(
+  eventId: number,
+  payload: RefuelEventUpdate,
+) {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from("refuel_events")
+    .update(payload)
+    .eq("id", eventId);
 
   if (error) throw error;
 }
