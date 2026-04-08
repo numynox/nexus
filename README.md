@@ -26,21 +26,46 @@ nexus/
 
 ## Local setup
 
+### 0) Pre-requisites
+
+Install [nvm](https://github.com/nvm-sh/nvm), npm and node.
+
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.4/install.sh | bash
+
+nvm install node
+```
+
+You need to have a valid login for Supabase and Tankerkoenig.
+
 ### 1) Install dependencies
 
 ```bash
 npm install
 ```
 
+OR
+
+```bash
+npm run install:all
+```
+
+To spin up docker containers for a local Supabase, run
+
+```bash
+npm run db:start
+```
+
 ### 2) Configure environment
 
-Copy `.env.example` to `.env` and set values.
+Copy `.env.example` to `.env` and set values based on terminal output of the step above.
 
 Required for both apps:
 
 ```bash
 PUBLIC_SUPABASE_URL=https://<your-project-ref>.supabase.co
 PUBLIC_SUPABASE_ANON_KEY=<your-anon-key>
+SUPABASE_SERVICE_KEY=<your-secret>
 ```
 
 Required for Edge Functions:
@@ -125,18 +150,25 @@ npx supabase secrets set FUEL_PRICE_API_KEY=your-tankerkoenig-api-key --project-
 
 ## Development
 
+To login into supabase from your local dev environment, run:
+
+```bash
+npm run db:login
+npm run db:link
+```
+
 Run each app separately:
 
 ```bash
 npm run dev:noctua   # http://localhost:4321/nexus/noctua
-npm run dev:vibilia  # http://localhost:4321/nexus/vibilia
+npm run dev:vibilia  # http://localhost:4322/nexus/vibilia
 ```
 
 Run local Supabase stack and functions:
 
 ```bash
-npm run supabase:start
-npm run supabase:functions:serve
+npm run db:start
+npm run db:functions:serve
 ```
 
 ## Build & deploy (GitHub Pages)
@@ -159,17 +191,6 @@ Production URLs:
 - `https://numynox.github.io/nexus/noctua`
 - `https://numynox.github.io/nexus/vibilia`
 
-## Supabase dashboard settings
-
-In `Authentication -> URL Configuration`, add redirect URLs for both local dev and GitHub Pages, e.g.:
-
-- `http://localhost:4321/nexus/noctua`
-- `http://localhost:4321/nexus/vibilia`
-- `https://numynox.github.io/nexus/noctua`
-- `https://numynox.github.io/nexus/vibilia`
-
-Also ensure Email/Password auth is enabled.
-
 ## GitHub repository variables
 
 Set repository variables used by the Pages workflow:
@@ -184,5 +205,7 @@ Set repository variables used by the Pages workflow:
 - `npm run build:vibilia`
 - `npm run dev:noctua`
 - `npm run dev:vibilia`
-- `npm run supabase:db:push`
-- `npm run supabase:functions:serve`
+- `npm run db:db:push`
+- `npm run db:functions:serve`
+
+See also `package.json`.
