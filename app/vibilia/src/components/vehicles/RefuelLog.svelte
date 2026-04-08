@@ -1,14 +1,23 @@
 <script lang="ts">
   import dayjs from "dayjs";
-  import { Banknote, Droplets, Gauge, History, Plus } from "lucide-svelte";
+  import {
+    Banknote,
+    ChevronDown,
+    Droplets,
+    Gauge,
+    History,
+    Plus,
+  } from "lucide-svelte";
   import { fetchRefuelEventsForCar } from "../../lib/data";
   import RefuelForm from "./RefuelForm.svelte";
 
   interface Props {
     car: any;
+    cars?: any[];
+    onSelectCar?: (car: any) => void;
   }
 
-  let { car }: Props = $props();
+  let { car, cars = [], onSelectCar }: Props = $props();
   let events = $state<any[]>([]);
   let loading = $state(true);
   let showForm = $state(false);
@@ -70,13 +79,40 @@
 </script>
 
 <div class="space-y-6">
-  <div class="flex items-center justify-between">
-    <div>
-      <div class="flex items-baseline gap-3">
-        <h2 class="text-2xl font-black">{car.name}</h2>
-        <span class="badge badge-lg badge-neutral">{car.tank_capacity}L</span>
+  <div class="flex items-center justify-between gap-3">
+    {#if cars.length > 1}
+      <div class="dropdown">
+        <button
+          type="button"
+          tabindex="0"
+          class="btn btn-ghost btn-sm px-0 min-h-0 h-auto gap-2 normal-case text-3xl font-black text-base-content tracking-tight hover:outline hover:outline-2 hover:outline-base-content/20"
+        >
+          {car.name}
+          <ChevronDown class="w-5 h-5" />
+        </button>
+        <ul
+          class="menu dropdown-content z-[1] mt-2 w-64 rounded-box bg-base-200 p-2 shadow-xl border border-base-content/10"
+        >
+          {#each cars as selectableCar (selectableCar.id)}
+            {#if selectableCar.id !== car.id}
+              <li>
+                <button
+                  type="button"
+                  onclick={() => onSelectCar?.(selectableCar)}
+                >
+                  <span class="font-semibold">{selectableCar.name}</span>
+                </button>
+              </li>
+            {/if}
+          {/each}
+        </ul>
       </div>
-    </div>
+    {:else}
+      <h2 class="text-3xl font-black text-base-content tracking-tight">
+        {car.name}
+      </h2>
+    {/if}
+
     <button class="btn btn-primary gap-2" onclick={() => (showForm = true)}>
       <Plus class="w-4 h-4" /> Log Refuel
     </button>
@@ -176,9 +212,15 @@
           </div>
         </div>
       {:else}
-        <p class="text-center py-8 text-base-content/40 italic">
-          No refuel events logged yet.
-        </p>
+        <div
+          class="text-center py-16 bg-base-200/50 rounded-3xl border-2 border-dashed border-base-content/10"
+        >
+          <History class="w-16 h-16 mx-auto text-base-content/10 mb-4" />
+          <p class="text-base-content/40 font-medium">No refuel logs yet.</p>
+          <p class="text-xs text-base-content/30 mt-1">
+            Tap "Log Refuel" to add your first entry.
+          </p>
+        </div>
       {/each}
     </div>
   {/if}
