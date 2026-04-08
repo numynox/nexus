@@ -6,6 +6,7 @@
     Droplets,
     Gauge,
     History,
+    MapPin,
     Plus,
   } from "lucide-svelte";
   import { fetchRefuelEventsForCar } from "../../lib/data";
@@ -75,6 +76,17 @@
     });
 
     loading = false;
+  }
+
+  function formatFuelStation(station: any): string {
+    if (!station) return "Other fuel station";
+    const brand = station.brand || "";
+    const place = station.place || "";
+    const street = station.street || "";
+    const houseNumber = station.house_number || "";
+    return `${brand} ${place} (${street} ${houseNumber})`
+      .replace(/\s+/g, " ")
+      .trim();
   }
 </script>
 
@@ -152,7 +164,9 @@
               </div>
               <div>
                 <div class="font-bold">
-                  {dayjs(e.timestamp).format("DD.MM.YYYY")}
+                  {dayjs(e.fueled_at || e.timestamp || e.created_at).format(
+                    "DD.MM.YYYY HH:mm",
+                  )}
                 </div>
                 <div
                   class="text-[10px] text-base-content/50 uppercase tracking-wider"
@@ -207,6 +221,15 @@
                     0,
                   )}%</span
                 >
+              </div>
+            </div>
+            <div class="pt-1 pb-4">
+              <div class="text-[10px] text-base-content/50 uppercase">
+                Station
+              </div>
+              <div class="font-semibold flex items-center gap-2">
+                <MapPin class="w-3 h-3 text-info" />
+                {formatFuelStation(e.fuel_station)}
               </div>
             </div>
           </div>

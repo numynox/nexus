@@ -1,6 +1,14 @@
 <script lang="ts">
-  import { Banknote, Droplets, Gauge, Rows3 } from "lucide-svelte";
-  import { createRefuelEvent } from "../../lib/data";
+  import {
+    Banknote,
+    CalendarClock,
+    Droplets,
+    Gauge,
+    MapPin,
+    Rows3,
+  } from "lucide-svelte";
+  import { onMount } from "svelte";
+  import { createRefuelEvent, fetchFuelStations } from "../../lib/data";
   import { session } from "../../lib/stores";
 
   let {
@@ -20,8 +28,40 @@
   let totalPrice = $state(0);
   let fuelLevelPercent = $state(100);
   let isFull = $state(true);
+  let fueledAtLocal = $state("");
+  let stations = $state<any[]>([]);
+  let stationsLoading = $state(true);
+  let selectedFuelStationId = $state("__unknown__");
   let loading = $state(false);
   let submitted = $state(false);
+
+  function formatDateTimeLocal(date: Date): string {
+    const pad = (value: number) => String(value).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
+      date.getHours(),
+    )}:${pad(date.getMinutes())}`;
+  }
+
+  function stationLabel(station: any): string {
+    const brand = station.brand || "";
+    const place = station.place || "";
+    const street = station.street || "";
+    const houseNumber = station.house_number || "";
+    return `${brand} ${place} (${street} ${houseNumber})`
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  onMount(async () => {
+    fueledAtLocal = formatDateTimeLocal(new Date());
+    try {
+      stations = await fetchFuelStations();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : String(error));
+    } finally {
+      stationsLoading = false;
+    }
+  });
 
   const mileageError = $derived(
     !submitted && mileage === 0
@@ -78,6 +118,7 @@
       liters <= car.tank_capacity &&
       totalPrice >= 5 &&
       totalPrice <= 500 &&
+      fueledAtLocal.length > 0 &&
       (isFull || fuelLevelPercent >= minFuelLevelPercent),
   );
 
@@ -101,6 +142,7 @@
       ? car.tank_capacity
       : (fuelLevelPercent / 100) * car.tank_capacity;
     const pricePerLiter = totalPrice / liters;
+    const fueledAtIso = new Date(fueledAtLocal).toISOString();
 
     try {
       await createRefuelEvent({
@@ -111,6 +153,11 @@
         total_price: totalPrice,
         fuel_level_after: levelInLiters,
         price_per_liter_calculated: pricePerLiter,
+        fueled_at: fueledAtIso,
+        fuel_station_id:
+          selectedFuelStationId === "__unknown__"
+            ? null
+            : selectedFuelStationId,
       });
       onSuccess();
     } catch (error) {
@@ -275,6 +322,48 @@
       {#if fuelLevelError}
         <p class="text-xs text-error mt-1">{fuelLevelError}</p>
       {/if}
+    </div>
+
+    <!-- Fuel Station -->
+    <div class="form-control w-full">
+      <label class="label py-2 px-0" for="fuelStation">
+        <span
+          class="label-text font-semibold flex items-center gap-2 whitespace-nowrap"
+        >
+          <MapPin class="w-4 h-4 text-info flex-shrink-0" />
+          Fuel station
+        </span>
+      </label>
+      <select
+        id="fuelStation"
+        bind:value={selectedFuelStationId}
+        class="select select-bordered select-sm w-full focus:select-primary"
+        disabled={stationsLoading}
+      >
+        <option value="__unknown__">Other fuel station</option>
+        {#each stations as station (station.id)}
+          <option value={station.id}>{stationLabel(station)}</option>
+        {/each}
+      </select>
+    </div>
+
+    <!-- Date -->
+    <div class="form-control w-full">
+      <label class="label py-2 px-0" for="fueledAt">
+        <span
+          class="label-text font-semibold flex items-center gap-2 whitespace-nowrap"
+        >
+          <CalendarClock class="w-4 h-4 text-primary flex-shrink-0" />
+          Date
+        </span>
+      </label>
+      <input
+        type="datetime-local"
+        id="fueledAt"
+        bind:value={fueledAtLocal}
+        class="input input-bordered input-sm w-full focus:input-primary"
+        required
+      />
     </div>
   </div>
 

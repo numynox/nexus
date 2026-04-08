@@ -9,6 +9,8 @@ interface RefuelEventInsert {
   total_price: number;
   fuel_level_after: number;
   price_per_liter_calculated: number;
+  fueled_at: string;
+  fuel_station_id: string | null;
 }
 
 export async function getSession(): Promise<Session | null> {
@@ -56,6 +58,20 @@ export async function fetchFuelStationsCurrentPrices(
       p_fuel_type: fuelType,
     },
   );
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function fetchFuelStations(): Promise<any[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("fuel_stations")
+    .select("id, brand, place, street, house_number")
+    .order("brand", { ascending: true })
+    .order("place", { ascending: true })
+    .order("street", { ascending: true })
+    .order("house_number", { ascending: true });
 
   if (error) throw error;
   return data || [];
@@ -170,9 +186,11 @@ export async function fetchRefuelEventsForCar(carId: string): Promise<any[]> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from("refuel_events")
-    .select("*")
+    .select(
+      "*, fuel_station:fuel_stations(id, brand, place, street, house_number)",
+    )
     .eq("car_id", carId)
-    .order("timestamp", { ascending: false });
+    .order("fueled_at", { ascending: false });
 
   if (error) throw error;
   return data || [];
