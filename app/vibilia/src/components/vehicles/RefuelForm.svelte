@@ -62,18 +62,20 @@
       .replace(/\s+/g, " ")
       .trim();
 
-    if (distanceInMeters !== undefined) {
-      const distanceStr =
-        distanceInMeters < 1000
-          ? `${Math.round(distanceInMeters)}m`
-          : `${(distanceInMeters / 1000).toFixed(1)}km`;
-      return `[${distanceStr}] ${baseLabel}`;
+    if (distanceInMeters !== undefined && !isNaN(distanceInMeters)) {
+      const distanceKm = distanceInMeters / 1000;
+      return `[${distanceKm.toFixed(1)}km] ${baseLabel}`;
     }
 
     return baseLabel;
   }
 
   function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    // Validate inputs
+    if (!isFinite(lat1) || !isFinite(lon1) || !isFinite(lat2) || !isFinite(lon2)) {
+      return NaN;
+    }
+
     const R = 6371000; // Earth's radius in meters
     const dLat = ((lat2 - lat1) * Math.PI) / 180;
     const dLon = ((lon2 - lon1) * Math.PI) / 180;
