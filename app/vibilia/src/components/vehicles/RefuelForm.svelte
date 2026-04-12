@@ -62,6 +62,54 @@
       .trim();
   }
 
+  function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const R = 6371000; // Earth's radius in meters
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  async function autoSelectNearestStation(stationsList: any[]) {
+    // Only auto-select if no existing event (new refuel entry)
+    if (existingEvent) return;
+
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          timeout: 5000,
+          enableHighAccuracy: true,
+        });
+      });
+
+      const userLat = position.coords.latitude;
+      const userLng = position.coords.longitude;
+
+      // Calculate distances and filter stations within 500m
+      const stationsWithDistance = stationsList
+        .map((station) => ({
+          ...station,
+          distance: calculateDistance(userLat, userLng, station.lat, station.lng),
+        }))
+        .filter((station) => station.distance <= 500)
+        .sort((a, b) => a.distance - b.distance);
+
+      // Auto-select the closest station if any are within 500m
+      if (stationsWithDistance.length > 0) {
+        selectedFuelStationId = stationsWithDistance[0].id;
+      }
+    } catch (error) {
+      // Silently fail - geolocation may not be available or user denied permission
+      console.debug("Geolocation unavailable or denied:", error);
+    }
+  }
+
   function applyInitialFormValues() {
     if (!existingEvent) {
       fueledAtLocal = formatDateTimeLocal(new Date());
@@ -94,6 +142,7 @@
     applyInitialFormValues();
     try {
       stations = await fetchFuelStations();
+      await autoSelectNearestStation(stations);
     } catch (error) {
       alert(error instanceof Error ? error.message : String(error));
     } finally {
@@ -269,6 +318,7 @@
         id="mileage"
         placeholder="45230"
         bind:value={mileage}
+        onfocus={(e) => e.target.select()}
         class="input input-bordered input-sm w-full {mileageError
           ? 'input-error'
           : 'focus:input-primary'}"
@@ -305,6 +355,7 @@
         placeholder="45.50"
         step="0.01"
         bind:value={liters}
+        onfocus={(e) => e.target.select()}
         class="input input-bordered input-sm w-full {litersError
           ? 'input-error'
           : 'focus:input-primary'}"
@@ -331,6 +382,7 @@
         placeholder="68.50"
         step="0.01"
         bind:value={totalPrice}
+        onfocus={(e) => e.target.select()}
         class="input input-bordered input-sm w-full {priceError
           ? 'input-error'
           : 'focus:input-primary'}"
