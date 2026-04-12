@@ -71,7 +71,7 @@
       fetchCarExpensesForCar(car.id),
     ]);
 
-    // Calculate consumption for each refuel entry
+    // Calculate interval consumption using fuel level deltas so partial refuels are handled correctly.
     refuelEvents = refuels.map((e: any, i: number) => {
       let consumption = null;
       if (e.missed_previous_refuel) {
@@ -80,11 +80,31 @@
 
       const next = refuels[i + 1]; // next in terms of historical order (earlier event)
       if (next) {
-        const km = e.mileage - next.mileage;
-        if (km > 0) {
-          consumption = (e.liters / km) * 100;
+        const currentMileage = Number(e.mileage);
+        const previousMileage = Number(next.mileage);
+        const km = currentMileage - previousMileage;
+
+        if (Number.isFinite(km) && km > 0) {
+          const litersFilled = Number(e.liters);
+          const currentFuelLevelAfter = Number(e.fuel_level_after);
+          const previousFuelLevelAfter = Number(next.fuel_level_after);
+
+          // fuelUsed = litersFilled + previousFuelAfter - currentFuelAfter
+          let fuelUsed = litersFilled;
+          if (
+            Number.isFinite(previousFuelLevelAfter) &&
+            Number.isFinite(currentFuelLevelAfter)
+          ) {
+            fuelUsed =
+              litersFilled + previousFuelLevelAfter - currentFuelLevelAfter;
+          }
+
+          if (Number.isFinite(fuelUsed) && fuelUsed > 0) {
+            consumption = (fuelUsed / km) * 100;
+          }
         }
       }
+
       return { ...e, consumption };
     });
 
