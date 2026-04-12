@@ -20,6 +20,26 @@ interface RefuelEventInsert extends RefuelEventMutation {
 
 interface RefuelEventUpdate extends RefuelEventMutation {}
 
+interface CarExpenseInsert {
+  car_id: string;
+  user_id: string;
+  expensed_at: string;
+  title: string;
+  amount: number;
+  mileage: number | null;
+  category: string;
+  notes: string | null;
+}
+
+interface CarExpenseUpdate {
+  expensed_at: string;
+  title: string;
+  amount: number;
+  mileage: number | null;
+  category: string;
+  notes: string | null;
+}
+
 export async function getSession(): Promise<Session | null> {
   const supabase = getSupabaseClient();
   const {
@@ -237,6 +257,38 @@ export async function fetchRefuelEventsForCar(carId: string): Promise<any[]> {
 
   if (error) throw error;
   return data || [];
+}
+
+export async function fetchCarExpensesForCar(carId: string): Promise<any[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("car_expenses")
+    .select("*")
+    .eq("car_id", carId)
+    .order("expensed_at", { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function createCarExpense(payload: CarExpenseInsert) {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.from("car_expenses").insert([payload]);
+
+  if (error) throw error;
+}
+
+export async function updateCarExpense(
+  expenseId: number,
+  payload: CarExpenseUpdate,
+) {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from("car_expenses")
+    .update(payload)
+    .eq("id", expenseId);
+
+  if (error) throw error;
 }
 
 export async function createRefuelEvent(payload: RefuelEventInsert) {
