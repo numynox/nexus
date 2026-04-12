@@ -109,7 +109,7 @@
         : mileage >= 1_000_000
           ? "Mileage must be below 1,000,000 km."
           : previousMileage !== null && mileage <= previousMileage
-            ? `Must be higher than the previous entry (${previousMileage.toLocaleString()} km).`
+            ? `Must be higher than the previous entry.`
             : nextMileage !== null && mileage >= nextMileage
               ? `Must be lower than the next entry (${nextMileage.toLocaleString()} km).`
               : null,
@@ -252,13 +252,13 @@
 </script>
 
 <form onsubmit={handleSubmit} class="space-y-5">
-  <!-- Input Grid (2 columns on desktop, 1 on mobile) -->
-  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-    <!-- Mileage Input -->
+  <!-- Input Grid (2 columns on mobile and desktop) -->
+  <div class="grid grid-cols-2 gap-4">
+    <!-- Mileage Input (Row 1, Col 1) -->
     <div class="form-control w-full">
       <label class="label py-2 px-0" for="mileage">
         <span
-          class="label-text font-semibold flex items-center gap-2 whitespace-nowrap"
+          class="label-text font-semibold text-sm flex items-center gap-2 whitespace-nowrap"
         >
           <Gauge class="w-4 h-4 text-warning flex-shrink-0" />
           Total mileage (km)
@@ -289,11 +289,11 @@
       {/if}
     </div>
 
-    <!-- Liters Input -->
+    <!-- Amount Refueled Input (Row 1, Col 2) -->
     <div class="form-control w-full">
       <label class="label py-2 px-0" for="liters">
         <span
-          class="label-text font-semibold flex items-center gap-2 whitespace-nowrap"
+          class="label-text font-semibold text-sm flex items-center gap-2 whitespace-nowrap"
         >
           <Droplets class="w-4 h-4 text-info flex-shrink-0" />
           Amount refueled (L)
@@ -315,11 +315,11 @@
       {/if}
     </div>
 
-    <!-- Price Input -->
+    <!-- Price Input (Row 2, Col 1) -->
     <div class="form-control w-full">
       <label class="label py-2 px-0" for="totalPrice">
         <span
-          class="label-text font-semibold flex items-center gap-2 whitespace-nowrap"
+          class="label-text font-semibold text-sm flex items-center gap-2 whitespace-nowrap"
         >
           <Banknote class="w-4 h-4 text-success flex-shrink-0" />
           Price (€)
@@ -341,51 +341,68 @@
       {/if}
     </div>
 
-    <!-- Fuel Level Input -->
+    <!-- Date (Row 2, Col 2) -->
+    <div class="form-control w-full">
+      <label class="label py-2 px-0" for="fueledAt">
+        <span
+          class="label-text font-semibold text-sm flex items-center gap-2 whitespace-nowrap"
+        >
+          <CalendarClock class="w-4 h-4 text-primary flex-shrink-0" />
+          Date
+        </span>
+      </label>
+      <input
+        type="datetime-local"
+        id="fueledAt"
+        bind:value={fueledAtLocal}
+        class="input input-bordered input-sm w-full focus:input-primary"
+        required
+      />
+    </div>
+
+    <!-- Fuel Level Input (Row 3, Col 1) -->
     <div class="form-control w-full">
       <label class="label py-2 px-0" for="fuelLevel">
         <span
-          class="label-text font-semibold flex items-center gap-2 whitespace-nowrap"
+          class="label-text font-semibold text-sm flex items-center gap-2 whitespace-nowrap"
         >
           <Rows3 class="w-4 h-4 text-success flex-shrink-0" />
           Fuel level (after)
         </span>
       </label>
-      <div class="flex items-center gap-3 w-full">
-        <input
-          type="range"
-          id="fuelLevel"
-          min="0"
-          max="100"
-          bind:value={fuelLevelPercent}
-          class="range range-primary range-sm flex-1"
-          disabled={isFull}
-        />
-        <span
-          class="text-sm font-bold text-primary w-10 text-right flex-shrink-0"
-        >
+      <input
+        type="range"
+        id="fuelLevel"
+        min="0"
+        max="100"
+        bind:value={fuelLevelPercent}
+        class="range range-primary range-sm w-full"
+        disabled={isFull}
+      />
+      <label class="label cursor-pointer gap-2 mt-2 py-0 px-0 w-full">
+        <div class="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="isFull"
+            bind:checked={isFull}
+            class="checkbox checkbox-primary checkbox-sm"
+          />
+          <span class="label-text text-sm">Full</span>
+        </div>
+        <span class="text-sm font-bold text-primary flex-shrink-0 ml-auto">
           {fuelLevelPercent}%
         </span>
-      </div>
-      <label class="label cursor-pointer justify-start gap-2 mt-2 py-0 px-0">
-        <input
-          type="checkbox"
-          id="isFull"
-          bind:checked={isFull}
-          class="checkbox checkbox-primary checkbox-sm"
-        />
-        <span class="label-text text-sm">Full</span>
       </label>
       {#if fuelLevelError}
         <p class="text-xs text-error mt-1">{fuelLevelError}</p>
       {/if}
     </div>
 
-    <!-- Fuel Station -->
+    <!-- Fuel Station (Row 3, Col 2) -->
     <div class="form-control w-full">
       <label class="label py-2 px-0" for="fuelStation">
         <span
-          class="label-text font-semibold flex items-center gap-2 whitespace-nowrap"
+          class="label-text font-semibold text-sm flex items-center gap-2 whitespace-nowrap"
         >
           <MapPin class="w-4 h-4 text-info flex-shrink-0" />
           Fuel station
@@ -402,25 +419,6 @@
           <option value={station.id}>{stationLabel(station)}</option>
         {/each}
       </select>
-    </div>
-
-    <!-- Date -->
-    <div class="form-control w-full">
-      <label class="label py-2 px-0" for="fueledAt">
-        <span
-          class="label-text font-semibold flex items-center gap-2 whitespace-nowrap"
-        >
-          <CalendarClock class="w-4 h-4 text-primary flex-shrink-0" />
-          Date
-        </span>
-      </label>
-      <input
-        type="datetime-local"
-        id="fueledAt"
-        bind:value={fueledAtLocal}
-        class="input input-bordered input-sm w-full focus:input-primary"
-        required
-      />
     </div>
   </div>
 
@@ -493,7 +491,7 @@
   </div>
 
   <!-- Action Buttons -->
-  <div class="flex gap-2 mt-6 pt-3 border-t border-base-200">
+  <div class="flex gap-2 border-t border-base-200">
     <button
       type="button"
       class="btn btn-outline btn-sm flex-1"
