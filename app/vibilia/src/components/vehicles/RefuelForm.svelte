@@ -62,7 +62,11 @@
       .replace(/\s+/g, " ")
       .trim();
 
-    if (distanceInMeters !== undefined && !isNaN(distanceInMeters)) {
+    if (
+      distanceInMeters !== undefined &&
+      !isNaN(distanceInMeters) &&
+      distanceInMeters <= 20_000
+    ) {
       const distanceKm = distanceInMeters / 1000;
       return `[${distanceKm.toFixed(1)}km] ${baseLabel}`;
     }
