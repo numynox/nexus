@@ -6,6 +6,8 @@ interface RefuelEventMutation {
   liters: number;
   total_price: number;
   fuel_level_after: number;
+  is_full_refuel: boolean;
+  missed_previous_refuel: boolean;
   price_per_liter_calculated: number;
   fueled_at: string;
   fuel_station_id: string | null;
@@ -139,6 +141,13 @@ export async function createCarForUser(
   userId: string,
   name: string,
   tankCapacity: number,
+  details?: {
+    vin?: string | null;
+    plate?: string | null;
+    make?: string | null;
+    model?: string | null;
+    year?: number | null;
+  },
 ): Promise<any> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
@@ -147,6 +156,11 @@ export async function createCarForUser(
       {
         name,
         tank_capacity: tankCapacity,
+        vin: details?.vin || null,
+        plate: details?.plate || null,
+        make: details?.make || null,
+        model: details?.model || null,
+        year: details?.year ?? null,
         owner_id: userId,
       },
     ])
@@ -162,6 +176,30 @@ export async function deleteCarById(carId: string) {
   const { error } = await supabase.from("cars").delete().eq("id", carId);
 
   if (error) throw error;
+}
+
+export async function updateCarById(
+  carId: string,
+  payload: {
+    name: string;
+    tank_capacity: number;
+    vin?: string | null;
+    plate?: string | null;
+    make?: string | null;
+    model?: string | null;
+    year?: number | null;
+  },
+): Promise<any> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("cars")
+    .update(payload)
+    .eq("id", carId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
 }
 
 export async function findProfileById(

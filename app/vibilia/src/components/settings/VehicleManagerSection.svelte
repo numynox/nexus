@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Fuel, Plus, Trash2, Users } from "lucide-svelte";
+  import { Fuel, PencilLine, Plus, Trash2, Users } from "lucide-svelte";
   import { onMount } from "svelte";
   import {
     createCarForUser,
@@ -7,6 +7,7 @@
     fetchOwnedCarsForUser,
     findProfileById,
     grantCarAccess,
+    updateCarById,
   } from "../../lib/data";
   import { session } from "../../lib/stores";
 
@@ -24,6 +25,20 @@
   let showAddCar = $state(false);
   let newCarName = $state("");
   let newCarCapacity = $state(50);
+  let newCarVin = $state("");
+  let newCarPlate = $state("");
+  let newCarMake = $state("");
+  let newCarModel = $state("");
+  let newCarYear = $state("");
+
+  let editingCarId = $state<string | null>(null);
+  let editCarName = $state("");
+  let editCarCapacity = $state(50);
+  let editCarVin = $state("");
+  let editCarPlate = $state("");
+  let editCarMake = $state("");
+  let editCarModel = $state("");
+  let editCarYear = $state("");
 
   let sharingCarId = $state<string | null>(null);
   let shareEmail = $state("");
@@ -32,6 +47,19 @@
   onMount(() => {
     fetchCars();
   });
+
+  function toOptionalText(value: unknown): string | null {
+    if (value === null || value === undefined) return null;
+    const text = String(value).trim();
+    return text.length > 0 ? text : null;
+  }
+
+  function toOptionalYear(value: unknown): number | null {
+    const text = toOptionalText(value);
+    if (!text) return null;
+    const year = Number.parseInt(text, 10);
+    return Number.isFinite(year) ? year : null;
+  }
 
   async function fetchCars() {
     loading = true;
@@ -53,11 +81,59 @@
         $session.user.id,
         newCarName,
         newCarCapacity,
+        {
+          vin: toOptionalText(newCarVin),
+          plate: toOptionalText(newCarPlate),
+          make: toOptionalText(newCarMake),
+          model: toOptionalText(newCarModel),
+          year: toOptionalYear(newCarYear),
+        },
       );
       cars = [...cars, data];
       showAddCar = false;
       newCarName = "";
       newCarCapacity = 50;
+      newCarVin = "";
+      newCarPlate = "";
+      newCarMake = "";
+      newCarModel = "";
+      newCarYear = "";
+    } catch (error) {
+      shareMessage = error instanceof Error ? error.message : String(error);
+    }
+  }
+
+  function openEditCar(car: any) {
+    editingCarId = car.id;
+    editCarName = car.name || "";
+    editCarCapacity = Number(car.tank_capacity || 0);
+    editCarVin = car.vin || "";
+    editCarPlate = car.plate || "";
+    editCarMake = car.make || "";
+    editCarModel = car.model || "";
+    editCarYear = car.year ? String(car.year) : "";
+  }
+
+  function closeEditCar() {
+    editingCarId = null;
+  }
+
+  async function saveCarEdits() {
+    if (!editingCarId || !editCarName.trim()) return;
+
+    try {
+      const updated = await updateCarById(editingCarId, {
+        name: editCarName.trim(),
+        tank_capacity: editCarCapacity,
+        vin: toOptionalText(editCarVin),
+        plate: toOptionalText(editCarPlate),
+        make: toOptionalText(editCarMake),
+        model: toOptionalText(editCarModel),
+        year: toOptionalYear(editCarYear),
+      });
+
+      cars = cars.map((car) => (car.id === editingCarId ? updated : car));
+      editingCarId = null;
     } catch (error) {
       shareMessage = error instanceof Error ? error.message : String(error);
     }
@@ -146,13 +222,73 @@
             </div>
             <div class="form-control">
               <label class="label" for="mgr-newCarCapacity"
-                ><span class="label-text">Tank Capacity (L)</span></label
+                ><span class="label-text">Tank capacity (L)</span></label
               >
               <input
                 type="number"
                 id="mgr-newCarCapacity"
                 bind:value={newCarCapacity}
                 class="input input-bordered input-sm"
+              />
+            </div>
+            <div class="form-control">
+              <label class="label" for="mgr-newCarPlate"
+                ><span class="label-text">Plate</span></label
+              >
+              <input
+                type="text"
+                id="mgr-newCarPlate"
+                bind:value={newCarPlate}
+                class="input input-bordered input-sm"
+                placeholder="e.g. MKK DD 95"
+              />
+            </div>
+            <div class="form-control">
+              <label class="label" for="mgr-newCarVin"
+                ><span class="label-text">VIN</span></label
+              >
+              <input
+                type="text"
+                id="mgr-newCarVin"
+                bind:value={newCarVin}
+                class="input input-bordered input-sm"
+                placeholder="Optional"
+              />
+            </div>
+            <div class="form-control">
+              <label class="label" for="mgr-newCarMake"
+                ><span class="label-text">Make</span></label
+              >
+              <input
+                type="text"
+                id="mgr-newCarMake"
+                bind:value={newCarMake}
+                class="input input-bordered input-sm"
+                placeholder="e.g. Volkswagen"
+              />
+            </div>
+            <div class="form-control">
+              <label class="label" for="mgr-newCarModel"
+                ><span class="label-text">Model</span></label
+              >
+              <input
+                type="text"
+                id="mgr-newCarModel"
+                bind:value={newCarModel}
+                class="input input-bordered input-sm"
+                placeholder="e.g. Passat Variant"
+              />
+            </div>
+            <div class="form-control sm:col-span-2">
+              <label class="label" for="mgr-newCarYear"
+                ><span class="label-text">Year</span></label
+              >
+              <input
+                type="number"
+                id="mgr-newCarYear"
+                bind:value={newCarYear}
+                class="input input-bordered input-sm"
+                placeholder="e.g. 2020"
               />
             </div>
           </div>
@@ -224,10 +360,27 @@
               <div>
                 <div class="font-bold">{car.name}</div>
                 <div class="text-xs text-base-content/50">
-                  {car.tank_capacity}L Capacity
+                  {car.tank_capacity}L capacity
                 </div>
+                <div class="text-xs text-base-content/50">
+                  {car.year || ""}
+                  {car.make || ""}
+                  {car.model || ""}
+                </div>
+                {#if car.plate}
+                  <div class="text-xs text-base-content/60">
+                    {car.plate}
+                  </div>
+                {/if}
               </div>
               <div class="flex gap-1">
+                <button
+                  class="btn btn-ghost btn-sm btn-square"
+                  onclick={() => openEditCar(car)}
+                  title="Edit"
+                >
+                  <PencilLine class="w-4 h-4" />
+                </button>
                 <button
                   class="btn btn-ghost btn-sm btn-square"
                   onclick={() => openShare(car.id)}
@@ -250,6 +403,97 @@
             You haven't added any vehicles yet.
           </p>
         {/each}
+      </div>
+    {/if}
+
+    {#if editingCarId}
+      <div class="modal modal-open">
+        <div class="modal-box">
+          <h3 class="font-bold text-lg">Edit Vehicle</h3>
+          <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="form-control">
+              <label class="label" for="mgr-editCarName"
+                ><span class="label-text">Name</span></label
+              >
+              <input
+                type="text"
+                id="mgr-editCarName"
+                bind:value={editCarName}
+                class="input input-bordered input-sm"
+              />
+            </div>
+            <div class="form-control">
+              <label class="label" for="mgr-editCarCapacity"
+                ><span class="label-text">Tank Capacity (L)</span></label
+              >
+              <input
+                type="number"
+                id="mgr-editCarCapacity"
+                bind:value={editCarCapacity}
+                class="input input-bordered input-sm"
+              />
+            </div>
+            <div class="form-control">
+              <label class="label" for="mgr-editCarPlate"
+                ><span class="label-text">Plate</span></label
+              >
+              <input
+                type="text"
+                id="mgr-editCarPlate"
+                bind:value={editCarPlate}
+                class="input input-bordered input-sm"
+              />
+            </div>
+            <div class="form-control">
+              <label class="label" for="mgr-editCarVin"
+                ><span class="label-text">VIN</span></label
+              >
+              <input
+                type="text"
+                id="mgr-editCarVin"
+                bind:value={editCarVin}
+                class="input input-bordered input-sm"
+              />
+            </div>
+            <div class="form-control">
+              <label class="label" for="mgr-editCarMake"
+                ><span class="label-text">Make</span></label
+              >
+              <input
+                type="text"
+                id="mgr-editCarMake"
+                bind:value={editCarMake}
+                class="input input-bordered input-sm"
+              />
+            </div>
+            <div class="form-control">
+              <label class="label" for="mgr-editCarModel"
+                ><span class="label-text">Model</span></label
+              >
+              <input
+                type="text"
+                id="mgr-editCarModel"
+                bind:value={editCarModel}
+                class="input input-bordered input-sm"
+              />
+            </div>
+            <div class="form-control">
+              <label class="label" for="mgr-editCarYear"
+                ><span class="label-text">Year</span></label
+              >
+              <input
+                type="number"
+                id="mgr-editCarYear"
+                bind:value={editCarYear}
+                class="input input-bordered input-sm"
+              />
+            </div>
+          </div>
+          <div class="modal-action">
+            <button class="btn btn-ghost" onclick={closeEditCar}>Cancel</button>
+            <button class="btn btn-primary" onclick={saveCarEdits}>Save</button>
+          </div>
+        </div>
       </div>
     {/if}
 

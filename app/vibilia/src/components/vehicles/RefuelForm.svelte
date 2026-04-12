@@ -38,6 +38,7 @@
   let totalPrice = $state(0);
   let fuelLevelPercent = $state(100);
   let isFull = $state(true);
+  let missedPreviousRefuel = $state(false);
   let fueledAtLocal = $state("");
   let stations = $state<any[]>([]);
   let stationsLoading = $state(true);
@@ -91,15 +92,27 @@
     station: any,
   ): { lat: number; lng: number } | null {
     const lat = parseCoordinate(station?.lat ?? station?.latitude);
-    const lng = parseCoordinate(station?.lng ?? station?.lon ?? station?.longitude);
+    const lng = parseCoordinate(
+      station?.lng ?? station?.lon ?? station?.longitude,
+    );
 
     if (lat === null || lng === null) return null;
     return { lat, lng };
   }
 
-  function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  function calculateDistance(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ): number {
     // Validate inputs
-    if (!isFinite(lat1) || !isFinite(lon1) || !isFinite(lat2) || !isFinite(lon2)) {
+    if (
+      !isFinite(lat1) ||
+      !isFinite(lon1) ||
+      !isFinite(lat2) ||
+      !isFinite(lon2)
+    ) {
       return NaN;
     }
 
@@ -121,12 +134,14 @@
     if (existingEvent) return;
 
     try {
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          timeout: 5000,
-          enableHighAccuracy: true,
-        });
-      });
+      const position = await new Promise<GeolocationPosition>(
+        (resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            timeout: 5000,
+            enableHighAccuracy: true,
+          });
+        },
+      );
 
       const userLat = position.coords.latitude;
       const userLng = position.coords.longitude;
@@ -168,6 +183,7 @@
     if (!existingEvent) {
       fueledAtLocal = formatDateTimeLocal(new Date());
       selectedFuelStationId = "__unknown__";
+      missedPreviousRefuel = false;
       return;
     }
 
@@ -180,7 +196,11 @@
     );
 
     fuelLevelPercent = Math.min(100, Math.max(0, levelPercent));
-    isFull = fuelLevelPercent >= 100;
+    isFull =
+      existingEvent.is_full_refuel !== undefined
+        ? Boolean(existingEvent.is_full_refuel)
+        : fuelLevelPercent >= 100;
+    missedPreviousRefuel = Boolean(existingEvent.missed_previous_refuel);
     fueledAtLocal = formatDateTimeLocal(
       new Date(
         existingEvent.fueled_at || existingEvent.timestamp || new Date(),
@@ -286,6 +306,8 @@
       liters,
       total_price: totalPrice,
       fuel_level_after: levelInLiters,
+      is_full_refuel: isFull,
+      missed_previous_refuel: missedPreviousRefuel,
       price_per_liter_calculated: pricePerLiter,
       fueled_at: fueledAtIso,
       fuel_station_id:
@@ -516,6 +538,15 @@
       />
       <label class="label cursor-pointer gap-2 mt-2 py-0 px-0 w-full">
         <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="missedPreviousRefuel"
+              bind:checked={missedPreviousRefuel}
+              class="checkbox checkbox-primary checkbox-sm"
+            />
+            <span class="label-text text-sm">Missed</span>
+          </div>
           <input
             type="checkbox"
             id="isFull"
@@ -552,14 +583,15 @@
         <option value="__unknown__">Other fuel station</option>
         {#each sortedStations as station (station.id)}
           {@const coordinates = getStationCoordinates(station)}
-          {@const distance = userLocation && coordinates
-            ? calculateDistance(
-                userLocation.lat,
-                userLocation.lng,
-                coordinates.lat,
-                coordinates.lng,
-              )
-            : undefined}
+          {@const distance =
+            userLocation && coordinates
+              ? calculateDistance(
+                  userLocation.lat,
+                  userLocation.lng,
+                  coordinates.lat,
+                  coordinates.lng,
+                )
+              : undefined}
           <option value={station.id}>{stationLabel(station, distance)}</option>
         {/each}
       </select>

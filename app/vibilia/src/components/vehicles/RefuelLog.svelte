@@ -64,6 +64,10 @@
     // Calculate consumption for each entry
     events = data.map((e: any, i: number) => {
       let consumption = null;
+      if (e.missed_previous_refuel) {
+        return { ...e, consumption: null };
+      }
+
       const next = data[i + 1]; // next in terms of historical order (earlier event)
       if (next) {
         const km = e.mileage - next.mileage;
@@ -153,36 +157,58 @@
 <div class="space-y-6">
   <div class="flex items-center justify-between gap-3">
     {#if cars.length > 1}
-      <div class="dropdown">
-        <button
-          type="button"
-          tabindex="0"
-          class="btn btn-ghost btn-sm px-0 min-h-0 h-auto gap-2 normal-case text-3xl font-black text-base-content tracking-tight hover:outline hover:outline-2 hover:outline-base-content/20"
-        >
-          {car.name}
-          <ChevronDown class="w-5 h-5" />
-        </button>
-        <ul
-          class="menu dropdown-content z-[1] mt-2 w-64 rounded-box bg-base-200 p-2 shadow-xl border border-base-content/10"
-        >
-          {#each cars as selectableCar (selectableCar.id)}
-            {#if selectableCar.id !== car.id}
-              <li>
-                <button
-                  type="button"
-                  onclick={() => onSelectCar?.(selectableCar)}
-                >
-                  <span class="font-semibold">{selectableCar.name}</span>
-                </button>
-              </li>
-            {/if}
-          {/each}
-        </ul>
+      <div class="flex flex-col items-start gap-1">
+        {#if car.plate}
+          <span
+            class="inline-flex items-center rounded border-2 border-base-content/60 bg-base-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content"
+          >
+            {car.plate}
+          </span>
+        {/if}
+        <div class="dropdown">
+          <button
+            type="button"
+            tabindex="0"
+            class="btn btn-ghost btn-sm px-0 min-h-0 h-auto normal-case hover:outline hover:outline-2 hover:outline-base-content/20"
+          >
+            <span
+              class="flex items-center gap-2 text-3xl font-black tracking-tight text-base-content"
+            >
+              {car.name}
+              <ChevronDown class="w-5 h-5" />
+            </span>
+          </button>
+          <ul
+            class="menu dropdown-content z-[1] mt-2 w-64 rounded-box bg-base-200 p-2 shadow-xl border border-base-content/10"
+          >
+            {#each cars as selectableCar (selectableCar.id)}
+              {#if selectableCar.id !== car.id}
+                <li>
+                  <button
+                    type="button"
+                    onclick={() => onSelectCar?.(selectableCar)}
+                  >
+                    <span class="font-semibold">{selectableCar.name}</span>
+                  </button>
+                </li>
+              {/if}
+            {/each}
+          </ul>
+        </div>
       </div>
     {:else}
-      <h2 class="text-3xl font-black text-base-content tracking-tight">
-        {car.name}
-      </h2>
+      <div class="flex flex-col items-start gap-1">
+        {#if car.plate}
+          <span
+            class="inline-flex items-center rounded border-2 border-base-content/60 bg-base-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content"
+          >
+            {car.plate}
+          </span>
+        {/if}
+        <h2 class="text-3xl font-black text-base-content tracking-tight">
+          {car.name}
+        </h2>
+      </div>
     {/if}
 
     <button class="btn btn-primary gap-2" onclick={openCreateForm}>
@@ -204,7 +230,7 @@
             <div
               class="text-xs font-semibold uppercase tracking-[0.24em] text-base-content/50"
             >
-              {car.name}
+              {car.plate ? `${car.plate} • ${car.name}` : car.name}
             </div>
             <h3
               class="mt-1 text-2xl font-black tracking-tight text-base-content"
@@ -261,74 +287,126 @@
         {#each events as e (e.id)}
           <article class="relative pl-8 sm:pl-10">
             <div
-              class="absolute left-[0.875rem] top-5 flex h-4 w-4 -translate-x-1/2 items-center justify-center rounded-full border border-primary/25 bg-base-100"
+              class="absolute left-[0.875rem] top-[0.5rem] flex h-4 w-4 -translate-x-1/2 items-center justify-center rounded-full border border-primary/25 bg-base-100"
             >
               <div class="h-2 w-2 rounded-full bg-primary/85"></div>
             </div>
 
-            <div
-              class="card overflow-hidden rounded-box border border-base-content/10 bg-gradient-to-br from-base-100 via-base-100 to-base-200/70 shadow-none"
-            >
-              <div class="p-3.5 sm:p-4">
-                <div class="flex items-start justify-between gap-4">
-                  <div class="min-w-0 flex-1">
-                    <div class="flex flex-wrap items-center gap-2">
-                      <span
-                        class="text-base font-black tracking-tight text-base-content sm:text-lg"
-                      >
-                        {formatEventDate(getEventTimestamp(e))}
-                      </span>
-                      {formatEventTime(getEventTimestamp(e))}
-                    </div>
+            <div class="pb-4 pt-1 sm:pb-5">
+              <div class="flex items-center justify-between gap-3">
+                <div
+                  class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-base-content/80"
+                >
+                  <span class="font-semibold text-base-content sm:text-base">
+                    {formatEventDate(getEventTimestamp(e))}
+                  </span>
+                  <span class="text-base-content/40">•</span>
+                  <span>{formatEventTime(getEventTimestamp(e))}</span>
+                </div>
 
-                    <div
-                      class="mt-2 flex flex-wrap gap-1.5 text-[11px] sm:text-xs"
-                    >
-                      {#if e.consumption}
-                        <span class="badge badge-info badge-outline">
-                          {e.consumption.toFixed(2)} L/100km
-                        </span>
-                      {/if}
-                      <span class="badge badge-secondary badge-outline">
-                        {formatPricePerLiter(e)} €/L
-                      </span>
-                      <span class="badge badge-secondary badge-outline">
-                        {formatMileage(e.mileage)} km
-                      </span>
-                      <span class="badge badge-secondary badge-outline">
-                        {e.liters} L
-                      </span>
-                    </div>
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-xs gap-1.5 rounded-full border border-base-content/10 px-2.5 text-base-content/70 hover:text-base-content"
+                  onclick={() => openEditForm(e)}
+                >
+                  <PencilLine class="h-3.5 w-3.5" /> Edit
+                </button>
+              </div>
 
+              <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div
+                  class="rounded-xl border border-success/20 bg-success/5 px-3.5 py-3"
+                >
+                  <div
+                    class="text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/55"
+                  >
+                    Spent
+                  </div>
+                  <div
+                    class="mt-1 text-3xl font-black tracking-tight text-success sm:text-[2rem]"
+                  >
+                    {e.total_price.toFixed(2)}€
+                  </div>
+                </div>
+
+                <div
+                  class="rounded-xl border border-info/20 bg-info/5 px-3.5 py-3"
+                >
+                  <div
+                    class="text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/55"
+                  >
+                    Consumption
+                  </div>
+                  <div
+                    class="mt-1 text-2xl font-black tracking-tight text-info sm:text-[1.7rem]"
+                  >
+                    {#if e.consumption}
+                      {e.consumption.toFixed(2)}
+                      <span class="text-base font-bold">L/100km</span>
+                    {:else}
+                      <span class="text-base-content/35">—</span>
+                    {/if}
+                  </div>
+                </div>
+              </div>
+
+              <div
+                class="mt-4 rounded-xl border border-base-content/10 bg-base-200/35 p-3"
+              >
+                <div
+                  class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4"
+                >
+                  <div>
                     <div
-                      class="mt-1.5 flex items-center gap-1.5 text-[11px] text-base-content/50"
+                      class="text-[11px] uppercase tracking-[0.12em] text-base-content/50"
                     >
-                      <MapPin class="h-3 w-3 shrink-0" />
+                      Mileage
+                    </div>
+                    <div class="mt-0.5 font-semibold text-base-content">
+                      {formatMileage(e.mileage)} km
+                    </div>
+                  </div>
+                  <div>
+                    <div
+                      class="text-[11px] uppercase tracking-[0.12em] text-base-content/50"
+                    >
+                      Amount
+                    </div>
+                    <div class="mt-0.5 font-semibold text-base-content">
+                      {e.liters} L
+                    </div>
+                  </div>
+                  <div>
+                    <div
+                      class="text-[11px] uppercase tracking-[0.12em] text-base-content/50"
+                    >
+                      Price per liter
+                    </div>
+                    <div class="mt-0.5 font-semibold text-base-content">
+                      {formatPricePerLiter(e)} €/L
+                    </div>
+                  </div>
+                  <div>
+                    <div
+                      class="text-[11px] uppercase tracking-[0.12em] text-base-content/50"
+                    >
+                      Fuel station
+                    </div>
+                    <div
+                      class="mt-0.5 flex items-center gap-1.5 text-base-content/80"
+                    >
+                      <MapPin
+                        class="h-3.5 w-3.5 shrink-0 text-base-content/50"
+                      />
                       <span class="truncate"
                         >{formatFuelStation(e.fuel_station)}</span
                       >
                     </div>
                   </div>
-
-                  <div class="flex flex-col items-end gap-2">
-                    <div class="text-right">
-                      <div
-                        class="text-lg font-black tracking-tight text-base-content sm:text-xl"
-                      >
-                        {e.total_price.toFixed(2)}€
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      class="btn btn-ghost btn-sm h-8 min-h-8 gap-2 rounded-full border border-base-content/10 bg-base-100/70 px-3"
-                      onclick={() => openEditForm(e)}
-                    >
-                      <PencilLine class="w-4 h-4" /> Edit
-                    </button>
-                  </div>
                 </div>
               </div>
+
+              <div class="mt-4 border-b border-base-content/10"></div>
             </div>
           </article>
         {:else}
