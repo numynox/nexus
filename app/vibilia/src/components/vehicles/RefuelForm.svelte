@@ -44,6 +44,7 @@
   let selectedFuelStationId = $state("__unknown__");
   let loading = $state(false);
   let submitted = $state(false);
+  let userLocation: { lat: number; lng: number } | null = $state(null);
 
   function formatDateTimeLocal(date: Date): string {
     const pad = (value: number) => String(value).padStart(2, "0");
@@ -52,14 +53,24 @@
     )}:${pad(date.getMinutes())}`;
   }
 
-  function stationLabel(station: any): string {
+  function stationLabel(station: any, distanceInMeters?: number): string {
     const brand = station.brand || "";
     const place = station.place || "";
     const street = station.street || "";
     const houseNumber = station.house_number || "";
-    return `${brand} ${place} (${street} ${houseNumber})`
+    const baseLabel = `${brand} ${place} (${street} ${houseNumber})`
       .replace(/\s+/g, " ")
       .trim();
+
+    if (distanceInMeters !== undefined) {
+      const distanceStr =
+        distanceInMeters < 1000
+          ? `${Math.round(distanceInMeters)}m`
+          : `${(distanceInMeters / 1000).toFixed(1)}km`;
+      return `[${distanceStr}] ${baseLabel}`;
+    }
+
+    return baseLabel;
   }
 
   function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -90,6 +101,9 @@
 
       const userLat = position.coords.latitude;
       const userLng = position.coords.longitude;
+
+      // Store user location for rendering distances
+      userLocation = { lat: userLat, lng: userLng };
 
       // Calculate distances and filter stations within 500m
       const stationsWithDistance = stationsList
@@ -288,6 +302,17 @@
     submitLabel || (existingEvent ? "Update Refuel" : "Save Refuel"),
   );
 
+  // Sort stations by distance if location is available
+  const sortedStations = $derived.by(() => {
+    if (!userLocation) return stations;
+
+    return [...stations].sort((a, b) => {
+      const distA = calculateDistance(userLocation.lat, userLocation.lng, a.lat, a.lng);
+      const distB = calculateDistance(userLocation.lat, userLocation.lng, b.lat, b.lng);
+      return distA - distB;
+    });
+  });
+
   $effect(() => {
     if (isFull) fuelLevelPercent = 100;
   });
@@ -467,8 +492,11 @@
         disabled={stationsLoading}
       >
         <option value="__unknown__">Other fuel station</option>
-        {#each stations as station (station.id)}
-          <option value={station.id}>{stationLabel(station)}</option>
+        {#each sortedStations as station (station.id)}
+          {@const distance = userLocation
+            ? calculateDistance(userLocation.lat, userLocation.lng, station.lat, station.lng)
+            : undefined}
+          <option value={station.id}>{stationLabel(station, distance)}</option>
         {/each}
       </select>
     </div>
