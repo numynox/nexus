@@ -2,7 +2,7 @@
   import { Car, ChartColumnBig, Settings } from "lucide-svelte";
 
   interface Props {
-    activeId?: "fuel-price" | "cars" | "settings";
+    activeId?: "fuel-price" | "cars" | "vehicle-statistics" | "settings";
     baseUrl?: string;
     siteTitle?: string;
   }
@@ -32,6 +32,11 @@
   function settingsHref() {
     const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/$/, "");
     return `${normalizedBase}/settings`;
+  }
+
+  function vehicleStatisticsHref() {
+    const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/$/, "");
+    return `${normalizedBase}/vehicle-statistics`;
   }
 
   function toggleMobileMenu() {
@@ -116,6 +121,18 @@
       >
         <Car class="w-5 h-5" />
         <span>Vehicle Logs</span>
+      </a>
+
+      <a
+        href={vehicleStatisticsHref()}
+        class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all
+        {activeId === 'vehicle-statistics'
+          ? 'bg-primary text-primary-content font-semibold shadow-md'
+          : 'hover:bg-base-300 text-base-content/80'}"
+        onclick={closeMobileMenu}
+      >
+        <ChartColumnBig class="w-5 h-5" />
+        <span>Vehicle Statistics</span>
       </a>
     </div>
   </nav>

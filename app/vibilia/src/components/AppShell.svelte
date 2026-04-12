@@ -8,7 +8,7 @@
   import Sidebar from "./Sidebar.svelte";
 
   interface Props {
-    activeId?: "fuel-price" | "cars" | "settings";
+    activeId?: "fuel-price" | "cars" | "vehicle-statistics" | "settings";
     children?: Snippet;
   }
 

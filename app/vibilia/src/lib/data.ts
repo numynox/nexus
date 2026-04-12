@@ -310,3 +310,70 @@ export async function updateRefuelEvent(
 
   if (error) throw error;
 }
+
+export async function fetchCarRefuelYearBounds(
+  carId: string,
+): Promise<{ min_year: number | null; max_year: number | null }> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await (supabase as any).rpc(
+    "get_car_refuel_year_bounds",
+    {
+      p_car_id: carId,
+    },
+  );
+
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : null;
+  return {
+    min_year: row?.min_year ?? null,
+    max_year: row?.max_year ?? null,
+  };
+}
+
+export async function fetchCarRefuelStatistics(carId: string): Promise<any> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await (supabase as any).rpc(
+    "get_car_refuel_statistics",
+    {
+      p_car_id: carId,
+    },
+  );
+
+  if (error) throw error;
+  return Array.isArray(data) ? (data[0] ?? null) : null;
+}
+
+export async function fetchCarRefuelPlotEvents(
+  carId: string,
+  sinceIso: string,
+  untilIso: string,
+): Promise<any[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await (supabase as any).rpc(
+    "get_car_refuel_plot_events",
+    {
+      p_car_id: carId,
+      p_since: sinceIso,
+      p_until: untilIso,
+    },
+  );
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function fetchCarKmPerMonth(
+  carId: string,
+  sinceIso: string,
+  untilIso: string,
+): Promise<any[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await (supabase as any).rpc("get_car_km_per_month", {
+    p_car_id: carId,
+    p_since: sinceIso,
+    p_until: untilIso,
+  });
+
+  if (error) throw error;
+  return data || [];
+}

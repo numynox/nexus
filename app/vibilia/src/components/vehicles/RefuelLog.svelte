@@ -274,7 +274,10 @@
     {/if}
 
     <div class="flex items-center gap-2">
-      <button class="btn btn-outline gap-2" onclick={openExpenseForm}>
+      <button
+        class="btn btn-soft btn-secondary gap-2"
+        onclick={openExpenseForm}
+      >
         <ReceiptText class="w-4 h-4" /> Log Expense
       </button>
       <button class="btn btn-primary gap-2" onclick={openCreateForm}>
