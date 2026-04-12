@@ -72,7 +72,7 @@ export async function fetchFuelStations(): Promise<any[]> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from("fuel_stations")
-    .select("id, brand, place, street, house_number")
+    .select("id, brand, place, street, house_number, lat, lng")
     .order("brand", { ascending: true })
     .order("place", { ascending: true })
     .order("street", { ascending: true })

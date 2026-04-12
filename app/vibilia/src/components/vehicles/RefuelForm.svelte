@@ -70,6 +70,29 @@
     return baseLabel;
   }
 
+  function parseCoordinate(value: unknown): number | null {
+    if (typeof value === "number") {
+      return Number.isFinite(value) ? value : null;
+    }
+    if (typeof value === "string") {
+      const normalized = value.trim().replace(",", ".");
+      if (!normalized) return null;
+      const parsed = Number(normalized);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
+  }
+
+  function getStationCoordinates(
+    station: any,
+  ): { lat: number; lng: number } | null {
+    const lat = parseCoordinate(station?.lat ?? station?.latitude);
+    const lng = parseCoordinate(station?.lng ?? station?.lon ?? station?.longitude);
+
+    if (lat === null || lng === null) return null;
+    return { lat, lng };
+  }
+
   function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
     // Validate inputs
     if (!isFinite(lat1) || !isFinite(lon1) || !isFinite(lat2) || !isFinite(lon2)) {
@@ -109,10 +132,21 @@
 
       // Calculate distances and filter stations within 500m
       const stationsWithDistance = stationsList
-        .map((station) => ({
-          ...station,
-          distance: calculateDistance(userLat, userLng, station.lat, station.lng),
-        }))
+        .map((station) => {
+          const coordinates = getStationCoordinates(station);
+          if (!coordinates) return null;
+
+          return {
+            ...station,
+            distance: calculateDistance(
+              userLat,
+              userLng,
+              coordinates.lat,
+              coordinates.lng,
+            ),
+          };
+        })
+        .filter((station): station is any => station !== null)
         .filter((station) => station.distance <= 500)
         .sort((a, b) => a.distance - b.distance);
 
@@ -307,10 +341,28 @@
   // Sort stations by distance if location is available
   const sortedStations = $derived.by(() => {
     if (!userLocation) return stations;
+    const currentLocation = userLocation;
 
     return [...stations].sort((a, b) => {
-      const distA = calculateDistance(userLocation.lat, userLocation.lng, a.lat, a.lng);
-      const distB = calculateDistance(userLocation.lat, userLocation.lng, b.lat, b.lng);
+      const coordsA = getStationCoordinates(a);
+      const coordsB = getStationCoordinates(b);
+
+      if (!coordsA && !coordsB) return 0;
+      if (!coordsA) return 1;
+      if (!coordsB) return -1;
+
+      const distA = calculateDistance(
+        currentLocation.lat,
+        currentLocation.lng,
+        coordsA.lat,
+        coordsA.lng,
+      );
+      const distB = calculateDistance(
+        currentLocation.lat,
+        currentLocation.lng,
+        coordsB.lat,
+        coordsB.lng,
+      );
       return distA - distB;
     });
   });
@@ -345,7 +397,7 @@
         id="mileage"
         placeholder="45230"
         bind:value={mileage}
-        onfocus={(e) => e.target.select()}
+        onfocus={(e) => (e.currentTarget as HTMLInputElement).select()}
         class="input input-bordered input-sm w-full {mileageError
           ? 'input-error'
           : 'focus:input-primary'}"
@@ -382,7 +434,7 @@
         placeholder="45.50"
         step="0.01"
         bind:value={liters}
-        onfocus={(e) => e.target.select()}
+        onfocus={(e) => (e.currentTarget as HTMLInputElement).select()}
         class="input input-bordered input-sm w-full {litersError
           ? 'input-error'
           : 'focus:input-primary'}"
@@ -409,7 +461,7 @@
         placeholder="68.50"
         step="0.01"
         bind:value={totalPrice}
-        onfocus={(e) => e.target.select()}
+        onfocus={(e) => (e.currentTarget as HTMLInputElement).select()}
         class="input input-bordered input-sm w-full {priceError
           ? 'input-error'
           : 'focus:input-primary'}"
@@ -495,8 +547,14 @@
       >
         <option value="__unknown__">Other fuel station</option>
         {#each sortedStations as station (station.id)}
-          {@const distance = userLocation
-            ? calculateDistance(userLocation.lat, userLocation.lng, station.lat, station.lng)
+          {@const coordinates = getStationCoordinates(station)}
+          {@const distance = userLocation && coordinates
+            ? calculateDistance(
+                userLocation.lat,
+                userLocation.lng,
+                coordinates.lat,
+                coordinates.lng,
+              )
             : undefined}
           <option value={station.id}>{stationLabel(station, distance)}</option>
         {/each}
