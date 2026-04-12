@@ -35,7 +35,8 @@
     "db:functions:deploy:fetch-rss": "npx supabase functions deploy fetch-rss",
     "db:functions:deploy:refresh-fuel-prices": "npx supabase functions deploy refresh-fuel-prices",
     "db:seed:fuel-prices": "node --env-file=.env scripts/seed-fuel-prices.mjs",
-    "db:import:fuelio": "node --env-file=.env scripts/import-fuelio.mjs"
+    "db:import:fuelio": "node --env-file=.env scripts/import-fuelio.mjs",
+    "db:import:fuelio:prod": "node --env-file=.env.prod scripts/import-fuelio.mjs --confirm-prod"
   },
   "license": "AGPL-3.0-only",
   "engines": {

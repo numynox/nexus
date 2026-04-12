@@ -122,7 +122,9 @@ async function main() {
   const { positionals, values } = parseArgs({
     args: process.argv.slice(2),
     options: {
-      "user-id": { type: "string" },
+      "user-email": { type: "string" },
+      "dry-run": { type: "boolean", default: false },
+      "confirm-prod": { type: "boolean", default: false },
     },
     strict: true,
     allowPositionals: true,
@@ -131,21 +133,33 @@ async function main() {
   const csvPath = positionals[0];
   if (!csvPath) {
     console.error(
-      "Usage: npm run db:import:fuelio -- <path/to/file.csv> --user-id <uuid>",
+      "Usage: npm run db:import:fuelio -- <path/to/file.csv> --user-email <email> [--dry-run] [--confirm-prod]",
     );
     process.exit(1);
   }
 
-  const userId = values["user-id"] || process.env.SUPABASE_IMPORT_USER_ID;
-  if (!userId) {
+  const userEmail = values["user-email"]
+    ? String(values["user-email"]).trim().toLowerCase()
+    : "";
+  if (!userEmail) {
     console.error(
-      "Missing user id. Pass --user-id <uuid> or set SUPABASE_IMPORT_USER_ID in environment.",
+      "Missing user target. Pass --user-email <email> via command line.",
     );
     process.exit(1);
   }
 
   const supabaseUrl =
     process.env.PUBLIC_SUPABASE_URL ?? "http://127.0.0.1:54321";
+  const isLocalSupabase = /localhost|127\.0\.0\.1/i.test(supabaseUrl);
+  const isDryRun = Boolean(values["dry-run"]);
+  const hasProdConfirmation = Boolean(values["confirm-prod"]);
+  if (!isLocalSupabase && !hasProdConfirmation) {
+    console.error(
+      "Refusing to run against non-local Supabase without --confirm-prod.",
+    );
+    process.exit(1);
+  }
+
   const serviceKey = process.env.SUPABASE_SERVICE_KEY;
   if (!serviceKey) {
     console.error("Missing SUPABASE_SERVICE_KEY in environment.");
@@ -155,6 +169,40 @@ async function main() {
   const supabase = createClient(supabaseUrl, serviceKey, {
     auth: { persistSession: false },
   });
+
+  let page = 1;
+  let userId = null;
+  while (!userId) {
+    const { data, error } = await supabase.auth.admin.listUsers({
+      page,
+      perPage: 200,
+    });
+    if (error) throw error;
+
+    const users = data?.users || [];
+    const match = users.find(
+      (candidate) =>
+        String(candidate.email || "")
+          .trim()
+          .toLowerCase() === userEmail,
+    );
+    if (match) {
+      userId = match.id;
+      break;
+    }
+
+    if (!users.length || users.length < 200) {
+      break;
+    }
+    page += 1;
+  }
+
+  if (!userId) {
+    console.error(`No auth user found for email: ${userEmail}`);
+    process.exit(1);
+  }
+
+  console.log(`Resolved user email ${userEmail} to user id ${userId}`);
 
   const content = await readFile(csvPath, "utf8");
   const sections = parseFuelioSections(content);
@@ -229,49 +277,66 @@ async function main() {
   };
 
   if (!car) {
-    const { data: createdCar, error: createCarError } = await supabase
-      .from("cars")
-      .insert([
-        {
-          owner_id: userId,
-          name: name || "Imported Car",
-          vin: vin || null,
-          plate: plate || null,
-          make,
-          model,
-          year,
-          tank_capacity: tankCapacity,
-        },
-      ])
-      .select()
-      .single();
+    if (isDryRun) {
+      car = {
+        id: "DRY_RUN_CAR_ID",
+        name: name || "Imported Car",
+        tank_capacity: tankCapacity,
+      };
+    } else {
+      const { data: createdCar, error: createCarError } = await supabase
+        .from("cars")
+        .insert([
+          {
+            owner_id: userId,
+            name: name || "Imported Car",
+            vin: vin || null,
+            plate: plate || null,
+            make,
+            model,
+            year,
+            tank_capacity: tankCapacity,
+          },
+        ])
+        .select()
+        .single();
 
-    if (createCarError) throw createCarError;
-    car = createdCar;
+      if (createCarError) throw createCarError;
+      car = createdCar;
+    }
     stats.carCreated += 1;
   } else {
     stats.carMatched += 1;
     console.log(`Matched existing car by ${matchedBy}: ${car.name}`);
   }
 
-  const { data: existingRefuels, error: existingRefuelsError } = await supabase
-    .from("refuel_events")
-    .select("mileage")
-    .eq("car_id", car.id);
-  if (existingRefuelsError) throw existingRefuelsError;
+  const shouldLoadExistingEvents = !(isDryRun && car.id === "DRY_RUN_CAR_ID");
+  let existingRefuels = [];
+  let existingExpenses = [];
 
-  const { data: existingExpenses, error: existingExpensesError } =
-    await supabase
-      .from("car_expenses")
-      .select("expensed_at")
-      .eq("car_id", car.id);
-  if (existingExpensesError) throw existingExpensesError;
+  if (shouldLoadExistingEvents) {
+    const { data: existingRefuelsData, error: existingRefuelsError } =
+      await supabase
+        .from("refuel_events")
+        .select("mileage")
+        .eq("car_id", car.id);
+    if (existingRefuelsError) throw existingRefuelsError;
+    existingRefuels = existingRefuelsData || [];
+
+    const { data: existingExpensesData, error: existingExpensesError } =
+      await supabase
+        .from("car_expenses")
+        .select("expensed_at")
+        .eq("car_id", car.id);
+    if (existingExpensesError) throw existingExpensesError;
+    existingExpenses = existingExpensesData || [];
+  }
 
   const refuelMileageSet = new Set(
-    (existingRefuels || []).map((row) => Number(row.mileage)),
+    existingRefuels.map((row) => Number(row.mileage)),
   );
   const expenseDateSet = new Set(
-    (existingExpenses || [])
+    existingExpenses
       .map((row) => expenseDedupKey(row.expensed_at))
       .filter((value) => value !== null),
   );
@@ -319,23 +384,25 @@ async function main() {
     const pricePerLiter =
       pricePerLiterRaw !== null ? pricePerLiterRaw : totalPrice / liters;
 
-    const { error } = await supabase.from("refuel_events").insert([
-      {
-        car_id: car.id,
-        user_id: userId,
-        mileage,
-        liters,
-        total_price: Number(totalPrice.toFixed(2)),
-        fuel_level_after: Number(fuelLevelAfter.toFixed(2)),
-        is_full_refuel: isFullRefuel,
-        missed_previous_refuel: missedPreviousRefuel,
-        price_per_liter_calculated: Number(pricePerLiter.toFixed(3)),
-        fueled_at: fueledAt,
-        fuel_station_id: null,
-      },
-    ]);
+    if (!isDryRun) {
+      const { error } = await supabase.from("refuel_events").insert([
+        {
+          car_id: car.id,
+          user_id: userId,
+          mileage,
+          liters,
+          total_price: Number(totalPrice.toFixed(2)),
+          fuel_level_after: Number(fuelLevelAfter.toFixed(2)),
+          is_full_refuel: isFullRefuel,
+          missed_previous_refuel: missedPreviousRefuel,
+          price_per_liter_calculated: Number(pricePerLiter.toFixed(3)),
+          fueled_at: fueledAt,
+          fuel_station_id: null,
+        },
+      ]);
 
-    if (error) throw error;
+      if (error) throw error;
+    }
     refuelMileageSet.add(mileage);
     stats.refuelImported += 1;
   }
@@ -370,26 +437,31 @@ async function main() {
 
     const category = categoryMap.get(String(row.CostTypeID || "")) || "Other";
 
-    const { error } = await supabase.from("car_expenses").insert([
-      {
-        car_id: car.id,
-        user_id: userId,
-        expensed_at: expensedAt,
-        title,
-        amount: Number(amount.toFixed(2)),
-        mileage,
-        category,
-        notes: String(row.Notes || "").trim() || null,
-      },
-    ]);
+    if (!isDryRun) {
+      const { error } = await supabase.from("car_expenses").insert([
+        {
+          car_id: car.id,
+          user_id: userId,
+          expensed_at: expensedAt,
+          title,
+          amount: Number(amount.toFixed(2)),
+          mileage,
+          category,
+          notes: String(row.Notes || "").trim() || null,
+        },
+      ]);
 
-    if (error) throw error;
+      if (error) throw error;
+    }
     expenseDateSet.add(expenseKey);
     stats.expenseImported += 1;
   }
 
   console.log("\nFuelio import summary");
   console.log("---------------------");
+  console.log(`mode: ${isDryRun ? "DRY RUN" : "WRITE"}`);
+  console.log(`supabase url: ${supabaseUrl}`);
+  console.log(`target user id: ${userId}`);
   console.log(`CSV: ${csvPath}`);
   console.log(`Car: ${car.name} (${car.id})`);
   console.log(`car matched: ${stats.carMatched}`);
