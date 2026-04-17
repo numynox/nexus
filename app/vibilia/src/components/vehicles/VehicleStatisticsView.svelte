@@ -35,6 +35,7 @@
   let yearOptions = $state<number[]>([]);
   let selectedRange = $state<RangeValue>("1y");
   let overallSinceIso = $state<string | null>(null);
+  let showAllCards = $state(false);
 
   let statsLoadToken = 0;
   let plotsLoadToken = 0;
@@ -108,6 +109,7 @@
   function selectCar(car: any) {
     selectedCar = car;
     setLastSelectedCarId(car.id);
+    showAllCards = false;
   }
 
   async function fetchCars() {
@@ -343,24 +345,6 @@
           </h1>
         </div>
       {/if}
-
-      <div class="form-control min-w-[12rem]">
-        <label class="label py-1" for="stats-range-select">
-          <span
-            class="label-text text-xs uppercase tracking-[0.14em] text-base-content/55"
-            >Plot Range</span
-          >
-        </label>
-        <select
-          id="stats-range-select"
-          class="select select-bordered select-sm"
-          bind:value={selectedRange}
-        >
-          {#each rangeOptions() as option (option.value)}
-            <option value={option.value}>{option.label}</option>
-          {/each}
-        </select>
-      </div>
     </div>
 
     {#if loadingStats}
@@ -368,7 +352,7 @@
         <span class="loading loading-spinner text-primary"></span>
       </div>
     {:else}
-      <div class="grid grid-cols-1 gap-3 lg:grid-cols-3">
+      <div class="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <section class="rounded-2xl border border-success/20 bg-success/5 p-4">
           <h2
             class="text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/55"
@@ -378,26 +362,32 @@
           <div class="mt-1 text-3xl font-black tracking-tight text-success">
             {fmtLiters(stats?.fuel_used_total_l)}
           </div>
-          <div
-            class="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-base-content/75"
-          >
-            <div>
-              This year: <span class="font-semibold text-base-content"
+          <div class="mt-3 space-y-1 text-sm text-base-content/75">
+            <div class="flex items-baseline justify-between gap-3">
+              <span>This year</span>
+              <span
+                class="font-semibold text-base-content whitespace-nowrap tabular-nums"
                 >{fmtLiters(stats?.fuel_used_this_year_l)}</span
               >
             </div>
-            <div>
-              Last year: <span class="font-semibold text-base-content"
+            <div class="flex items-baseline justify-between gap-3">
+              <span>Last year</span>
+              <span
+                class="font-semibold text-base-content whitespace-nowrap tabular-nums"
                 >{fmtLiters(stats?.fuel_used_last_year_l)}</span
               >
             </div>
-            <div>
-              Avg / month: <span class="font-semibold text-base-content"
+            <div class="flex items-baseline justify-between gap-3">
+              <span>Avg / month</span>
+              <span
+                class="font-semibold text-base-content whitespace-nowrap tabular-nums"
                 >{fmtLiters(stats?.fuel_used_avg_month_l)}</span
               >
             </div>
-            <div>
-              Avg / day: <span class="font-semibold text-base-content"
+            <div class="flex items-baseline justify-between gap-3">
+              <span>Avg / day</span>
+              <span
+                class="font-semibold text-base-content whitespace-nowrap tabular-nums"
                 >{fmtLiters(stats?.fuel_used_avg_day_l)}</span
               >
             </div>
@@ -411,26 +401,34 @@
             Average consumption
           </h2>
           <div class="mt-1 text-3xl font-black tracking-tight text-info">
-            {fmt(stats?.avg_consumption_l_per_100km, 2)}
-            <span class="text-base font-bold">L/100km</span>
+            <span class="whitespace-nowrap tabular-nums"
+              >{fmt(stats?.avg_consumption_l_per_100km, 2)}
+              <span class="text-base font-bold">L/100km</span></span
+            >
           </div>
-          <div
-            class="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-base-content/75"
-          >
-            <div>
-              Lowest: <span class="font-semibold text-base-content"
-                >{fmt(stats?.min_consumption_l_per_100km, 2)} L/100km</span
+          <div class="mt-3 space-y-1 text-sm text-base-content/75">
+            <div class="flex items-baseline justify-between gap-3">
+              <span>Lowest</span>
+              <span
+                class="font-semibold text-base-content whitespace-nowrap tabular-nums"
+                >{fmt(stats?.min_consumption_l_per_100km, 2)}
+                <span class="hidden sm:inline">L/100km</span></span
               >
             </div>
-            <div>
-              Highest: <span class="font-semibold text-base-content"
-                >{fmt(stats?.max_consumption_l_per_100km, 2)} L/100km</span
+            <div class="flex items-baseline justify-between gap-3">
+              <span>Highest</span>
+              <span
+                class="font-semibold text-base-content whitespace-nowrap tabular-nums"
+                >{fmt(stats?.max_consumption_l_per_100km, 2)}
+                <span class="hidden sm:inline">L/100km</span></span
               >
             </div>
           </div>
         </section>
 
-        <section class="rounded-2xl border border-warning/20 bg-warning/5 p-4">
+        <section
+          class={`rounded-2xl border border-warning/20 bg-warning/5 p-4 ${showAllCards ? "" : "hidden sm:block"}`}
+        >
           <h2
             class="text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/55"
           >
@@ -439,26 +437,32 @@
           <div class="mt-1 text-3xl font-black tracking-tight text-warning">
             {fmtEuro(stats?.fuel_cost_total_eur)}
           </div>
-          <div
-            class="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-base-content/75"
-          >
-            <div>
-              This year: <span class="font-semibold text-base-content"
+          <div class="mt-3 space-y-1 text-sm text-base-content/75">
+            <div class="flex items-baseline justify-between gap-3">
+              <span>This year</span>
+              <span
+                class="font-semibold text-base-content whitespace-nowrap tabular-nums"
                 >{fmtEuro(stats?.fuel_cost_this_year_eur)}</span
               >
             </div>
-            <div>
-              Last year: <span class="font-semibold text-base-content"
+            <div class="flex items-baseline justify-between gap-3">
+              <span>Last year</span>
+              <span
+                class="font-semibold text-base-content whitespace-nowrap tabular-nums"
                 >{fmtEuro(stats?.fuel_cost_last_year_eur)}</span
               >
             </div>
-            <div>
-              Avg / month: <span class="font-semibold text-base-content"
+            <div class="flex items-baseline justify-between gap-3">
+              <span>Avg / month</span>
+              <span
+                class="font-semibold text-base-content whitespace-nowrap tabular-nums"
                 >{fmtEuro(stats?.fuel_cost_avg_month_eur)}</span
               >
             </div>
-            <div>
-              Avg / day: <span class="font-semibold text-base-content"
+            <div class="flex items-baseline justify-between gap-3">
+              <span>Avg / day</span>
+              <span
+                class="font-semibold text-base-content whitespace-nowrap tabular-nums"
                 >{fmtEuro(stats?.fuel_cost_avg_day_eur)}</span
               >
             </div>
@@ -466,7 +470,7 @@
         </section>
 
         <section
-          class="rounded-2xl border border-secondary/20 bg-secondary/5 p-4"
+          class={`rounded-2xl border border-secondary/20 bg-secondary/5 p-4 ${showAllCards ? "" : "hidden sm:block"}`}
         >
           <h2
             class="text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/55"
@@ -474,26 +478,34 @@
             Cost per kilometer
           </h2>
           <div class="mt-1 text-3xl font-black tracking-tight text-secondary">
-            {fmt(stats?.avg_cost_per_km_eur, 3)}
-            <span class="text-base font-bold">€/km</span>
+            <span class="whitespace-nowrap tabular-nums"
+              >{fmt(stats?.avg_cost_per_km_eur, 3)}
+              <span class="text-base font-bold">€/km</span></span
+            >
           </div>
-          <div
-            class="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-base-content/75"
-          >
-            <div>
-              Lowest: <span class="font-semibold text-base-content"
-                >{fmt(stats?.min_cost_per_km_eur, 3)} €/km</span
+          <div class="mt-3 space-y-1 text-sm text-base-content/75">
+            <div class="flex items-baseline justify-between gap-3">
+              <span>Lowest</span>
+              <span
+                class="font-semibold text-base-content whitespace-nowrap tabular-nums"
+                >{fmt(stats?.min_cost_per_km_eur, 3)}
+                <span class="hidden sm:inline">€/km</span></span
               >
             </div>
-            <div>
-              Highest: <span class="font-semibold text-base-content"
-                >{fmt(stats?.max_cost_per_km_eur, 3)} €/km</span
+            <div class="flex items-baseline justify-between gap-3">
+              <span>Highest</span>
+              <span
+                class="font-semibold text-base-content whitespace-nowrap tabular-nums"
+                >{fmt(stats?.max_cost_per_km_eur, 3)}
+                <span class="hidden sm:inline">€/km</span></span
               >
             </div>
           </div>
         </section>
 
-        <section class="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+        <section
+          class={`rounded-2xl border border-primary/20 bg-primary/5 p-4 ${showAllCards ? "" : "hidden sm:block"}`}
+        >
           <h2
             class="text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/55"
           >
@@ -502,33 +514,41 @@
           <div class="mt-1 text-3xl font-black tracking-tight text-primary">
             {fmtKm(stats?.driven_total_km)}
           </div>
-          <div
-            class="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-base-content/75"
-          >
-            <div>
-              This year: <span class="font-semibold text-base-content"
+          <div class="mt-3 space-y-1 text-sm text-base-content/75">
+            <div class="flex items-baseline justify-between gap-3">
+              <span>This year</span>
+              <span
+                class="font-semibold text-base-content whitespace-nowrap tabular-nums"
                 >{fmtKm(stats?.driven_this_year_km)}</span
               >
             </div>
-            <div>
-              Last year: <span class="font-semibold text-base-content"
+            <div class="flex items-baseline justify-between gap-3">
+              <span>Last year</span>
+              <span
+                class="font-semibold text-base-content whitespace-nowrap tabular-nums"
                 >{fmtKm(stats?.driven_last_year_km)}</span
               >
             </div>
-            <div>
-              Avg / month: <span class="font-semibold text-base-content"
+            <div class="flex items-baseline justify-between gap-3">
+              <span>Avg / month</span>
+              <span
+                class="font-semibold text-base-content whitespace-nowrap tabular-nums"
                 >{fmtKm(stats?.driven_avg_month_km)}</span
               >
             </div>
-            <div>
-              Avg / day: <span class="font-semibold text-base-content"
+            <div class="flex items-baseline justify-between gap-3">
+              <span>Avg / day</span>
+              <span
+                class="font-semibold text-base-content whitespace-nowrap tabular-nums"
                 >{fmtKm(stats?.driven_avg_day_km)}</span
               >
             </div>
           </div>
         </section>
 
-        <section class="rounded-2xl border border-accent/20 bg-accent/5 p-4">
+        <section
+          class={`rounded-2xl border border-accent/20 bg-accent/5 p-4 ${showAllCards ? "" : "hidden sm:block"}`}
+        >
           <h2
             class="text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/55"
           >
@@ -537,26 +557,59 @@
           <div class="mt-1 text-3xl font-black tracking-tight text-accent">
             {fmtEuro(stats?.expense_total_eur)}
           </div>
-          <div
-            class="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-base-content/75"
-          >
-            <div>
-              This year: <span class="font-semibold text-base-content"
+          <div class="mt-3 space-y-1 text-sm text-base-content/75">
+            <div class="flex items-baseline justify-between gap-3">
+              <span>This year</span>
+              <span
+                class="font-semibold text-base-content whitespace-nowrap tabular-nums"
                 >{fmtEuro(stats?.expense_this_year_eur)}</span
               >
             </div>
-            <div>
-              Last year: <span class="font-semibold text-base-content"
+            <div class="flex items-baseline justify-between gap-3">
+              <span>Last year</span>
+              <span
+                class="font-semibold text-base-content whitespace-nowrap tabular-nums"
                 >{fmtEuro(stats?.expense_last_year_eur)}</span
               >
             </div>
-            <div>
-              Avg / year: <span class="font-semibold text-base-content"
+            <div class="flex items-baseline justify-between gap-3">
+              <span>Avg / year</span>
+              <span
+                class="font-semibold text-base-content whitespace-nowrap tabular-nums"
                 >{fmtEuro(stats?.expense_avg_year_eur)}</span
               >
             </div>
           </div>
         </section>
+      </div>
+
+      {#if !showAllCards}
+        <div class="sm:hidden">
+          <button
+            type="button"
+            class="btn btn-outline btn-sm w-full"
+            onclick={() => {
+              showAllCards = true;
+            }}
+          >
+            Show more
+          </button>
+        </div>
+      {/if}
+
+      <div class="flex justify-end">
+        <div class="form-control min-w-[12rem]">
+          <select
+            id="stats-range-select"
+            class="select select-bordered select-sm"
+            bind:value={selectedRange}
+            aria-label="Plot range"
+          >
+            {#each rangeOptions() as option (option.value)}
+              <option value={option.value}>{option.label}</option>
+            {/each}
+          </select>
+        </div>
       </div>
     {/if}
 
