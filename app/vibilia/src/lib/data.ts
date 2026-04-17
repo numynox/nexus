@@ -125,6 +125,27 @@ export async function fetchFuelPricePlotHistory(
   return data || [];
 }
 
+export async function fetchFuelPriceWeeklyMinima(
+  fuelType: string,
+  sinceIso: string,
+  untilIso: string,
+  timeZone = "UTC",
+): Promise<any[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await (supabase as any).rpc(
+    "get_fuel_price_weekly_minima",
+    {
+      p_fuel_type: fuelType,
+      p_since: sinceIso,
+      p_until: untilIso,
+      p_time_zone: timeZone,
+    },
+  );
+
+  if (error) throw error;
+  return data || [];
+}
+
 export async function fetchCarsForUser(userId: string): Promise<any[]> {
   const supabase = getSupabaseClient();
   const { data: ownedCars, error: ownedError } = await supabase

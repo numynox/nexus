@@ -25,7 +25,7 @@ const { values } = parseArgs({
   args: process.argv.slice(2),
   options: {
     avg: { type: "string", default: "1.80" },
-    days: { type: "string", default: "3" },
+    days: { type: "string", default: "30" },
     interval: { type: "string", default: "10" },
   },
   strict: true,

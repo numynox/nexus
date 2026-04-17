@@ -22,6 +22,8 @@
     title: string;
     subtitle?: string;
     points: Point[];
+    secondaryPoints?: Point[];
+    secondaryLabel?: string;
     yDecimals?: number;
     yUnit?: string;
     showAverageLine?: boolean;
@@ -38,7 +40,11 @@
 
       const averageDataset = datasets[averageDatasetIndex];
       const avgRaw = averageDataset?.data?.[0];
-      const avgValue = Number(avgRaw);
+      const avgValue = Number(
+        typeof avgRaw === "object" && avgRaw !== null
+          ? (avgRaw as any).y
+          : avgRaw,
+      );
       if (!Number.isFinite(avgValue)) return;
 
       const yScale = chart?.scales?.y;
@@ -102,6 +108,8 @@
     title,
     subtitle = "",
     points,
+    secondaryPoints = [],
+    secondaryLabel = "",
     yDecimals = 2,
     yUnit = "",
     showAverageLine = false,
@@ -140,6 +148,7 @@
   );
 
   let accentColor = $state("rgb(255, 120, 0)");
+  let secondaryColor = $state("rgb(255, 255, 255)");
 
   function oklchToRgb(oklchStr: string): string {
     const match = oklchStr.match(/oklch\(([\d.]+)\s+([\d.]+)\s+([\d.]+)\)/);
@@ -199,6 +208,7 @@
   onMount(() => {
     const updateThemeColors = () => {
       accentColor = getColorFromClass("btn btn-primary");
+      secondaryColor = getColorFromClass("btn btn-secondary");
     };
 
     updateThemeColors();
@@ -221,7 +231,6 @@
     const fillColor = accentColor
       .replace("rgb(", "rgba(")
       .replace(")", ", 0.14)");
-    const labels = points.map((point) => dayjs(point.x).format("MMM YYYY"));
     const values = points.map((point) => point.y);
     const avg =
       values.length > 0
@@ -230,11 +239,14 @@
     const avgLineColor = accentColor
       .replace("rgb(", "rgba(")
       .replace(")", ", 0.75)");
+    const secondaryLineColor = secondaryColor
+      .replace("rgb(", "rgba(")
+      .replace(")", ", 0.9)");
 
     const datasets: any[] = [
       {
         label: title,
-        data: values,
+        data: points,
         borderColor: lineColor,
         backgroundColor: fillColor,
         borderWidth: 2.2,
@@ -249,7 +261,7 @@
     if (showAverageLine && avg !== null) {
       datasets.push({
         label: "Average",
-        data: values.map(() => avg),
+        data: points.map((point) => ({ x: point.x, y: avg })),
         borderColor: avgLineColor,
         borderWidth: 1.6,
         pointRadius: 0,
@@ -264,10 +276,48 @@
       });
     }
 
+    if (secondaryPoints.length > 0) {
+      datasets.push({
+        label: secondaryLabel || "Reference",
+        data: secondaryPoints,
+        borderColor: secondaryLineColor,
+        borderWidth: 1.7,
+        pointRadius: 0,
+        pointHoverRadius: 3,
+        borderDash: [4, 3],
+        fill: false,
+        tension: 0.12,
+        spanGaps: true,
+      });
+    }
+
     return {
-      labels,
       datasets,
     };
+  });
+
+  const xDomain = $derived.by(() => {
+    const xs = points
+      .map((point) => Number(point.x))
+      .filter((value) => Number.isFinite(value));
+
+    if (xs.length === 0) {
+      return {
+        min: undefined as number | undefined,
+        max: undefined as number | undefined,
+      };
+    }
+
+    const min = Math.min(...xs);
+    const max = Math.max(...xs);
+
+    // Avoid a degenerate axis when only one x value exists.
+    if (min === max) {
+      const oneDayMs = 24 * 60 * 60 * 1000;
+      return { min: min - oneDayMs, max: max + oneDayMs };
+    }
+
+    return { min, max };
   });
 
   const options = $derived.by(() => ({
@@ -278,6 +328,11 @@
     plugins: {
       legend: {
         display: false,
+        labels: {
+          color: "#cbd5e1",
+          usePointStyle: true,
+          boxWidth: 10,
+        },
       },
       tooltip: {
         mode: "nearest" as const,
@@ -287,14 +342,39 @@
         bodyColor: "#fff",
         borderColor: "#374151",
         borderWidth: 1,
+        callbacks: {
+          title: (items: any[]) => {
+            if (!items?.length) return "";
+            const x = Number(items[0]?.parsed?.x);
+            return Number.isFinite(x) ? dayjs(x).format("DD MMM YYYY") : "";
+          },
+          label: (item: any) => {
+            const value = Number(item?.parsed?.y);
+            const formatted = Number.isFinite(value)
+              ? formatNumber(
+                  value,
+                  yDecimals,
+                  numberLocale,
+                  useThousandsSeparator,
+                )
+              : "-";
+            return `${item.dataset.label}: ${formatted}${yUnit ? ` ${yUnit}` : ""}`;
+          },
+        },
       },
     },
     scales: {
       x: {
+        type: "linear" as const,
+        bounds: "data" as const,
+        offset: false,
+        min: xDomain.min,
+        max: xDomain.max,
         grid: { color: "rgba(148, 163, 184, 0.10)" },
         ticks: {
           color: "#9ca3af",
           maxTicksLimit: 7,
+          callback: (value: any) => dayjs(Number(value)).format("MMM YYYY"),
         },
       },
       y: {

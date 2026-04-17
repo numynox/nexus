@@ -8,6 +8,7 @@
     fetchCarRefuelStatistics,
     fetchCarRefuelYearBounds,
     fetchCarsForUser,
+    fetchFuelPriceWeeklyMinima,
   } from "../../lib/data";
   import {
     clearLastSelectedCarId,
@@ -16,6 +17,8 @@
   } from "../../lib/storage";
   import { session } from "../../lib/stores";
   import VehicleStatsChart from "./VehicleStatsChart.svelte";
+
+  const VehicleStatsChartAny = VehicleStatsChart as any;
 
   type RangeValue = "1y" | "3y" | "5y" | "overall" | `year:${number}`;
 
@@ -32,6 +35,7 @@
   let stats = $state<any | null>(null);
   let plotEvents = $state<any[]>([]);
   let kmPerMonth = $state<any[]>([]);
+  let weeklyMarketMinPrices = $state<any[]>([]);
   let yearOptions = $state<number[]>([]);
   let selectedRange = $state<RangeValue>("1y");
   let overallSinceIso = $state<string | null>(null);
@@ -180,16 +184,23 @@
     const token = ++plotsLoadToken;
     loadingPlots = true;
     const { sinceIso, untilIso } = resolveRange(range);
+    const fuelType = selectedCar?.preferred_fuel_type || "E10";
+    const timeZone =
+      typeof Intl !== "undefined"
+        ? Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+        : "UTC";
 
-    const [eventRows, monthlyRows] = await Promise.all([
+    const [eventRows, monthlyRows, weeklyRows] = await Promise.all([
       fetchCarRefuelPlotEvents(carId, sinceIso, untilIso),
       fetchCarKmPerMonth(carId, sinceIso, untilIso),
+      fetchFuelPriceWeeklyMinima(fuelType, sinceIso, untilIso, timeZone),
     ]);
 
     if (token !== plotsLoadToken) return;
 
     plotEvents = eventRows;
     kmPerMonth = monthlyRows;
+    weeklyMarketMinPrices = weeklyRows;
     loadingPlots = false;
   }
 
@@ -265,6 +276,15 @@
       .map((entry) => ({
         x: dayjs(entry.fueled_at).valueOf(),
         y: Number(entry.price_per_liter),
+      })),
+  );
+
+  const weeklyMarketMinPricePoints = $derived.by(() =>
+    weeklyMarketMinPrices
+      .filter((entry) => Number.isFinite(Number(entry.min_price)))
+      .map((entry) => ({
+        x: dayjs(entry.week_start).valueOf(),
+        y: Number(entry.min_price),
       })),
   );
 
@@ -628,10 +648,12 @@
           showAverageLine={true}
         />
 
-        <VehicleStatsChart
+        <VehicleStatsChartAny
           title="Fuel prices over time"
-          subtitle="Price per liter for each refuel event"
+          subtitle="Price per liter (-) and weekly market low (--)"
           points={pricePoints}
+          secondaryPoints={weeklyMarketMinPricePoints}
+          secondaryLabel="Weekly market low"
           yDecimals={3}
           yUnit="€/L"
           showAverageLine={true}
