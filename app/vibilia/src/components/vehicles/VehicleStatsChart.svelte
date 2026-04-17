@@ -1,5 +1,6 @@
 <script lang="ts">
   import {
+    BarElement,
     CategoryScale,
     Chart as ChartJS,
     Filler,
@@ -11,7 +12,7 @@
   } from "chart.js";
   import dayjs from "dayjs";
   import { onMount } from "svelte";
-  import { Line } from "svelte-chartjs";
+  import { Bar, Line } from "svelte-chartjs";
 
   interface Point {
     x: number;
@@ -24,6 +25,7 @@
     points: Point[];
     secondaryPoints?: Point[];
     secondaryLabel?: string;
+    plotStyle?: "line" | "stepped-line" | "bar";
     yDecimals?: number;
     yUnit?: string;
     showAverageLine?: boolean;
@@ -70,6 +72,22 @@
 
       const y = yScale.getPixelForValue(avgValue);
       const ctx = chart.ctx;
+
+      if (averageDataset?.avgFullWidth) {
+        ctx.save();
+        ctx.strokeStyle =
+          typeof averageDataset?.avgLineColor === "string"
+            ? averageDataset.avgLineColor
+            : "rgba(255, 255, 255, 0.75)";
+        ctx.lineWidth = 1.6;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(chartArea.left, y);
+        ctx.lineTo(chartArea.right, y);
+        ctx.stroke();
+        ctx.restore();
+      }
+
       const paddingX = 6;
       const paddingY = 3;
       const fontSize = 11;
@@ -110,6 +128,7 @@
     points,
     secondaryPoints = [],
     secondaryLabel = "",
+    plotStyle = "line",
     yDecimals = 2,
     yUnit = "",
     showAverageLine = false,
@@ -140,6 +159,7 @@
     Tooltip,
     Legend,
     LineElement,
+    BarElement,
     CategoryScale,
     LinearScale,
     PointElement,
@@ -242,33 +262,77 @@
     const secondaryLineColor = secondaryColor
       .replace("rgb(", "rgba(")
       .replace(")", ", 0.9)");
+    const isStepped = plotStyle === "stepped-line";
+    const isBar = plotStyle === "bar";
+
+    let barLabels: string[] = [];
+    let barValues: Array<number | null> = [];
+    if (isBar && points.length > 0) {
+      const monthlyTotals = new Map<string, number>();
+      for (const point of points) {
+        const monthKey = dayjs(point.x).startOf("month").format("YYYY-MM");
+        monthlyTotals.set(
+          monthKey,
+          (monthlyTotals.get(monthKey) || 0) + point.y,
+        );
+      }
+
+      const firstMonth = dayjs(
+        Math.min(...points.map((point) => point.x)),
+      ).startOf("month");
+      const lastMonth = dayjs(
+        Math.max(...points.map((point) => point.x)),
+      ).startOf("month");
+
+      let cursor = firstMonth;
+      while (cursor.isBefore(lastMonth) || cursor.isSame(lastMonth)) {
+        const monthKey = cursor.format("YYYY-MM");
+        barLabels.push(cursor.format("MMM YYYY"));
+        barValues.push(
+          monthlyTotals.has(monthKey)
+            ? (monthlyTotals.get(monthKey) ?? null)
+            : null,
+        );
+        cursor = cursor.add(1, "month");
+      }
+    }
 
     const datasets: any[] = [
       {
+        type: isBar ? "bar" : "line",
         label: title,
-        data: points,
+        data: isBar ? barValues : points,
         borderColor: lineColor,
         backgroundColor: fillColor,
         borderWidth: 2.2,
-        pointRadius: 0,
+        pointRadius: isBar ? 0 : 0,
         pointHoverRadius: 4,
-        fill: true,
-        tension: 0.2,
+        fill: !isBar,
+        tension: isStepped ? 0 : 0.2,
+        stepped: isStepped ? ("after" as const) : false,
         spanGaps: true,
+        borderSkipped: isBar ? false : undefined,
+        categoryPercentage: isBar ? 0.92 : undefined,
+        barPercentage: isBar ? 0.95 : undefined,
       },
     ];
 
     if (showAverageLine && avg !== null) {
       datasets.push({
+        type: "line",
         label: "Average",
-        data: points.map((point) => ({ x: point.x, y: avg })),
+        data: isBar
+          ? barValues.map(() => avg)
+          : points.map((point) => ({ x: point.x, y: avg })),
         borderColor: avgLineColor,
-        borderWidth: 1.6,
+        borderWidth: isBar ? 0 : 1.6,
         pointRadius: 0,
         pointHoverRadius: 0,
         borderDash: [6, 4],
         fill: false,
         tension: 0,
+        avgFullWidth: isBar,
+        avgLineColor: avgLineColor,
         avgDecimals: yDecimals,
         avgUnit: yUnit,
         avgLocale: numberLocale,
@@ -278,6 +342,7 @@
 
     if (secondaryPoints.length > 0) {
       datasets.push({
+        type: "line",
         label: secondaryLabel || "Reference",
         data: secondaryPoints,
         borderColor: secondaryLineColor,
@@ -286,12 +351,14 @@
         pointHoverRadius: 3,
         borderDash: [4, 3],
         fill: false,
-        tension: 0.12,
+        tension: isStepped ? 0 : 0.12,
+        stepped: isStepped ? ("after" as const) : false,
         spanGaps: true,
       });
     }
 
     return {
+      labels: isBar ? barLabels : undefined,
       datasets,
     };
   });
@@ -310,6 +377,11 @@
 
     const min = Math.min(...xs);
     const max = Math.max(...xs);
+
+    if (plotStyle === "bar") {
+      const halfMonthMs = 15 * 24 * 60 * 60 * 1000;
+      return { min: min - halfMonthMs, max: max + halfMonthMs };
+    }
 
     // Avoid a degenerate axis when only one x value exists.
     if (min === max) {
@@ -345,6 +417,11 @@
         callbacks: {
           title: (items: any[]) => {
             if (!items?.length) return "";
+            if (plotStyle === "bar") {
+              const index = Number(items[0]?.dataIndex);
+              const label = chartData.labels?.[index];
+              return typeof label === "string" ? label : "";
+            }
             const x = Number(items[0]?.parsed?.x);
             return Number.isFinite(x) ? dayjs(x).format("DD MMM YYYY") : "";
           },
@@ -365,20 +442,26 @@
     },
     scales: {
       x: {
-        type: "linear" as const,
+        type: plotStyle === "bar" ? ("category" as const) : ("linear" as const),
         bounds: "data" as const,
-        offset: false,
-        min: xDomain.min,
-        max: xDomain.max,
+        offset: plotStyle === "bar",
+        min: plotStyle === "bar" ? undefined : xDomain.min,
+        max: plotStyle === "bar" ? undefined : xDomain.max,
         grid: { color: "rgba(148, 163, 184, 0.10)" },
         ticks: {
           color: "#9ca3af",
           maxTicksLimit: 7,
-          callback: (value: any) => dayjs(Number(value)).format("MMM YYYY"),
+          callback: (value: any) => {
+            if (plotStyle === "bar") {
+              const label = chartData.labels?.[Number(value)];
+              return typeof label === "string" ? label : "";
+            }
+            return dayjs(Number(value)).format("MMM YYYY");
+          },
         },
       },
       y: {
-        beginAtZero: false,
+        beginAtZero: plotStyle === "bar",
         grid: { color: "rgba(148, 163, 184, 0.10)" },
         ticks: {
           color: "#9ca3af",
@@ -404,7 +487,11 @@
 
     {#if points.length > 0}
       <div class="h-64">
-        <Line data={chartData} {options} />
+        {#if plotStyle === "bar"}
+          <Bar data={chartData} {options} />
+        {:else}
+          <Line data={chartData} {options} />
+        {/if}
       </div>
     {:else}
       <div

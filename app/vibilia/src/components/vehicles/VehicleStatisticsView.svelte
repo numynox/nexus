@@ -643,6 +643,7 @@
           title="Average consumption over time"
           subtitle="Computed from refuel intervals"
           points={consumptionPoints}
+          plotStyle="stepped-line"
           yDecimals={2}
           yUnit="L/100km"
           showAverageLine={true}
@@ -654,6 +655,7 @@
           points={pricePoints}
           secondaryPoints={weeklyMarketMinPricePoints}
           secondaryLabel="Weekly market low"
+          plotStyle="stepped-line"
           yDecimals={3}
           yUnit="€/L"
           showAverageLine={true}
@@ -663,6 +665,7 @@
           title="Kilometers driven per month"
           subtitle="Aggregated monthly driven distance"
           points={kmPerMonthPoints}
+          plotStyle="bar"
           yDecimals={0}
           yUnit="km"
           showAverageLine={true}
