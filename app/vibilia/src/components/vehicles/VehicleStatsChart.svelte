@@ -98,7 +98,7 @@
       const textWidth = ctx.measureText(label).width;
       const boxWidth = textWidth + paddingX * 2;
       const boxHeight = fontSize + paddingY * 2;
-      const x = chartArea.right - boxWidth - 2;
+      const x = chartArea.left + 2;
 
       let yBox = y - boxHeight - 5;
       if (yBox < chartArea.top + 2) {
