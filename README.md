@@ -198,6 +198,75 @@ Set repository variables used by the Pages workflow:
 - `PUBLIC_SUPABASE_URL`
 - `PUBLIC_SUPABASE_ANON_KEY`
 
+## Manual Supabase backups (free-tier workaround)
+
+This repo now includes simple, manual scripts to back up your linked remote Supabase database
+and restore it locally (for rollback testing) or remotely (destructive).
+
+### What is backed up
+
+- SQL schema dump for selected schemas (default: `public`)
+- SQL data dump for selected schemas
+- Cluster roles dump (`roles.sql`)
+
+Backups are written to `backups/supabase/<timestamp>/` and ignored by git.
+
+### 1) Create a backup
+
+```bash
+npm run db:backup
+```
+
+Optional: include additional schemas (for example `auth,storage,public`):
+
+```bash
+SUPABASE_BACKUP_SCHEMAS=auth,storage,public npm run db:backup
+```
+
+### 2) Test restore safely in local Supabase
+
+```bash
+npm run db:restore:local -- backups/supabase/<timestamp>
+```
+
+This starts local Supabase if needed and restores the chosen backup into your local DB,
+so you can verify rollback before touching production.
+The restore script also re-creates the `auth.users -> public.profiles` signup trigger.
+It also reapplies the `reassign_profile_user` helper and related FK migrations (Noctua + Vibilia), so older backups still support profile reassignment.
+
+### Reassign restored profiles to new auth users
+
+If user IDs differ after restore (for example local development with newly created users),
+use:
+
+```sql
+select public.reassign_profile_user(
+	'old-profile-user-id'::uuid,
+	'new-auth-user-id'::uuid,
+	true
+);
+```
+
+Behavior:
+
+- Reassigns ownership in `sections`.
+- Reassigns and deduplicates `article_reads`.
+- Reassigns Vibilia relations (`cars.owner_id`, `car_access.user_id`, `refuel_events.user_id`, `car_expenses.user_id`).
+- Merges basic profile fields into an existing target profile (when `true`) and removes the source profile.
+- Uses FK `ON UPDATE CASCADE` for direct ID reassignment when no target profile exists.
+
+### 3) Optional remote restore (destructive)
+
+Only run this if you really need to roll back remote data.
+
+```bash
+SUPABASE_DB_URL='postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres' \
+	npm run db:restore:remote -- backups/supabase/<timestamp> --confirm-remote-restore
+```
+
+The script requires an explicit confirmation prompt and drops/recreates `public` before restore.
+Always create a fresh backup before running remote restore.
+
 ## Useful scripts
 
 - `npm run build:websites`
@@ -205,7 +274,9 @@ Set repository variables used by the Pages workflow:
 - `npm run build:vibilia`
 - `npm run dev:noctua`
 - `npm run dev:vibilia`
-- `npm run db:db:push`
+- `npm run db:push`
+- `npm run db:backup`
+- `npm run db:restore:local -- backups/supabase/<timestamp>`
 - `npm run db:functions:serve`
 
 See also `package.json`.
