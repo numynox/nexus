@@ -1,12 +1,13 @@
 <script lang="ts">
   import { Fuel, PencilLine, Plus, Trash2, Users } from "lucide-svelte";
   import { onMount } from "svelte";
+  import type { CarMember } from "../../lib/data";
   import {
     createCarForUser,
     deleteCarById,
-    fetchOwnedCarsForUser,
-    findProfileById,
-    grantCarAccess,
+    fetchCarsForUser,
+    listCarMembers,
+    shareCarWithEmail,
     updateCarById,
   } from "../../lib/data";
   import { session } from "../../lib/stores";
@@ -43,6 +44,7 @@
   let sharingCarId = $state<string | null>(null);
   let shareEmail = $state("");
   let shareMessage = $state("");
+  let carMembersByCarId = $state<Record<string, CarMember[]>>({});
 
   onMount(() => {
     fetchCars();
@@ -69,8 +71,33 @@
       return;
     }
 
-    cars = await fetchOwnedCarsForUser($session.user.id);
+    cars = await fetchCarsForUser($session.user.id);
+    const membersEntries = await Promise.all(
+      cars.map(async (car) => [car.id, await listCarMembers(car.id)] as const),
+    );
+    carMembersByCarId = Object.fromEntries(membersEntries);
     loading = false;
+  }
+
+  function displayName(member: CarMember): string {
+    return member.full_name?.trim() || member.email?.trim() || member.user_id;
+  }
+
+  function ownerForCar(carId: string): CarMember | undefined {
+    return (carMembersByCarId[carId] || []).find(
+      (member) => member.role === "owner",
+    );
+  }
+
+  function ownerDisplayNameForCar(carId: string): string {
+    const owner = ownerForCar(carId);
+    return owner ? displayName(owner) : "Unknown";
+  }
+
+  function sharedMembersForCar(carId: string): CarMember[] {
+    return (carMembersByCarId[carId] || []).filter(
+      (member) => member.role === "shared",
+    );
   }
 
   async function addCar() {
@@ -163,28 +190,16 @@
   async function shareCar() {
     if (!sharingCarId || !shareEmail) return;
 
-    // Find user by email (Simplified: in a real app, you'd use a server-side lookup or RPC)
-    // Here we try to find in shared profiles since that's where we store user info
-    let profile: { id: string };
     try {
-      profile = await findProfileById(shareEmail);
-    } catch (_error) {
-      shareMessage =
-        "User not found. Please use their Supabase User ID for now.";
-      return;
-    }
-
-    // Fallback: If we don't have a lookup by email established, we tell the user to use the User ID for now
-    // In the real system, you'd probably have an rpc find_user_by_email(email)
-
-    try {
-      await grantCarAccess(sharingCarId, profile.id);
+      await shareCarWithEmail(sharingCarId, shareEmail.trim());
+      carMembersByCarId[sharingCarId] = await listCarMembers(sharingCarId);
       shareMessage = "Vehicle shared successfully!";
       setTimeout(() => {
         sharingCarId = null;
       }, 2000);
-    } catch (_error) {
-      shareMessage = "Error sharing or already shared with this user.";
+    } catch (error) {
+      shareMessage =
+        error instanceof Error ? error.message : "Error sharing vehicle.";
     }
   }
 </script>
@@ -314,15 +329,15 @@
             )?.name}
           </h3>
           <p class="py-4 text-sm text-base-content/70">
-            Enter the User ID of the person you want to share this vehicle with.
+            Enter the email of the person you want to share this vehicle with.
             They will be able to see prices and log refuels.
           </p>
           <div class="form-control">
             <input
-              type="text"
+              type="email"
               bind:value={shareEmail}
               class="input input-bordered"
-              placeholder="User ID"
+              placeholder="user@example.com"
             />
             {#if shareMessage}
               <p
@@ -362,6 +377,16 @@
                 <div class="text-xs text-base-content/50">
                   {car.tank_capacity}L capacity
                 </div>
+                <div class="text-xs text-base-content/60 mt-1">
+                  Owner: {ownerDisplayNameForCar(car.id)}
+                </div>
+                {#if sharedMembersForCar(car.id).length > 0}
+                  <div class="text-xs text-base-content/60">
+                    Shared with: {sharedMembersForCar(car.id)
+                      .map(displayName)
+                      .join(", ")}
+                  </div>
+                {/if}
                 <div class="text-xs text-base-content/50">
                   {car.year || ""}
                   {car.make || ""}

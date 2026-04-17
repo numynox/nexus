@@ -62,4 +62,10 @@ docker run --rm -v "$ROOT_DIR:/repo:ro" postgres:15-alpine \
 docker run --rm -v "$ROOT_DIR:/repo:ro" postgres:15-alpine \
   psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f /repo/supabase/migrations/20260417235500_vibilia_profile_refs_and_reassign_upgrade.sql
 
+docker run --rm -v "$ROOT_DIR:/repo:ro" postgres:15-alpine \
+  psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f /repo/supabase/migrations/20260418001000_vibilia_sharing_full_access_rls.sql
+
+docker run --rm -v "$ROOT_DIR:/repo:ro" postgres:15-alpine \
+  psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f /repo/supabase/migrations/20260418004000_vibilia_share_by_email_and_members.sql
+
 echo "Remote restore complete."

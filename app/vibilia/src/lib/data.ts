@@ -40,6 +40,13 @@ interface CarExpenseUpdate {
   notes: string | null;
 }
 
+export interface CarMember {
+  user_id: string;
+  role: "owner" | "shared";
+  full_name: string | null;
+  email: string | null;
+}
+
 export async function getSession(): Promise<Session | null> {
   const supabase = getSupabaseClient();
   const {
@@ -146,25 +153,17 @@ export async function fetchFuelPriceWeeklyMinima(
   return data || [];
 }
 
-export async function fetchCarsForUser(userId: string): Promise<any[]> {
+export async function fetchCarsForUser(_userId: string): Promise<any[]> {
   const supabase = getSupabaseClient();
-  const { data: ownedCars, error: ownedError } = await supabase
+  const { data, error } = await supabase
     .from("cars")
     .select("*")
-    .eq("owner_id", userId);
+    .order("created_at", { ascending: false });
 
-  if (ownedError) throw ownedError;
+  if (error) throw error;
 
-  const { data: sharedCars, error: sharedError } = await supabase
-    .from("cars")
-    .select("*, car_access!inner(user_id)")
-    .eq("car_access.user_id", userId);
-
-  if (sharedError) throw sharedError;
-
-  const merged = [...(ownedCars || []), ...(sharedCars || [])];
-  const uniqueById = new Map(merged.map((car: any) => [car.id, car]));
-  return Array.from(uniqueById.values());
+  // RLS returns exactly the rows the current user can access.
+  return data || [];
 }
 
 export async function fetchOwnedCarsForUser(userId: string): Promise<any[]> {
@@ -243,18 +242,14 @@ export async function updateCarById(
   return data;
 }
 
-export async function findProfileById(
-  profileId: string,
-): Promise<{ id: string }> {
+export async function listCarMembers(carId: string): Promise<CarMember[]> {
   const supabase = getSupabaseClient();
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("id", profileId)
-    .single();
+  const { data, error } = await (supabase as any).rpc("list_car_members", {
+    p_car_id: carId,
+  });
 
   if (error) throw error;
-  return data;
+  return data || [];
 }
 
 export async function grantCarAccess(carId: string, userId: string) {
@@ -264,6 +259,17 @@ export async function grantCarAccess(carId: string, userId: string) {
     .insert([{ car_id: carId, user_id: userId }]);
 
   if (error) throw error;
+}
+
+export async function shareCarWithEmail(carId: string, email: string) {
+  const supabase = getSupabaseClient();
+  const { data, error } = await (supabase as any).rpc("share_car_with_email", {
+    p_car_id: carId,
+    p_email: email,
+  });
+
+  if (error) throw error;
+  return data as string;
 }
 
 export async function fetchRefuelEventsForCar(carId: string): Promise<any[]> {
