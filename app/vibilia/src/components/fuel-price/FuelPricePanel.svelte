@@ -27,6 +27,10 @@
         s.current_price === null || s.current_price === undefined
           ? undefined
           : Number(s.current_price),
+      discount:
+        s.discount === null || s.discount === undefined
+          ? 0
+          : Number(s.discount),
     }));
 
     const sinceIso = dayjs()
