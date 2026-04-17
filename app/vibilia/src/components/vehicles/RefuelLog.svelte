@@ -217,63 +217,69 @@
 </script>
 
 <div class="space-y-6">
-  <div class="flex items-center justify-between gap-3">
-    {#if cars.length > 1}
-      <div class="flex flex-col items-start gap-1">
-        {#if car.plate}
-          <span
-            class="inline-flex items-center rounded border-2 border-base-content/60 bg-base-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content"
-          >
-            {car.plate}
-          </span>
-        {/if}
-        <div class="dropdown">
-          <button
-            type="button"
-            tabindex="0"
-            class="btn btn-ghost btn-sm px-0 min-h-0 h-auto normal-case hover:outline hover:outline-2 hover:outline-base-content/20"
-          >
+  <div
+    class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+  >
+    <div class="order-2 sm:order-1">
+      {#if cars.length > 1}
+        <div class="flex flex-col items-start gap-1">
+          {#if car.plate}
             <span
-              class="flex items-center gap-2 text-3xl font-black tracking-tight text-base-content"
+              class="inline-flex items-center rounded border-2 border-base-content/60 bg-base-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content"
             >
-              {car.name}
-              <ChevronDown class="w-5 h-5" />
+              {car.plate}
             </span>
-          </button>
-          <ul
-            class="menu dropdown-content z-[1] mt-2 w-64 rounded-box bg-base-200 p-2 shadow-xl border border-base-content/10"
-          >
-            {#each cars as selectableCar (selectableCar.id)}
-              {#if selectableCar.id !== car.id}
-                <li>
-                  <button
-                    type="button"
-                    onclick={() => onSelectCar?.(selectableCar)}
-                  >
-                    <span class="font-semibold">{selectableCar.name}</span>
-                  </button>
-                </li>
-              {/if}
-            {/each}
-          </ul>
+          {/if}
+          <div class="dropdown">
+            <button
+              type="button"
+              tabindex="0"
+              class="btn btn-ghost btn-sm px-0 min-h-0 h-auto normal-case hover:outline hover:outline-2 hover:outline-base-content/20"
+            >
+              <span
+                class="flex items-center gap-2 text-3xl font-black tracking-tight text-base-content"
+              >
+                {car.name}
+                <ChevronDown class="w-5 h-5" />
+              </span>
+            </button>
+            <ul
+              class="menu dropdown-content z-[1] mt-2 w-64 rounded-box bg-base-200 p-2 shadow-xl border border-base-content/10"
+            >
+              {#each cars as selectableCar (selectableCar.id)}
+                {#if selectableCar.id !== car.id}
+                  <li>
+                    <button
+                      type="button"
+                      onclick={() => onSelectCar?.(selectableCar)}
+                    >
+                      <span class="font-semibold">{selectableCar.name}</span>
+                    </button>
+                  </li>
+                {/if}
+              {/each}
+            </ul>
+          </div>
         </div>
-      </div>
-    {:else}
-      <div class="flex flex-col items-start gap-1">
-        {#if car.plate}
-          <span
-            class="inline-flex items-center rounded border-2 border-base-content/60 bg-base-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content"
-          >
-            {car.plate}
-          </span>
-        {/if}
-        <h2 class="text-3xl font-black text-base-content tracking-tight">
-          {car.name}
-        </h2>
-      </div>
-    {/if}
+      {:else}
+        <div class="flex flex-col items-start gap-1">
+          {#if car.plate}
+            <span
+              class="inline-flex items-center rounded border-2 border-base-content/60 bg-base-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content"
+            >
+              {car.plate}
+            </span>
+          {/if}
+          <h2 class="text-3xl font-black text-base-content tracking-tight">
+            {car.name}
+          </h2>
+        </div>
+      {/if}
+    </div>
 
-    <div class="flex items-center gap-2">
+    <div
+      class="order-1 flex w-full flex-wrap items-center justify-end gap-2 sm:order-2 sm:w-auto"
+    >
       <button
         class="btn btn-soft btn-secondary gap-2"
         onclick={openExpenseForm}
@@ -419,7 +425,7 @@
               </div>
 
               {#if e.entryType === "refuel"}
-                <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div class="mt-4 grid grid-cols-2 gap-3">
                   <div
                     class="rounded-xl border border-success/20 bg-success/5 px-3.5 py-3"
                   >
@@ -429,9 +435,9 @@
                       Spent
                     </div>
                     <div
-                      class="mt-1 text-3xl font-black tracking-tight text-success sm:text-[2rem]"
+                      class="mt-1 text-2xl font-black tracking-tight text-success sm:text-[2rem]"
                     >
-                      {e.total_price.toFixed(2)}€
+                      {e.total_price.toFixed(2)} €
                     </div>
                   </div>
 
@@ -448,7 +454,7 @@
                     >
                       {#if e.consumption}
                         {e.consumption.toFixed(2)}
-                        <span class="text-base font-bold">L/100km</span>
+                        <span class="text-sm font-bold">L/100km</span>
                       {:else}
                         <span class="text-base-content/35">—</span>
                       {/if}
@@ -456,9 +462,7 @@
                   </div>
                 </div>
 
-                <div
-                  class="mt-4 rounded-xl border border-base-content/10 bg-base-200/35 p-3"
-                >
+                <div class="mt-4 p-3">
                   <div
                     class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4"
                   >
@@ -489,7 +493,7 @@
                         Price per liter
                       </div>
                       <div class="mt-0.5 font-semibold text-base-content">
-                        {formatPricePerLiter(e)} €/L
+                        {formatPricePerLiter(e)} €
                       </div>
                     </div>
                     <div>
@@ -522,31 +526,19 @@
                       Expense
                     </div>
                     <div
-                      class="mt-1 text-3xl font-black tracking-tight text-secondary sm:text-[2rem]"
+                      class="mt-1 text-2xl font-black tracking-tight text-secondary sm:text-[2rem]"
                     >
                       {Number(e.amount).toFixed(2)}€
                     </div>
-                  </div>
-
-                  <div
-                    class="rounded-xl border border-base-content/15 bg-base-200/35 px-3.5 py-3"
-                  >
                     <div
-                      class="text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/55"
-                    >
-                      Title
-                    </div>
-                    <div
-                      class="mt-1 text-xl font-black tracking-tight text-base-content"
+                      class="mt-1 text-base font-black tracking-tight text-base-content"
                     >
                       {e.title}
                     </div>
                   </div>
                 </div>
 
-                <div
-                  class="mt-4 rounded-xl border border-base-content/10 bg-base-200/35 p-3"
-                >
+                <div class="mt-4 p-3">
                   <div
                     class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4"
                   >
