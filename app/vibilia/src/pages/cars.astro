@@ -1,8 +1,18 @@
 ---
-import CarsRoute from "../components/routes/CarsRoute.svelte";
 import Layout from "../layouts/Layout.astro";
+
+const normalizedBase =
+  import.meta.env.BASE_URL === "/"
+    ? ""
+    : import.meta.env.BASE_URL.replace(/\/$/, "");
+const target = `${normalizedBase}/vehicle-logs`;
 ---
 
 <Layout title="Vehicle Logs">
-  <CarsRoute client:only="svelte" />
+  <meta http-equiv="refresh" content={`0;url=${target}`} />
+  <div class="p-6 text-sm text-base-content/70">
+    This page moved to <a class="link link-primary" href={target}
+      >Vehicle Logs</a
+    >.
+  </div>
 </Layout>

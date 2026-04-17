@@ -2,7 +2,11 @@
   import { Car, ChartColumnBig, Settings } from "lucide-svelte";
 
   interface Props {
-    activeId?: "fuel-price" | "cars" | "vehicle-statistics" | "settings";
+    activeId?:
+      | "fuel-price"
+      | "vehicle-logs"
+      | "vehicle-statistics"
+      | "settings";
     baseUrl?: string;
     siteTitle?: string;
   }
@@ -24,9 +28,9 @@
     return `${normalizedBase}/fuel-price`;
   }
 
-  function carsHref() {
+  function vehicleLogsHref() {
     const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/$/, "");
-    return `${normalizedBase}/cars`;
+    return `${normalizedBase}/vehicle-logs`;
   }
 
   function settingsHref() {
@@ -112,9 +116,9 @@
       </a>
 
       <a
-        href={carsHref()}
+        href={vehicleLogsHref()}
         class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all
-        {activeId === 'cars'
+        {activeId === 'vehicle-logs'
           ? 'bg-primary text-primary-content font-semibold shadow-md'
           : 'hover:bg-base-300 text-base-content/80'}"
         onclick={closeMobileMenu}

@@ -8,7 +8,11 @@
   import Sidebar from "./Sidebar.svelte";
 
   interface Props {
-    activeId?: "fuel-price" | "cars" | "vehicle-statistics" | "settings";
+    activeId?:
+      | "fuel-price"
+      | "vehicle-logs"
+      | "vehicle-statistics"
+      | "settings";
     children?: Snippet;
   }
 
@@ -46,7 +50,7 @@
   <LoginPanel />
 {:else}
   <div class="flex min-h-screen">
-    <Sidebar {activeId} {baseUrl} {siteTitle} />
+    <Sidebar activeId={activeId as any} {baseUrl} {siteTitle} />
 
     <div class="flex-1 flex flex-col min-w-0">
       <main class="flex-1 p-4 md:p-6 lg:p-8 max-w-5xl mx-auto w-full">

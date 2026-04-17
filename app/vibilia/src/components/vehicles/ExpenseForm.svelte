@@ -10,7 +10,7 @@
     "Tax",
     "Parking",
     "Toll",
-    "Car Wash",
+    "Vehicle Wash",
     "Repairs",
     "Accessories",
     "Other",

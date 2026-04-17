@@ -142,7 +142,7 @@
   async function deleteCar(id: string) {
     if (
       !confirm(
-        "Are you sure you want to delete this vehicle? All refuel logs for this car will be lost.",
+        "Are you sure you want to delete this vehicle? All refuel logs for this vehicle will be lost.",
       )
     )
       return;
@@ -179,7 +179,7 @@
 
     try {
       await grantCarAccess(sharingCarId, profile.id);
-      shareMessage = "Car shared successfully!";
+      shareMessage = "Vehicle shared successfully!";
       setTimeout(() => {
         sharingCarId = null;
       }, 2000);
@@ -199,7 +199,7 @@
         class="btn btn-primary btn-sm rounded-full gap-2"
         onclick={() => (showAddCar = !showAddCar)}
       >
-        <Plus class="w-4 h-4" /> Add Car
+        <Plus class="w-4 h-4" /> Add Vehicle
       </button>
     </div>
 
@@ -279,7 +279,7 @@
                 placeholder="e.g. Passat Variant"
               />
             </div>
-            <div class="form-control sm:col-span-2">
+            <div class="form-control">
               <label class="label" for="mgr-newCarYear"
                 ><span class="label-text">Year</span></label
               >

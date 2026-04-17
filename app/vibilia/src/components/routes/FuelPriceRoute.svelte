@@ -8,7 +8,7 @@
 
   let { priceBucketMinutes = 10 } = $props();
 
-  function navigateToCars() {
+  function navigateToVehicleLogs() {
     const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/$/, "");
     const selectedCarId = getLastSelectedCarId();
     const params = new URLSearchParams({ newRefuel: "1" });
@@ -17,10 +17,10 @@
       params.set("car", selectedCarId);
     }
 
-    window.location.href = `${normalizedBase}/cars?${params.toString()}`;
+    window.location.href = `${normalizedBase}/vehicle-logs?${params.toString()}`;
   }
 </script>
 
 <AppShell activeId="fuel-price">
-  <FuelPricePanel onRefuel={navigateToCars} {priceBucketMinutes} />
+  <FuelPricePanel onRefuel={navigateToVehicleLogs} {priceBucketMinutes} />
 </AppShell>
