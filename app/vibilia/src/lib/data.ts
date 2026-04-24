@@ -52,6 +52,23 @@ export interface LastRefuelEventPoint {
   price_per_liter: number;
 }
 
+export interface NearbyFuelStation {
+  id: string;
+  name: string;
+  brand: string;
+  street: string;
+  house_number: string;
+  place: string;
+  lat?: number;
+  lng?: number;
+  currentPrice?: number;
+  discount: number;
+  whole_day: boolean;
+  opening_times?: unknown;
+  distanceKm?: number;
+  isOpen?: boolean;
+}
+
 export async function getSession(): Promise<Session | null> {
   const supabase = getSupabaseClient();
   const {
@@ -114,6 +131,24 @@ export async function fetchFuelStations(): Promise<any[]> {
 
   if (error) throw error;
   return data || [];
+}
+
+export async function fetchNearbyFuelStations(params: {
+  lat: number;
+  lng: number;
+  fuelType: string;
+  radiusKm: number;
+}): Promise<NearbyFuelStation[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.functions.invoke(
+    "fetch-nearby-fuel-prices",
+    {
+      body: params,
+    },
+  );
+
+  if (error) throw error;
+  return Array.isArray(data?.stations) ? data.stations : [];
 }
 
 export async function fetchFuelPricePlotHistory(

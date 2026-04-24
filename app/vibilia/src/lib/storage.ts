@@ -5,7 +5,15 @@ const STORAGE_KEYS = {
   FUEL_PRICE_PREVIOUS_DAYS: "vibilia_fuel_price_previous_days",
   PREFERRED_FUEL_TYPE: "vibilia_preferred_fuel_type",
   LAST_SELECTED_CAR_ID: "vibilia_last_selected_car_id",
+  NEARBY_FUEL_SEARCH_CACHE: "vibilia_nearby_fuel_search_cache",
 } as const;
+
+export interface NearbyFuelSearchCache {
+  cachedAt: number;
+  fuelType: string;
+  radiusKm: number;
+  stations: unknown[];
+}
 
 const FUEL_PRICE_PREVIOUS_DAYS_MIN = 1;
 const FUEL_PRICE_PREVIOUS_DAYS_MAX = 7;
@@ -112,6 +120,45 @@ export function clearLastSelectedCarId(): void {
 
   try {
     localStorage.removeItem(STORAGE_KEYS.LAST_SELECTED_CAR_ID);
+  } catch (error) {
+    console.warn("Failed to remove from localStorage:", error);
+  }
+}
+
+export function getNearbyFuelSearchCache(): NearbyFuelSearchCache | null {
+  const storedValue = getStorageItem<NearbyFuelSearchCache | null>(
+    STORAGE_KEYS.NEARBY_FUEL_SEARCH_CACHE,
+    null,
+  );
+
+  if (
+    !storedValue ||
+    typeof storedValue !== "object" ||
+    !Number.isFinite(Number(storedValue.cachedAt)) ||
+    typeof storedValue.fuelType !== "string" ||
+    !Number.isFinite(Number(storedValue.radiusKm)) ||
+    !Array.isArray(storedValue.stations)
+  ) {
+    return null;
+  }
+
+  return {
+    cachedAt: Number(storedValue.cachedAt),
+    fuelType: storedValue.fuelType,
+    radiusKm: Number(storedValue.radiusKm),
+    stations: storedValue.stations,
+  };
+}
+
+export function setNearbyFuelSearchCache(cache: NearbyFuelSearchCache): void {
+  setStorageItem(STORAGE_KEYS.NEARBY_FUEL_SEARCH_CACHE, cache);
+}
+
+export function clearNearbyFuelSearchCache(): void {
+  if (!isBrowser()) return;
+
+  try {
+    localStorage.removeItem(STORAGE_KEYS.NEARBY_FUEL_SEARCH_CACHE);
   } catch (error) {
     console.warn("Failed to remove from localStorage:", error);
   }

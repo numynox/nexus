@@ -1,25 +1,11 @@
 ---
-import { existsSync, readFileSync } from "fs";
-import { load } from "js-yaml";
-import { join } from "path";
 import FuelPriceRoute from "../components/routes/FuelPriceRoute.svelte";
 import Layout from "../layouts/Layout.astro";
+import { getVibiliaPageConfig } from "../lib/server-config";
 
-const PROJECT_ROOT = join(import.meta.dirname, "..", "..", "..", "..");
-const configPath = join(PROJECT_ROOT, "config.yaml");
-let priceBucketMinutes = 10;
-
-if (existsSync(configPath)) {
-  const configData = readFileSync(configPath, "utf-8");
-  const config = load(configData) as any;
-  const value = config.settings?.vibilia?.price_bucket_minutes;
-  const parsed = Number(value);
-  if (Number.isInteger(parsed) && parsed > 0) {
-    priceBucketMinutes = parsed;
-  }
-}
+const { priceBucketMinutes, searchRadiusKm } = getVibiliaPageConfig();
 ---
 
 <Layout title="Fuel Price">
-  <FuelPriceRoute {priceBucketMinutes} client:only="svelte" />
+  <FuelPriceRoute {priceBucketMinutes} {searchRadiusKm} client:only="svelte" />
 </Layout>

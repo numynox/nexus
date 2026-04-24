@@ -9,3 +9,4 @@ settings:
     statistics_weeks: 8 # Window for weekly average cards/charts
   vibilia:
     price_bucket_minutes: 10 # Bucket fuel price readings by this interval for chart visualization
+    search_radius: 3 # Nearby fuel price search radius in km

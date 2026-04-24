@@ -1,0 +1,16 @@
+---
+import FuelPriceRoute from "../../components/routes/FuelPriceRoute.svelte";
+import Layout from "../../layouts/Layout.astro";
+import { getVibiliaPageConfig } from "../../lib/server-config";
+
+const { priceBucketMinutes, searchRadiusKm } = getVibiliaPageConfig();
+---
+
+<Layout title="Nearby Fuel Price">
+  <FuelPriceRoute
+    mode="nearby"
+    {priceBucketMinutes}
+    {searchRadiusKm}
+    client:only="svelte"
+  />
+</Layout>

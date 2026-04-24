@@ -7,12 +7,26 @@
       | "vehicle-logs"
       | "vehicle-statistics"
       | "settings";
+    activeSubmenuId?: string | null;
     baseUrl?: string;
     siteTitle?: string;
   }
 
+  interface MenuItem {
+    id: string;
+    label: string;
+    href: string;
+    icon: typeof Car;
+    children?: Array<{
+      id: string;
+      label: string;
+      href: string;
+    }>;
+  }
+
   let {
     activeId = "fuel-price",
+    activeSubmenuId = null,
     baseUrl = "/",
     siteTitle = "Vibilia",
   }: Props = $props();
@@ -26,6 +40,11 @@
   function fuelPriceHref() {
     const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/$/, "");
     return `${normalizedBase}/fuel-price`;
+  }
+
+  function fuelPriceNearbyHref() {
+    const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/$/, "");
+    return `${normalizedBase}/fuel-price/nearby`;
   }
 
   function vehicleLogsHref() {
@@ -50,6 +69,39 @@
   function closeMobileMenu() {
     isMobileMenuOpen = false;
   }
+
+  const mainMenuItems = $derived.by<MenuItem[]>(() => [
+    {
+      id: "fuel-price",
+      label: "Fuel Price",
+      href: fuelPriceHref(),
+      icon: ChartColumnBig,
+      children: [
+        {
+          id: "history",
+          label: "History",
+          href: fuelPriceHref(),
+        },
+        {
+          id: "nearby",
+          label: "Nearby",
+          href: fuelPriceNearbyHref(),
+        },
+      ],
+    },
+    {
+      id: "vehicle-logs",
+      label: "Vehicle Logs",
+      href: vehicleLogsHref(),
+      icon: Car,
+    },
+    {
+      id: "vehicle-statistics",
+      label: "Vehicle Statistics",
+      href: vehicleStatisticsHref(),
+      icon: ChartColumnBig,
+    },
+  ]);
 </script>
 
 <div class="lg:hidden fixed bottom-6 right-6 z-50">
@@ -103,41 +155,38 @@
 
   <nav class="flex-1 overflow-y-auto px-4 pb-6">
     <div class="space-y-2">
-      <a
-        href={fuelPriceHref()}
-        class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all
-        {activeId === 'fuel-price'
-          ? 'bg-primary text-primary-content font-semibold shadow-md'
-          : 'hover:bg-base-300 text-base-content/80'}"
-        onclick={closeMobileMenu}
-      >
-        <ChartColumnBig class="w-5 h-5" />
-        <span>Fuel Price</span>
-      </a>
+      {#each mainMenuItems as item}
+        <div class="space-y-1">
+          <a
+            href={item.href}
+            class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all
+            {activeId === item.id
+              ? 'bg-primary text-primary-content font-semibold shadow-md'
+              : 'hover:bg-base-300 text-base-content/80'}"
+            onclick={closeMobileMenu}
+          >
+            <item.icon class="w-5 h-5" />
+            <span>{item.label}</span>
+          </a>
 
-      <a
-        href={vehicleLogsHref()}
-        class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all
-        {activeId === 'vehicle-logs'
-          ? 'bg-primary text-primary-content font-semibold shadow-md'
-          : 'hover:bg-base-300 text-base-content/80'}"
-        onclick={closeMobileMenu}
-      >
-        <Car class="w-5 h-5" />
-        <span>Vehicle Logs</span>
-      </a>
-
-      <a
-        href={vehicleStatisticsHref()}
-        class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all
-        {activeId === 'vehicle-statistics'
-          ? 'bg-primary text-primary-content font-semibold shadow-md'
-          : 'hover:bg-base-300 text-base-content/80'}"
-        onclick={closeMobileMenu}
-      >
-        <ChartColumnBig class="w-5 h-5" />
-        <span>Vehicle Statistics</span>
-      </a>
+          {#if activeId === item.id && item.children && item.children.length > 0}
+            <div class="ml-4 pl-4 border-l-2 border-primary/20 space-y-1 my-2">
+              {#each item.children as child}
+                <a
+                  href={child.href}
+                  class="block rounded-lg px-3 py-2 text-sm transition-all
+                  {activeSubmenuId === child.id
+                    ? 'bg-primary/15 text-primary font-semibold'
+                    : 'text-base-content/65 hover:bg-base-300 hover:text-base-content'}"
+                  onclick={closeMobileMenu}
+                >
+                  {child.label}
+                </a>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      {/each}
     </div>
   </nav>
 

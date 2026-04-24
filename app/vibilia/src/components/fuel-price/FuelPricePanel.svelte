@@ -93,7 +93,7 @@
     </div>
 
     <div class="space-y-4">
-      <h2 class="text-xl font-bold px-1">Stations</h2>
+      <h2 class="text-xl font-bold px-1">My Stations</h2>
       <StationList {stations} />
     </div>
   {/if}

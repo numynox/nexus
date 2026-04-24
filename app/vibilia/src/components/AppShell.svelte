@@ -13,10 +13,15 @@
       | "vehicle-logs"
       | "vehicle-statistics"
       | "settings";
+    activeSubmenuId?: string | null;
     children?: Snippet;
   }
 
-  let { activeId = "fuel-price", children }: Props = $props();
+  let {
+    activeId = "fuel-price",
+    activeSubmenuId = null,
+    children,
+  }: Props = $props();
 
   const baseUrl = getBaseUrl();
   const siteTitle = getWebsiteTitle();
@@ -50,7 +55,12 @@
   <LoginPanel />
 {:else}
   <div class="flex min-h-screen">
-    <Sidebar activeId={activeId as any} {baseUrl} {siteTitle} />
+    <Sidebar
+      activeId={activeId as any}
+      {activeSubmenuId}
+      {baseUrl}
+      {siteTitle}
+    />
 
     <div class="flex-1 flex flex-col min-w-0">
       <main class="flex-1 p-4 md:p-6 lg:p-8 max-w-5xl mx-auto w-full">
