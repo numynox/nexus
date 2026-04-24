@@ -292,18 +292,19 @@
   class="card overflow-hidden border border-primary/10 bg-base-200 shadow-xl"
 >
   <div class="card-body p-0">
-    <div class="relative h-[24rem] w-full bg-base-300/30">
+    <div
+      class="nearby-map-root relative z-0 isolate h-[24rem] w-full bg-base-300/30"
+    >
       <div bind:this={mapContainer} class="h-full w-full"></div>
-      <div
-        class="pointer-events-none absolute left-4 top-4 rounded-full border border-white/60 bg-base-100/90 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/65 shadow-lg backdrop-blur"
-      >
-        Nearby map
-      </div>
     </div>
   </div>
 </div>
 
 <style>
+  :global(.nearby-map-root .leaflet-container) {
+    z-index: 0;
+  }
+
   :global(.nearby-map-marker) {
     background: transparent;
     border: 0;
