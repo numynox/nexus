@@ -7,7 +7,12 @@
     start?: string;
     end?: string;
   };
-  let { stations, expandable = true } = $props();
+  let {
+    stations,
+    expandable = true,
+    selectedStationId = null,
+    onSelectStation,
+  } = $props();
   let openStationId = $state<string | number | null>(null);
 
   function getStationDiscount(station: any): number {
@@ -73,6 +78,10 @@
 
   function toggleStation(stationId: string | number) {
     openStationId = openStationId === stationId ? null : stationId;
+  }
+
+  function selectStation(stationId: string | number) {
+    onSelectStation?.(stationId);
   }
 
   function normalizeOpeningTimes(openingTimes: unknown): OpeningTimeEntry[] {
@@ -144,11 +153,15 @@
       s.opening_times ?? s.openingTimes,
     )}
     {@const isOpen = expandable && openStationId === s.id}
+    {@const isSelected =
+      selectedStationId !== null && selectedStationId === s.id}
 
     <div
       class="card h-fit shadow-sm hover:shadow-md transition-all border {isLowest
         ? 'bg-secondary/10 border-secondary/25'
-        : 'bg-base-200 border-base-content/5'}"
+        : 'bg-base-200 border-base-content/5'} {isSelected
+        ? 'ring-2 ring-primary/30 border-primary/30'
+        : ''}"
     >
       {#if expandable}
         <button
@@ -235,7 +248,12 @@
           </div>
         </button>
       {:else}
-        <div class="card-body p-4 w-full text-left">
+        <button
+          type="button"
+          class="card-body p-4 w-full text-left cursor-pointer"
+          aria-pressed={isSelected}
+          onclick={() => selectStation(s.id)}
+        >
           <div class="flex flex-row items-center justify-between gap-3">
             <div class="flex items-start gap-3 min-w-0">
               <div class="shrink-0 self-center">
@@ -306,7 +324,7 @@
               </div>
             </div>
           </div>
-        </div>
+        </button>
       {/if}
 
       {#if isOpen}

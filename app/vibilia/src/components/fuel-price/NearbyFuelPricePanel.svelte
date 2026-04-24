@@ -8,6 +8,7 @@
     setNearbyFuelSearchCache,
   } from "../../lib/storage";
   import { preferredFuelType } from "../../lib/stores";
+  import NearbyStationsMap from "./NearbyStationsMap.svelte";
   import StationList from "./StationList.svelte";
 
   interface LocationCoordinates {
@@ -23,6 +24,7 @@
   let loadingStations = $state(false);
   let errorMessage = $state<string | null>(null);
   let resolvingLocation = $state(false);
+  let selectedStationId = $state<string | number | null>(null);
   let loadToken = 0;
   let forceRefreshRequested = false;
 
@@ -153,6 +155,12 @@
       if (token !== loadToken) return;
       const normalizedStations = normalizeStations(nextStations);
       stations = normalizedStations;
+      if (
+        selectedStationId !== null &&
+        !normalizedStations.some((station) => station.id === selectedStationId)
+      ) {
+        selectedStationId = null;
+      }
       setNearbyFuelSearchCache({
         cachedAt: Date.now(),
         fuelType: $preferredFuelType,
@@ -251,8 +259,23 @@
     </div>
   {:else}
     <div class="space-y-4">
+      <NearbyStationsMap
+        {stations}
+        {userLocation}
+        {selectedStationId}
+        onSelectStation={(stationId: string | number) => {
+          selectedStationId = stationId;
+        }}
+      />
       <h2 class="text-xl font-bold px-1">Nearby Stations</h2>
-      <StationList {stations} expandable={false} />
+      <StationList
+        {stations}
+        expandable={false}
+        {selectedStationId}
+        onSelectStation={(stationId: string | number) => {
+          selectedStationId = stationId;
+        }}
+      />
     </div>
   {/if}
 </div>

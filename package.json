@@ -37,8 +37,6 @@
     "db:functions:serve": "npx supabase functions serve --env-file .env",
     "db:functions:list": "npx supabase functions list",
     "db:functions:deploy": "npx supabase functions deploy",
-    "db:functions:deploy:fetch-rss": "npx supabase functions deploy fetch-rss",
-    "db:functions:deploy:refresh-fuel-prices": "npx supabase functions deploy refresh-fuel-prices",
     "db:seed:fuel-prices": "node --env-file=.env scripts/seed-fuel-prices.mjs",
     "db:import:fuelio": "node --env-file=.env scripts/import-fuelio.mjs",
     "db:import:fuelio:prod": "node --env-file=.env.prod scripts/import-fuelio.mjs --confirm-prod"
