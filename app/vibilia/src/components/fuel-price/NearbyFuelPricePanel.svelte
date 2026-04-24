@@ -219,7 +219,10 @@
 <div class="space-y-6 animate-in fade-in duration-500">
   <div class="flex items-start justify-between gap-4">
     <div>
-      <h1 class="text-3xl font-black text-base-content">Nearby Fuel Price</h1>
+      <h1 class="text-3xl font-black text-base-content">
+        <span class="sm:hidden">Nearby</span>
+        <span class="hidden sm:inline">Nearby Fuel Price</span>
+      </h1>
       <p class="text-sm text-base-content/60">
         Nearby <span class="text-primary">{$preferredFuelType}</span> prices
         within
@@ -228,11 +231,12 @@
       </p>
     </div>
 
-    <div class="flex items-center gap-2 self-start lg:gap-4">
-      <FuelLevelEstimateBadge carId={selectedCarId} />
+    <div
+      class="flex flex-col items-end gap-2 self-start lg:flex-row lg:items-center lg:gap-4"
+    >
       <button
         type="button"
-        class="btn btn-primary btn-sm rounded-full gap-2"
+        class="order-1 btn btn-primary btn-sm rounded-full gap-2 lg:order-2"
         onclick={() => refreshLocationAndStations(true)}
         disabled={loadingLocation || loadingStations}
       >
@@ -243,6 +247,9 @@
         {/if}
         <span>Refresh</span>
       </button>
+      <div class="order-2 lg:order-1">
+        <FuelLevelEstimateBadge carId={selectedCarId} />
+      </div>
     </div>
   </div>
 

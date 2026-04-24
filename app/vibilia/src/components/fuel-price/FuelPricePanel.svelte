@@ -75,15 +75,19 @@
         <span class="text-primary">last refuel price (•)</span>.
       </p>
     </div>
-    <div class="flex items-center gap-2 self-start lg:gap-4">
-      <FuelLevelEstimateBadge carId={selectedCarId} />
+    <div
+      class="flex flex-col items-end gap-2 self-start lg:flex-row lg:items-center lg:gap-4"
+    >
       <button
-        class="btn btn-primary btn-sm rounded-full gap-2"
+        class="order-1 btn btn-primary btn-sm rounded-full gap-2 lg:order-2"
         onclick={onRefuel}
       >
         <Plus class="w-4 h-4" />
         <span class="hidden sm:inline">Refuel</span>
       </button>
+      <div class="order-2 lg:order-1">
+        <FuelLevelEstimateBadge carId={selectedCarId} />
+      </div>
     </div>
   </div>
 
