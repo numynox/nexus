@@ -4,6 +4,8 @@
   import {
     fetchFuelPricePlotHistory,
     fetchFuelStationsCurrentPrices,
+    fetchLatestAccessibleRefuelEvent,
+    type LastRefuelEventPoint,
   } from "../../lib/data";
   import { getFuelPricePreviousDays } from "../../lib/storage";
   import { preferredFuelType } from "../../lib/stores";
@@ -14,12 +16,16 @@
 
   let stations = $state<any[]>([]);
   let history = $state<any[]>([]);
+  let lastRefuelPoint = $state<LastRefuelEventPoint | null>(null);
   let loading = $state(true);
   let previousDays = $state(getFuelPricePreviousDays());
 
   async function fetchData() {
     loading = true;
-    const st = await fetchFuelStationsCurrentPrices($preferredFuelType);
+    const [st, fetchedLastRefuelPoint] = await Promise.all([
+      fetchFuelStationsCurrentPrices($preferredFuelType),
+      fetchLatestAccessibleRefuelEvent(),
+    ]);
 
     stations = st.map((s: any) => ({
       ...s,
@@ -32,6 +38,7 @@
           ? 0
           : Number(s.discount),
     }));
+    lastRefuelPoint = fetchedLastRefuelPoint;
 
     const sinceIso = dayjs()
       .startOf("day")
@@ -58,8 +65,9 @@
     <div>
       <h1 class="text-3xl font-black text-base-content">Fuel Price</h1>
       <p class="text-sm text-base-content/60">
-        Minimum <span class="text-accent/80">{$preferredFuelType}</span> price by
-        time of day
+        Minimum <span class="text-primary">{$preferredFuelType} (–)</span>
+        price by time of day and
+        <span class="text-primary">last refuel price (•)</span>.
       </p>
     </div>
     <button
@@ -80,7 +88,7 @@
       class="card bg-base-200 shadow-xl overflow-hidden border border-primary/5"
     >
       <div class="card-body p-2 sm:p-6 h-80 sm:h-96">
-        <PriceChart {history} {previousDays} />
+        <PriceChart {history} {previousDays} {lastRefuelPoint} />
       </div>
     </div>
 

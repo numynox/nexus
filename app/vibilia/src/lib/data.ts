@@ -47,6 +47,11 @@ export interface CarMember {
   email: string | null;
 }
 
+export interface LastRefuelEventPoint {
+  fueled_at: string;
+  price_per_liter: number;
+}
+
 export async function getSession(): Promise<Session | null> {
   const supabase = getSupabaseClient();
   const {
@@ -284,6 +289,38 @@ export async function fetchRefuelEventsForCar(carId: string): Promise<any[]> {
 
   if (error) throw error;
   return data || [];
+}
+
+export async function fetchLatestAccessibleRefuelEvent(): Promise<LastRefuelEventPoint | null> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("refuel_events")
+    .select(
+      "fueled_at, price_per_liter_calculated, liters, total_price, created_at",
+    )
+    .order("fueled_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (error) throw error;
+
+  const row = Array.isArray(data) ? (data[0] ?? null) : null;
+  if (!row?.fueled_at) return null;
+
+  const directPrice = Number(row.price_per_liter_calculated);
+  const fallbackPrice = row.liters
+    ? Number(row.total_price) / Number(row.liters)
+    : NaN;
+  const pricePerLiter = Number.isFinite(directPrice)
+    ? directPrice
+    : fallbackPrice;
+
+  if (!Number.isFinite(pricePerLiter)) return null;
+
+  return {
+    fueled_at: row.fueled_at,
+    price_per_liter: pricePerLiter,
+  };
 }
 
 export async function fetchCarExpensesForCar(carId: string): Promise<any[]> {

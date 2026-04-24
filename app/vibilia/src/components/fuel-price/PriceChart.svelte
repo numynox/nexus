@@ -17,6 +17,11 @@
     min_price: number | string;
   }
 
+  interface LastRefuelPoint {
+    fueled_at: string;
+    price_per_liter: number;
+  }
+
   interface ChartPoint {
     x: number;
     y: number;
@@ -25,7 +30,7 @@
   interface PriceDataset {
     label: string;
     data: ChartPoint[];
-    stepped: "after";
+    stepped?: "after";
     borderColor: string;
     borderWidth: number;
     pointRadius: number;
@@ -34,6 +39,10 @@
     fill: boolean;
     tension: number;
     order: number;
+    pointBackgroundColor?: string;
+    pointBorderColor?: string;
+    pointBorderWidth?: number;
+    showLine?: boolean;
   }
 
   const currentTimeLinePlugin = {
@@ -73,9 +82,11 @@
   let {
     history,
     previousDays = 3,
+    lastRefuelPoint = null,
   }: {
     history: FuelPricePoint[];
     previousDays?: number;
+    lastRefuelPoint?: LastRefuelPoint | null;
   } = $props();
 
   let nowTick = $state(Date.now());
@@ -180,7 +191,7 @@
     nowTick;
     accentColor;
     secondaryColor;
-    if (!history || history.length === 0) return { datasets: [] };
+    lastRefuelPoint;
 
     const today = dayjs().startOf("day");
     const dayKeys: string[] = [];
@@ -193,7 +204,7 @@
       minimumByMinuteByDay.set(dayKey, new Map<number, number>());
     }
 
-    for (const point of history) {
+    for (const point of history || []) {
       const dayKey = point.day_key;
       const dayMap = minimumByMinuteByDay.get(dayKey);
       if (!dayMap) continue;
@@ -254,6 +265,35 @@
         };
       })
       .filter((dataset): dataset is PriceDataset => dataset !== null);
+
+    if (lastRefuelPoint) {
+      const timestamp = dayjs(lastRefuelPoint.fueled_at);
+      const price = Number(lastRefuelPoint.price_per_liter);
+      const hourOfDay = timestamp.hour() + timestamp.minute() / 60;
+
+      if (
+        timestamp.isValid() &&
+        Number.isFinite(price) &&
+        Number.isFinite(hourOfDay)
+      ) {
+        datasets.push({
+          label: "last refuel price",
+          data: [{ x: hourOfDay, y: price }],
+          borderColor: accentColor,
+          borderWidth: 0,
+          pointRadius: 6,
+          pointHoverRadius: 7,
+          pointBackgroundColor: accentColor,
+          pointBorderColor: "rgb(15, 23, 42)",
+          pointBorderWidth: 2,
+          spanGaps: false,
+          fill: false,
+          tension: 0,
+          showLine: false,
+          order: -1,
+        });
+      }
+    }
 
     return { datasets };
   });
@@ -330,7 +370,7 @@
   }));
 </script>
 
-{#if history && history.length > 0 && processedData.datasets.length > 0}
+{#if processedData.datasets.length > 0}
   <div class="w-full h-full">
     <Line data={processedData} {options} />
   </div>
