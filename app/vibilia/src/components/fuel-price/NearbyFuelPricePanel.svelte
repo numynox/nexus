@@ -4,10 +4,12 @@
   import { fetchNearbyFuelStations } from "../../lib/data";
   import {
     clearNearbyFuelSearchCache,
+    getLastSelectedCarId,
     getNearbyFuelSearchCache,
     setNearbyFuelSearchCache,
   } from "../../lib/storage";
   import { preferredFuelType } from "../../lib/stores";
+  import FuelLevelEstimateBadge from "./FuelLevelEstimateBadge.svelte";
   import NearbyStationsMap from "./NearbyStationsMap.svelte";
   import StationList from "./StationList.svelte";
 
@@ -17,6 +19,7 @@
   }
 
   let { searchRadiusKm = 3 } = $props();
+  const selectedCarId = getLastSelectedCarId();
 
   let stations = $state<any[]>([]);
   let userLocation = $state<LocationCoordinates | null>(null);
@@ -225,19 +228,22 @@
       </p>
     </div>
 
-    <button
-      type="button"
-      class="btn btn-primary btn-sm rounded-full gap-2"
-      onclick={() => refreshLocationAndStations(true)}
-      disabled={loadingLocation || loadingStations}
-    >
-      {#if loadingLocation || loadingStations}
-        <span class="loading loading-spinner loading-xs"></span>
-      {:else}
-        <RefreshCw class="w-4 h-4" />
-      {/if}
-      <span>Refresh</span>
-    </button>
+    <div class="flex items-center gap-2 self-start lg:gap-4">
+      <FuelLevelEstimateBadge carId={selectedCarId} />
+      <button
+        type="button"
+        class="btn btn-primary btn-sm rounded-full gap-2"
+        onclick={() => refreshLocationAndStations(true)}
+        disabled={loadingLocation || loadingStations}
+      >
+        {#if loadingLocation || loadingStations}
+          <span class="loading loading-spinner loading-xs"></span>
+        {:else}
+          <RefreshCw class="w-4 h-4" />
+        {/if}
+        <span>Refresh</span>
+      </button>
+    </div>
   </div>
 
   {#if errorMessage}

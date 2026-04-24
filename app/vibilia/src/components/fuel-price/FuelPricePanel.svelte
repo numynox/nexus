@@ -7,12 +7,17 @@
     fetchLatestAccessibleRefuelEvent,
     type LastRefuelEventPoint,
   } from "../../lib/data";
-  import { getFuelPricePreviousDays } from "../../lib/storage";
+  import {
+    getFuelPricePreviousDays,
+    getLastSelectedCarId,
+  } from "../../lib/storage";
   import { preferredFuelType } from "../../lib/stores";
+  import FuelLevelEstimateBadge from "./FuelLevelEstimateBadge.svelte";
   import PriceChart from "./PriceChart.svelte";
   import StationList from "./StationList.svelte";
 
   let { onRefuel, priceBucketMinutes = 10 } = $props();
+  const selectedCarId = getLastSelectedCarId();
 
   let stations = $state<any[]>([]);
   let history = $state<any[]>([]);
@@ -70,13 +75,16 @@
         <span class="text-primary">last refuel price (•)</span>.
       </p>
     </div>
-    <button
-      class="btn btn-primary btn-sm rounded-full gap-2"
-      onclick={onRefuel}
-    >
-      <Plus class="w-4 h-4" />
-      <span class="hidden sm:inline">Refuel</span>
-    </button>
+    <div class="flex items-center gap-2 self-start lg:gap-4">
+      <FuelLevelEstimateBadge carId={selectedCarId} />
+      <button
+        class="btn btn-primary btn-sm rounded-full gap-2"
+        onclick={onRefuel}
+      >
+        <Plus class="w-4 h-4" />
+        <span class="hidden sm:inline">Refuel</span>
+      </button>
+    </div>
   </div>
 
   {#if loading}

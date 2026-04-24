@@ -52,6 +52,16 @@ export interface LastRefuelEventPoint {
   price_per_liter: number;
 }
 
+export interface FuelLevelEstimate {
+  lastRefuelAt: string;
+  daysSinceLastRefuel: number;
+  averageConsumptionLitersPerDay: number;
+  startingLiters: number;
+  remainingLiters: number;
+  tankCapacity: number;
+  fillRatio: number;
+}
+
 export interface NearbyFuelStation {
   id: string;
   name: string;
@@ -355,6 +365,128 @@ export async function fetchLatestAccessibleRefuelEvent(): Promise<LastRefuelEven
   return {
     fueled_at: row.fueled_at,
     price_per_liter: pricePerLiter,
+  };
+}
+
+export async function fetchFuelLevelEstimateForCar(
+  carId: string,
+): Promise<FuelLevelEstimate | null> {
+  if (!carId) return null;
+
+  const supabase = getSupabaseClient();
+  const [carResult, refuelEventsResult] = await Promise.all([
+    supabase
+      .from("cars")
+      .select("id, tank_capacity")
+      .eq("id", carId)
+      .maybeSingle(),
+    supabase
+      .from("refuel_events")
+      .select(
+        "fueled_at, created_at, liters, fuel_level_after, missed_previous_refuel",
+      )
+      .eq("car_id", carId)
+      .order("fueled_at", { ascending: false })
+      .order("created_at", { ascending: false }),
+  ]);
+
+  if (carResult.error) throw carResult.error;
+  if (refuelEventsResult.error) throw refuelEventsResult.error;
+
+  const tankCapacity = Number(carResult.data?.tank_capacity);
+  if (!Number.isFinite(tankCapacity) || tankCapacity <= 0) {
+    return null;
+  }
+
+  const refuelEvents = Array.isArray(refuelEventsResult.data)
+    ? refuelEventsResult.data
+    : [];
+  const latestEvent = refuelEvents[0];
+  if (!latestEvent?.fueled_at) {
+    return null;
+  }
+
+  const latestEventTimestamp = Date.parse(latestEvent.fueled_at);
+  const startingLiters = Number(latestEvent.fuel_level_after);
+  if (
+    !Number.isFinite(latestEventTimestamp) ||
+    !Number.isFinite(startingLiters) ||
+    startingLiters < 0
+  ) {
+    return null;
+  }
+
+  const now = Date.now();
+  const millisecondsPerDay = 1000 * 60 * 60 * 24;
+  const oneYearAgoTimestamp = now - 365 * millisecondsPerDay;
+  const dailyConsumptionSamples: number[] = [];
+
+  for (let index = 0; index < refuelEvents.length - 1; index += 1) {
+    const newerEvent = refuelEvents[index];
+    const olderEvent = refuelEvents[index + 1];
+    if (!newerEvent?.fueled_at || !olderEvent?.fueled_at) continue;
+    if (newerEvent.missed_previous_refuel) continue;
+
+    const newerTimestamp = Date.parse(newerEvent.fueled_at);
+    const olderTimestamp = Date.parse(olderEvent.fueled_at);
+    if (
+      !Number.isFinite(newerTimestamp) ||
+      !Number.isFinite(olderTimestamp) ||
+      newerTimestamp < oneYearAgoTimestamp
+    ) {
+      continue;
+    }
+
+    const newerFuelLevelAfter = Number(newerEvent.fuel_level_after);
+    const olderFuelLevelAfter = Number(olderEvent.fuel_level_after);
+    const litersRefueled = Number(newerEvent.liters);
+    if (
+      !Number.isFinite(newerFuelLevelAfter) ||
+      !Number.isFinite(olderFuelLevelAfter) ||
+      !Number.isFinite(litersRefueled)
+    ) {
+      continue;
+    }
+
+    const elapsedDays = (newerTimestamp - olderTimestamp) / millisecondsPerDay;
+    if (elapsedDays <= 0) continue;
+
+    const consumedLiters =
+      olderFuelLevelAfter + litersRefueled - newerFuelLevelAfter;
+    if (!Number.isFinite(consumedLiters) || consumedLiters < 0) continue;
+
+    dailyConsumptionSamples.push(consumedLiters / elapsedDays);
+  }
+
+  if (dailyConsumptionSamples.length === 0) {
+    return null;
+  }
+
+  const averageConsumptionLitersPerDay =
+    dailyConsumptionSamples.reduce((sum, value) => sum + value, 0) /
+    dailyConsumptionSamples.length;
+  if (!Number.isFinite(averageConsumptionLitersPerDay)) {
+    return null;
+  }
+
+  const daysSinceLastRefuel = Math.max(
+    0,
+    (now - latestEventTimestamp) / millisecondsPerDay,
+  );
+  const remainingLiters = Math.max(
+    0,
+    startingLiters - daysSinceLastRefuel * averageConsumptionLitersPerDay,
+  );
+  const fillRatio = Math.max(0, Math.min(1, remainingLiters / tankCapacity));
+
+  return {
+    lastRefuelAt: latestEvent.fueled_at,
+    daysSinceLastRefuel,
+    averageConsumptionLitersPerDay,
+    startingLiters: Math.min(tankCapacity, startingLiters),
+    remainingLiters,
+    tankCapacity,
+    fillRatio,
   };
 }
 
