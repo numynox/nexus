@@ -1,0 +1,8 @@
+---
+import LocationsRoute from "../components/routes/LocationsRoute.svelte";
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Storage Locations">
+  <LocationsRoute client:only="svelte" />
+</Layout>

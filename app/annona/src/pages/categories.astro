@@ -1,0 +1,8 @@
+---
+import CategoriesRoute from "../components/routes/CategoriesRoute.svelte";
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Categories">
+  <CategoriesRoute client:only="svelte" />
+</Layout>

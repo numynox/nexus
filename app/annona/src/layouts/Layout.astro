@@ -1,0 +1,73 @@
+---
+import "../styles/global.css";
+import {
+  getBaseUrl,
+  getWebsiteDescription,
+  getWebsiteTitle,
+} from "../lib/config";
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const baseUrl = getBaseUrl();
+const assetBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+const siteTitle = getWebsiteTitle();
+const siteDescription = getWebsiteDescription();
+const { title = "", description = siteDescription } = Astro.props;
+const themeColor = "#242933";
+---
+
+<!doctype html>
+<html
+  lang="en"
+  data-theme="dark"
+  data-base-url={baseUrl}
+  data-site-title={siteTitle}
+>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="description" content={description} />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="manifest" href={assetBase + "manifest.webmanifest"} />
+    <link rel="icon" type="image/x-icon" href={`${assetBase}favicon.ico`} />
+    <meta name="generator" content={Astro.generator} />
+    <meta name="theme-color" content={themeColor} />
+    <title>{title ? `${title} | ${siteTitle}` : siteTitle}</title>
+
+    <script is:inline>
+      (function () {
+        const theme = localStorage.getItem("annona_theme");
+        const prefersDark = window.matchMedia(
+          "(prefers-color-scheme: dark)",
+        ).matches;
+
+        let actualTheme = "dark";
+        if (theme && theme !== '"auto"') {
+          actualTheme = JSON.parse(theme);
+        } else if (!prefersDark) {
+          actualTheme = "light";
+        }
+
+        document.documentElement.setAttribute("data-theme", actualTheme);
+      })();
+    </script>
+
+    <script is:inline>
+      (function () {
+        if (
+          "serviceWorker" in navigator &&
+          window.location.protocol !== "file:"
+        ) {
+          navigator.serviceWorker
+            .register(new URL("sw.js", document.baseURI).href)
+            .catch(() => {});
+        }
+      })();
+    </script>
+  </head>
+  <body class="min-h-screen bg-base-100 text-base-content">
+    <slot />
+  </body>
+</html>

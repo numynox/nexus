@@ -1,0 +1,24 @@
+{
+  "name": "annona-app",
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/svelte": "^8.0.0",
+    "@supabase/supabase-js": "^2.45.0",
+    "@tailwindcss/vite": "^4.2.1",
+    "astro": "^6.0.4",
+    "chart.js": "^4.5.1",
+    "daisyui": "^5.5.19",
+    "html5-qrcode": "^2.3.8",
+    "lucide-svelte": "^0.577.0",
+    "svelte": "^5.53.12",
+    "tailwindcss": "^4.2.1",
+    "typescript": "^5.9.3"
+  }
+}

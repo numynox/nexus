@@ -10,3 +10,7 @@ settings:
   vibilia:
     price_bucket_minutes: 10 # Bucket fuel price readings by this interval for chart visualization
     search_radius: 3 # Nearby fuel price search radius in km
+  annona:
+    title: "Annona"
+    description: "Grocery expiration tracker."
+    base_url: "/nexus/annona"

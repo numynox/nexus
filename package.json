@@ -6,14 +6,17 @@
   "private": true,
   "workspaces": [
     "app/noctua",
-    "app/vibilia"
+    "app/vibilia",
+    "app/annona"
   ],
   "scripts": {
-    "build:websites": "npm run build:noctua && npm run build:vibilia",
+    "build:websites": "npm run build:noctua && npm run build:vibilia && npm run build:annona",
     "build:noctua": "npm --workspace app/noctua run build",
     "build:vibilia": "npm --workspace app/vibilia run build",
+    "build:annona": "npm --workspace app/annona run build",
     "dev:noctua": "npm --workspace app/noctua run dev",
     "dev:vibilia": "npm --workspace app/vibilia run dev",
+    "dev:annona": "npm --workspace app/annona run dev",
     "install:all": "npm install",
     "db:login": "npx supabase login",
     "db:status": "npx supabase status",
@@ -38,6 +41,7 @@
     "db:functions:list": "npx supabase functions list",
     "db:functions:deploy": "npx supabase functions deploy",
     "db:seed:fuel-prices": "node --env-file=.env scripts/seed-fuel-prices.mjs",
+    "db:seed:products": "node --env-file=.env scripts/seed-products.mjs",
     "db:import:fuelio": "node --env-file=.env scripts/import-fuelio.mjs",
     "db:import:fuelio:prod": "node --env-file=.env.prod scripts/import-fuelio.mjs --confirm-prod"
   },

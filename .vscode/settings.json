@@ -76,6 +76,11 @@
             "color": "warning"
         },
         {
+            "label": "Dev Annona",
+            "task": "Dev Annona",
+            "color": "warning"
+        },
+        {
             "label": "DB Functions",
             "task": "DB Functions",
             "color": "error"

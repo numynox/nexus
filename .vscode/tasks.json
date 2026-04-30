@@ -57,6 +57,23 @@
             }
         },
         {
+            "label": "Dev Annona",
+            "type": "shell",
+            "command": "npm",
+            "args": [
+                "run",
+                "dev:annona"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "isBackground": true,
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            }
+        },
+        {
             "label": "DB Start",
             "type": "shell",
             "command": "npm",

@@ -1,0 +1,8 @@
+---
+import DashboardRoute from "../components/routes/DashboardRoute.svelte";
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Dashboard">
+  <DashboardRoute client:only="svelte" />
+</Layout>

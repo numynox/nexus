@@ -1,0 +1,8 @@
+---
+import ProductsRoute from "../components/routes/ProductsRoute.svelte";
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Products">
+  <ProductsRoute client:only="svelte" />
+</Layout>
