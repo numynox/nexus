@@ -94,10 +94,11 @@
         <div
           class="absolute inset-0 bg-primary/30 group-hover:bg-primary rounded-full blur-md transition-all duration-300"
         ></div>
-        <span
-          class="relative text-2xl flex items-center justify-center w-full h-full"
-          >🌾</span
-        >
+        <img
+          src={`${baseUrl}/annona.png`}
+          alt="{siteTitle} Logo"
+          class="relative w-full h-full object-contain"
+        />
       </div>
       <span>{siteTitle}</span>
     </a>

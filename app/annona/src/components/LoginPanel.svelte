@@ -9,11 +9,15 @@
   let authError = $state("");
 
   let homeHref = $state("/");
+  let logoSrc = $state("/annona.png");
 
   onMount(async () => {
     if (typeof document !== "undefined") {
       const baseUrl = document.documentElement.dataset.baseUrl || "/";
+      const normalizedBaseUrl =
+        baseUrl === "/" ? "" : baseUrl.replace(/\/$/, "");
       homeHref = baseUrl;
+      logoSrc = `${normalizedBaseUrl}/annona.png`;
     }
 
     try {
@@ -51,7 +55,11 @@
   <div class="w-full max-w-md card bg-base-200 shadow-sm">
     <div class="card-body p-6 lg:p-8">
       <div class="flex flex-col items-center text-center mb-4">
-        <span class="text-5xl mb-3">🌾</span>
+        <img
+          src={logoSrc}
+          alt="{siteTitle} Logo"
+          class="w-14 h-14 object-contain mb-3"
+        />
         <h1 class="text-2xl font-bold mb-1">Sign in to {siteTitle}</h1>
       </div>
 

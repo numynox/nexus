@@ -31,7 +31,25 @@ const themeColor = "#242933";
     <meta name="description" content={description} />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="manifest" href={assetBase + "manifest.webmanifest"} />
+    <link rel="shortcut icon" href={`${assetBase}favicon.ico`} />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href={`${assetBase}favicon-32x32.png`}
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="16x16"
+      href={`${assetBase}favicon-16x16.png`}
+    />
     <link rel="icon" type="image/x-icon" href={`${assetBase}favicon.ico`} />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href={`${assetBase}apple-touch-icon.png`}
+    />
     <meta name="generator" content={Astro.generator} />
     <meta name="theme-color" content={themeColor} />
     <title>{title ? `${title} | ${siteTitle}` : siteTitle}</title>
