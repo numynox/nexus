@@ -76,39 +76,65 @@
   </div>
 
   <!-- Appearance -->
-  <div class="card bg-base-200">
-    <div class="card-body p-5">
-      <h2 class="card-title text-lg">Appearance</h2>
-      <div class="form-control">
-        <span class="label-text mb-2">Theme</span>
-        <div class="flex flex-wrap gap-2">
-          <button
-            class="btn btn-xs {currentTheme === 'auto'
-              ? 'btn-primary'
-              : 'btn-ghost'}"
-            onclick={() => handleThemeChange("auto")}
-          >
-            Auto
-          </button>
-          {#each daisyThemes as theme}
-            <button
-              class="btn btn-xs {currentTheme === theme
-                ? 'btn-primary'
-                : 'btn-ghost'}"
-              onclick={() => handleThemeChange(theme)}
-            >
-              {theme}
-            </button>
-          {/each}
+  <section class="card bg-base-200 shadow-sm overflow-hidden">
+    <div class="card-body p-6 lg:p-8">
+      <h2 class="text-xl font-bold mb-6">Appearance</h2>
+
+      <div class="space-y-4">
+        <div class="font-semibold text-sm">Color Theme</div>
+
+        <div class="space-y-2">
+          <label class="flex items-center justify-between gap-4 cursor-pointer">
+            <div class="flex-1">
+              <span class="text-sm font-medium text-base-content/70 block"
+                >Auto Theme</span
+              >
+              <span class="text-sm text-base-content/60"
+                >Automatically switch between light and dark based on system
+                preference</span
+              >
+            </div>
+            <input
+              type="checkbox"
+              class="toggle toggle-primary"
+              checked={currentTheme === "auto"}
+              onchange={() =>
+                handleThemeChange(currentTheme === "auto" ? "light" : "auto")}
+            />
+          </label>
+        </div>
+
+        <div class="space-y-2">
+          <div class="text-sm font-medium text-base-content/70">
+            Select Theme
+          </div>
+          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+            {#each daisyThemes as theme}
+              <button
+                onclick={() => handleThemeChange(theme)}
+                disabled={currentTheme === "auto"}
+                class="btn btn-sm capitalize {currentTheme === theme
+                  ? 'btn-primary'
+                  : 'btn-soft'} {currentTheme === 'auto' ? 'btn-disabled' : ''}"
+              >
+                {theme}
+              </button>
+            {/each}
+          </div>
+          {#if currentTheme === "auto"}
+            <p class="text-xs text-base-content/50">
+              Theme selection is disabled when Auto is active
+            </p>
+          {/if}
         </div>
       </div>
     </div>
-  </div>
+  </section>
 
   <!-- Account -->
-  <div class="card bg-base-200">
-    <div class="card-body p-5">
-      <h2 class="card-title text-lg">Account</h2>
+  <section class="card bg-base-200 shadow-sm overflow-hidden">
+    <div class="card-body p-6 lg:p-8">
+      <h2 class="text-xl font-bold mb-6">Account</h2>
       <p class="text-sm text-base-content/60">
         Signed in as <span class="font-medium"
           >{$session?.user?.email || ""}</span
@@ -119,9 +145,9 @@
         <div class="alert alert-error text-sm mt-2">{authError}</div>
       {/if}
 
-      <div class="mt-3">
+      <div class="mt-4">
         <button
-          class="btn btn-error btn-sm"
+          class="btn btn-outline w-full"
           disabled={isBusy}
           onclick={handleLogout}
         >
@@ -129,5 +155,5 @@
         </button>
       </div>
     </div>
-  </div>
+  </section>
 </div>

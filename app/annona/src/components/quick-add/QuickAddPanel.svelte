@@ -408,6 +408,7 @@
     manualQuery = "";
     searchResults = [];
     searchOpen = false;
+    searchFocused = false;
     selectedIndex = -1;
     error = "";
     step = "input";
