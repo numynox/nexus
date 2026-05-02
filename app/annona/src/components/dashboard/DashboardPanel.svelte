@@ -123,35 +123,39 @@
 
     const labels: string[] = [];
     const data: number[] = [];
-    const colors: string[] = [];
+    const categories: Array<"expired" | "expiring" | "good"> = [];
 
     for (let m = min; m <= max; m++) {
       if (m === 0) labels.push("This mo.");
       else if (m > 0) labels.push(`+${m}mo`);
       else labels.push(`${m}mo`);
       data.push(buckets[m] ?? 0);
-      if (m < 0) colors.push("rgba(239,68,68,0.75)");
-      else if (m === 0) colors.push("rgba(245,158,11,0.75)");
-      else if (m <= 2) colors.push("rgba(245,158,11,0.5)");
-      else colors.push("rgba(99,102,241,0.55)");
+      if (m < 0) categories.push("expired");
+      else if (m === 0) categories.push("expiring");
+      else categories.push("good");
     }
 
-    return { labels, data, colors };
+    return { labels, data, categories };
   });
 
   $effect(() => {
     if (!summary || !pieCanvas) return;
     pieChartInst?.destroy();
     const expired = summary.expired_items;
-    const active = summary.total_active_items - expired;
+    const expiring = summary.expiring_within_7_days;
+    const good = Math.max(0, summary.total_active_items - expired - expiring);
     const cfg: ChartConfiguration<"doughnut"> = {
       type: "doughnut",
       data: {
-        labels: ["Active", "Expired"],
+        labels: ["Good", "Expiring", "Expired"],
         datasets: [
           {
-            data: [active, expired],
-            backgroundColor: ["rgba(34,197,94,0.75)", "rgba(239,68,68,0.75)"],
+            data: [good, expiring, expired],
+            backgroundColor: [
+              chartColor("--color-primary", 0.75),
+              chartColor("--color-warning", 0.75),
+              chartColor("--color-error", 0.75),
+            ],
             borderWidth: 0,
             hoverOffset: 4,
           },
@@ -175,7 +179,17 @@
   $effect(() => {
     if (!timelineChartData || !barCanvas) return;
     barChartInst?.destroy();
-    const { labels, data, colors } = timelineChartData;
+    const { labels, data, categories } = timelineChartData;
+    const errorColor = chartColor("--color-error", 0.75);
+    const warningColor = chartColor("--color-warning", 0.75);
+    const primaryColor = chartColor("--color-primary", 0.65);
+    const colors = categories.map((c) =>
+      c === "expired"
+        ? errorColor
+        : c === "expiring"
+          ? warningColor
+          : primaryColor,
+    );
     const cfg: ChartConfiguration<"bar"> = {
       type: "bar",
       data: {
@@ -223,11 +237,43 @@
     if (days === null) return { text: "No date", class: "badge-ghost" };
     if (days < 0)
       return { text: `Expired ${Math.abs(days)}d ago`, class: "badge-error" };
-    if (days === 0) return { text: "Expires today", class: "badge-error" };
-    if (days <= 3) return { text: `${days}d left`, class: "badge-warning" };
-    if (days <= 7) return { text: `${days}d left`, class: "badge-info" };
-    return { text: `${days}d left`, class: "badge-ghost" };
+    if (days === 0) return { text: "Expires today", class: "badge-warning" };
+    if (days <= 7) return { text: `${days}d left`, class: "badge-warning" };
+    return { text: `${days}d left`, class: "badge-primary" };
   }
+
+  function chartColor(cssVar: string, alpha: number): string {
+    const v = getComputedStyle(document.documentElement)
+      .getPropertyValue(cssVar)
+      .trim();
+    return v ? v.replace(/\)$/, ` / ${alpha})`) : `rgba(128,128,128,${alpha})`;
+  }
+
+  let categoryExpiringMap = $derived.by(() => {
+    const today = new Date().toISOString().split("T")[0];
+    const in7 = new Date(Date.now() + 7 * 864e5).toISOString().split("T")[0];
+    const map = new Map<string | null, number>();
+    for (const item of allActiveItems) {
+      const key = item.category_name ?? null;
+      const exp = item.expiration_date;
+      if (exp && exp >= today && exp <= in7)
+        map.set(key, (map.get(key) ?? 0) + 1);
+    }
+    return map;
+  });
+
+  let locationExpiringMap = $derived.by(() => {
+    const today = new Date().toISOString().split("T")[0];
+    const in7 = new Date(Date.now() + 7 * 864e5).toISOString().split("T")[0];
+    const map = new Map<string, number>();
+    for (const item of allActiveItems) {
+      const key = item.location_name ?? "No Location";
+      const exp = item.expiration_date;
+      if (exp && exp >= today && exp <= in7)
+        map.set(key, (map.get(key) ?? 0) + 1);
+    }
+    return map;
+  });
 
   async function handleConsume(item: Item) {
     const s = $session;
@@ -357,18 +403,30 @@
               <h3 class="card-title text-sm">Categories</h3>
               <div class="space-y-2.5">
                 {#each summary.items_by_category as cat}
-                  {@const pct = Math.round((cat.count / maxCat) * 100)}
-                  {@const okCount = cat.count - (cat.expired_count ?? 0)}
+                  {@const expiringSoon =
+                    categoryExpiringMap.get(cat.category ?? null) ?? 0}
                   {@const expCount = cat.expired_count ?? 0}
+                  {@const okCount = cat.count - expCount - expiringSoon}
+                  {@const pct = Math.round((cat.count / maxCat) * 100)}
                   <div class="space-y-1">
                     <div class="flex justify-between text-sm">
                       <span class="text-base-content/70"
                         >{cat.category ?? "Uncategorized"}</span
                       >
                       <span class="font-semibold text-xs tabular-nums">
-                        {cat.count}{#if expCount > 0}<span class="text-error">
-                            ({expCount} exp.)</span
-                          >{/if}
+                        {#if expiringSoon > 0}
+                          <span
+                            class="badge badge-warning badge-soft badge-xs mr-1"
+                            >{expiringSoon} soon</span
+                          >
+                        {/if}
+                        {#if expCount > 0}
+                          <span
+                            class="badge badge-error badge-soft badge-xs mr-1"
+                            >{expCount} exp.</span
+                          >
+                        {/if}
+                        {cat.count}
                       </span>
                     </div>
                     <div class="h-1.5 rounded-full bg-base-300 overflow-hidden">
@@ -377,9 +435,15 @@
                         style="width: {pct}%"
                       >
                         <div
-                          class="h-full bg-base-content/25"
-                          style="flex: {okCount}"
+                          class="h-full bg-primary/65"
+                          style="flex: {Math.max(0, okCount)}"
                         ></div>
+                        {#if expiringSoon > 0}
+                          <div
+                            class="h-full bg-warning/65"
+                            style="flex: {expiringSoon}"
+                          ></div>
+                        {/if}
                         {#if expCount > 0}
                           <div
                             class="h-full bg-error/65"
@@ -400,16 +464,28 @@
               <h3 class="card-title text-sm">Locations</h3>
               <div class="space-y-2.5">
                 {#each summary.items_by_location as loc}
-                  {@const pct = Math.round((loc.count / maxLoc) * 100)}
-                  {@const okCount = loc.count - (loc.expired_count ?? 0)}
+                  {@const expiringSoon =
+                    locationExpiringMap.get(loc.location) ?? 0}
                   {@const expCount = loc.expired_count ?? 0}
+                  {@const okCount = loc.count - expCount - expiringSoon}
+                  {@const pct = Math.round((loc.count / maxLoc) * 100)}
                   <div class="space-y-1">
                     <div class="flex justify-between text-sm">
                       <span class="text-base-content/70">{loc.location}</span>
                       <span class="font-semibold text-xs tabular-nums">
-                        {loc.count}{#if expCount > 0}<span class="text-error">
-                            ({expCount} exp.)</span
-                          >{/if}
+                        {#if expiringSoon > 0}
+                          <span
+                            class="badge badge-warning badge-soft badge-xs mr-1"
+                            >{expiringSoon} soon</span
+                          >
+                        {/if}
+                        {#if expCount > 0}
+                          <span
+                            class="badge badge-error badge-soft badge-xs mr-1"
+                            >{expCount} exp.</span
+                          >
+                        {/if}
+                        {loc.count}
                       </span>
                     </div>
                     <div class="h-1.5 rounded-full bg-base-300 overflow-hidden">
@@ -418,9 +494,15 @@
                         style="width: {pct}%"
                       >
                         <div
-                          class="h-full bg-base-content/25"
-                          style="flex: {okCount}"
+                          class="h-full bg-primary/65"
+                          style="flex: {Math.max(0, okCount)}"
                         ></div>
+                        {#if expiringSoon > 0}
+                          <div
+                            class="h-full bg-warning/65"
+                            style="flex: {expiringSoon}"
+                          ></div>
+                        {/if}
                         {#if expCount > 0}
                           <div
                             class="h-full bg-error/65"

@@ -218,12 +218,10 @@
     if (days === null) return { text: "No date", class: "badge-ghost" };
     if (days < 0)
       return { text: `${expirationLabel(days)} ago`, class: "badge-error" };
-    if (days === 0) return { text: "Expires today", class: "badge-error" };
-    if (days <= 3)
+    if (days === 0) return { text: "Expires today", class: "badge-warning" };
+    if (days <= 7)
       return { text: `${expirationLabel(days)} left`, class: "badge-warning" };
-    if (days <= 14)
-      return { text: `${expirationLabel(days)} left`, class: "badge-info" };
-    return { text: `${expirationLabel(days)} left`, class: "badge-ghost" };
+    return { text: `${expirationLabel(days)} left`, class: "badge-primary" };
   }
 
   function formatDate(dateStr: string | null): string {
