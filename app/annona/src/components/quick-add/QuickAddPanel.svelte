@@ -1,12 +1,5 @@
 <script lang="ts">
-  import {
-    Camera,
-    CameraOff,
-    Check,
-    Package,
-    Plus,
-    Search,
-  } from "lucide-svelte";
+  import { CameraOff, Check, Package, Plus, Search } from "lucide-svelte";
   import { onDestroy, onMount } from "svelte";
   import { getCategoryIconComponent } from "../../lib/categoryMeta";
   import {
@@ -29,6 +22,7 @@
 
   // Scanner state
   let scanning = $state(false);
+  let cameraFailed = $state(false);
   let scannerContainer: HTMLDivElement | undefined = $state();
   let html5QrCode: any = null;
 
@@ -41,6 +35,7 @@
   let manualQuery = $state("");
   let searchResults: Product[] = $state([]);
   let searchOpen = $state(false);
+  let searchFocused = $state(false);
   let searchTimeout: ReturnType<typeof setTimeout> | null = null;
   let selectedIndex = $state(-1);
 
@@ -55,6 +50,34 @@
   let expirationDate = $state("");
   let storageLocationId = $state<number | "">("");
   let itemCount = $state(1);
+
+  // Expiration date picker
+  const MONTHS = [
+    { num: 1, label: "Jan" },
+    { num: 2, label: "Feb" },
+    { num: 3, label: "Mar" },
+    { num: 4, label: "Apr" },
+    { num: 5, label: "May" },
+    { num: 6, label: "Jun" },
+    { num: 7, label: "Jul" },
+    { num: 8, label: "Aug" },
+    { num: 9, label: "Sep" },
+    { num: 10, label: "Oct" },
+    { num: 11, label: "Nov" },
+    { num: 12, label: "Dec" },
+  ];
+  const currentYear = new Date().getFullYear();
+  const expiryYears = Array.from({ length: 6 }, (_, i) => currentYear + i);
+  let expiryYear = $state<number | null>(null);
+  let expiryMonth = $state<number | null>(null);
+  let expiryShowInput = $state(false);
+
+  function maybeSetDate() {
+    if (expiryYear !== null && expiryMonth !== null) {
+      const mm = String(expiryMonth).padStart(2, "0");
+      expirationDate = `${expiryYear}-${mm}-01`;
+    }
+  }
 
   let saving = $state(false);
 
@@ -84,6 +107,19 @@
     if (searchTimeout) clearTimeout(searchTimeout);
   });
 
+  $effect(() => {
+    if (
+      scannerContainer &&
+      step === "input" &&
+      !scanning &&
+      !loading &&
+      !cameraFailed &&
+      !searchFocused
+    ) {
+      startScanner();
+    }
+  });
+
   async function startScanner() {
     if (scanning || !scannerContainer) return;
     error = "";
@@ -100,7 +136,7 @@
         {
           fps: 10,
           qrbox: { width: 280, height: 120 },
-          aspectRatio: 2.0,
+          aspectRatio: 4 / 3,
           formatsToSupport: [
             0, // QR_CODE
             1, // AZTEC
@@ -130,12 +166,12 @@
       );
     } catch (e) {
       scanning = false;
-      error =
-        "Camera access denied or not available. You can type the EAN manually.";
+      cameraFailed = true;
     }
   }
 
   async function stopScanner() {
+    scanning = false;
     if (html5QrCode) {
       try {
         await html5QrCode.stop();
@@ -144,7 +180,6 @@
       }
       html5QrCode = null;
     }
-    scanning = false;
   }
 
   async function handleBarcodeScan(code: string) {
@@ -218,6 +253,7 @@
   }
 
   function selectProduct(product: Product) {
+    stopScanner();
     foundProduct = product;
     productName = product.name;
     productBrand = product.brand ?? "";
@@ -232,6 +268,7 @@
   }
 
   function selectNewProduct(query: string) {
+    stopScanner();
     const isNumeric = /^\d+$/.test(query);
     foundProduct = null;
     showProductFields = true;
@@ -281,6 +318,16 @@
 
     saving = true;
     error = "";
+
+    if (!expiryYear || !expiryMonth) {
+      error = "Please select an expiration month and year.";
+      saving = false;
+      return;
+    }
+
+    if (!expirationDate) {
+      maybeSetDate();
+    }
 
     try {
       let productId: number;
@@ -353,6 +400,9 @@
     productCategoryId = "";
     productImageUrl = "";
     expirationDate = "";
+    expiryYear = null;
+    expiryMonth = null;
+    expiryShowInput = false;
     // Keep storage location for convenience
     itemCount = 1;
     manualQuery = "";
@@ -395,39 +445,37 @@
     </div>
   {:else if step === "input"}
     <!-- Step 1: Scan or enter EAN -->
-    <div class="space-y-4">
+    <div class="space-y-4 md:max-w-[50%] md:mx-auto">
       <!-- Camera Scanner -->
-      <div class="card bg-base-200">
-        <div class="card-body p-4">
+      {#if !searchFocused && !cameraFailed}
+        <div class="relative w-full" style="aspect-ratio: 4 / 3;">
           <div
             id="barcode-scanner"
             bind:this={scannerContainer}
-            class="w-full rounded-lg overflow-hidden [&_video]:!w-full [&_video]:!object-cover"
+            class="w-full rounded-xl overflow-hidden [&_video]:!w-full [&_video]:!object-cover"
             class:hidden={!scanning}
           ></div>
-
           {#if !scanning}
-            <button
-              class="btn btn-primary btn-lg w-full gap-2"
-              onclick={startScanner}
-            >
-              <Camera class="w-5 h-5" />
-              Scan Barcode
-            </button>
-          {:else}
-            <button
-              class="btn btn-ghost btn-sm w-full gap-2 mt-2"
-              onclick={stopScanner}
-            >
-              <CameraOff class="w-4 h-4" />
-              Stop Scanner
-            </button>
+            <div
+              class="absolute inset-0 rounded-xl bg-base-200 animate-pulse"
+            ></div>
           {/if}
         </div>
-      </div>
+      {/if}
 
-      <!-- Manual Entry -->
-      <div class="divider text-sm text-base-content/40">or enter manually</div>
+      {#if cameraFailed}
+        <div class="flex items-center gap-2 text-sm text-base-content/50">
+          <CameraOff class="w-4 h-4 shrink-0" />
+          <span>Camera not available — use manual entry below.</span>
+        </div>
+      {/if}
+
+      {#if !searchFocused}
+        <!-- Manual Entry -->
+        <div class="divider text-sm text-base-content/40">
+          or enter manually
+        </div>
+      {/if}
 
       <div class="relative">
         <div class="flex gap-2">
@@ -440,9 +488,16 @@
               oninput={handleSearchInput}
               onkeydown={handleSearchKeydown}
               onfocusin={() => {
+                searchFocused = true;
+                stopScanner();
                 if (searchResults.length > 0) searchOpen = true;
               }}
-              onfocusout={() => setTimeout(() => (searchOpen = false), 200)}
+              onfocusout={() => {
+                setTimeout(() => {
+                  searchOpen = false;
+                  searchFocused = false;
+                }, 200);
+              }}
             />
             <Search
               class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-base-content/30 pointer-events-none"
@@ -624,43 +679,113 @@
 
       <!-- Item details -->
       <div class="card bg-base-200">
-        <div class="card-body p-4 space-y-3">
+        <div class="card-body p-4 space-y-4">
           <h3 class="font-bold text-sm">Item Details</h3>
 
-          <label class="form-control w-full">
-            <span class="label-text text-sm">Expiration Date</span>
-            <input
-              type="date"
-              class="input input-bordered input-sm w-full"
-              bind:value={expirationDate}
-              required
-            />
-          </label>
-
-          <div class="grid grid-cols-2 gap-2">
-            <label class="form-control w-full">
-              <span class="label-text text-sm">Storage Location</span>
-              <select
-                class="select select-bordered select-sm w-full"
-                bind:value={storageLocationId}
-              >
-                <option value="">— None —</option>
-                {#each locations as loc}
-                  <option value={loc.id}>{loc.name}</option>
-                {/each}
-              </select>
-            </label>
-
-            <label class="form-control w-full">
-              <span class="label-text text-sm">Quantity</span>
+          <!-- Expiration Date -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="label-text text-sm">Expiration Date</span>
+              {#if expiryShowInput}
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-xs"
+                  onclick={() => {
+                    expiryShowInput = false;
+                    expirationDate = "";
+                  }}>Back</button
+                >
+              {:else}
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-xs {expiryYear === null ||
+                  expiryMonth === null
+                    ? 'invisible'
+                    : ''}"
+                  onclick={() => (expiryShowInput = true)}
+                  >Enter exact date</button
+                >
+              {/if}
+            </div>
+            {#if expiryShowInput}
               <input
-                type="number"
+                type="date"
                 class="input input-bordered input-sm w-full"
-                min="1"
-                max="99"
-                bind:value={itemCount}
+                bind:value={expirationDate}
               />
-            </label>
+            {:else}
+              <div class="flex gap-2">
+                <div class="grid grid-cols-4 gap-1 flex-1">
+                  {#each MONTHS as { num, label }}
+                    <button
+                      type="button"
+                      class="btn btn-sm {expiryMonth === num
+                        ? 'btn-primary'
+                        : 'btn-outline'}"
+                      onclick={() => {
+                        expiryMonth = num;
+                        maybeSetDate();
+                      }}>{label}</button
+                    >
+                  {/each}
+                </div>
+                <div class="divider divider-horizontal mx-0"></div>
+                <div class="grid grid-cols-2 gap-1">
+                  {#each expiryYears as year}
+                    <button
+                      type="button"
+                      class="btn btn-sm {expiryYear === year
+                        ? 'btn-primary'
+                        : 'btn-outline'}"
+                      onclick={() => {
+                        expiryYear = year;
+                        maybeSetDate();
+                      }}>{year}</button
+                    >
+                  {/each}
+                </div>
+              </div>
+            {/if}
+          </div>
+
+          <!-- Storage Location -->
+          <div class="space-y-2">
+            <span class="label-text text-sm">Storage Location</span>
+            <div class="flex flex-wrap gap-1">
+              <button
+                type="button"
+                class="btn btn-sm {storageLocationId === ''
+                  ? 'btn-primary'
+                  : 'btn-outline'}"
+                onclick={() => (storageLocationId = "")}>None</button
+              >
+              {#each locations as loc}
+                <button
+                  type="button"
+                  class="btn btn-sm {storageLocationId === loc.id
+                    ? 'btn-primary'
+                    : 'btn-outline'}"
+                  onclick={() => (storageLocationId = loc.id)}
+                  >{loc.name}</button
+                >
+              {/each}
+            </div>
+          </div>
+
+          <!-- Quantity -->
+          <div class="space-y-2">
+            <span class="label-text text-sm">Quantity</span>
+            <div class="flex gap-1">
+              {#each [1, 2, 3, 4, 5] as n}
+                <button
+                  type="button"
+                  class="btn btn-sm {itemCount === n
+                    ? 'btn-primary'
+                    : 'btn-outline'}"
+                  onclick={() => (itemCount = n)}>{n}</button
+                >
+              {/each}
+            </div>
           </div>
         </div>
       </div>
