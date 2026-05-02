@@ -8,6 +8,7 @@
     Search,
   } from "lucide-svelte";
   import { onDestroy, onMount } from "svelte";
+  import { getCategoryIconComponent } from "../../lib/categoryMeta";
   import {
     createItem,
     createProduct,
@@ -508,32 +509,56 @@
     <!-- Step 2: Product details + item details -->
     <form class="space-y-4" onsubmit={handleSubmit}>
       {#if foundProduct}
-        <div class="card bg-primary/10 border border-primary/20">
-          <div class="card-body p-4 flex-row items-center gap-3">
-            {#if foundProduct.image_url}
-              <img
-                src={foundProduct.image_url}
-                alt={foundProduct.name}
-                class="w-12 h-12 rounded-lg object-cover"
-              />
-            {:else}
-              <div
-                class="w-12 h-12 rounded-lg bg-base-300 flex items-center justify-center"
-              >
-                <Package class="w-6 h-6 opacity-40" />
-              </div>
-            {/if}
-            <div class="flex-1">
-              <div class="font-bold">
-                {#if foundProduct.brand}{foundProduct.brand}{/if}
-                {foundProduct.name}
-              </div>
-              <div class="text-sm text-base-content/60">
-                {#if foundProduct.quantity}{foundProduct.quantity} ·{/if}
-                Product found — just add expiration details
-              </div>
+        {@const IconComp = getCategoryIconComponent(foundProduct.category_icon)}
+        <div
+          class="flex items-center gap-3 bg-primary/10 border border-primary/20 rounded-xl px-4 py-3"
+        >
+          {#if foundProduct.image_url}
+            <img
+              src={foundProduct.image_url}
+              alt={foundProduct.name}
+              class="w-10 h-10 rounded-lg object-cover shadow-sm shrink-0"
+            />
+          {:else}
+            <div
+              class="w-10 h-10 rounded-lg bg-base-300 flex items-center justify-center shrink-0"
+            >
+              <IconComp class="w-5 h-5 opacity-40" />
             </div>
-            <span class="badge badge-primary badge-sm">Found</span>
+          {/if}
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold truncate text-base-content">
+              {#if foundProduct.brand}
+                <span class="font-normal opacity-70"
+                  >{foundProduct.brand}
+                </span>
+              {/if}
+              {foundProduct.name}
+            </div>
+            <div
+              class="flex items-center gap-2 mt-0.5 text-xs text-base-content/50"
+            >
+              {#if foundProduct.quantity}<span>{foundProduct.quantity}</span
+                >{/if}
+              {#if foundProduct.quantity && (foundProduct.category_name || (foundProduct.active_item_count ?? 0) > 0)}<span
+                  >·</span
+                >{/if}
+              {#if foundProduct.category_name}
+                {@const CatIcon = getCategoryIconComponent(
+                  foundProduct.category_icon,
+                )}
+                <span class="flex items-center gap-1">
+                  <CatIcon class="w-3 h-3" />
+                  {foundProduct.category_name}
+                </span>
+              {/if}
+              {#if foundProduct.category_name && (foundProduct.active_item_count ?? 0) > 0}<span
+                  >·</span
+                >{/if}
+              {#if (foundProduct.active_item_count ?? 0) > 0}
+                <span>{foundProduct.active_item_count} in stock</span>
+              {/if}
+            </div>
           </div>
         </div>
       {:else}

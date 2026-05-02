@@ -327,7 +327,9 @@ export async function fetchProductByEan(ean: string): Promise<Product | null> {
   const sb = getSupabaseClient();
   const { data, error } = await sb
     .from("annona_products")
-    .select("*, annona_categories(name, color, icon)")
+    .select(
+      "*, annona_categories(name, color, icon), annona_items(id, is_consumed)",
+    )
     .eq("ean", ean)
     .limit(1)
     .maybeSingle();
@@ -339,7 +341,11 @@ export async function fetchProductByEan(ean: string): Promise<Product | null> {
     category_name: (data as any).annona_categories?.name ?? null,
     category_color: (data as any).annona_categories?.color ?? null,
     category_icon: (data as any).annona_categories?.icon ?? null,
+    active_item_count: ((data as any).annona_items ?? []).filter(
+      (i: any) => !i.is_consumed,
+    ).length,
     annona_categories: undefined,
+    annona_items: undefined,
   } as Product;
 }
 
@@ -351,7 +357,9 @@ export async function searchProducts(query: string): Promise<Product[]> {
   const pattern = `%${q}%`;
   const { data, error } = await sb
     .from("annona_products")
-    .select("*, annona_categories(name, color, icon)")
+    .select(
+      "*, annona_categories(name, color, icon), annona_items(id, is_consumed)",
+    )
     .or(`name.ilike.${pattern},brand.ilike.${pattern},ean.ilike.${pattern}`)
     .order("name", { ascending: true })
     .limit(10);
@@ -361,7 +369,10 @@ export async function searchProducts(query: string): Promise<Product[]> {
     category_name: p.annona_categories?.name ?? null,
     category_color: p.annona_categories?.color ?? null,
     category_icon: p.annona_categories?.icon ?? null,
+    active_item_count: (p.annona_items ?? []).filter((i: any) => !i.is_consumed)
+      .length,
     annona_categories: undefined,
+    annona_items: undefined,
   }));
 }
 
