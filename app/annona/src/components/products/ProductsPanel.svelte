@@ -136,10 +136,8 @@
 
     <!-- Search & Filter -->
     <div class="flex flex-col sm:flex-row gap-2">
-      <label
-        class="input input-bordered input-sm flex items-center gap-2 flex-1"
-      >
-        <Search class="w-4 h-4 opacity-50" />
+      <label class="input input-bordered flex items-center gap-2 flex-1 w-full">
+        <Search class="w-4 h-10 opacity-50" />
         <input
           type="text"
           placeholder="Search products..."
@@ -148,7 +146,7 @@
         />
       </label>
       <select
-        class="select select-bordered select-sm"
+        class="select select-bordered w-full sm:w-auto"
         onchange={(e) => {
           const v = (e.target as HTMLSelectElement).value;
           filterCategory = v === "__none__" ? null : v === "" ? "" : Number(v);

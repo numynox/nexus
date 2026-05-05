@@ -129,6 +129,16 @@
 
     try {
       const { Html5Qrcode } = await import("html5-qrcode");
+
+      // Verify container is still mounted after the async import
+      if (!scannerContainer) {
+        scanning = false;
+        return;
+      }
+
+      // Clear any residual DOM from a previous scanner instance
+      scannerContainer.innerHTML = "";
+
       html5QrCode = new Html5Qrcode(scannerContainer.id);
 
       await html5QrCode.start(
@@ -391,6 +401,9 @@
   }
 
   function addAnother() {
+    stopScanner();
+    if (searchTimeout) clearTimeout(searchTimeout);
+    searchTimeout = null;
     scannedEan = "";
     foundProduct = null;
     showProductFields = false;
@@ -777,7 +790,7 @@
           <div class="space-y-2">
             <span class="label-text text-sm">Quantity</span>
             <div class="flex gap-1">
-              {#each [1, 2, 3, 4, 5] as n}
+              {#each [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as n}
                 <button
                   type="button"
                   class="btn btn-sm {itemCount === n
