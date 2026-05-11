@@ -1,9 +1,24 @@
 <script lang="ts">
+  import { Check, Pencil, Plus, Trash2, X } from "lucide-svelte";
   import { onMount } from "svelte";
-  import { signOut } from "../../lib/data";
+  import {
+    CATEGORY_COLORS,
+    CATEGORY_ICONS,
+    getCategoryBorderColor,
+    getCategoryIconComponent,
+  } from "../../lib/categoryMeta";
+  import {
+    createCategory,
+    deleteCategory,
+    fetchCategories,
+    signOut,
+    updateCategory,
+    type Category,
+  } from "../../lib/data";
   import { getTheme, setTheme } from "../../lib/storage";
   import { session } from "../../lib/stores";
 
+  // ── Auth / Theme ──────────────────────────────────────────────────
   let isBusy = $state(false);
   let authError = $state("");
   let currentTheme = $state<string>("auto");
@@ -43,10 +58,122 @@
     "sunset",
   ];
 
-  onMount(() => {
+  // ── Categories ────────────────────────────────────────────────────
+  let categories: Category[] = $state([]);
+  let catLoading = $state(true);
+  let catError = $state("");
+
+  let adding = $state(false);
+  let newName = $state("");
+  let newColor = $state("");
+  let newIcon = $state("");
+
+  let editingId: number | null = $state(null);
+  let editName = $state("");
+  let editColor = $state("");
+  let editIcon = $state("");
+
+  let confirmDeleteId: number | null = $state(null);
+  let confirmDeleteName = $state("");
+
+  function sortAlpha(cats: Category[]): Category[] {
+    return [...cats].sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  onMount(async () => {
     currentTheme = getTheme();
+    const s = $session;
+    if (s?.user) {
+      await loadCategories();
+    }
   });
 
+  async function loadCategories() {
+    catLoading = true;
+    catError = "";
+    try {
+      categories = sortAlpha(await fetchCategories());
+    } catch (e) {
+      catError = e instanceof Error ? e.message : String(e);
+    } finally {
+      catLoading = false;
+    }
+  }
+
+  async function handleAdd() {
+    if (!newName.trim()) return;
+    catError = "";
+    try {
+      const cat = await createCategory(
+        newName,
+        newColor || null,
+        newIcon || null,
+      );
+      categories = sortAlpha([...categories, cat]);
+      newName = "";
+      newColor = "";
+      newIcon = "";
+      adding = false;
+    } catch (e) {
+      catError = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  function startEdit(cat: Category) {
+    editingId = cat.id;
+    editName = cat.name;
+    editColor = cat.color ?? "";
+    editIcon = cat.icon ?? "";
+  }
+
+  function cancelEdit() {
+    editingId = null;
+    editName = "";
+    editColor = "";
+    editIcon = "";
+  }
+
+  async function saveEdit() {
+    if (editingId === null || !editName.trim()) return;
+    catError = "";
+    try {
+      await updateCategory(
+        editingId,
+        editName,
+        editColor || null,
+        editIcon || null,
+      );
+      categories = sortAlpha(
+        categories.map((c) =>
+          c.id === editingId
+            ? {
+                ...c,
+                name: editName.trim(),
+                color: editColor || null,
+                icon: editIcon || null,
+              }
+            : c,
+        ),
+      );
+      cancelEdit();
+    } catch (e) {
+      catError = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  async function handleDelete(id: number) {
+    catError = "";
+    try {
+      await deleteCategory(id);
+      categories = categories.filter((c) => c.id !== id);
+      confirmDeleteId = null;
+    } catch (e) {
+      catError = e instanceof Error ? e.message : String(e);
+      confirmDeleteId = null;
+    }
+  }
+
+  // ── Theme ──────────────────────────────────────────────────────────
   function handleThemeChange(theme: string) {
     currentTheme = theme;
     setTheme(theme);
@@ -65,6 +192,53 @@
   }
 </script>
 
+{#snippet colorPicker(selected: string, onSelect: (key: string) => void)}
+  <div class="flex flex-wrap gap-1.5">
+    <button
+      type="button"
+      class="w-6 h-6 rounded-full border-2 bg-base-300 flex items-center justify-center {selected ===
+      ''
+        ? 'border-base-content/60'
+        : 'border-transparent opacity-50'}"
+      title="None"
+      onclick={() => onSelect("")}
+    >
+      <X class="w-3 h-3 opacity-60" />
+    </button>
+    {#each CATEGORY_COLORS as col}
+      <button
+        type="button"
+        class="w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 {selected ===
+        col.key
+          ? 'border-base-content/60 scale-110'
+          : 'border-transparent'}"
+        style="background-color: {col.value};"
+        title={col.label}
+        onclick={() => onSelect(col.key)}
+      ></button>
+    {/each}
+  </div>
+{/snippet}
+
+{#snippet iconPicker(selected: string, onSelect: (key: string) => void)}
+  <div class="flex flex-wrap gap-1">
+    {#each CATEGORY_ICONS as ic}
+      {@const Comp = ic.component}
+      <button
+        type="button"
+        class="w-8 h-8 rounded-lg flex items-center justify-center transition-colors {selected ===
+        ic.key
+          ? 'bg-primary text-primary-content'
+          : 'bg-base-300 hover:bg-base-content/20'}"
+        title={ic.label}
+        onclick={() => onSelect(ic.key)}
+      >
+        <svelte:component this={Comp} class="w-4 h-4" />
+      </button>
+    {/each}
+  </div>
+{/snippet}
+
 <div
   class="max-w-2xl mx-auto space-y-8 animate-in slide-in-from-bottom duration-500"
 >
@@ -74,6 +248,148 @@
       Manage your profile and preferences
     </p>
   </div>
+
+  <!-- Categories -->
+  <section class="card bg-base-200 shadow-sm overflow-hidden">
+    <div class="card-body p-6 lg:p-8">
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="text-xl font-bold">Categories</h2>
+        <button
+          class="btn btn-primary btn-sm gap-2"
+          onclick={() => (adding = true)}
+        >
+          <Plus class="w-4 h-4" />
+          Add
+        </button>
+      </div>
+
+      {#if catError}
+        <div class="alert alert-error text-sm mb-4">{catError}</div>
+      {/if}
+
+      {#if catLoading}
+        <div class="flex justify-center py-8">
+          <span class="loading loading-infinity loading-lg text-primary"></span>
+        </div>
+      {:else}
+        {#if adding}
+          <div class="bg-base-300 rounded-xl px-4 py-3 space-y-3 mb-4">
+            <div class="flex gap-2 items-center">
+              <input
+                type="text"
+                class="input input-bordered input-sm flex-1"
+                placeholder="Category name"
+                bind:value={newName}
+                onkeydown={(e) => e.key === "Enter" && handleAdd()}
+              />
+              <button
+                class="btn btn-primary btn-sm btn-square"
+                onclick={handleAdd}
+              >
+                <Check class="w-4 h-4" />
+              </button>
+              <button
+                class="btn btn-ghost btn-sm btn-square"
+                onclick={() => {
+                  adding = false;
+                  newName = "";
+                  newColor = "";
+                  newIcon = "";
+                }}
+              >
+                <X class="w-4 h-4" />
+              </button>
+            </div>
+            <div class="space-y-2">
+              <p class="text-xs text-base-content/50 font-medium">Color</p>
+              {@render colorPicker(newColor, (k) => (newColor = k))}
+              <p class="text-xs text-base-content/50 font-medium mt-2">Icon</p>
+              {@render iconPicker(newIcon, (k) => (newIcon = k))}
+            </div>
+          </div>
+        {/if}
+
+        <div class="space-y-2">
+          {#each categories as cat}
+            {@const border = getCategoryBorderColor(cat.color)}
+            {@const IconComp = getCategoryIconComponent(cat.icon)}
+            <div
+              class="bg-base-300 rounded-xl px-4 py-3"
+              style={border
+                ? `border-left: 2px solid ${border};`
+                : "border-left: 2px solid transparent;"}
+            >
+              {#if editingId === cat.id}
+                <div class="space-y-3">
+                  <div class="flex gap-2 items-center">
+                    <input
+                      type="text"
+                      class="input input-bordered input-sm flex-1"
+                      bind:value={editName}
+                      onkeydown={(e) => e.key === "Enter" && saveEdit()}
+                    />
+                    <button
+                      class="btn btn-primary btn-sm btn-square"
+                      onclick={saveEdit}
+                    >
+                      <Check class="w-4 h-4" />
+                    </button>
+                    <button
+                      class="btn btn-ghost btn-sm btn-square"
+                      onclick={cancelEdit}
+                    >
+                      <X class="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div class="space-y-2">
+                    <p class="text-xs text-base-content/50 font-medium">
+                      Color
+                    </p>
+                    {@render colorPicker(editColor, (k) => (editColor = k))}
+                    <p class="text-xs text-base-content/50 font-medium mt-2">
+                      Icon
+                    </p>
+                    {@render iconPicker(editIcon, (k) => (editIcon = k))}
+                  </div>
+                </div>
+              {:else}
+                <div class="flex items-center gap-3">
+                  <svelte:component
+                    this={IconComp}
+                    class="w-4 h-4 shrink-0 opacity-60"
+                  />
+                  <span class="flex-1 font-medium">{cat.name}</span>
+                  <button
+                    class="btn btn-ghost btn-xs btn-square"
+                    title="Edit"
+                    onclick={() => startEdit(cat)}
+                  >
+                    <Pencil class="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    class="btn btn-ghost btn-xs btn-square text-error"
+                    title="Delete"
+                    onclick={() => {
+                      confirmDeleteId = cat.id;
+                      confirmDeleteName = cat.name;
+                    }}
+                  >
+                    <Trash2 class="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              {/if}
+            </div>
+          {/each}
+        </div>
+
+        {#if categories.length === 0 && !adding}
+          <p class="text-center text-base-content/50 py-8">
+            No categories yet. Add one to get started.
+          </p>
+        {/if}
+      {/if}
+    </div>
+  </section>
 
   <!-- Appearance -->
   <section class="card bg-base-200 shadow-sm overflow-hidden">
@@ -157,3 +473,25 @@
     </div>
   </section>
 </div>
+
+{#if confirmDeleteId !== null}
+  <dialog class="modal modal-open">
+    <div class="modal-box">
+      <h3 class="font-bold text-lg">Delete category?</h3>
+      <p class="py-2 text-sm text-base-content/70">
+        Delete <strong>{confirmDeleteName}</strong>? Products in this category
+        will not be deleted — their category will be set to none.
+      </p>
+      <div class="modal-action">
+        <button
+          class="btn btn-error"
+          onclick={() => handleDelete(confirmDeleteId!)}>Delete</button
+        >
+        <button class="btn btn-ghost" onclick={() => (confirmDeleteId = null)}
+          >Cancel</button
+        >
+      </div>
+    </div>
+    <div class="modal-backdrop" onclick={() => (confirmDeleteId = null)}></div>
+  </dialog>
+{/if}

@@ -45,6 +45,18 @@
     return list;
   });
 
+  let categoryCounts = $derived.by(() => {
+    const counts: Record<string, number> = {
+      __all__: products.length,
+      __none__: 0,
+    };
+    for (const p of products) {
+      if (!p.category_id) counts["__none__"] = (counts["__none__"] ?? 0) + 1;
+      else counts[p.category_id] = (counts[p.category_id] ?? 0) + 1;
+    }
+    return counts;
+  });
+
   onMount(async () => {
     const s = $session;
     if (!s?.user) return;
@@ -135,8 +147,8 @@
     {/if}
 
     <!-- Search & Filter -->
-    <div class="flex flex-col sm:flex-row gap-2">
-      <label class="input input-bordered flex items-center gap-2 flex-1 w-full">
+    <div class="flex flex-col gap-4">
+      <label class="input input-bordered flex items-center gap-2 w-full">
         <Search class="w-4 h-10 opacity-50" />
         <input
           type="text"
@@ -145,19 +157,49 @@
           bind:value={searchQuery}
         />
       </label>
-      <select
-        class="select select-bordered w-full sm:w-auto"
-        onchange={(e) => {
-          const v = (e.target as HTMLSelectElement).value;
-          filterCategory = v === "__none__" ? null : v === "" ? "" : Number(v);
-        }}
-      >
-        <option value="">All categories</option>
-        <option value="__none__">— None —</option>
+      <div class="flex flex-wrap gap-1.5">
+        <button
+          class="btn btn-sm gap-1.5 {filterCategory === ''
+            ? 'btn-accent'
+            : 'btn-primary'}"
+          onclick={() => (filterCategory = "")}
+        >
+          All
+          <span class="badge badge-sm badge-neutral"
+            >{categoryCounts["__all__"] ?? 0}</span
+          >
+        </button>
+        {#if (categoryCounts["__none__"] ?? 0) > 0}
+          <button
+            class="btn btn-sm gap-1.5 {filterCategory === null
+              ? 'btn-accent'
+              : 'btn-primary'}"
+            onclick={() => (filterCategory = null)}
+          >
+            None
+            <span class="badge badge-sm badge-neutral"
+              >{categoryCounts["__none__"] ?? 0}</span
+            >
+          </button>
+        {/if}
         {#each categories as cat}
-          <option value={cat.id}>{cat.name}</option>
+          {#if (categoryCounts[cat.id] ?? 0) > 0}
+            {@const CatIcon = getCategoryIconComponent(cat.icon)}
+            <button
+              class="btn btn-sm gap-1.5 {filterCategory === cat.id
+                ? 'btn-accent'
+                : 'btn-secondary'}"
+              onclick={() => (filterCategory = cat.id)}
+            >
+              <CatIcon class="w-3.5 h-3.5" />
+              {cat.name}
+              <span class="badge badge-sm badge-neutral"
+                >{categoryCounts[cat.id] ?? 0}</span
+              >
+            </button>
+          {/if}
         {/each}
-      </select>
+      </div>
     </div>
 
     {#if loading}

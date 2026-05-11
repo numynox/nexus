@@ -238,7 +238,7 @@
     if (days < 0)
       return { text: `Expired ${Math.abs(days)}d ago`, class: "badge-error" };
     if (days === 0) return { text: "Expires today", class: "badge-warning" };
-    if (days <= 7) return { text: `${days}d left`, class: "badge-warning" };
+    if (days <= 30) return { text: `${days}d left`, class: "badge-warning" };
     return { text: `${days}d left`, class: "badge-primary" };
   }
 
@@ -251,12 +251,12 @@
 
   let categoryExpiringMap = $derived.by(() => {
     const today = new Date().toISOString().split("T")[0];
-    const in7 = new Date(Date.now() + 7 * 864e5).toISOString().split("T")[0];
+    const in30 = new Date(Date.now() + 30 * 864e5).toISOString().split("T")[0];
     const map = new Map<string | null, number>();
     for (const item of allActiveItems) {
       const key = item.category_name ?? null;
       const exp = item.expiration_date;
-      if (exp && exp >= today && exp <= in7)
+      if (exp && exp >= today && exp <= in30)
         map.set(key, (map.get(key) ?? 0) + 1);
     }
     return map;
@@ -264,12 +264,12 @@
 
   let locationExpiringMap = $derived.by(() => {
     const today = new Date().toISOString().split("T")[0];
-    const in7 = new Date(Date.now() + 7 * 864e5).toISOString().split("T")[0];
+    const in30 = new Date(Date.now() + 30 * 864e5).toISOString().split("T")[0];
     const map = new Map<string, number>();
     for (const item of allActiveItems) {
       const key = item.location_name ?? "No Location";
       const exp = item.expiration_date;
-      if (exp && exp >= today && exp <= in7)
+      if (exp && exp >= today && exp <= in30)
         map.set(key, (map.get(key) ?? 0) + 1);
     }
     return map;
@@ -352,7 +352,7 @@
       </div>
       <div class="stat bg-base-200 rounded-xl p-4">
         <div class="stat-title text-xs flex items-center gap-1">
-          <Clock class="w-3 h-3 text-warning" /> Expiring ≤7d
+          <Clock class="w-3 h-3 text-warning" /> Expiring ≤30d
         </div>
         <div class="stat-value text-2xl text-warning">
           {summary.expiring_within_7_days}

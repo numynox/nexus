@@ -3,9 +3,9 @@
     LayoutDashboard,
     MapPin,
     Package,
+    PackageMinus,
     ScanBarcode,
     Settings,
-    Tag,
   } from "lucide-svelte";
 
   interface Props {
@@ -13,7 +13,7 @@
       | "dashboard"
       | "products"
       | "quick-add"
-      | "categories"
+      | "consume"
       | "locations"
       | "settings";
     baseUrl?: string;
@@ -48,10 +48,10 @@
       path: "dashboard",
       icon: LayoutDashboard,
     },
-    { id: "quick-add", label: "Quick Add", path: "add", icon: ScanBarcode },
+    { id: "quick-add", label: "Add Product", path: "add", icon: ScanBarcode },
+    { id: "consume", label: "Consume", path: "consume", icon: PackageMinus },
     { id: "products", label: "Products", path: "products", icon: Package },
     { id: "locations", label: "Locations", path: "locations", icon: MapPin },
-    { id: "categories", label: "Categories", path: "categories", icon: Tag },
   ];
 </script>
 

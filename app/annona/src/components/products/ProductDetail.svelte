@@ -219,7 +219,7 @@
     if (days < 0)
       return { text: `${expirationLabel(days)} ago`, class: "badge-error" };
     if (days === 0) return { text: "Expires today", class: "badge-warning" };
-    if (days <= 7)
+    if (days <= 30)
       return { text: `${expirationLabel(days)} left`, class: "badge-warning" };
     return { text: `${expirationLabel(days)} left`, class: "badge-primary" };
   }

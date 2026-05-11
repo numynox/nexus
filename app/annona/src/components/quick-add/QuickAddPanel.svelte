@@ -443,7 +443,7 @@
 
 <div class="space-y-6 animate-in slide-in-from-bottom duration-500">
   <div>
-    <h1 class="text-3xl font-black text-base-content">Quick Add</h1>
+    <h1 class="text-3xl font-black text-base-content">Add Product</h1>
     <p class="text-sm text-base-content/60">
       Scan a barcode or type an EAN to quickly add items
     </p>

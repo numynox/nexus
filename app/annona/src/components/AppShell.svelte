@@ -16,7 +16,7 @@
       | "dashboard"
       | "products"
       | "quick-add"
-      | "categories"
+      | "consume"
       | "locations"
       | "settings";
     children?: Snippet;

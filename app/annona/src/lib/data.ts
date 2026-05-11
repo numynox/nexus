@@ -298,7 +298,7 @@ export async function fetchProducts(): Promise<Product[]> {
       })(),
       expiring_soon_count: (() => {
         const today = new Date().toISOString().split("T")[0];
-        const in7 = new Date(Date.now() + 7 * 864e5)
+        const in30 = new Date(Date.now() + 30 * 864e5)
           .toISOString()
           .split("T")[0];
         return (p.annona_items ?? []).filter(
@@ -306,16 +306,19 @@ export async function fetchProducts(): Promise<Product[]> {
             !i.is_consumed &&
             i.expiration_date &&
             i.expiration_date >= today &&
-            i.expiration_date <= in7,
+            i.expiration_date <= in30,
         ).length;
       })(),
       annona_categories: undefined,
       annona_items: undefined,
     }))
     .sort((a: any, b: any) => {
-      const aStock = (a.active_item_count ?? 0) > 0 ? 0 : 1;
-      const bStock = (b.active_item_count ?? 0) > 0 ? 0 : 1;
-      if (aStock !== bStock) return aStock - bStock;
+      const aExpired = a.expired_item_count ?? 0;
+      const bExpired = b.expired_item_count ?? 0;
+      if (bExpired !== aExpired) return bExpired - aExpired;
+      const aCat = (a.category_name ?? "").toLowerCase();
+      const bCat = (b.category_name ?? "").toLowerCase();
+      if (aCat !== bCat) return aCat.localeCompare(bCat);
       const aBrand = (a.brand ?? "").toLowerCase();
       const bBrand = (b.brand ?? "").toLowerCase();
       if (aBrand !== bBrand) return aBrand.localeCompare(bBrand);
@@ -479,7 +482,7 @@ export interface LocationProductEntry {
   category_icon: string | null;
   item_count: number;
   expired_count: number;
-  expiring_soon_count: number; // within 7 days (not yet expired)
+  expiring_soon_count: number; // within 30 days (not yet expired)
 }
 
 export interface LocationGroup {
@@ -499,7 +502,7 @@ export async function fetchItemsGroupedByLocation(): Promise<LocationGroup[]> {
   if (error) throw error;
 
   const today = new Date().toISOString().split("T")[0];
-  const in7 = new Date(Date.now() + 7 * 864e5).toISOString().split("T")[0];
+  const in30 = new Date(Date.now() + 30 * 864e5).toISOString().split("T")[0];
 
   // Group by location then product
   const locationMap = new Map<
@@ -552,7 +555,7 @@ export async function fetchItemsGroupedByLocation(): Promise<LocationGroup[]> {
     pe.item_count++;
     const exp = row.expiration_date;
     if (exp && exp < today) pe.expired_count++;
-    else if (exp && exp >= today && exp <= in7) pe.expiring_soon_count++;
+    else if (exp && exp >= today && exp <= in30) pe.expiring_soon_count++;
   }
 
   return [...locationMap.values()]
@@ -566,6 +569,12 @@ export async function fetchItemsGroupedByLocation(): Promise<LocationGroup[]> {
       location_id: id,
       location_name: name,
       products: [...products.values()].sort((a, b) => {
+        const aExpired = a.expired_count ?? 0;
+        const bExpired = b.expired_count ?? 0;
+        if (bExpired !== aExpired) return bExpired - aExpired;
+        const aCat = (a.category_name ?? "").toLowerCase();
+        const bCat = (b.category_name ?? "").toLowerCase();
+        if (aCat !== bCat) return aCat.localeCompare(bCat);
         const aBrand = (a.product_brand ?? "").toLowerCase();
         const bBrand = (b.product_brand ?? "").toLowerCase();
         if (aBrand !== bBrand) return aBrand.localeCompare(bBrand);
