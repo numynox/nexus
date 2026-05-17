@@ -35,6 +35,8 @@ export interface Product {
   active_item_count?: number;
   expired_item_count?: number;
   expiring_soon_count?: number;
+  earliest_expiration?: string | null;
+  items?: Array<{ id: number; expiration_date: string | null }>;
 }
 
 export interface Item {
@@ -281,48 +283,70 @@ export async function fetchProducts(): Promise<Product[]> {
   if (error) throw error;
 
   return (data ?? [])
-    .map((p: any) => ({
-      ...p,
-      category_name: p.annona_categories?.name ?? null,
-      category_color: p.annona_categories?.color ?? null,
-      category_icon: p.annona_categories?.icon ?? null,
-      active_item_count: (p.annona_items ?? []).filter(
-        (i: any) => !i.is_consumed,
-      ).length,
-      expired_item_count: (() => {
-        const today = new Date().toISOString().split("T")[0];
-        return (p.annona_items ?? []).filter(
-          (i: any) =>
-            !i.is_consumed && i.expiration_date && i.expiration_date < today,
-        ).length;
-      })(),
-      expiring_soon_count: (() => {
-        const today = new Date().toISOString().split("T")[0];
-        const in30 = new Date(Date.now() + 30 * 864e5)
-          .toISOString()
-          .split("T")[0];
-        return (p.annona_items ?? []).filter(
-          (i: any) =>
-            !i.is_consumed &&
+    .map((p: any) => {
+      const today = new Date().toISOString().split("T")[0];
+      const in30 = new Date(Date.now() + 30 * 864e5)
+        .toISOString()
+        .split("T")[0];
+      const activeItems: Array<{ id: number; expiration_date: string | null }> =
+        (p.annona_items ?? [])
+          .filter((i: any) => !i.is_consumed)
+          .map((i: any) => ({
+            id: i.id,
+            expiration_date: i.expiration_date ?? null,
+          }))
+          .sort((a: any, b: any) => {
+            if (!a.expiration_date && !b.expiration_date) return 0;
+            if (!a.expiration_date) return 1;
+            if (!b.expiration_date) return -1;
+            return a.expiration_date.localeCompare(b.expiration_date);
+          });
+      const expirationDates = activeItems
+        .map((i) => i.expiration_date)
+        .filter(Boolean) as string[];
+      const earliestExpiration =
+        expirationDates.length > 0 ? expirationDates[0] : null;
+      return {
+        ...p,
+        category_name: p.annona_categories?.name ?? null,
+        category_color: p.annona_categories?.color ?? null,
+        category_icon: p.annona_categories?.icon ?? null,
+        active_item_count: activeItems.length,
+        expired_item_count: activeItems.filter(
+          (i) => i.expiration_date && i.expiration_date < today,
+        ).length,
+        expiring_soon_count: activeItems.filter(
+          (i) =>
             i.expiration_date &&
             i.expiration_date >= today &&
             i.expiration_date <= in30,
-        ).length;
-      })(),
-      annona_categories: undefined,
-      annona_items: undefined,
-    }))
+        ).length,
+        earliest_expiration: earliestExpiration,
+        items: activeItems,
+        annona_categories: undefined,
+        annona_items: undefined,
+      };
+    })
     .sort((a: any, b: any) => {
-      const aExpired = a.expired_item_count ?? 0;
-      const bExpired = b.expired_item_count ?? 0;
-      if (bExpired !== aExpired) return bExpired - aExpired;
-      const aCat = (a.category_name ?? "").toLowerCase();
-      const bCat = (b.category_name ?? "").toLowerCase();
-      if (aCat !== bCat) return aCat.localeCompare(bCat);
-      const aBrand = (a.brand ?? "").toLowerCase();
-      const bBrand = (b.brand ?? "").toLowerCase();
-      if (aBrand !== bBrand) return aBrand.localeCompare(bBrand);
-      return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+      const aHasItems = (a.active_item_count ?? 0) > 0;
+      const bHasItems = (b.active_item_count ?? 0) > 0;
+      // Products without items go last
+      if (aHasItems !== bHasItems) return aHasItems ? -1 : 1;
+      const nameCompare = () => {
+        const aBrand = (a.brand ?? "").toLowerCase();
+        const bBrand = (b.brand ?? "").toLowerCase();
+        if (aBrand !== bBrand) return aBrand.localeCompare(bBrand);
+        return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+      };
+      if (!aHasItems) return nameCompare();
+      // Both have items: sort by earliest expiration (nulls last)
+      const aExp = a.earliest_expiration;
+      const bExp = b.earliest_expiration;
+      if (!aExp && !bExp) return nameCompare();
+      if (!aExp) return 1;
+      if (!bExp) return -1;
+      const expCmp = aExp.localeCompare(bExp);
+      return expCmp !== 0 ? expCmp : nameCompare();
     });
 }
 

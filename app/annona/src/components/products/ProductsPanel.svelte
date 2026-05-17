@@ -24,6 +24,17 @@
   let showForm = $state(false);
   let editingProduct: Product | null = $state(null);
   let selectedProduct: Product | null = $state(null);
+  let showStock = $state(
+    typeof localStorage !== "undefined"
+      ? localStorage.getItem("annona-show-stock") === "true"
+      : false,
+  );
+
+  $effect(() => {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem("annona-show-stock", String(showStock));
+    }
+  });
 
   let filteredProducts = $derived.by(() => {
     let list = products;
@@ -113,6 +124,31 @@
     history.replaceState(null, "", window.location.pathname);
     loadData();
   }
+
+  function groupItemsByMonth(
+    items: Array<{ id: number; expiration_date: string | null }>,
+  ) {
+    const counts = new Map<string, number>();
+    const order: string[] = [];
+    for (const item of items) {
+      const key = item.expiration_date
+        ? item.expiration_date.slice(0, 7)
+        : "__none__";
+      if (!counts.has(key)) order.push(key);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return order.map((key) => ({
+      month: key === "__none__" ? null : key,
+      count: counts.get(key)!,
+    }));
+  }
+
+  let productsWithStock = $derived(
+    filteredProducts.filter((p) => (p.active_item_count ?? 0) > 0),
+  );
+  let productsWithoutStock = $derived(
+    filteredProducts.filter((p) => (p.active_item_count ?? 0) === 0),
+  );
 </script>
 
 {#if showForm}
@@ -136,10 +172,20 @@
           {products.length} product{products.length !== 1 ? "s" : ""}
         </p>
       </div>
-      <button class="btn btn-primary btn-sm gap-2" onclick={handleNew}>
-        <Plus class="w-4 h-4" />
-        New
-      </button>
+      <div class="flex items-center gap-2">
+        <button
+          class="btn btn-sm gap-2 {showStock
+            ? 'btn-accent'
+            : 'btn-ghost border border-base-300'}"
+          onclick={() => (showStock = !showStock)}
+        >
+          Show Stock
+        </button>
+        <button class="btn btn-primary btn-sm gap-2" onclick={handleNew}>
+          <Plus class="w-4 h-4" />
+          New
+        </button>
+      </div>
     </div>
 
     {#if error}
@@ -218,82 +264,133 @@
       </div>
     {:else}
       <div class="space-y-2">
-        {#each filteredProducts as product}
+        {#snippet productCard(product: Product)}
           {@const border = getCategoryBorderColor(product.category_color)}
           {@const IconComp = getCategoryIconComponent(product.category_icon)}
           {@const expiredCount = product.expired_item_count ?? 0}
           {@const expiringSoonCount = product.expiring_soon_count ?? 0}
           {@const badgeCount = expiredCount + expiringSoonCount}
           <div
-            class="flex items-center gap-3 bg-base-200 rounded-xl px-4 py-3 w-full text-left hover:bg-base-300 transition-colors cursor-pointer"
+            class="bg-base-200 rounded-xl overflow-hidden"
             style={border
               ? `border-left: 2px solid ${border};`
               : "border-left: 2px solid transparent;"}
-            onclick={() => handleSelect(product)}
-            onkeydown={(e) => e.key === "Enter" && handleSelect(product)}
-            role="button"
-            tabindex="0"
           >
-            <div class="relative shrink-0">
-              {#if product.image_url}
-                <img
-                  src={product.image_url}
-                  alt={product.name}
-                  class="w-10 h-10 rounded-lg object-cover shadow-sm"
-                />
-              {:else}
-                <div
-                  class="w-10 h-10 rounded-lg bg-base-300 flex items-center justify-center"
-                >
-                  <svelte:component
-                    this={IconComp}
-                    class="w-5 h-5 opacity-40"
+            <div
+              class="flex items-center gap-3 px-4 py-3 w-full text-left hover:bg-base-300 transition-colors cursor-pointer"
+              onclick={() => handleSelect(product)}
+              onkeydown={(e) => e.key === "Enter" && handleSelect(product)}
+              role="button"
+              tabindex="0"
+            >
+              <div class="relative shrink-0">
+                {#if product.image_url}
+                  <img
+                    src={product.image_url}
+                    alt={product.name}
+                    class="w-10 h-10 rounded-lg object-cover shadow-sm"
                   />
+                {:else}
+                  <div
+                    class="w-10 h-10 rounded-lg bg-base-300 flex items-center justify-center"
+                  >
+                    <svelte:component
+                      this={IconComp}
+                      class="w-5 h-5 opacity-40"
+                    />
+                  </div>
+                {/if}
+                {#if badgeCount > 0}
+                  <span
+                    class="absolute -top-1.5 -right-1.5 min-w-[1.1rem] h-[1.1rem] px-0.5 rounded-full text-[0.6rem] font-bold flex items-center justify-center leading-none {expiredCount >
+                    0
+                      ? 'bg-error text-error-content'
+                      : 'bg-warning text-warning-content'}">{badgeCount}</span
+                  >
+                {/if}
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="font-semibold truncate text-base-content">
+                  {#if product.brand}
+                    <span class="font-normal opacity-70">{product.brand} </span>
+                  {/if}
+                  {product.name}
                 </div>
-              {/if}
-              {#if badgeCount > 0}
-                <span
-                  class="absolute -top-1.5 -right-1.5 min-w-[1.1rem] h-[1.1rem] px-0.5 rounded-full text-[0.6rem] font-bold flex items-center justify-center leading-none {expiredCount >
-                  0
-                    ? 'bg-error text-error-content'
-                    : 'bg-warning text-warning-content'}">{badgeCount}</span
+                <div
+                  class="flex items-center gap-2 mt-0.5 text-xs text-base-content/50"
                 >
-              {/if}
-            </div>
-            <div class="flex-1 min-w-0">
-              <div class="font-semibold truncate text-base-content">
-                {#if product.brand}
-                  <span class="font-normal opacity-70">{product.brand} </span>
+                  {#if product.quantity}<span>{product.quantity}</span>{/if}
+                  {#if product.quantity && (product.category_name || (product.active_item_count ?? 0) > 0)}
+                    <span>·</span>
+                  {/if}
+                  {#if product.category_name}
+                    {@const CatIcon = getCategoryIconComponent(
+                      product.category_icon,
+                    )}
+                    <span class="flex items-center gap-1">
+                      <svelte:component this={CatIcon} class="w-3 h-3" />
+                      {product.category_name}
+                    </span>
+                  {/if}
+                  {#if product.category_name && (product.active_item_count ?? 0) > 0}
+                    <span>·</span>
+                  {/if}
+                  {#if (product.active_item_count ?? 0) > 0}
+                    <span>{product.active_item_count} in stock</span>
+                  {/if}
+                </div>
+                {#if showStock && (product.items?.length ?? 0) > 0}
+                  {@const today = new Date().toISOString().split("T")[0]}
+                  {@const in30 = new Date(Date.now() + 30 * 864e5)
+                    .toISOString()
+                    .split("T")[0]}
+                  {@const groups = groupItemsByMonth(product.items ?? [])}
+                  <div class="mt-1.5 flex flex-wrap gap-1.5">
+                    {#each groups as group}
+                      {@const m = group.month}
+                      {@const isExpired = m && m < today.slice(0, 7)}
+                      {@const isWarn =
+                        m && m >= today.slice(0, 7) && m <= in30.slice(0, 7)}
+                      <span
+                        class="badge badge-sm font-mono {isExpired
+                          ? 'badge-error'
+                          : isWarn
+                            ? 'badge-warning'
+                            : m
+                              ? 'badge-success'
+                              : 'badge-ghost opacity-50'}"
+                        >{#if group.count > 1}{group.count}×
+                        {/if}{m ?? "no date"}</span
+                      >
+                    {/each}
+                  </div>
                 {/if}
-                {product.name}
               </div>
-              <div
-                class="flex items-center gap-2 mt-0.5 text-xs text-base-content/50"
-              >
-                {#if product.quantity}<span>{product.quantity}</span>{/if}
-                {#if product.quantity && (product.category_name || (product.active_item_count ?? 0) > 0)}
-                  <span>·</span>
-                {/if}
-                {#if product.category_name}
-                  {@const CatIcon = getCategoryIconComponent(
-                    product.category_icon,
-                  )}
-                  <span class="flex items-center gap-1">
-                    <svelte:component this={CatIcon} class="w-3 h-3" />
-                    {product.category_name}
-                  </span>
-                {/if}
-                {#if product.category_name && (product.active_item_count ?? 0) > 0}
-                  <span>·</span>
-                {/if}
-                {#if (product.active_item_count ?? 0) > 0}
-                  <span>{product.active_item_count} in stock</span>
-                {/if}
-              </div>
+              <ChevronRight class="w-4 h-4 opacity-30 shrink-0" />
             </div>
-            <ChevronRight class="w-4 h-4 opacity-30 shrink-0" />
           </div>
+        {/snippet}
+
+        {#each productsWithStock as product}
+          {@render productCard(product)}
         {/each}
+
+        {#if productsWithoutStock.length > 0}
+          {#if productsWithStock.length > 0}
+            <div class="flex items-center gap-3 py-2">
+              <div class="flex-1 h-px bg-base-300"></div>
+              <span class="text-xs text-base-content/40 whitespace-nowrap"
+                >out of stock</span
+              >
+              <div class="flex-1 h-px bg-base-300"></div>
+            </div>
+          {/if}
+          {#each productsWithoutStock as product}
+            <div class="opacity-40">
+              {@render productCard(product)}
+            </div>
+          {/each}
+        {/if}
       </div>
     {/if}
   </div>
