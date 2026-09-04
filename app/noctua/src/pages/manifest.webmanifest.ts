@@ -1,15 +1,12 @@
 import {
+  getBaseUrl,
   getWebsiteDescription,
   getWebsiteTitle,
-  loadConfig,
 } from "../lib/config";
 
 export async function GET() {
-  const config = loadConfig();
-  const website = config?.settings?.website || {};
-
   // Ensure base path has no trailing slash (but allow root '')
-  const rawBase = website?.base_url || "/";
+  const rawBase = getBaseUrl();
   const base = rawBase === "/" ? "" : rawBase.replace(/\/$/, "");
 
   const name = getWebsiteTitle();
