@@ -15,6 +15,7 @@
     "build:noctua": "npm --workspace app/noctua run build",
     "build:vibilia": "npm --workspace app/vibilia run build",
     "build:annona": "npm --workspace app/annona run build",
+    "test:db": "npx supabase test db",
     "dev:noctua": "npm --workspace app/noctua run dev",
     "dev:vibilia": "npm --workspace app/vibilia run dev",
     "dev:annona": "npm --workspace app/annona run dev",
