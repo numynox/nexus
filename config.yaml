@@ -1,15 +1,26 @@
-# Application Configuration
+# Build-time configuration for all three apps.
+#
+# Read by packages/config (Node, at build time) — never shipped to the browser
+# as YAML. Each app's astro.config.mjs takes its base path and output directory
+# from here, and the remaining values are injected into the bundle and read
+# through the app's src/lib/config.ts.
 settings:
   output_base: "output"
+
   noctua:
     title: "Noctua"
     description: "An RSS feed reader."
     base_url: "/nexus/noctua"
     article_fetch_limit: 300 # Applies per section
     statistics_weeks: 8 # Window for weekly average cards/charts
+
   vibilia:
+    title: "Vibilia"
+    description: "Fuel tracker for vehicles, prices, and refuel history."
+    base_url: "/nexus/vibilia"
     price_bucket_minutes: 10 # Bucket fuel price readings by this interval for chart visualization
     search_radius: 3 # Nearby fuel price search radius in km
+
   annona:
     title: "Annona"
     description: "Grocery expiration tracker."

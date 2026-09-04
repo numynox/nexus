@@ -5,6 +5,7 @@
   "type": "module",
   "private": true,
   "workspaces": [
+    "packages/config",
     "app/noctua",
     "app/vibilia",
     "app/annona"

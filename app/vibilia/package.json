@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@astrojs/svelte": "^8.0.0",
+    "@nexus/config": "*",
     "@supabase/supabase-js": "^2.45.0",
     "@tailwindcss/vite": "^4.2.1",
     "astro": "^6.0.4",
