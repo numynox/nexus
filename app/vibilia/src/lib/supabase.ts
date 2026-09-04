@@ -6,7 +6,12 @@ const supabaseAnonKey =
   import.meta.env.PUBLIC_SUPABASE_KEY ||
   "";
 
-let cachedClient: ReturnType<typeof createClient> | null = null;
+// The schema generics are deliberately permissive: this project has no
+// generated database types, and `data.ts` hand-writes the row interfaces it
+// needs. Without them, every `.from(...)` insert/update resolves to `never` and
+// `astro check` rejects the whole data layer.
+let cachedClient: ReturnType<typeof createClient<any, "public", any>> | null =
+  null;
 
 export function getSupabaseClient() {
   if (!supabaseUrl || !supabaseAnonKey) {
@@ -16,7 +21,7 @@ export function getSupabaseClient() {
   }
 
   if (!cachedClient) {
-    cachedClient = createClient(supabaseUrl, supabaseAnonKey, {
+    cachedClient = createClient<any, "public", any>(supabaseUrl, supabaseAnonKey, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,

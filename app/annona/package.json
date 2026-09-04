@@ -4,22 +4,23 @@
   "version": "0.0.1",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "build": "astro check && astro build",
     "preview": "astro preview",
     "astro": "astro"
   },
   "dependencies": {
-    "@astrojs/svelte": "^8.0.0",
+    "@astrojs/check": "^0.9.10",
+    "@astrojs/svelte": "^9.0.1",
     "@nexus/config": "*",
     "@supabase/supabase-js": "^2.45.0",
-    "@tailwindcss/vite": "^4.2.1",
-    "astro": "^6.0.4",
+    "@tailwindcss/vite": "^4.3.3",
+    "astro": "^7.3.1",
     "chart.js": "^4.5.1",
     "daisyui": "^5.5.19",
     "html5-qrcode": "^2.3.8",
     "lucide-svelte": "^0.577.0",
-    "svelte": "^5.53.12",
-    "tailwindcss": "^4.2.1",
+    "svelte": "^5.55.0",
+    "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3"
   }
 }
