@@ -1,0 +1,19 @@
+{
+  "name": "@nexus/ui",
+  "version": "0.1.0",
+  "description": "Shell components and theming shared by Noctua, Vibilia and Annona",
+  "type": "module",
+  "private": true,
+  "svelte": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "svelte": "./index.js",
+      "default": "./index.js"
+    }
+  },
+  "peerDependencies": {
+    "svelte": "^5.0.0"
+  }
+}

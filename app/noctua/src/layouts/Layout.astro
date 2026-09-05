@@ -1,4 +1,5 @@
 ---
+import { themeBootstrapScript } from "@nexus/ui";
 import Sidebar from "../components/Sidebar.svelte";
 import {
   getArticleFetchLimit,
@@ -22,6 +23,7 @@ const articleFetchLimit = getArticleFetchLimit();
 const statisticsWeeks = getStatisticsWeeks();
 const { title = "", description = siteDescription, activeId } = Astro.props;
 const themeColor = "#242933";
+const themeScript = themeBootstrapScript("noctua_theme");
 ---
 
 <!doctype html>
@@ -63,23 +65,7 @@ const themeColor = "#242933";
     <meta name="theme-color" content={themeColor} />
 
     <!-- Theme initialization script (prevents flash) -->
-    <script is:inline>
-      (function () {
-        const theme = localStorage.getItem("noctua_theme");
-        const prefersDark = window.matchMedia(
-          "(prefers-color-scheme: dark)",
-        ).matches;
-
-        let actualTheme = "dark";
-        if (theme && theme !== '"auto"') {
-          actualTheme = JSON.parse(theme);
-        } else if (!prefersDark) {
-          actualTheme = "light";
-        }
-
-        document.documentElement.setAttribute("data-theme", actualTheme);
-      })();
-    </script>
+    <script is:inline set:html={themeScript}></script>
     <!-- Disable scroll restoration -->
     <script is:inline>
       (function () {

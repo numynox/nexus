@@ -1,3 +1,8 @@
+import {
+  getTheme as readTheme,
+  setTheme as writeTheme,
+} from "@nexus/ui";
+
 const isBrowser = (): boolean => typeof window !== "undefined";
 
 const STORAGE_KEYS = {
@@ -60,12 +65,11 @@ function setStorageItem<T>(key: string, value: T): void {
 }
 
 export function getTheme(): string {
-  return getStorageItem(STORAGE_KEYS.THEME, "auto");
+  return readTheme(STORAGE_KEYS.THEME);
 }
 
 export function setTheme(theme: string): void {
-  setStorageItem(STORAGE_KEYS.THEME, theme);
-  applyTheme(theme, { animated: true });
+  writeTheme(STORAGE_KEYS.THEME, theme);
 }
 
 export function getFuelPricePreviousDays(): number {
@@ -164,27 +168,3 @@ export function clearNearbyFuelSearchCache(): void {
   }
 }
 
-function applyTheme(theme: string, options: { animated?: boolean } = {}): void {
-  if (!isBrowser()) return;
-
-  const html = document.documentElement;
-  const { animated = false } = options;
-
-  if (animated) {
-    html.classList.add("theme-transition");
-    window.setTimeout(() => {
-      html.classList.remove("theme-transition");
-    }, 300);
-  }
-
-  if (theme === "auto") {
-    const prefersDark = window.matchMedia(
-      "(prefers-color-scheme: dark)",
-    ).matches;
-    html.setAttribute("data-theme", prefersDark ? "dark" : "light");
-    html.classList.toggle("dark", prefersDark);
-  } else {
-    html.setAttribute("data-theme", theme);
-    html.classList.toggle("dark", theme === "dark");
-  }
-}

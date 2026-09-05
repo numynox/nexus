@@ -1,3 +1,8 @@
+import {
+  getTheme as readTheme,
+  setTheme as writeTheme,
+} from "@nexus/ui";
+
 /**
  * Local storage utilities for user preferences and read history
  * These are used client-side only (in Svelte components)
@@ -141,30 +146,13 @@ function dispatchEventSafe(eventName: string): void {
 // ============ Theme ============
 
 export function getTheme(): string {
-  return getStorageItem(STORAGE_KEYS.THEME, "auto");
+  return readTheme(STORAGE_KEYS.THEME);
 }
 
 export function setTheme(theme: string): void {
-  setStorageItem(STORAGE_KEYS.THEME, theme);
-  applyTheme(theme);
+  writeTheme(STORAGE_KEYS.THEME, theme);
 }
 
-function applyTheme(theme: string): void {
-  if (!isBrowser()) return;
-
-  const html = document.documentElement;
-
-  if (theme === "auto") {
-    const prefersDark = window.matchMedia(
-      "(prefers-color-scheme: dark)",
-    ).matches;
-    html.setAttribute("data-theme", prefersDark ? "dark" : "light");
-    html.classList.toggle("dark", prefersDark);
-  } else {
-    html.setAttribute("data-theme", theme);
-    html.classList.toggle("dark", theme === "dark");
-  }
-}
 
 // ============ Seen Articles ============
 

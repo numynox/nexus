@@ -1,3 +1,8 @@
+import {
+  getTheme as readTheme,
+  setTheme as writeTheme,
+} from "@nexus/ui";
+
 const isBrowser = (): boolean => typeof window !== "undefined";
 
 const STORAGE_KEYS = {
@@ -24,36 +29,10 @@ function setStorageItem<T>(key: string, value: T): void {
 }
 
 export function getTheme(): string {
-  return getStorageItem(STORAGE_KEYS.THEME, "auto");
+  return readTheme(STORAGE_KEYS.THEME);
 }
 
 export function setTheme(theme: string): void {
-  setStorageItem(STORAGE_KEYS.THEME, theme);
-  applyTheme(theme, { animated: true });
+  writeTheme(STORAGE_KEYS.THEME, theme);
 }
 
-export function applyTheme(
-  theme: string,
-  options: { animated?: boolean } = {},
-): void {
-  if (!isBrowser()) return;
-
-  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  let actualTheme = "dark";
-
-  if (theme && theme !== "auto") {
-    actualTheme = theme;
-  } else if (!prefersDark) {
-    actualTheme = "light";
-  }
-
-  if (options.animated) {
-    document.documentElement.classList.add("theme-transition");
-    setTimeout(
-      () => document.documentElement.classList.remove("theme-transition"),
-      400,
-    );
-  }
-
-  document.documentElement.setAttribute("data-theme", actualTheme);
-}

@@ -13,6 +13,7 @@
     "@astrojs/check": "^0.9.10",
     "@astrojs/svelte": "^9.0.1",
     "@nexus/config": "*",
+    "@nexus/ui": "*",
     "@supabase/supabase-js": "^2.0.0",
     "@tailwindcss/vite": "^4.3.3",
     "astro": "^7.3.1",
