@@ -31,6 +31,7 @@
     ArrowDownWideNarrow,
     ArrowUpWideNarrow,
     CheckCheck,
+    ChevronDown,
     Keyboard,
     LayoutGrid,
     List,
@@ -932,16 +933,28 @@
             </li>
 
             {#if similar.length > 0}
-              <li class="px-2 pb-1 pl-7">
+              <li class="px-2 pb-2 pl-7">
+                <!-- Sized for a thumb: 44px tall and full width below sm, back
+                     to a small inline chip once there is a pointer. -->
                 <button
                   type="button"
-                  class="btn btn-ghost btn-xs gap-1 text-base-content/60"
+                  class="btn btn-sm min-h-11 w-full justify-start gap-1.5 border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 sm:btn-xs sm:min-h-0 sm:w-auto"
+                  aria-expanded={!!expandedGroups[
+                    similarGroups[article.id] ?? article.id
+                  ]}
                   onclick={() => toggleGroup(similarGroups[article.id] ?? article.id)}
                 >
-                  <Layers class="h-3.5 w-3.5" />
+                  <Layers class="h-4 w-4" />
                   {expandedGroups[similarGroups[article.id] ?? article.id]
-                    ? "Hide"
+                    ? "Hide similar"
                     : `+${similar.length} similar`}
+                  <ChevronDown
+                    class="h-4 w-4 transition-transform {expandedGroups[
+                      similarGroups[article.id] ?? article.id
+                    ]
+                      ? 'rotate-180'
+                      : ''}"
+                  />
                 </button>
 
                 {#if expandedGroups[similarGroups[article.id] ?? article.id]}
@@ -1009,17 +1022,27 @@
                 </button>
 
                 {#if similar.length > 0}
-                  <div class="mt-1">
+                  <div class="mt-2">
                     <button
                       type="button"
-                      class="btn btn-ghost btn-xs gap-1 text-base-content/60"
+                      class="btn btn-sm min-h-11 w-full gap-1.5 border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 sm:btn-xs sm:min-h-0"
+                      aria-expanded={!!expandedGroups[
+                        similarGroups[article.id] ?? article.id
+                      ]}
                       onclick={() =>
                         toggleGroup(similarGroups[article.id] ?? article.id)}
                     >
-                      <Layers class="h-3.5 w-3.5" />
+                      <Layers class="h-4 w-4" />
                       {expandedGroups[similarGroups[article.id] ?? article.id]
-                        ? "Hide"
+                        ? "Hide similar"
                         : `+${similar.length} similar`}
+                      <ChevronDown
+                        class="h-4 w-4 transition-transform {expandedGroups[
+                          similarGroups[article.id] ?? article.id
+                        ]
+                          ? 'rotate-180'
+                          : ''}"
+                      />
                     </button>
 
                     {#if expandedGroups[similarGroups[article.id] ?? article.id]}
