@@ -222,7 +222,7 @@ build all three before pushing.
 | Link / migrate | `db:login`, `db:link`, `db:projects:list`, `db:migrations:list`, `db:migrations:up`, `db:push`, `db:push:dry-run`, `db:pull` |
 | Functions | `db:functions:deploy`, `db:functions:list` |
 | Backup / restore | `db:backup`, `db:restore:local`, `db:restore:remote` |
-| Seed / import | `db:seed:fuel-prices`, `db:seed:products`, `db:import:fuelio`, `db:import:fuelio:prod` |
+| Seed / import | `db:seed:fuel-prices`, `db:seed:products`, `db:import:fuelio`, `db:import:fuelio:prod`, `db:backfill:off`, `db:backfill:off:prod` |
 | Dumps | `db:dump:schema`, `db:dump:data` |
 
 See `package.json` for the exact commands.

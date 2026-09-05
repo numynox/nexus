@@ -46,6 +46,8 @@
     "db:functions:deploy": "npx supabase functions deploy",
     "db:seed:fuel-prices": "node --env-file=.env scripts/seed-fuel-prices.mjs",
     "db:seed:products": "node --env-file=.env scripts/seed-products.mjs",
+    "db:backfill:off": "node --env-file=.env scripts/backfill-openfoodfacts.mjs",
+    "db:backfill:off:prod": "node --env-file=.env.prod scripts/backfill-openfoodfacts.mjs --confirm-prod",
     "db:import:fuelio": "node --env-file=.env scripts/import-fuelio.mjs",
     "db:import:fuelio:prod": "node --env-file=.env.prod scripts/import-fuelio.mjs --confirm-prod"
   },

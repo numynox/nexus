@@ -306,6 +306,47 @@ where c.relkind = 'r' and n.nspname in ('public', 'net', 'cron')
 order by pg_total_relation_size(c.oid) desc limit 10;
 ```
 
+## Backfilling Annona from Open Food Facts
+
+Products added before the barcode lookup existed carry only what was typed by
+hand. `scripts/backfill-openfoodfacts.mjs` fills the gaps — nutrition above
+all, plus an image where there is none.
+
+It runs on your machine and writes to whichever database the env file points
+at, so the target is chosen by the npm script: `db:backfill:off` uses `.env`
+(local), `db:backfill:off:prod` uses `.env.prod` and passes `--confirm-prod`,
+which the script demands before writing anywhere that is not localhost.
+
+Requires `20260905170000_annona_products_off_checked_at.sql` — push it first, or
+the first update fails.
+
+```bash
+npm run db:push                                        # the off_checked_at column
+
+npm run db:backfill:off -- --limit 10 --dry-run        # rehearse locally
+npm run db:backfill:off:prod -- --limit 25 --interactive
+```
+
+Two things make it safe to run repeatedly:
+
+- **What you typed wins.** `name`, `brand` and `quantity` are filled only when
+  empty. A difference is reported, and with `--interactive` put to you per
+  field — keep yours, take theirs, type a replacement, or answer once for every
+  remaining conflict.
+- **Every product is stamped**, found or not, so a second run skips it. Stop the
+  run whenever you like; progress is saved per product. `--refresh` re-checks
+  products stamped long ago, since Open Food Facts gains data over time.
+
+Open Food Facts allows **15 product requests per minute per IP**, so the default
+pace is one every five seconds — 126 products take about eleven minutes. Run it
+from your own machine rather than an Edge Function: the limit is per IP, and
+Supabase's is shared. On HTTP 429 the script waits once, then stops rather than
+hammering. Above a few hundred products, Open Food Facts asks that you use their
+CSV/JSONL exports instead of the API.
+
+Set `OFF_CONTACT` to an email address to identify yourself the way their policy
+asks; the repository URL stands in otherwise.
+
 ## Standing up a new environment
 
 Order matters:
