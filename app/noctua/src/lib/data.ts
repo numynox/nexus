@@ -4,6 +4,14 @@ import type { Article, Feed, Section, UserContent } from "./types";
 
 type MoveDirection = "up" | "down";
 
+
+/**
+ * Re-exported so every call site can keep importing it from the data layer,
+ * while the shell components in @nexus/ui use the same implementation — the
+ * sign-in panel is the first place a database error is ever seen.
+ */
+export { describeError } from "@nexus/ui/errors";
+
 export interface ReadArticleStatuses {
   [articleId: string]: {
     timestamp: string;

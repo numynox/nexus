@@ -137,6 +137,27 @@ npm run db:functions:serve
 Then invoke them with the Bruno collection in `.bruno/supabase/`; the two
 scheduled functions require their invoke secret and will return 401 without it.
 
+**Anything that calls an Edge Function needs this running** — Annona's barcode
+lookup most obviously. `npm run db:start` does not serve functions; only
+`db:functions:serve` does.
+
+With it stopped, the request still reaches the API gateway, which then fails to
+resolve the missing runtime container and answers **"name resolution failed"**.
+That message names DNS and means nothing of the sort: start the functions and it
+goes away.
+
+A genuine DNS fault inside the container looks the same from the outside but
+survives starting them, because these functions call external APIs — Open Food
+Facts, Tankerkoenig, RSS feeds. Test that case with:
+
+```bash
+docker run --rm alpine nslookup world.openfoodfacts.org
+```
+
+If *that* fails, give the Docker daemon explicit resolvers in
+`/etc/docker/daemon.json` (`{"dns": ["1.1.1.1", "8.8.8.8"]}`), restart Docker,
+then `npm run db:stop && npm run db:start`.
+
 Optional test data:
 
 ```bash
@@ -176,10 +197,11 @@ migration, a policy or an RPC.
 ## Build
 
 ```bash
-npm run build:websites        # all three, into output/pages/<app>
+npm run build:websites        # all three, into output/pages/<app>, plus the landing page
 npm run build:noctua
 npm run build:vibilia
 npm run build:annona
+npm run build:landing         # output/pages/index.html, generated from config.yaml
 ```
 
 Each build runs `astro check` before `astro build`, so all three apps are
@@ -194,7 +216,7 @@ build all three before pushing.
 | Area | Scripts |
 | :--- | :--- |
 | Tests | `test:db` |
-| Build / dev | `build:websites`, `build:{noctua,vibilia,annona}`, `dev:{noctua,vibilia,annona}` |
+| Build / dev | `build:websites`, `build:{noctua,vibilia,annona}`, `build:landing`, `dev:{noctua,vibilia,annona}` |
 | Local Supabase | `db:start`, `db:stop`, `db:status`, `db:reset`, `db:functions:serve` |
 | Link / migrate | `db:login`, `db:link`, `db:projects:list`, `db:migrations:list`, `db:migrations:up`, `db:push`, `db:push:dry-run`, `db:pull` |
 | Functions | `db:functions:deploy`, `db:functions:list` |

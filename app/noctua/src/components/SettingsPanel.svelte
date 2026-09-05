@@ -6,7 +6,7 @@
     getSession,
     onAuthStateChange,
     signOut,
-  } from "../lib/data";
+    describeError,} from "../lib/data";
   import {
     clearSeenHistory,
     getPreferences,
@@ -54,7 +54,7 @@
     }
 
     refreshSession().catch((error) => {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = describeError(error);
       authError = message;
       isLoading = false;
     });
@@ -84,7 +84,7 @@
       await signOut();
       window.location.replace(loginHref);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = describeError(error);
       authError = message;
     } finally {
       isBusy = false;
@@ -127,7 +127,7 @@
         window.dispatchEvent(new CustomEvent("readHistoryCleared"));
         alert("Read and seen history cleared.");
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = describeError(error);
         alert(`Failed to clear history: ${message}`);
       }
     }

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { ArrowLeft } from "lucide-svelte";
-  import { createItem, type StorageLocation } from "../../lib/data";
+  import { createItem, type StorageLocation,
+    describeError,} from "../../lib/data";
   import { session } from "../../lib/stores";
 
   interface Props {
@@ -37,7 +38,7 @@
       }
       onClose();
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
       saving = false;
     }
   }

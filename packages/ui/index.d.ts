@@ -1,3 +1,5 @@
+export declare function describeError(error: unknown): string;
+
 import type { Component, Snippet } from "svelte";
 
 export interface NexusTheme {

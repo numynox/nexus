@@ -246,10 +246,20 @@
   }
 
   onMount(() => {
+    // Leaflet is imported dynamically, which leaves a window in which the
+    // component can unmount before the module arrives. Without this flag the
+    // continuation then hands Leaflet a container that is no longer in the DOM
+    // and it throws "Map container not found" — an uncaught rejection on every
+    // visit to this page.
+    let disposed = false;
+
     void (async () => {
       if (!mapContainer) return;
 
       const L = await import("leaflet");
+
+      if (disposed || !mapContainer || map) return;
+
       leafletModule = L;
 
       map = L.map(mapContainer, {
@@ -284,6 +294,7 @@
     })();
 
     return () => {
+      disposed = true;
       cleanupMap?.();
     };
   });
