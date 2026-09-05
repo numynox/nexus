@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { getSectionIconComponent } from "../lib/sectionMeta";
   import { onMount } from "svelte";
   import {
     fetchArticlesForSections,
@@ -54,10 +55,13 @@
     );
   });
 
+  let SectionIcon = $derived(getSectionIconComponent(sectionIcon));
+
   let sectionIcon = $derived.by(() => {
-    if (!selectedSectionId) return "🦉";
+    if (!selectedSectionId) return "newspaper";
     return (
-      sections.find((section) => section.id === selectedSectionId)?.icon || "🦉"
+      sections.find((section) => section.id === selectedSectionId)?.icon ||
+      "newspaper"
     );
   });
 
@@ -326,9 +330,7 @@
           }}
           class="flex items-center gap-2 text-3xl font-bold hover:text-secondary transition-colors"
         >
-          <span class="text-2xl md:hidden" aria-hidden="true">
-            {sectionIcon}
-          </span>
+          <SectionIcon class="h-6 w-6 md:hidden" aria-hidden="true" />
           <span>{visibleTitle}</span>
         </button>
       {/if}

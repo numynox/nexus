@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { UserRound } from "lucide-svelte";
   interface Props {
     userEmail: string;
     authError: string;
@@ -12,7 +13,7 @@
 <section class="card bg-base-200 shadow-sm overflow-hidden">
   <div class="card-body p-6 lg:p-8">
     <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
-      <span>👤</span> Account
+      <UserRound class="h-5 w-5" /> Account
     </h2>
     <p class="text-sm text-base-content/70 mb-4">Signed in as {userEmail}</p>
 
