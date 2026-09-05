@@ -337,6 +337,7 @@
       onStatsChange={handleStatsChange}
       {onlyRead}
       noDim={onlyRead}
+      onRefresh={refreshContent}
     />
   </div>
 {/if}
