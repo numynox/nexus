@@ -1,282 +1,201 @@
 # Nexus
 
-Monorepo for two Astro + Svelte apps sharing one Supabase backend:
+Monorepo for three small internal web apps that share one Supabase backend and
+one GitHub Pages site:
 
-- `app/noctua`: RSS reader
-- `app/vibilia`: Fuel tracking and expense prototype
+| App | What it does | Path |
+| :--- | :--- | :--- |
+| **Noctua** | RSS reader | `app/noctua` |
+| **Vibilia** | Fuel prices, refuel log, vehicle statistics and expenses | `app/vibilia` |
+| **Annona** | Grocery and food expiration tracker | `app/annona` |
 
-Both apps authenticate against the same Supabase project (`nexus`), so one Supabase account can be used across both UIs.
+One Supabase account signs you in to all three. There is no sign-up screen —
+accounts are created in the Supabase dashboard.
+
+- **How it is put together:** `.agents/brain/architecture.md`
+- **How it is hosted and released:** `DEPLOYMENT.md`
+- **Conventions for changing it:** `CLAUDE.md`
 
 ## Repository layout
 
 ```text
 nexus/
 ├── app/
-│   ├── noctua/
-│   └── vibilia/
+│   ├── noctua/          # Astro + Svelte, static
+│   ├── vibilia/
+│   └── annona/
 ├── supabase/
-│   ├── migrations/
-│   ├── functions/
-│   │   ├── fetch-rss/
-│   │   └── refresh-fuel-prices/
-│   └── config.toml
-├── config.yaml
-└── package.json
+│   ├── migrations/      # the only description of the schema
+│   ├── functions/       # Deno Edge Functions
+│   ├── config.toml
+│   └── seed.sql
+├── packages/
+│   └── config/          # the one reader for config.yaml, used by all three apps
+├── scripts/             # backup, restore, seed, import
+├── config.yaml          # build-time settings (see architecture.md)
+├── .bruno/              # HTTP collection for invoking Edge Functions by hand
+└── package.json         # npm workspaces root
 ```
 
-## Local setup
+## Prerequisites
 
-### 0) Pre-requisites
+- Node 22.12 or newer, as required by Astro 7 (`nvm install node`)
+- Docker, for the local Supabase stack
+- A Supabase login, and a [Tankerkoenig](https://creativecommons.tankerkoenig.de/)
+  API key if you are working on Vibilia's fuel prices
 
-Install [nvm](https://github.com/nvm-sh/nvm), npm and node.
+## Setup
 
-```bash
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.4/install.sh | bash
+### 1. Install
 
-nvm install node
-```
-
-You need to have a valid login for Supabase and Tankerkoenig.
-
-### 1) Install dependencies
+One install at the root covers all three apps (npm workspaces):
 
 ```bash
 npm install
 ```
 
-OR
-
-```bash
-npm run install:all
-```
-
-To spin up docker containers for a local Supabase, run
+### 2. Start local Supabase
 
 ```bash
 npm run db:start
 ```
 
-### 2) Configure environment
+This prints the local API URL, anon key and service key. `npm run db:status`
+prints them again later; `npm run db:stop` shuts it down.
 
-Copy `.env.example` to `.env` and set values based on terminal output of the step above.
+### 3. Configure the environment
 
-Required for both apps:
+Copy `.env.example` to `.env` and fill in the values from the previous step. All
+three apps read this one file at the repository root (`vite.envDir` points at
+it) — there are no per-app env files.
 
 ```bash
-PUBLIC_SUPABASE_URL=https://<your-project-ref>.supabase.co
-PUBLIC_SUPABASE_ANON_KEY=<your-anon-key>
-SUPABASE_SERVICE_KEY=<your-secret>
+PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
+PUBLIC_SUPABASE_ANON_KEY=<local anon key>
+SUPABASE_SERVICE_KEY=<local service key>   # used by the scripts/ tools only
 ```
 
-Required for Edge Functions:
+Needed only if you are working on the Edge Functions:
 
 ```bash
-FETCH_RSS_INVOKE_SECRET=<long-random-secret>
-FUEL_PRICE_INVOKE_SECRET=<long-random-secret>
+FETCH_RSS_INVOKE_SECRET=<any long random string>
+FUEL_PRICE_INVOKE_SECRET=<any long random string>
 FUEL_PRICE_API_KEY=<tankerkoenig-api-key>
 ```
 
-### 3) Link local Supabase CLI to your empty `nexus` project
+Only `PUBLIC_`-prefixed variables reach the browser; the rest are for the CLI
+and the scripts.
+
+### 4. Apply the schema
 
 ```bash
-npm run supabase:login
-npm run supabase:projects:list
-npm run supabase:link -- --project-ref <your-project-ref>
+npm run db:reset     # recreate the local database from supabase/migrations + seed.sql
 ```
 
-### 4) Apply schema to Supabase
+`db:reset` wipes local data. To apply new migrations without wiping, use
+`npm run db:migrations:up`.
 
-If `nexus` is empty, run:
+### 5. Create a user
 
-```bash
-npm run supabase:db:push
-```
-
-This applies all migrations for both apps.
-
-### 5) Deploy functions to `nexus`
-
-```bash
-npm run supabase:functions:deploy:fetch-rss
-npm run supabase:functions:deploy:refresh-fuel-prices
-```
-
-### 6) Configure Vault secrets for hourly `fetch-rss` cron
-
-`fetch-rss` is invoked every hour via `pg_cron` calling `public.invoke_fetch_rss()`.
-
-The function reads these secrets from `vault.decrypted_secrets`:
-
-- `FETCH_RSS_INVOKE_SECRET`
-- `FETCH_RSS_FUNCTION_URL` (for example `https://<your-project-ref>.supabase.co/functions/v1/fetch-rss`)
-
-Set them in Supabase Dashboard → Project Settings → Vault, or via SQL:
-
-```sql
-select vault.create_secret('your-fetch-rss-invoke-secret', 'FETCH_RSS_INVOKE_SECRET');
-select vault.create_secret('https://<your-project-ref>.supabase.co/functions/v1/fetch-rss', 'FETCH_RSS_FUNCTION_URL');
-```
-
-### 7) Configure Vault + Function secrets for hourly `refresh-fuel-prices`
-
-`refresh-fuel-prices` is invoked every hour via `pg_cron` calling `public.invoke_refresh_fuel_prices()`.
-
-Vault secrets required by SQL scheduler:
-
-- `FUEL_PRICE_INVOKE_SECRET`
-- `REFRESH_FUEL_PRICES_FUNCTION_URL` (for example `https://<your-project-ref>.supabase.co/functions/v1/refresh-fuel-prices`)
-- `FUEL_PRICE_API_KEY`
-
-Create/update these in Supabase Dashboard → Project Settings → Vault, or via SQL:
-
-```sql
-select vault.create_secret('your-refresh-invoke-secret', 'FUEL_PRICE_INVOKE_SECRET');
-select vault.create_secret('https://<your-project-ref>.supabase.co/functions/v1/refresh-fuel-prices', 'REFRESH_FUEL_PRICES_FUNCTION_URL');
-select vault.create_secret('your-tankerkoenig-api-key', 'FUEL_PRICE_API_KEY');
-```
-
-Edge Function runtime secrets required by `refresh-fuel-prices`:
-
-- `FUEL_PRICE_INVOKE_SECRET`
-- `FUEL_PRICE_API_KEY`
-
-Set them in Supabase Dashboard → Project Settings → Edge Functions → Secrets,
-or via CLI:
-
-```bash
-npx supabase secrets set FUEL_PRICE_INVOKE_SECRET=your-refresh-invoke-secret --project-ref <your-project-ref>
-npx supabase secrets set FUEL_PRICE_API_KEY=your-tankerkoenig-api-key --project-ref <your-project-ref>
-```
+The apps only sign in. Create a user in the local Supabase Studio
+(Authentication → Users), or use one from a restored backup.
 
 ## Development
 
-To login into supabase from your local dev environment, run:
+Run the app you are working on:
 
 ```bash
-npm run db:login
-npm run db:link
+npm run dev:noctua
+npm run dev:vibilia
+npm run dev:annona
 ```
 
-Run each app separately:
+Ports are pinned so all three can run side by side:
+
+| App | Dev URL |
+| :--- | :--- |
+| Noctua | `http://localhost:4321/nexus/noctua/` |
+| Vibilia | `http://localhost:4322/nexus/vibilia/` |
+| Annona | `http://localhost:4323/nexus/annona/` |
+
+The base path is part of the app, so the bare port root will 404.
+
+Edge Functions, served from the local stack with the root `.env`:
 
 ```bash
-npm run dev:noctua   # http://localhost:4321/nexus/noctua
-npm run dev:vibilia  # http://localhost:4322/nexus/vibilia
-```
-
-Run local Supabase stack and functions:
-
-```bash
-npm run db:start
 npm run db:functions:serve
 ```
 
-## Build & deploy (GitHub Pages)
+Then invoke them with the Bruno collection in `.bruno/supabase/`; the two
+scheduled functions require their invoke secret and will return 401 without it.
 
-Both apps are built into one static artifact:
-
-- `output/pages/noctua`
-- `output/pages/vibilia`
-
-Build locally:
+Optional test data:
 
 ```bash
-npm run build:websites
+npm run db:seed:fuel-prices   # -- --days 7 --interval 10
+npm run db:seed:products
 ```
 
-GitHub Pages workflow (`.github/workflows/deploy-pages.yml`) publishes `output/pages`.
+`.vscode/tasks.json` wires the same commands up as VS Code tasks.
 
-Production URLs:
+## Working with the database
 
-- `https://numynox.github.io/nexus/noctua`
-- `https://numynox.github.io/nexus/vibilia`
-
-## GitHub repository variables
-
-Set repository variables used by the Pages workflow:
-
-- `PUBLIC_SUPABASE_URL`
-- `PUBLIC_SUPABASE_ANON_KEY`
-
-## Manual Supabase backups (free-tier workaround)
-
-This repo now includes simple, manual scripts to back up your linked remote Supabase database
-and restore it locally (for rollback testing) or remotely (destructive).
-
-### What is backed up
-
-- SQL schema dump for selected schemas (default: `public`)
-- SQL data dump for selected schemas
-- Cluster roles dump (`roles.sql`)
-
-Backups are written to `backups/supabase/<timestamp>/` and ignored by git.
-
-### 1) Create a backup
+Migrations in `supabase/migrations/` are the single source of truth for the
+schema — there is no ORM and no generated types. Create one with
+`npx supabase migration new <name>`, then:
 
 ```bash
-npm run db:backup
+npm run db:migrations:list    # local vs remote state
+npm run db:push:dry-run       # what would be applied to the linked project
+npm run db:push               # apply to the linked project
 ```
 
-Optional: include additional schemas (for example `auth,storage,public`):
+Pushing to the remote project is a production change — see `DEPLOYMENT.md`
+before doing it, and take a backup (`npm run db:backup`) first.
+
+## Tests
 
 ```bash
-SUPABASE_BACKUP_SCHEMAS=auth,storage,public npm run db:backup
+npm run test:db               # pgTAP tests against the local Supabase stack
 ```
 
-### 2) Test restore safely in local Supabase
+`supabase/tests/` covers Vibilia's refuel statistics arithmetic and the RLS
+policies of all three apps. Each file runs in a transaction that is rolled back,
+so it is safe against a database with data in it, and it needs the local stack
+running (`npm run db:start`). It is not part of CI — run it when you touch a
+migration, a policy or an RPC.
+
+## Build
 
 ```bash
-npm run db:restore:local -- backups/supabase/<timestamp>
+npm run build:websites        # all three, into output/pages/<app>
+npm run build:noctua
+npm run build:vibilia
+npm run build:annona
 ```
 
-This starts local Supabase if needed and restores the chosen backup into your local DB,
-so you can verify rollback before touching production.
-The restore script also re-creates the `auth.users -> public.profiles` signup trigger.
-It also reapplies the `reassign_profile_user` helper and related FK migrations (Noctua + Vibilia), so older backups still support profile reassignment.
+Each build runs `astro check` before `astro build`, so all three apps are
+type-checked. `output/` is generated and git-ignored. CI runs `build:websites`
+and publishes `output/pages`; this is the only automated check that exists, so
+build all three before pushing.
 
-### Reassign restored profiles to new auth users
+## Scripts reference
 
-If user IDs differ after restore (for example local development with newly created users),
-use:
+`npm run` targets, grouped:
 
-```sql
-select public.reassign_profile_user(
-	'old-profile-user-id'::uuid,
-	'new-auth-user-id'::uuid,
-	true
-);
-```
+| Area | Scripts |
+| :--- | :--- |
+| Tests | `test:db` |
+| Build / dev | `build:websites`, `build:{noctua,vibilia,annona}`, `dev:{noctua,vibilia,annona}` |
+| Local Supabase | `db:start`, `db:stop`, `db:status`, `db:reset`, `db:functions:serve` |
+| Link / migrate | `db:login`, `db:link`, `db:projects:list`, `db:migrations:list`, `db:migrations:up`, `db:push`, `db:push:dry-run`, `db:pull` |
+| Functions | `db:functions:deploy`, `db:functions:list` |
+| Backup / restore | `db:backup`, `db:restore:local`, `db:restore:remote` |
+| Seed / import | `db:seed:fuel-prices`, `db:seed:products`, `db:import:fuelio`, `db:import:fuelio:prod` |
+| Dumps | `db:dump:schema`, `db:dump:data` |
 
-Behavior:
+See `package.json` for the exact commands.
 
-- Reassigns ownership in `sections`.
-- Reassigns and deduplicates `article_reads`.
-- Reassigns Vibilia relations (`cars.owner_id`, `car_access.user_id`, `refuel_events.user_id`, `car_expenses.user_id`).
-- Merges basic profile fields into an existing target profile (when `true`) and removes the source profile.
-- Uses FK `ON UPDATE CASCADE` for direct ID reassignment when no target profile exists.
+## License
 
-### 3) Optional remote restore (destructive)
-
-Only run this if you really need to roll back remote data.
-
-```bash
-SUPABASE_DB_URL='postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres' \
-	npm run db:restore:remote -- backups/supabase/<timestamp> --confirm-remote-restore
-```
-
-The script requires an explicit confirmation prompt and drops/recreates `public` before restore.
-Always create a fresh backup before running remote restore.
-
-## Useful scripts
-
-- `npm run build:websites`
-- `npm run build:noctua`
-- `npm run build:vibilia`
-- `npm run dev:noctua`
-- `npm run dev:vibilia`
-- `npm run db:push`
-- `npm run db:backup`
-- `npm run db:restore:local -- backups/supabase/<timestamp>`
-- `npm run db:functions:serve`
-
-See also `package.json`.
+AGPL-3.0-only.

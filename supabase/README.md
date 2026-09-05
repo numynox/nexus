@@ -1,68 +1,33 @@
-Getting started with Supabase (quick notes)
+# Supabase
 
-- Install the Supabase CLI (recommended via npm):
+Setup, local development and deployment for this project's Supabase backend are
+documented once, at the repository root:
 
-  ```bash
-  npm install -g supabase
-  # or use npx for ad-hoc usage: npx supabase <cmd>
-  ```
+- `README.md` — local stack, migrations, seeding
+- `DEPLOYMENT.md` — linking, pushing migrations, deploying functions, Vault
+  secrets, backups
+- `.agents/brain/architecture.md` — schema layout, RLS models, RPCs, scheduling
 
-- Login and link your local project to a Supabase project:
+What lives here:
 
-  ```bash
-  npm run supabase:login
-  npm run supabase:projects:list
-  npm run supabase:link -- --project-ref YOUR_PROJECT_REF
-  ```
+```
+supabase/
+├── migrations/    the source of truth for the schema (timestamp-ordered)
+├── functions/     Deno Edge Functions
+├── config.toml    per-function CLI settings
+├── seed.sql       feeds and fuel stations for local development
+└── db-info.json   STALE — documents only Noctua's original five tables
+```
 
-- After linking you will have a `supabase` folder with `config.toml` (created by the CLI).
+## Notes that are specific to this directory
 
-- Developing and iterating on Edge Functions locally:
-
-  ```bash
-  # start local Supabase services (may use Docker on first run)
-  npm run supabase:start
-
-  # serve a single function with hot reload
-  npm run supabase:functions:serve -- my-function
-
-  # list functions in your linked project
-  npm run supabase:functions:list
-
-  # deploy a function
-  npm run supabase:functions:deploy -- my-function
-  ```
-
-- Notes on downloading existing remote function source:
-  - The Supabase CLI does not currently provide a single-command "pull" that fetches remote function source into your local `supabase/functions` directory.
-  - Recommended workflow: keep your Edge Functions in version control under `supabase/functions` inside this repository. If a function only exists in the Dashboard, copy its source into `supabase/functions/<name>` locally (or recreate it with `supabase functions new <name>`), then iterate locally and deploy with the CLI.
-
-- Quick integration tips for this repo:
-  - Supabase clients are available at `app/noctua/src/lib/supabase.ts` and `app/vibilia/src/lib/supabase.ts`.
-  - Add your Supabase keys to `.env` (see top-level `.env.example`). For Astro, expose public keys with the `PUBLIC_` prefix.
-
-  - Syncing remote DB schema (migrations)
-    - The `supabase db remote commit` command has been deprecated. Use `supabase db pull` to fetch the remote schema as a migration and create local migration files.
-
-    Example (link project first):
-
-    ```bash
-    # link your project (if not already linked)
-    npx supabase login
-    npx supabase projects list
-    npx supabase link -- --project-ref YOUR_PROJECT_REF
-
-    # pull remote schema into local migrations
-    npx supabase db pull --file supabase/migrations/schema.sql
-    # or create a migration folder entry with the CLI (depending on CLI version)
-    npx supabase db pull
-
-    # apply migrations locally (resets local DB)
-    npx supabase start
-    npx supabase db reset
-    ```
-
-    Notes:
-    - `db pull` is preferred as it generates SQL/migration files you can inspect and commit.
-    - `db reset` will wipe local data; only run if you accept losing local DB contents.
-    - If you want a full snapshot (schema + data), use `npx supabase db dump --file supabase_dump.sql` and import into the local Postgres instance.
+- **`db-info.json` is out of date.** It predates Vibilia and Annona. Read the
+  migrations instead; do not extend it.
+- **Edge Functions cannot be pulled.** The CLI has no command that fetches
+  remote function source. Everything under `functions/` must stay the
+  authoritative copy — if a function only exists in the dashboard, paste it in
+  here before touching it.
+- **Syncing a schema changed outside migrations:** `supabase db remote commit`
+  is deprecated; use `npx supabase db pull` to generate a migration from the
+  remote schema, then inspect and commit it. This should be rare — schema
+  changes belong in hand-written migrations.

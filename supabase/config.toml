@@ -15,3 +15,11 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/refresh-fuel-prices/deno.json"
 entrypoint = "./functions/refresh-fuel-prices/index.ts"
+
+# Called from Vibilia's UI with the signed-in user's JWT, which the function
+# re-checks with auth.getUser(). Unlike the two scheduled functions above, it is
+# not guarded by a shared secret, so JWT verification must stay on.
+[functions.fetch-nearby-fuel-prices]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/fetch-nearby-fuel-prices/index.ts"

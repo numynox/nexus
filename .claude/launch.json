@@ -1,0 +1,26 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "noctua",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:noctua"],
+      "port": 4321,
+      "url": "http://localhost:4321"
+    },
+    {
+      "name": "vibilia",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:vibilia"],
+      "port": 4322,
+      "url": "http://localhost:4322"
+    },
+    {
+      "name": "annona",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:annona"],
+      "port": 4323,
+      "url": "http://localhost:4323"
+    }
+  ]
+}

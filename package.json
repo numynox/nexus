@@ -1,10 +1,11 @@
 {
   "name": "nexus",
   "version": "0.1.0",
-  "description": "AI-powered RSS feed aggregator with intelligent summarization",
+  "description": "Three static Astro + Svelte apps (Noctua, Vibilia, Annona) sharing one Supabase project",
   "type": "module",
   "private": true,
   "workspaces": [
+    "packages/config",
     "app/noctua",
     "app/vibilia",
     "app/annona"
@@ -14,6 +15,7 @@
     "build:noctua": "npm --workspace app/noctua run build",
     "build:vibilia": "npm --workspace app/vibilia run build",
     "build:annona": "npm --workspace app/annona run build",
+    "test:db": "npx supabase test db",
     "dev:noctua": "npm --workspace app/noctua run dev",
     "dev:vibilia": "npm --workspace app/vibilia run dev",
     "dev:annona": "npm --workspace app/annona run dev",
@@ -47,7 +49,7 @@
   },
   "license": "AGPL-3.0-only",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.12.0"
   },
   "devDependencies": {
     "supabase": "^2.84.2"

@@ -27,6 +27,7 @@ fi
 
 SCHEMA_FILE="$BACKUP_DIR/schema.sql"
 DATA_FILE="$BACKUP_DIR/data.sql"
+PSQL_IMAGE="${PSQL_IMAGE:-postgres:17-alpine}"
 
 if [[ ! -f "$SCHEMA_FILE" || ! -f "$DATA_FILE" ]]; then
   echo "Backup files not found in: $BACKUP_DIR"
@@ -47,25 +48,29 @@ fi
 
 echo "Restoring backup into remote database..."
 
-docker run --rm -v "$BACKUP_DIR:/backup:ro" postgres:15-alpine \
+# Unlike the local restore, the schema here comes from the backup snapshot: the
+# point of a remote restore is to put the database back exactly as it was.
+docker run --rm -v "$BACKUP_DIR:/backup:ro" "$PSQL_IMAGE" \
   psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;"
 
-docker run --rm -v "$BACKUP_DIR:/backup:ro" postgres:15-alpine \
+docker run --rm -v "$BACKUP_DIR:/backup:ro" "$PSQL_IMAGE" \
   psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f /backup/schema.sql
 
-docker run --rm -v "$BACKUP_DIR:/backup:ro" postgres:15-alpine \
+docker run --rm -v "$BACKUP_DIR:/backup:ro" "$PSQL_IMAGE" \
   psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f /backup/data.sql
 
-docker run --rm -v "$ROOT_DIR:/repo:ro" postgres:15-alpine \
+# The signup trigger lives on auth.users, so a public-only dump cannot contain
+# it and dropping public CASCADE removes it. This is the one thing the snapshot
+# cannot restore by itself.
+docker run --rm -v "$ROOT_DIR:/repo:ro" "$PSQL_IMAGE" \
   psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f /repo/scripts/sql/recreate_auth_profile_trigger.sql
 
-docker run --rm -v "$ROOT_DIR:/repo:ro" postgres:15-alpine \
-  psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f /repo/supabase/migrations/20260417235500_vibilia_profile_refs_and_reassign_upgrade.sql
-
-docker run --rm -v "$ROOT_DIR:/repo:ro" postgres:15-alpine \
-  psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f /repo/supabase/migrations/20260418001000_vibilia_sharing_full_access_rls.sql
-
-docker run --rm -v "$ROOT_DIR:/repo:ro" postgres:15-alpine \
-  psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f /repo/supabase/migrations/20260418004000_vibilia_share_by_email_and_members.sql
+# Dumps can carry stale sequence values; without this the first insert after a
+# restore fails on a duplicate key.
+docker run --rm -v "$ROOT_DIR:/repo:ro" "$PSQL_IMAGE" \
+  psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -q -f /repo/scripts/sql/resync_sequences.sql
 
 echo "Remote restore complete."
+echo
+echo "The schema is now the one captured in the backup. If that backup predates"
+echo "the latest migrations, bring it up to date with:  npm run db:push"

@@ -1,0 +1,14 @@
+{
+  "name": "@nexus/config",
+  "version": "0.1.0",
+  "description": "Build-time reader for the repository's config.yaml, shared by all three apps",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./index.js"
+  },
+  "types": "./index.d.ts",
+  "dependencies": {
+    "js-yaml": "^4.1.1"
+  }
+}
