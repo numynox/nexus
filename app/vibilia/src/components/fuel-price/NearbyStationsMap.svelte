@@ -214,6 +214,37 @@
     marker.openPopup();
   }
 
+  // CARTO started requiring an API key for basemaps.cartocdn.com in August 2026;
+  // without one it still serves tiles, but stamps "API KEY REQUIRED" across
+  // them. The key is a public client credential (it ships in the bundle and is
+  // restricted by domain at CARTO's end), so it is a build-time PUBLIC_ var
+  // like the Supabase anon key.
+  //
+  // Falling back to OpenStreetMap when no key is configured keeps local
+  // development and any unconfigured environment looking right, rather than
+  // watermarked.
+  function getBasemap() {
+    const cartoKey = import.meta.env.PUBLIC_CARTO_API_KEY;
+
+    if (cartoKey) {
+      return {
+        url: `https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=${cartoKey}`,
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: "abcd",
+        maxZoom: 20,
+      };
+    }
+
+    return {
+      url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      subdomains: "abc",
+      maxZoom: 19,
+    };
+  }
+
   onMount(() => {
     void (async () => {
       if (!mapContainer) return;
@@ -229,15 +260,12 @@
 
       L.control.zoom({ position: "topright" }).addTo(map);
 
-      L.tileLayer(
-        "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-        {
-          attribution:
-            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-          subdomains: "abcd",
-          maxZoom: 20,
-        },
-      ).addTo(map);
+      const basemap = getBasemap();
+      L.tileLayer(basemap.url, {
+        attribution: basemap.attribution,
+        subdomains: basemap.subdomains,
+        maxZoom: basemap.maxZoom,
+      }).addTo(map);
 
       stationLayer = L.layerGroup().addTo(map);
       userLayer = L.layerGroup().addTo(map);

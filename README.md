@@ -75,6 +75,14 @@ PUBLIC_SUPABASE_ANON_KEY=<local anon key>
 SUPABASE_SERVICE_KEY=<local service key>   # used by the scripts/ tools only
 ```
 
+Optional. Vibilia's nearby map uses CARTO basemaps, which have required an API
+key since August 2026. Without one the map falls back to OpenStreetMap tiles,
+which look fine — set it only if you want the CARTO style locally:
+
+```bash
+PUBLIC_CARTO_API_KEY=<carto-basemap-key>
+```
+
 Needed only if you are working on the Edge Functions:
 
 ```bash

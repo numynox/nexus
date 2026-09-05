@@ -64,8 +64,13 @@ enforced by RLS.
 
 - `PUBLIC_SUPABASE_URL`
 - `PUBLIC_SUPABASE_ANON_KEY`
+- `PUBLIC_CARTO_API_KEY` — basemap tiles for Vibilia's nearby map. Optional: if
+  it is unset the map falls back to OpenStreetMap tiles instead of CARTO's
+  watermarked ones. Request one at
+  [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey/) — free within
+  5 million tile requests a month, no CARTO account needed.
 
-Changing either requires a rebuild; there is no runtime configuration.
+Changing any of them requires a rebuild; there is no runtime configuration.
 
 ### Failure modes
 
