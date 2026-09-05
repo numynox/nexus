@@ -2,8 +2,12 @@
 
 /* daisyUI plugin with theme configuration */
 @plugin "daisyui" {
-  themes: all;
+  themes: dim, night, dark --prefersdark, nord, business, forest, coffee,
+    halloween, sunset, emerald, lofi --default;
 }
+
+/* Tailwind does not scan node_modules, and @nexus/ui is linked there. */
+@source "../../../../packages/ui/src";
 
 html {
   -webkit-text-size-adjust: 100%;

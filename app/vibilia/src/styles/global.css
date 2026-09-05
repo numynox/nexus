@@ -1,9 +1,13 @@
 @import "tailwindcss";
 
-/* Match Noctua: include all DaisyUI themes for manual theme selection. */
+/* Curated theme set — keep in step with THEMES in packages/ui/src/theme.js. */
 @plugin "daisyui" {
-  themes: all;
+  themes: dim, night, dark --prefersdark, nord, business, forest, coffee,
+    halloween, sunset, emerald, lofi --default;
 }
+
+/* Tailwind does not scan node_modules, and @nexus/ui is linked there. */
+@source "../../../../packages/ui/src";
 
 :root {
   --font-family: "system-ui", -apple-system, sans-serif;
