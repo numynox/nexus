@@ -63,6 +63,19 @@
           {/each}
         </div>
       </div>
+
+      <div
+        class="mt-4 flex items-center justify-end gap-2 text-xs text-base-content/60"
+      >
+        <span>Less</span>
+        <span class="h-3 w-3 rounded-sm border border-base-100 bg-base-300"></span>
+        <span class="h-3 w-3 rounded-sm border border-base-100 bg-primary/30"></span>
+        <span class="h-3 w-3 rounded-sm border border-base-100 bg-primary/50"></span>
+        <span class="h-3 w-3 rounded-sm border border-base-100 bg-primary/70"></span>
+        <span class="h-3 w-3 rounded-sm border border-base-100 bg-primary"></span>
+        <span>More</span>
+        <span class="ml-2">· up to {maxCount} per hour</span>
+      </div>
     {/if}
   </div>
 </section>
