@@ -16,6 +16,9 @@ const STORAGE_KEYS = {
   THEME: "noctua_theme",
   SEEN_ARTICLES: "noctua_seen_articles",
   FILTERS: "noctua_filters",
+  DENSITY: "noctua_density",
+  SORT_ORDER: "noctua_sort_order",
+  LAST_VISIT_AT: "noctua_last_visit_at",
   PREFERENCES: "noctua_preferences",
 } as const;
 
@@ -198,4 +201,47 @@ export function getFilters(): FilterSettings {
 export function setFilters(filters: Partial<FilterSettings>): void {
   const current = getFilters();
   setStorageItem(STORAGE_KEYS.FILTERS, { ...current, ...filters });
+}
+
+// ============ Reading preferences ============
+
+export type Density = "comfortable" | "compact";
+export type SortOrder = "newest" | "oldest";
+
+/** Cards with images, or a title-and-time list for scanning a few hundred. */
+export function getDensity(): Density {
+  return getStorageItem<Density>(STORAGE_KEYS.DENSITY, "comfortable") ===
+    "compact"
+    ? "compact"
+    : "comfortable";
+}
+
+export function setDensity(density: Density): void {
+  setStorageItem(STORAGE_KEYS.DENSITY, density);
+}
+
+/** Newest first for triage, oldest first for reading through a backlog. */
+export function getSortOrder(): SortOrder {
+  return getStorageItem<SortOrder>(STORAGE_KEYS.SORT_ORDER, "newest") ===
+    "oldest"
+    ? "oldest"
+    : "newest";
+}
+
+export function setSortOrder(order: SortOrder): void {
+  setStorageItem(STORAGE_KEYS.SORT_ORDER, order);
+}
+
+/**
+ * When the feed was last opened, so "new since your last visit" can be marked.
+ * Read once on mount and written immediately after, so a reload during the same
+ * sitting does not keep re-announcing the same articles.
+ */
+export function getLastVisitAt(): string | null {
+  const value = getStorageItem<string | null>(STORAGE_KEYS.LAST_VISIT_AT, null);
+  return typeof value === "string" ? value : null;
+}
+
+export function setLastVisitAt(iso: string): void {
+  setStorageItem(STORAGE_KEYS.LAST_VISIT_AT, iso);
 }

@@ -205,7 +205,8 @@ npm run build:landing         # output/pages/index.html, generated from config.y
 ```
 
 Each build runs `astro check` before `astro build`, so all three apps are
-type-checked. `output/` is generated and git-ignored. CI runs `build:websites`
+type-checked — though `astro check` only covers `.astro` and `.ts` files, not
+the script block of a `.svelte` component. `output/` is generated and git-ignored. CI runs `build:websites`
 and publishes `output/pages`; this is the only automated check that exists, so
 build all three before pushing.
 

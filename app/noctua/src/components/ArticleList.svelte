@@ -4,15 +4,34 @@
     fetchReadArticlesForUser,
     getSession,
     markArticleAsReadForUser,
+    markArticlesAsReadForUser,
+    unmarkArticlesAsReadForUser,
     type ReadArticleStatuses,
   } from "../lib/data";
   import {
+    getDensity,
     getFilters,
+    getLastVisitAt,
     getPreferences,
     getSeenArticles,
+    getSortOrder,
     markAsSeen,
+    setDensity,
+    setLastVisitAt,
+    setSortOrder,
+    type Density,
     type SeenArticleStatuses,
+    type SortOrder,
   } from "../lib/storage";
+  import {
+    ArrowDownWideNarrow,
+    ArrowUpWideNarrow,
+    CheckCheck,
+    Keyboard,
+    LayoutGrid,
+    List,
+    Undo2,
+  } from "lucide-svelte";
   import type { Article } from "../lib/types";
   import ArticleCard from "./ArticleCard.svelte";
 
@@ -23,6 +42,8 @@
     onlyRead?: boolean;
     /** When true, cards should not be dimmed/gray */
     noDim?: boolean;
+    /** Re-fetch the feed; used by pull-to-refresh and the r shortcut. */
+    onRefresh?: () => void | Promise<void>;
   }
 
   let {
@@ -30,6 +51,7 @@
     onStatsChange,
     onlyRead = false,
     noDim = false,
+    onRefresh,
   }: Props = $props();
 
   let persistedReadArticles = $state<ReadArticleStatuses>({});
@@ -138,6 +160,306 @@
     return result;
   });
 
+  // ── Reading preferences, keyboard focus and undo ────────────────────────
+  let density = $state<Density>("comfortable");
+  let sortOrder = $state<SortOrder>("newest");
+  let showShortcuts = $state(false);
+  let focusedIndex = $state(-1);
+  let lastVisitAt = $state<string | null>(null);
+  /** Articles marked read by the last bulk action, so it can be undone. */
+  let undoable = $state<string[]>([]);
+  let undoTimer: ReturnType<typeof setTimeout> | null = null;
+  let refreshing = $state(false);
+
+  function articleTime(article: Article): number {
+    const value = article.published || article.updated;
+    const parsed = value ? Date.parse(value) : NaN;
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+
+  let sortedArticles = $derived.by(() => {
+    const result = [...filteredArticles];
+    result.sort((a, b) =>
+      sortOrder === "oldest"
+        ? articleTime(a) - articleTime(b)
+        : articleTime(b) - articleTime(a),
+    );
+    return result;
+  });
+
+  /** How many of the visible articles arrived since the feed was last opened. */
+  let newSinceLastVisit = $derived.by(() => {
+    if (!lastVisitAt || onlyRead) return 0;
+    const since = Date.parse(lastVisitAt);
+    if (Number.isNaN(since)) return 0;
+    return sortedArticles.filter((a) => articleTime(a) > since).length;
+  });
+
+  const DAY = 24 * 60 * 60 * 1000;
+
+  /** "Today" / "Yesterday" / a weekday / a date — whatever orients fastest. */
+  function dayLabel(timestamp: number): string {
+    if (!timestamp) return "Undated";
+
+    const date = new Date(timestamp);
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const diffDays = Math.floor((startOfToday.getTime() - date.getTime()) / DAY);
+
+    if (date.getTime() >= startOfToday.getTime()) return "Today";
+    if (diffDays < 1) return "Yesterday";
+    if (diffDays < 6)
+      return date.toLocaleDateString(undefined, { weekday: "long" });
+
+    return date.toLocaleDateString(undefined, {
+      day: "numeric",
+      month: "long",
+      year:
+        date.getFullYear() === new Date().getFullYear() ? undefined : "numeric",
+    });
+  }
+
+  /** Flat index is kept alongside so j/k can walk across group boundaries. */
+  let groupedArticles = $derived.by(() => {
+    const groups: Array<{
+      label: string;
+      items: Array<{ article: Article; index: number }>;
+    }> = [];
+
+    sortedArticles.forEach((article, index) => {
+      const label = dayLabel(articleTime(article));
+      const current = groups[groups.length - 1];
+
+      if (current && current.label === label) {
+        current.items.push({ article, index });
+      } else {
+        groups.push({ label, items: [{ article, index }] });
+      }
+    });
+
+    return groups;
+  });
+
+  function toggleDensity() {
+    density = density === "compact" ? "comfortable" : "compact";
+    setDensity(density);
+  }
+
+  function toggleSortOrder() {
+    sortOrder = sortOrder === "newest" ? "oldest" : "newest";
+    setSortOrder(sortOrder);
+  }
+
+  function relativeTime(article: Article): string {
+    const timestamp = articleTime(article);
+    if (!timestamp) return "";
+
+    const minutes = Math.round((Date.now() - timestamp) / 60000);
+    if (minutes < 1) return "now";
+    if (minutes < 60) return `${minutes}m`;
+    if (minutes < 60 * 24) return `${Math.round(minutes / 60)}h`;
+    return `${Math.round(minutes / (60 * 24))}d`;
+  }
+
+  // ── Mark everything visible as read, with an undo ────────────────────────
+  function markAllVisibleRead() {
+    const ids = sortedArticles
+      .filter((article) => !readArticles[article.id])
+      .map((article) => article.id);
+
+    if (ids.length === 0) return;
+
+    const now = new Date().toISOString();
+    const optimistic = { ...optimisticReadArticles };
+    ids.forEach((id) => {
+      optimistic[id] = { timestamp: now };
+    });
+    optimisticReadArticles = optimistic;
+
+    undoable = ids;
+    if (undoTimer) clearTimeout(undoTimer);
+    undoTimer = setTimeout(() => (undoable = []), 15000);
+
+    if (!userId) return;
+
+    markArticlesAsReadForUser(userId, ids)
+      .then(() => {
+        const persisted = { ...persistedReadArticles };
+        ids.forEach((id) => (persisted[id] = { timestamp: now }));
+        persistedReadArticles = persisted;
+      })
+      .catch((error) => console.warn("Failed to mark all read", error));
+  }
+
+  function undoMarkAllRead() {
+    const ids = undoable;
+    if (ids.length === 0) return;
+
+    undoable = [];
+    if (undoTimer) clearTimeout(undoTimer);
+
+    const optimistic = { ...optimisticReadArticles };
+    const persisted = { ...persistedReadArticles };
+    ids.forEach((id) => {
+      delete optimistic[id];
+      delete persisted[id];
+    });
+    optimisticReadArticles = optimistic;
+    persistedReadArticles = persisted;
+
+    if (!userId) return;
+
+    unmarkArticlesAsReadForUser(userId, ids).catch((error) =>
+      console.warn("Failed to undo", error),
+    );
+  }
+
+  async function refresh() {
+    if (!onRefresh || refreshing) return;
+    refreshing = true;
+    try {
+      await onRefresh();
+    } finally {
+      refreshing = false;
+    }
+  }
+
+  // ── Keyboard ─────────────────────────────────────────────────────────────
+  function focusArticle(index: number) {
+    const clamped = Math.max(0, Math.min(index, sortedArticles.length - 1));
+    focusedIndex = clamped;
+
+    const article = sortedArticles[clamped];
+    if (!article) return;
+
+    document
+      .querySelector(`[data-article-id="${article.id}"]`)
+      ?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+
+  function openFocused() {
+    const article = sortedArticles[focusedIndex];
+    if (!article?.url) return;
+    handleArticleClick(article.id);
+    window.open(article.url, "_blank", "noopener");
+  }
+
+  function toggleReadFocused() {
+    const article = sortedArticles[focusedIndex];
+    if (!article) return;
+
+    if (readArticles[article.id]) {
+      const optimistic = { ...optimisticReadArticles };
+      const persisted = { ...persistedReadArticles };
+      delete optimistic[article.id];
+      delete persisted[article.id];
+      optimisticReadArticles = optimistic;
+      persistedReadArticles = persisted;
+
+      if (userId) {
+        unmarkArticlesAsReadForUser(userId, [article.id]).catch(() => {});
+      }
+      return;
+    }
+
+    handleArticleClick(article.id);
+  }
+
+  function handleKeydown(event: KeyboardEvent) {
+    const target = event.target as HTMLElement | null;
+    const typing =
+      target &&
+      (target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable);
+
+    if (typing || event.metaKey || event.ctrlKey || event.altKey) return;
+
+    switch (event.key) {
+      case "j":
+        event.preventDefault();
+        focusArticle(focusedIndex + 1);
+        break;
+      case "k":
+        event.preventDefault();
+        focusArticle(focusedIndex <= 0 ? 0 : focusedIndex - 1);
+        break;
+      case "o":
+      case "Enter":
+        if (focusedIndex >= 0) {
+          event.preventDefault();
+          openFocused();
+        }
+        break;
+      case "m":
+        if (focusedIndex >= 0) {
+          event.preventDefault();
+          toggleReadFocused();
+        }
+        break;
+      case "a":
+        event.preventDefault();
+        markAllVisibleRead();
+        break;
+      case "u":
+        event.preventDefault();
+        undoMarkAllRead();
+        break;
+      case "r":
+        event.preventDefault();
+        void refresh();
+        break;
+      case "?":
+        event.preventDefault();
+        showShortcuts = !showShortcuts;
+        break;
+      case "Escape":
+        if (showShortcuts) {
+          event.preventDefault();
+          showShortcuts = false;
+        }
+        break;
+    }
+  }
+
+  const SHORTCUTS: Array<[string, string]> = [
+    ["j / k", "Next / previous article"],
+    ["o or Enter", "Open the focused article"],
+    ["m", "Toggle read on the focused article"],
+    ["a", "Mark everything shown as read"],
+    ["u", "Undo that"],
+    ["r", "Refresh"],
+    ["?", "This list"],
+  ];
+
+  // ── Touch: pull down to refresh ─────────────────────────────────────────
+  let pullStartY = 0;
+  let pullActive = false;
+  let pullDistance = $state(0);
+
+  const PULL_THRESHOLD = 80;
+
+  function onTouchStart(event: TouchEvent) {
+    // Only from the very top, or the gesture fights with normal scrolling.
+    pullActive = window.scrollY <= 0 && !!onRefresh;
+    pullStartY = event.touches[0].clientY;
+    pullDistance = 0;
+  }
+
+  function onTouchMove(event: TouchEvent) {
+    if (!pullActive) return;
+
+    const dy = event.touches[0].clientY - pullStartY;
+    pullDistance = dy > 0 ? Math.min(dy, PULL_THRESHOLD * 1.5) : 0;
+  }
+
+  function onTouchEnd() {
+    if (pullDistance >= PULL_THRESHOLD) void refresh();
+
+    pullDistance = 0;
+    pullActive = false;
+  }
+
   let displayedUnreadAndUnseenCount = $derived.by(() => {
     if (onlyRead) {
       // count read articles for stats on the read-only page
@@ -153,6 +475,16 @@
   });
 
   onMount(() => {
+    density = getDensity();
+    sortOrder = getSortOrder();
+
+    // Read the previous visit, then stamp this one straight away: a reload in
+    // the same sitting should not keep announcing the same articles as new.
+    lastVisitAt = getLastVisitAt();
+    setLastVisitAt(new Date().toISOString());
+
+    window.addEventListener("keydown", handleKeydown);
+
     seenArticles = getSeenArticles();
 
     // Snapshot initial seen state for filtering so items marked as seen during
@@ -225,6 +557,8 @@
     }
 
     return () => {
+      window.removeEventListener("keydown", handleKeydown);
+      if (undoTimer) clearTimeout(undoTimer);
       if (scrollHandler) {
         window.removeEventListener("scroll", scrollHandler);
       }
@@ -329,20 +663,209 @@
   }
 </script>
 
+{#if pullDistance > 0}
+  <div
+    class="pointer-events-none flex items-center justify-center overflow-hidden text-sm text-base-content/60"
+    style={`height: ${pullDistance}px`}
+  >
+    {pullDistance >= 80 ? "Release to refresh" : "Pull to refresh"}
+  </div>
+{/if}
+
 {#if filteredArticles.length > 0}
-  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
-    {#each filteredArticles as article}
-      <div data-article-id={article.id}>
-        <ArticleCard
-          {article}
-          isRead={article.id in readArticles}
-          isSeen={article.id in seenArticles}
-          readTimestamp={readArticles[article.id]?.timestamp || null}
-          onArticleClick={() => handleArticleClick(article.id)}
-          {noDim}
-        />
-      </div>
+  <div
+    class="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-base-300/60 pb-3"
+  >
+    <div class="flex items-center gap-2 text-sm text-base-content/60">
+      <span>{sortedArticles.length} articles</span>
+      {#if newSinceLastVisit > 0}
+        <span class="badge badge-primary badge-sm">
+          {newSinceLastVisit} new since your last visit
+        </span>
+      {/if}
+      {#if refreshing}
+        <span class="loading loading-spinner loading-xs"></span>
+      {/if}
+    </div>
+
+    <div class="flex items-center gap-1">
+      <button
+        type="button"
+        class="btn btn-ghost btn-sm gap-1"
+        onclick={toggleSortOrder}
+        title={sortOrder === "newest"
+          ? "Newest first — click for oldest first"
+          : "Oldest first — click for newest first"}
+      >
+        {#if sortOrder === "newest"}
+          <ArrowDownWideNarrow class="h-4 w-4" />
+          <span class="hidden sm:inline">Newest</span>
+        {:else}
+          <ArrowUpWideNarrow class="h-4 w-4" />
+          <span class="hidden sm:inline">Oldest</span>
+        {/if}
+      </button>
+
+      <button
+        type="button"
+        class="btn btn-ghost btn-sm gap-1"
+        onclick={toggleDensity}
+        title={density === "compact" ? "Switch to cards" : "Switch to a list"}
+        aria-pressed={density === "compact"}
+      >
+        {#if density === "compact"}
+          <LayoutGrid class="h-4 w-4" />
+          <span class="hidden sm:inline">Cards</span>
+        {:else}
+          <List class="h-4 w-4" />
+          <span class="hidden sm:inline">Compact</span>
+        {/if}
+      </button>
+
+      {#if !onlyRead}
+        <button
+          type="button"
+          class="btn btn-ghost btn-sm gap-1"
+          onclick={markAllVisibleRead}
+          title="Mark everything shown as read"
+        >
+          <CheckCheck class="h-4 w-4" />
+          <span class="hidden sm:inline">Mark read</span>
+        </button>
+      {/if}
+
+      <!-- Nothing to press on a phone; the sm breakpoint is close enough to
+           "has a keyboard" for a button whose only job is to explain one. -->
+      <button
+        type="button"
+        class="btn btn-ghost btn-sm btn-square hidden sm:inline-flex"
+        onclick={() => (showShortcuts = !showShortcuts)}
+        title="Keyboard shortcuts (?)"
+        aria-label="Keyboard shortcuts"
+      >
+        <Keyboard class="h-4 w-4" />
+      </button>
+    </div>
+  </div>
+
+  <div
+    ontouchstart={onTouchStart}
+    ontouchmove={onTouchMove}
+    ontouchend={onTouchEnd}
+  >
+    {#each groupedArticles as group (group.label)}
+      <section class="mb-6">
+      <h2
+        class="sticky z-10 -mx-2 mb-3 bg-base-100/90 px-2 py-1 text-sm font-semibold text-base-content/70 backdrop-blur-sm"
+        style="top: var(--noctua-header-height, 4rem)"
+      >
+        {group.label}
+      </h2>
+
+      {#if density === "compact"}
+        <ul class="divide-y divide-base-300/60">
+          {#each group.items as { article, index } (article.id)}
+            <li
+              data-article-id={article.id}
+              class="isolate transition-colors {focusedIndex === index
+                ? 'bg-base-200 ring-1 ring-primary/40'
+                : ''}"
+            >
+              <a
+                href={article.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onclick={() => handleArticleClick(article.id)}
+                class="flex items-baseline gap-3 px-2 py-2 hover:bg-base-200/60 {(article.id in
+                  readArticles ||
+                  article.id in seenArticles) && !noDim
+                  ? 'opacity-50'
+                  : ''}"
+              >
+                <span
+                  class="h-2 w-2 shrink-0 rounded-full {article.id in
+                    readArticles || article.id in seenArticles
+                    ? 'bg-transparent'
+                    : 'bg-primary'}"
+                  aria-hidden="true"
+                ></span>
+                <span class="min-w-0 flex-1 truncate">{article.title}</span>
+                <span
+                  class="hidden shrink-0 text-xs text-base-content/50 sm:inline"
+                >
+                  {article.feed_name}
+                </span>
+                <span class="shrink-0 text-xs tabular-nums text-base-content/40">
+                  {relativeTime(article)}
+                </span>
+              </a>
+            </li>
+          {/each}
+        </ul>
+      {:else}
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 xl:grid-cols-3">
+          {#each group.items as { article, index } (article.id)}
+            <!-- isolate: ArticleCard lifts its body with `relative z-10`, which
+                 otherwise competes with the sticky date header on equal terms
+                 and wins on DOM order. Read cards happened to be dimmed with
+                 opacity, which made a stacking context by accident and hid the
+                 bug; unread ones cut straight across the date bar. -->
+            <div
+              data-article-id={article.id}
+              class="isolate rounded-2xl {focusedIndex === index
+                ? 'ring-2 ring-primary/50'
+                : ''}"
+            >
+              <ArticleCard
+                {article}
+                isRead={article.id in readArticles}
+                isSeen={article.id in seenArticles}
+                readTimestamp={readArticles[article.id]?.timestamp || null}
+                onArticleClick={() => handleArticleClick(article.id)}
+                {noDim}
+              />
+            </div>
+          {/each}
+        </div>
+      {/if}
+      </section>
     {/each}
+  </div>
+{/if}
+
+{#if undoable.length > 0}
+  <div class="toast toast-center toast-bottom z-50">
+    <div class="alert alert-info shadow-lg">
+      <span>{undoable.length} marked read</span>
+      <button class="btn btn-ghost btn-sm gap-1" onclick={undoMarkAllRead}>
+        <Undo2 class="h-4 w-4" />
+        Undo
+      </button>
+    </div>
+  </div>
+{/if}
+
+{#if showShortcuts}
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+    role="button"
+    tabindex="-1"
+    onclick={() => (showShortcuts = false)}
+    onkeydown={(e) => e.key === "Escape" && (showShortcuts = false)}
+  >
+    <div class="card w-full max-w-md bg-base-200 shadow-xl">
+      <div class="card-body">
+        <h2 class="card-title text-base">Keyboard shortcuts</h2>
+        <dl class="mt-2 space-y-1 text-sm">
+          {#each SHORTCUTS as [keys, description] (keys)}
+            <div class="flex items-center justify-between gap-4">
+              <dt class="text-base-content/70">{description}</dt>
+              <dd><kbd class="kbd kbd-sm">{keys}</kbd></dd>
+            </div>
+          {/each}
+        </dl>
+      </div>
+    </div>
   </div>
 {/if}
 

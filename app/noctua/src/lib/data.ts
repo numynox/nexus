@@ -663,6 +663,61 @@ export async function markArticleAsReadForUser(
   }
 }
 
+/**
+ * Mark a whole batch read in one round trip — a section or a feed at a time.
+ *
+ * Separate from markArticleAsReadForUser because "clear this burst of noise"
+ * is a different action from "I read this", and because doing it one request
+ * per article would be dozens of round trips.
+ */
+export async function markArticlesAsReadForUser(
+  userId: string,
+  articleIds: string[],
+): Promise<void> {
+  if (articleIds.length === 0) return;
+
+  const supabase = getSupabaseClient();
+  const db = supabase as any;
+  const readAt = new Date().toISOString();
+
+  const { error } = await db.from("article_reads").upsert(
+    articleIds.map((articleId) => ({
+      user_id: userId,
+      article_id: toDbId(articleId),
+      read_at: readAt,
+    })),
+    { onConflict: "user_id,article_id", ignoreDuplicates: false },
+  );
+
+  if (error) {
+    throw error;
+  }
+}
+
+/** Undo for the above: removes read marks for exactly these articles. */
+export async function unmarkArticlesAsReadForUser(
+  userId: string,
+  articleIds: string[],
+): Promise<void> {
+  if (articleIds.length === 0) return;
+
+  const supabase = getSupabaseClient();
+  const db = supabase as any;
+
+  const { error } = await db
+    .from("article_reads")
+    .delete()
+    .eq("user_id", userId)
+    .in(
+      "article_id",
+      articleIds.map((id) => toDbId(id)),
+    );
+
+  if (error) {
+    throw error;
+  }
+}
+
 export async function clearReadArticlesForUser(userId: string): Promise<void> {
   const supabase = getSupabaseClient();
   const db = supabase as any;
