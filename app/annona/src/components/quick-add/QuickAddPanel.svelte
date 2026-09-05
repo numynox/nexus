@@ -6,6 +6,7 @@
     Plus,
     Search,
     Sparkles,
+    TriangleAlert,
   } from "lucide-svelte";
   import { onDestroy, onMount } from "svelte";
   import { getCategoryIconComponent } from "../../lib/categoryMeta";
@@ -41,6 +42,9 @@
   let lookupSource = $state<string | null>(null);
   let lookupNutrition = $state<Record<string, unknown> | null>(null);
   let lookingUp = $state(false);
+  /** Why the lookup did not answer — shown with a retry rather than silence. */
+  let lookupError = $state<string | null>(null);
+  let lookupMissing = $state(false);
   let foundProduct: Product | null = $state(null);
   let showProductFields = $state(false);
 
@@ -318,15 +322,25 @@
   async function prefillFromLookup(ean: string) {
     lookupSource = null;
     lookupNutrition = null;
+    lookupError = null;
+    lookupMissing = false;
     lookingUp = true;
 
-    const suggestion = await lookupProductByEan(ean.trim());
+    const outcome = await lookupProductByEan(ean.trim());
 
     lookingUp = false;
 
-    if (!suggestion?.found || !suggestion.product) return;
+    if (outcome.status === "failed") {
+      lookupError = outcome.reason;
+      return;
+    }
 
-    const p = suggestion.product;
+    if (outcome.status === "not-found") {
+      lookupMissing = true;
+      return;
+    }
+
+    const p = outcome.product;
     productName = p.name;
     productBrand = p.brand ?? "";
     productQuantity = p.quantity ?? "";
@@ -474,6 +488,8 @@
     scannedEan = "";
     lookupSource = null;
     lookupNutrition = null;
+    lookupError = null;
+    lookupMissing = false;
     foundProduct = null;
     showProductFields = false;
     productName = "";
@@ -715,6 +731,25 @@
               <div class="flex items-center gap-2 text-sm text-base-content/60">
                 <span class="loading loading-spinner loading-xs"></span>
                 Looking this barcode up…
+              </div>
+            {:else if lookupError}
+              <div class="alert alert-warning alert-soft py-2 text-sm">
+                <TriangleAlert class="h-4 w-4 shrink-0" />
+                <span>
+                  Lookup failed: {lookupError}. Fill the product in yourself, or
+                </span>
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-xs"
+                  onclick={() => prefillFromLookup(scannedEan)}
+                >
+                  try again
+                </button>
+              </div>
+            {:else if lookupMissing}
+              <div class="text-sm text-base-content/60">
+                Open Food Facts does not know this barcode — fill it in and it
+                is yours from now on.
               </div>
             {:else if lookupSource === "openfoodfacts"}
               <div class="alert alert-info alert-soft py-2 text-sm">

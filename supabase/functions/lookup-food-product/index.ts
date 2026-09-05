@@ -21,7 +21,10 @@ const corsHeaders = {
 
 const OFF_ENDPOINT = "https://world.openfoodfacts.org/api/v2/product";
 const USER_AGENT = "Nexus-Annona/1.0 (https://github.com/numynox/nexus)";
-const REQUEST_TIMEOUT_MS = 8000;
+// Long enough for a slow answer, short enough that a dead one does not hold the
+// scanner. The client shows what went wrong and offers a retry, so waiting
+// longer buys nothing.
+const REQUEST_TIMEOUT_MS = 6000;
 
 /** Only the fields Annona stores, so the response stays small. */
 const OFF_FIELDS = [

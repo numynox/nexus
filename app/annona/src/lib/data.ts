@@ -532,17 +532,27 @@ export interface ProductLookupResult {
   };
 }
 
+/** A lookup that failed is not the same as a barcode nobody knows. */
+export type ProductLookupOutcome =
+  | { status: "found"; product: NonNullable<ProductLookupResult["product"]> }
+  | { status: "not-found" }
+  | { status: "failed"; reason: string };
+
 /**
  * Ask Open Food Facts about a barcode Annona has never seen.
  *
  * Only called when fetchProductByEan finds nothing: an existing product is
  * always preferred, so a product edited by hand is never overwritten by the
- * database's idea of it. Returns null when the lookup fails, so a scan can
- * always fall back to typing.
+ * database's idea of it.
+ *
+ * The three outcomes are kept apart on purpose. Collapsing "failed" into
+ * "not-found" — which this did at first — leaves the scanner silent for eight
+ * seconds and then simply empty, with no way to tell a barcode Open Food Facts
+ * has never heard of from a lookup that never arrived.
  */
 export async function lookupProductByEan(
   ean: string,
-): Promise<ProductLookupResult | null> {
+): Promise<ProductLookupOutcome> {
   const sb = getSupabaseClient();
 
   try {
@@ -550,11 +560,42 @@ export async function lookupProductByEan(
       body: { ean },
     });
 
-    if (error) return null;
-    return (data as ProductLookupResult) ?? null;
-  } catch {
-    return null;
+    if (error) {
+      return { status: "failed", reason: await describeFunctionError(error) };
+    }
+
+    const result = data as ProductLookupResult | null;
+
+    if (result?.found && result.product) {
+      return { status: "found", product: result.product };
+    }
+
+    return { status: "not-found" };
+  } catch (error) {
+    return { status: "failed", reason: describeError(error) };
   }
+}
+
+/**
+ * Edge Functions answer errors with a JSON body; supabase-js hands back a
+ * generic "non-2xx status code" and hides that body in `context`. Read it, so
+ * the message says which of the two things went wrong: the function could not
+ * be reached, or Open Food Facts did not answer it.
+ */
+async function describeFunctionError(error: unknown): Promise<string> {
+  const context = (error as { context?: unknown })?.context;
+
+  if (context && typeof (context as Response).json === "function") {
+    try {
+      const body = await (context as Response).json();
+      const message = body?.error ?? body?.message;
+      if (typeof message === "string" && message.trim() !== "") return message;
+    } catch {
+      // Not JSON, or already consumed; fall back to the generic message.
+    }
+  }
+
+  return describeError(error);
 }
 
 export async function createProduct(product: ProductInsert): Promise<Product> {
