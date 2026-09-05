@@ -176,10 +176,11 @@ migration, a policy or an RPC.
 ## Build
 
 ```bash
-npm run build:websites        # all three, into output/pages/<app>
+npm run build:websites        # all three, into output/pages/<app>, plus the landing page
 npm run build:noctua
 npm run build:vibilia
 npm run build:annona
+npm run build:landing         # output/pages/index.html, generated from config.yaml
 ```
 
 Each build runs `astro check` before `astro build`, so all three apps are
@@ -194,7 +195,7 @@ build all three before pushing.
 | Area | Scripts |
 | :--- | :--- |
 | Tests | `test:db` |
-| Build / dev | `build:websites`, `build:{noctua,vibilia,annona}`, `dev:{noctua,vibilia,annona}` |
+| Build / dev | `build:websites`, `build:{noctua,vibilia,annona}`, `build:landing`, `dev:{noctua,vibilia,annona}` |
 | Local Supabase | `db:start`, `db:stop`, `db:status`, `db:reset`, `db:functions:serve` |
 | Link / migrate | `db:login`, `db:link`, `db:projects:list`, `db:migrations:list`, `db:migrations:up`, `db:push`, `db:push:dry-run`, `db:pull` |
 | Functions | `db:functions:deploy`, `db:functions:list` |
