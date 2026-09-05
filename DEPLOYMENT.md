@@ -76,8 +76,9 @@ Changing any of them requires a rebuild; there is no runtime configuration.
 
 - Missing variables do not fail the build. The apps compile, then every request
   from the browser fails with "Missing PUBLIC_SUPABASE_URL…".
-- All three builds run `astro check` first, so a type error fails the deploy
-  rather than shipping.
+- All three builds run `astro check` first, so a type error in an `.astro` or
+  `.ts` file fails the deploy rather than shipping. Svelte component scripts are
+  not covered by that check.
 
 ---
 
