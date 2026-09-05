@@ -135,6 +135,11 @@
     const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/$/, "");
     return `${normalizedBase}/read`;
   }
+
+  function starredHref() {
+    const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/$/, "");
+    return `${normalizedBase}/starred`;
+  }
 </script>
 
 <div class="lg:hidden fixed bottom-6 right-6 z-50">
@@ -277,6 +282,18 @@
     >
       <span class="text-xl">✅</span>
       <span>Read</span>
+    </a>
+
+    <a
+      href={starredHref()}
+      class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all
+        {activeId === 'starred'
+        ? 'bg-primary text-primary-content font-semibold shadow-md'
+        : 'hover:bg-base-300 text-base-content/80'}"
+      onclick={closeMobileMenu}
+    >
+      <span class="text-xl">⭐</span>
+      <span>Starred</span>
     </a>
 
     <a

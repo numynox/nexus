@@ -11,10 +11,12 @@
 
   export interface Props {
     onlyRead?: boolean;
+    /** When true, only starred articles are shown */
+    onlyStarred?: boolean;
   }
 
   // props passed from the parent (Astro page)
-  let { onlyRead = false }: Props = $props();
+  let { onlyRead = false, onlyStarred = false }: Props = $props();
 
   let loading = $state(true);
   let errorMessage = $state("");
@@ -300,7 +302,11 @@
     class="sticky top-0 z-20 mb-6 -mx-4 lg:-mx-8 px-6 lg:px-8 bg-base-100/80 backdrop-blur-sm border-b border-base-300/60 relative"
   >
     <div class="py-3 flex items-center justify-between gap-4">
-      {#if selectedSectionId}
+      {#if onlyStarred}
+        <span class="text-3xl font-bold">Starred</span>
+      {:else if onlyRead}
+        <span class="text-3xl font-bold">Read articles</span>
+      {:else if selectedSectionId}
         <button
           type="button"
           onclick={() => {
@@ -313,12 +319,16 @@
           </span>
           <span>{visibleTitle}</span>
         </button>
-      {:else if onlyRead}
-        <span class="text-3xl font-bold">Read articles</span>
       {/if}
 
       <div class="flex items-center gap-2">
-        {#if onlyRead}
+        {#if onlyStarred}
+          <span
+            class="badge badge-warning badge-md md:badge-xl"
+            title="Starred articles"
+            aria-label="Starred articles">{unreadAndUnseenDisplayed}</span
+          >
+        {:else if onlyRead}
           <span
             class="badge badge-secondary badge-md md:badge-xl"
             title="Read articles"
@@ -370,6 +380,7 @@
       {onlyRead}
       noDim={onlyRead}
       onRefresh={refreshContent}
+      {onlyStarred}
     />
   </div>
 {/if}

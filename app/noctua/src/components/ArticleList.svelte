@@ -5,7 +5,10 @@
     getSession,
     markArticleAsReadForUser,
     markArticlesAsReadForUser,
+    fetchStarredArticleIdsForUser,
+    starArticleForUser,
     unmarkArticlesAsReadForUser,
+    unstarArticleForUser,
     type ReadArticleStatuses,
   } from "../lib/data";
   import {
@@ -30,6 +33,7 @@
     Keyboard,
     LayoutGrid,
     List,
+    Star,
     Undo2,
   } from "lucide-svelte";
   import type { Article } from "../lib/types";
@@ -44,6 +48,8 @@
     noDim?: boolean;
     /** Re-fetch the feed; used by pull-to-refresh and the r shortcut. */
     onRefresh?: () => void | Promise<void>;
+    /** When true, only starred articles are shown */
+    onlyStarred?: boolean;
   }
 
   let {
@@ -52,6 +58,7 @@
     onlyRead = false,
     noDim = false,
     onRefresh,
+    onlyStarred = false,
   }: Props = $props();
 
   let persistedReadArticles = $state<ReadArticleStatuses>({});
@@ -136,7 +143,9 @@
 
     let result = articles;
 
-    if (onlyRead) {
+    if (onlyStarred) {
+      result = result.filter((a) => !!starredArticles[a.id]);
+    } else if (onlyRead) {
       // keep only articles with a read status (either persisted or optimistic)
       result = result.filter((a) => !!readArticles[a.id]);
     } else {
@@ -159,6 +168,38 @@
 
     return result;
   });
+
+  let starredArticles = $state<Record<string, true>>({});
+
+  function toggleStar(articleId: string) {
+    const isStarred = !!starredArticles[articleId];
+    const next = { ...starredArticles };
+
+    if (isStarred) {
+      delete next[articleId];
+    } else {
+      next[articleId] = true;
+    }
+    starredArticles = next;
+
+    if (!userId) return;
+
+    const action = isStarred
+      ? unstarArticleForUser(userId, articleId)
+      : starArticleForUser(userId, articleId);
+
+    action.catch((error) => {
+      console.warn("Failed to sync star", error);
+      // Put it back: the button should not lie about what is stored.
+      const reverted = { ...starredArticles };
+      if (isStarred) {
+        reverted[articleId] = true;
+      } else {
+        delete reverted[articleId];
+      }
+      starredArticles = reverted;
+    });
+  }
 
   // ── Reading preferences, keyboard focus and undo ────────────────────────
   let density = $state<Density>("comfortable");
@@ -397,6 +438,13 @@
           toggleReadFocused();
         }
         break;
+      case "s":
+        if (focusedIndex >= 0) {
+          event.preventDefault();
+          const article = sortedArticles[focusedIndex];
+          if (article) toggleStar(article.id);
+        }
+        break;
       case "a":
         event.preventDefault();
         markAllVisibleRead();
@@ -426,6 +474,7 @@
     ["j / k", "Next / previous article"],
     ["o or Enter", "Open the focused article"],
     ["m", "Toggle read on the focused article"],
+    ["s", "Star the focused article"],
     ["a", "Mark everything shown as read"],
     ["u", "Undo that"],
     ["r", "Refresh"],
@@ -461,7 +510,7 @@
   }
 
   let displayedUnreadAndUnseenCount = $derived.by(() => {
-    if (onlyRead) {
+    if (onlyRead || onlyStarred) {
       // count read articles for stats on the read-only page
       return filteredArticles.length;
     }
@@ -501,6 +550,12 @@
     getSession()
       .then((session) => {
         userId = session?.user?.id || "";
+
+        if (userId) {
+          fetchStarredArticleIdsForUser(userId)
+            .then((starred) => (starredArticles = starred))
+            .catch((error) => console.warn("Failed to load stars", error));
+        }
       })
       .catch(() => {
         userId = "";
@@ -767,7 +822,8 @@
           {#each group.items as { article, index } (article.id)}
             <li
               data-article-id={article.id}
-              class="isolate transition-colors {focusedIndex === index
+              class="isolate flex items-center gap-1 pr-1 transition-colors {focusedIndex ===
+              index
                 ? 'bg-base-200 ring-1 ring-primary/40'
                 : ''}"
             >
@@ -776,7 +832,7 @@
                 target="_blank"
                 rel="noopener noreferrer"
                 onclick={() => handleArticleClick(article.id)}
-                class="flex items-baseline gap-3 px-2 py-2 hover:bg-base-200/60 {(article.id in
+                class="flex min-w-0 flex-1 items-baseline gap-3 px-2 py-2 hover:bg-base-200/60 {(article.id in
                   readArticles ||
                   article.id in seenArticles) && !noDim
                   ? 'opacity-50'
@@ -799,6 +855,20 @@
                   {relativeTime(article)}
                 </span>
               </a>
+
+              <button
+                type="button"
+                class="btn btn-ghost btn-xs btn-square shrink-0"
+                onclick={() => toggleStar(article.id)}
+                aria-pressed={!!starredArticles[article.id]}
+                title={starredArticles[article.id] ? "Unstar" : "Star (s)"}
+              >
+                <Star
+                  class="h-4 w-4 {starredArticles[article.id]
+                    ? 'fill-warning text-warning'
+                    : 'text-base-content/40'}"
+                />
+              </button>
             </li>
           {/each}
         </ul>
@@ -816,14 +886,30 @@
                 ? 'ring-2 ring-primary/50'
                 : ''}"
             >
-              <ArticleCard
-                {article}
-                isRead={article.id in readArticles}
-                isSeen={article.id in seenArticles}
-                readTimestamp={readArticles[article.id]?.timestamp || null}
-                onArticleClick={() => handleArticleClick(article.id)}
-                {noDim}
-              />
+              <div class="relative">
+                <ArticleCard
+                  {article}
+                  isRead={article.id in readArticles}
+                  isSeen={article.id in seenArticles}
+                  readTimestamp={readArticles[article.id]?.timestamp || null}
+                  onArticleClick={() => handleArticleClick(article.id)}
+                  {noDim}
+                />
+
+                <button
+                  type="button"
+                  class="btn btn-circle btn-ghost btn-sm absolute right-2 top-2 bg-base-100/70 backdrop-blur-sm"
+                  onclick={() => toggleStar(article.id)}
+                  aria-pressed={!!starredArticles[article.id]}
+                  title={starredArticles[article.id] ? "Unstar" : "Star (s)"}
+                >
+                  <Star
+                    class="h-4 w-4 {starredArticles[article.id]
+                      ? 'fill-warning text-warning'
+                      : 'text-base-content/50'}"
+                  />
+                </button>
+              </div>
             </div>
           {/each}
         </div>
@@ -869,7 +955,7 @@
   </div>
 {/if}
 
-{#if !onlyRead}
+{#if !onlyRead && !onlyStarred}
   <div class="h-[100svh] bg-base-100 flex items-center justify-center">
     <div
       class="text-center py-8 md:py-20 bg-base-200/50 rounded-3xl border border-dashed border-base-300 w-full max-w-3xl"
