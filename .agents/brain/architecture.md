@@ -245,8 +245,11 @@ Anything aggregating, joining or crossing a permission boundary is a
 `supabase.rpc(...)` from `lib/data.ts`
 (`decisions/2026-04-06-aggregate-in-postgres-rpcs.md`).
 
-- Noctua: none — it queries tables directly. `get_user_home_feeds` exists in
-  the database but nothing calls it any more.
+- Noctua: `get_similar_article_groups` (clusters same-story titles by trigram
+  similarity within a time window — see
+  `decisions/2026-09-05-duplicate-story-collapsing.md`). Everything else queries
+  tables directly. `get_user_home_feeds` exists in the database but nothing
+  calls it any more.
 - Vibilia: `get_fuel_stations_current_prices`, `get_fuel_price_plot_history`,
   `get_fuel_price_weekly_minima`, `get_car_refuel_statistics`,
   `get_car_refuel_plot_events`, `get_car_refuel_year_bounds`,

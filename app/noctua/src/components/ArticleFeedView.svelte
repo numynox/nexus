@@ -30,6 +30,10 @@
   let baseUrl = $state("/");
   let siteTitle = $state("Noctua");
   let articleFetchLimit = $state(300);
+  // Paging state: the fetch limit is a page size, not a ceiling. Before this,
+  // anything past the first 300 was simply unreachable.
+  let loadingMore = $state(false);
+  let hasMore = $state(false);
 
   // Progress tracking for unseen articles
   let initialUnseen = $state(0);
@@ -158,6 +162,9 @@
           : content.articles;
       }
 
+      // A full page suggests there is more behind it; the next fetch settles it.
+      hasMore = (content.articles?.length ?? 0) >= articleFetchLimit;
+
       // update URL parameters: clear section when in read mode, otherwise
       // keep them in sync with current selection
       if (onlyRead) {
@@ -198,6 +205,43 @@
       selectedFeedId = null;
     } finally {
       loading = false;
+    }
+  }
+
+  /**
+   * Fetch the next page and append it.
+   *
+   * Offset paging over a feed that gains articles at the top can repeat a row;
+   * appending only ids we do not already have keeps that from showing.
+   */
+  async function loadMore() {
+    if (loadingMore || !hasMore) return;
+
+    loadingMore = true;
+
+    try {
+      const older = await fetchArticlesForSections(
+        sections,
+        onlyRead || onlyStarred ? null : selectedSectionId,
+        articleFetchLimit,
+        articles.length,
+      );
+
+      const known = new Set(articles.map((article) => article.id));
+      const fresh = older.filter((article) => !known.has(article.id));
+
+      articles = [
+        ...articles,
+        ...(selectedFeedId
+          ? fresh.filter((article) => article.feed_id === selectedFeedId)
+          : fresh),
+      ];
+
+      hasMore = older.length >= articleFetchLimit;
+    } catch (error) {
+      errorMessage = error instanceof Error ? error.message : String(error);
+    } finally {
+      loadingMore = false;
     }
   }
 
@@ -350,5 +394,20 @@
       onRefresh={refreshContent}
       {onlyStarred}
     />
+
+    {#if hasMore}
+      <div class="flex justify-center py-8">
+        <button
+          class="btn btn-outline"
+          onclick={loadMore}
+          disabled={loadingMore}
+        >
+          {#if loadingMore}
+            <span class="loading loading-spinner loading-sm"></span>
+          {/if}
+          Load older articles
+        </button>
+      </div>
+    {/if}
   </div>
 {/if}

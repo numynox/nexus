@@ -5,6 +5,7 @@
     getSession,
     markArticleAsReadForUser,
     markArticlesAsReadForUser,
+    fetchSimilarArticleGroups,
     fetchStarredArticleIdsForUser,
     starArticleForUser,
     unmarkArticlesAsReadForUser,
@@ -33,6 +34,7 @@
     Keyboard,
     LayoutGrid,
     List,
+    Layers,
     Star,
     Undo2,
   } from "lucide-svelte";
@@ -171,6 +173,20 @@
 
   let starredArticles = $state<Record<string, true>>({});
 
+  /** article id → group key; articles with no twin map to themselves. */
+  let similarGroups = $state<Record<string, string>>({});
+  let expandedGroups = $state<Record<string, true>>({});
+
+  function toggleGroup(groupKey: string) {
+    const next = { ...expandedGroups };
+    if (next[groupKey]) {
+      delete next[groupKey];
+    } else {
+      next[groupKey] = true;
+    }
+    expandedGroups = next;
+  }
+
   function toggleStar(articleId: string) {
     const isStarred = !!starredArticles[articleId];
     const next = { ...starredArticles };
@@ -260,26 +276,51 @@
     });
   }
 
-  /** Flat index is kept alongside so j/k can walk across group boundaries. */
+  /**
+   * Date groups, with same-story articles collapsed inside them.
+   *
+   * The first article of a cluster in the current sort order leads; the rest
+   * hang off it as `similar` and are shown when the cluster is expanded. The
+   * flat index is kept alongside so j/k can walk the visible list, and only
+   * leaders take an index — the keyboard should not stop on a hidden row.
+   */
   let groupedArticles = $derived.by(() => {
     const groups: Array<{
       label: string;
-      items: Array<{ article: Article; index: number }>;
+      items: Array<{ article: Article; index: number; similar: Article[] }>;
     }> = [];
 
-    sortedArticles.forEach((article, index) => {
-      const label = dayLabel(articleTime(article));
-      const current = groups[groups.length - 1];
+    const leaderFor = new Map<string, { article: Article; similar: Article[] }>();
+    let visibleIndex = -1;
 
+    sortedArticles.forEach((article) => {
+      const key = similarGroups[article.id] ?? article.id;
+      const leader = leaderFor.get(key);
+
+      if (leader) {
+        leader.similar.push(article);
+        return;
+      }
+
+      const label = dayLabel(articleTime(article));
+      const entry = { article, index: ++visibleIndex, similar: [] as Article[] };
+      leaderFor.set(key, entry);
+
+      const current = groups[groups.length - 1];
       if (current && current.label === label) {
-        current.items.push({ article, index });
+        current.items.push(entry);
       } else {
-        groups.push({ label, items: [{ article, index }] });
+        groups.push({ label, items: [entry] });
       }
     });
 
     return groups;
   });
+
+  /** What j/k and the shortcuts act on: leaders only, in display order. */
+  let navigableArticles = $derived.by(() =>
+    groupedArticles.flatMap((group) => group.items.map((item) => item.article)),
+  );
 
   function toggleDensity() {
     density = density === "compact" ? "comfortable" : "compact";
@@ -367,10 +408,10 @@
 
   // ── Keyboard ─────────────────────────────────────────────────────────────
   function focusArticle(index: number) {
-    const clamped = Math.max(0, Math.min(index, sortedArticles.length - 1));
+    const clamped = Math.max(0, Math.min(index, navigableArticles.length - 1));
     focusedIndex = clamped;
 
-    const article = sortedArticles[clamped];
+    const article = navigableArticles[clamped];
     if (!article) return;
 
     document
@@ -379,14 +420,14 @@
   }
 
   function openFocused() {
-    const article = sortedArticles[focusedIndex];
+    const article = navigableArticles[focusedIndex];
     if (!article?.url) return;
     handleArticleClick(article.id);
     window.open(article.url, "_blank", "noopener");
   }
 
   function toggleReadFocused() {
-    const article = sortedArticles[focusedIndex];
+    const article = navigableArticles[focusedIndex];
     if (!article) return;
 
     if (readArticles[article.id]) {
@@ -441,7 +482,7 @@
       case "s":
         if (focusedIndex >= 0) {
           event.preventDefault();
-          const article = sortedArticles[focusedIndex];
+          const article = navigableArticles[focusedIndex];
           if (article) toggleStar(article.id);
         }
         break;
@@ -527,7 +568,7 @@
     }
 
     if (swipeId && Math.abs(swipeOffset) >= SWIPE_THRESHOLD) {
-      const index = sortedArticles.findIndex((a) => a.id === swipeId);
+      const index = navigableArticles.findIndex((a) => a.id === swipeId);
       if (index >= 0) {
         focusedIndex = index;
         toggleReadFocused();
@@ -552,6 +593,25 @@
 
   $effect(() => {
     onStatsChange?.(displayedUnreadAndUnseenCount);
+  });
+
+  // Ask Postgres which of these are the same story. Failing is not fatal: with
+  // no groups every article maps to itself and the list is simply uncollapsed.
+  $effect(() => {
+    const ids = filteredArticles.map((article) => article.id);
+    if (ids.length === 0) return;
+
+    let cancelled = false;
+
+    fetchSimilarArticleGroups(ids)
+      .then((groups) => {
+        if (!cancelled) similarGroups = groups;
+      })
+      .catch((error) => console.warn("Failed to group similar articles", error));
+
+    return () => {
+      cancelled = true;
+    };
   });
 
   onMount(() => {
@@ -842,7 +902,7 @@
 
       {#if density === "compact"}
         <ul class="divide-y divide-base-300/60">
-          {#each group.items as { article, index } (article.id)}
+          {#each group.items as { article, index, similar } (article.id)}
             <li
               data-article-id={article.id}
               class="flex items-center gap-1 pr-1 transition-colors {focusedIndex ===
@@ -898,11 +958,49 @@
                 />
               </button>
             </li>
+
+            {#if similar.length > 0}
+              <li class="px-2 pb-1 pl-7">
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-xs gap-1 text-base-content/60"
+                  onclick={() => toggleGroup(similarGroups[article.id] ?? article.id)}
+                >
+                  <Layers class="h-3.5 w-3.5" />
+                  {expandedGroups[similarGroups[article.id] ?? article.id]
+                    ? "Hide"
+                    : `+${similar.length} similar`}
+                </button>
+
+                {#if expandedGroups[similarGroups[article.id] ?? article.id]}
+                  <ul class="mt-1 space-y-1 border-l border-base-300 pl-3">
+                    {#each similar as duplicate (duplicate.id)}
+                      <li>
+                        <a
+                          href={duplicate.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onclick={() => handleArticleClick(duplicate.id)}
+                          class="flex items-baseline gap-3 py-1 text-sm text-base-content/70 hover:text-base-content"
+                        >
+                          <span class="min-w-0 flex-1 truncate">
+                            {duplicate.title}
+                          </span>
+                          <span class="shrink-0 text-xs text-base-content/50">
+                            {duplicate.feed_name}
+                          </span>
+                        </a>
+                      </li>
+                    {/each}
+                  </ul>
+                {/if}
+              </li>
+            {/if}
           {/each}
         </ul>
       {:else}
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 xl:grid-cols-3">
-          {#each group.items as { article, index } (article.id)}
+          {#each group.items as { article, index, similar } (article.id)}
             <div
               data-article-id={article.id}
               class="rounded-2xl transition-transform {focusedIndex === index
@@ -938,6 +1036,43 @@
                       : 'text-base-content/50'}"
                   />
                 </button>
+
+                {#if similar.length > 0}
+                  <div class="mt-1">
+                    <button
+                      type="button"
+                      class="btn btn-ghost btn-xs gap-1 text-base-content/60"
+                      onclick={() =>
+                        toggleGroup(similarGroups[article.id] ?? article.id)}
+                    >
+                      <Layers class="h-3.5 w-3.5" />
+                      {expandedGroups[similarGroups[article.id] ?? article.id]
+                        ? "Hide"
+                        : `+${similar.length} similar`}
+                    </button>
+
+                    {#if expandedGroups[similarGroups[article.id] ?? article.id]}
+                      <ul class="mt-1 space-y-1 border-l border-base-300 pl-3">
+                        {#each similar as duplicate (duplicate.id)}
+                          <li>
+                            <a
+                              href={duplicate.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onclick={() => handleArticleClick(duplicate.id)}
+                              class="block truncate py-0.5 text-sm text-base-content/70 hover:text-base-content"
+                            >
+                              {duplicate.title}
+                              <span class="text-xs text-base-content/50">
+                                · {duplicate.feed_name}
+                              </span>
+                            </a>
+                          </li>
+                        {/each}
+                      </ul>
+                    {/if}
+                  </div>
+                {/if}
               </div>
             </div>
           {/each}
