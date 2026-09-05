@@ -460,6 +460,20 @@
     pullActive = false;
   }
 
+  let displayedUnreadAndUnseenCount = $derived.by(() => {
+    if (onlyRead) {
+      // count read articles for stats on the read-only page
+      return filteredArticles.length;
+    }
+
+    return filteredArticles.filter((article) => !(article.id in seenArticles))
+      .length;
+  });
+
+  $effect(() => {
+    onStatsChange?.(displayedUnreadAndUnseenCount);
+  });
+
   onMount(() => {
     density = getDensity();
     sortOrder = getSortOrder();
