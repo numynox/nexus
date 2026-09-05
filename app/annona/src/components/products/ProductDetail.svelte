@@ -32,7 +32,7 @@
     type ItemLogEntry,
     type Product,
     type StorageLocation,
-  } from "../../lib/data";
+    describeError,} from "../../lib/data";
   import { session } from "../../lib/stores";
   import ItemForm from "./ItemForm.svelte";
 
@@ -80,7 +80,7 @@
       items = i;
       locations = l;
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     } finally {
       loading = false;
     }
@@ -127,7 +127,7 @@
           : i,
       );
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     } finally {
       sendingComment = null;
     }
@@ -189,7 +189,7 @@
       }
       cancelEdit();
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     } finally {
       savingEdit = false;
     }
@@ -279,7 +279,7 @@
         itemLogs[item.id] = await fetchItemLog(item.id);
       }
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     }
   }
 
@@ -295,7 +295,7 @@
         itemLogs[item.id] = await fetchItemLog(item.id);
       }
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     }
   }
 
@@ -307,7 +307,7 @@
       await deleteItem(item.id);
       items = items.filter((i) => i.id !== item.id);
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     }
   }
 
@@ -318,6 +318,31 @@
 
   let activeItems = $derived(items.filter((i) => !i.is_consumed));
   let consumedItems = $derived(items.filter((i) => i.is_consumed));
+  const NUTRITION_FIELDS = [
+    { key: "energy_kcal_100g", label: "Energy", unit: "kcal" },
+    { key: "fat_100g", label: "Fat", unit: "g" },
+    { key: "saturated_fat_100g", label: "of which saturates", unit: "g" },
+    { key: "carbohydrates_100g", label: "Carbohydrate", unit: "g" },
+    { key: "sugars_100g", label: "of which sugars", unit: "g" },
+    { key: "protein_100g", label: "Protein", unit: "g" },
+    { key: "salt_100g", label: "Salt", unit: "g" },
+  ] as const;
+
+  let nutritionRows = $derived(
+    NUTRITION_FIELDS.map((field) => ({
+      label: field.label,
+      value: product[field.key],
+      unit: field.unit,
+    }))
+      .filter((row) => row.value !== null && row.value !== undefined)
+      .map((row) => ({
+        label: row.label,
+        value: `${Number(row.value)} ${row.unit}`,
+      })),
+  );
+
+  let hasNutrition = $derived(nutritionRows.length > 0);
+
   let catBorder = $derived(getCategoryBorderColor(product.category_color));
   let catIconComp = $derived(getCategoryIconComponent(product.category_icon));
 
@@ -326,7 +351,7 @@
       await deleteProduct(product.id);
       onBack();
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
       confirmDeleteProduct = false;
     }
   }
@@ -598,6 +623,53 @@
         </button>
       </div>
     </div>
+
+    {#if hasNutrition}
+      <div class="rounded-box bg-base-200/60 p-4">
+        <div class="mb-3 flex items-center justify-between gap-2">
+          <h3 class="text-sm font-bold">
+            Nutrition
+            <span class="font-normal text-base-content/60">
+              per 100&thinsp;g/ml
+            </span>
+          </h3>
+          {#if product.nutriscore}
+            <span class="badge badge-sm badge-outline uppercase">
+              Nutri-Score {product.nutriscore}
+            </span>
+          {/if}
+        </div>
+
+        <dl class="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
+          {#each nutritionRows as row (row.label)}
+            <div class="flex justify-between gap-2 border-b border-base-300/50 py-1">
+              <dt class="text-base-content/60">{row.label}</dt>
+              <dd class="font-medium tabular-nums">{row.value}</dd>
+            </div>
+          {/each}
+        </dl>
+
+        {#if product.serving_size}
+          <p class="mt-3 text-xs text-base-content/60">
+            Serving size: {product.serving_size}
+          </p>
+        {/if}
+
+        {#if product.nutrition_source === "openfoodfacts"}
+          <p class="mt-1 text-xs text-base-content/50">
+            Data from
+            <a
+              class="link"
+              href={product.ean
+                ? `https://world.openfoodfacts.org/product/${product.ean}`
+                : "https://world.openfoodfacts.org"}
+              target="_blank"
+              rel="noreferrer noopener">Open Food Facts</a
+            >, licensed under ODbL.
+          </p>
+        {/if}
+      </div>
+    {/if}
 
     {#if error}
       <div class="alert alert-error text-sm">{error}</div>

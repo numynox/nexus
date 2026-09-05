@@ -40,6 +40,14 @@ interface CarExpenseUpdate {
   notes: string | null;
 }
 
+
+/**
+ * Re-exported so every call site can keep importing it from the data layer,
+ * while the shell components in @nexus/ui use the same implementation — the
+ * sign-in panel is the first place a database error is ever seen.
+ */
+export { describeError } from "@nexus/ui/errors";
+
 export interface CarMember {
   user_id: string;
   role: "owner" | "shared";

@@ -16,7 +16,7 @@
     searchProducts,
     type Item,
     type Product,
-  } from "../../lib/data";
+    describeError,} from "../../lib/data";
   import { session } from "../../lib/stores";
 
   let loading = $state(true);
@@ -130,7 +130,7 @@
         scannedEan = "";
       }
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     }
   }
 
@@ -205,7 +205,7 @@
       const allItems = await fetchItemsForProduct(product.id);
       items = allItems.filter((i) => !i.is_consumed);
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     } finally {
       loadingItems = false;
     }
@@ -219,7 +219,7 @@
       await consumeItem(item.id, s.user.id);
     } catch (e) {
       consumedIds = new Set([...consumedIds].filter((id) => id !== item.id));
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     }
   }
 

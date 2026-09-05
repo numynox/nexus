@@ -10,7 +10,7 @@
     fetchProducts,
     type Category,
     type Product,
-  } from "../../lib/data";
+    describeError,} from "../../lib/data";
   import { session } from "../../lib/stores";
   import ProductDetail from "./ProductDetail.svelte";
   import ProductForm from "./ProductForm.svelte";
@@ -92,7 +92,7 @@
       products = prods;
       categories = cats;
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     } finally {
       loading = false;
     }
