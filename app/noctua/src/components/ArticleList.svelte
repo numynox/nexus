@@ -791,7 +791,7 @@
           {#each group.items as { article, index } (article.id)}
             <li
               data-article-id={article.id}
-              class="transition-colors {focusedIndex === index
+              class="isolate transition-colors {focusedIndex === index
                 ? 'bg-base-200 ring-1 ring-primary/40'
                 : ''}"
               style={swipeId === article.id
@@ -834,9 +834,15 @@
       {:else}
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 xl:grid-cols-3">
           {#each group.items as { article, index } (article.id)}
+            <!-- isolate: ArticleCard lifts its body with `relative z-10`, which
+                 otherwise competes with the sticky date header on equal terms
+                 and wins on DOM order. Read cards happened to be dimmed with
+                 opacity, which made a stacking context by accident and hid the
+                 bug; unread ones cut straight across the date bar. -->
             <div
               data-article-id={article.id}
-              class="rounded-2xl transition-transform {focusedIndex === index
+              class="isolate rounded-2xl transition-transform {focusedIndex ===
+              index
                 ? 'ring-2 ring-primary/50'
                 : ''}"
               style={swipeId === article.id
