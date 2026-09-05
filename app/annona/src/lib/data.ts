@@ -28,6 +28,18 @@ export interface Product {
   image_url: string | null;
   created_at: string;
   updated_at: string;
+  // nutrition declaration per 100 g/ml
+  energy_kcal_100g: number | null;
+  fat_100g: number | null;
+  saturated_fat_100g: number | null;
+  carbohydrates_100g: number | null;
+  sugars_100g: number | null;
+  protein_100g: number | null;
+  salt_100g: number | null;
+  serving_size: string | null;
+  nutriscore: string | null;
+  nutrition_source: string | null;
+  nutrition_updated_at: string | null;
   // joined
   category_name?: string | null;
   category_color?: string | null;
@@ -424,13 +436,74 @@ export async function fetchProductById(
   } as Product;
 }
 
-export interface ProductInsert {
+export interface ProductNutrition {
+  energy_kcal_100g?: number | null;
+  fat_100g?: number | null;
+  saturated_fat_100g?: number | null;
+  carbohydrates_100g?: number | null;
+  sugars_100g?: number | null;
+  protein_100g?: number | null;
+  salt_100g?: number | null;
+  serving_size?: string | null;
+  nutriscore?: string | null;
+  nutrition_source?: string | null;
+  nutrition_updated_at?: string | null;
+}
+
+export interface ProductInsert extends ProductNutrition {
   name: string;
   brand: string | null;
   ean: string | null;
   quantity: string | null;
   category_id: number | null;
   image_url: string | null;
+}
+
+/** What the Open Food Facts lookup can offer for a scanned barcode. */
+export interface ProductLookupResult {
+  found: boolean;
+  ean: string;
+  product?: {
+    name: string;
+    brand: string | null;
+    quantity: string | null;
+    image_url: string | null;
+    serving_size: string | null;
+    nutriscore: string | null;
+    energy_kcal_100g: number | null;
+    fat_100g: number | null;
+    saturated_fat_100g: number | null;
+    carbohydrates_100g: number | null;
+    sugars_100g: number | null;
+    protein_100g: number | null;
+    salt_100g: number | null;
+    source: string;
+  };
+}
+
+/**
+ * Ask Open Food Facts about a barcode Annona has never seen.
+ *
+ * Only called when fetchProductByEan finds nothing: an existing product is
+ * always preferred, so a product edited by hand is never overwritten by the
+ * database's idea of it. Returns null when the lookup fails, so a scan can
+ * always fall back to typing.
+ */
+export async function lookupProductByEan(
+  ean: string,
+): Promise<ProductLookupResult | null> {
+  const sb = getSupabaseClient();
+
+  try {
+    const { data, error } = await sb.functions.invoke("lookup-food-product", {
+      body: { ean },
+    });
+
+    if (error) return null;
+    return (data as ProductLookupResult) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export async function createProduct(product: ProductInsert): Promise<Product> {
