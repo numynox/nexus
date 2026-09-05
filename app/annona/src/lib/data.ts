@@ -5,54 +5,14 @@ import { getSupabaseClient } from "./supabase";
 
 
 /**
- * Turn anything thrown into something worth showing a person.
- *
- * Supabase rejects with a plain object — `{ message, details, hint, code }` —
- * not an `Error`, so the usual
- * `e instanceof Error ? e.message : String(e)` renders it as the literal string
- * "[object Object]". That is what the UI has been showing for every database
- * failure: the one moment the message matters most.
+ * Re-exported so every call site can keep importing it from the data layer,
+ * while the shell components in @nexus/ui use the same implementation — the
+ * sign-in panel is the first place a database error is ever seen.
  */
-export function describeError(error: unknown): string {
-  if (error === null || error === undefined) return "Something went wrong.";
-  if (typeof error === "string") return error.trim() || "Something went wrong.";
+// Imported as well as re-exported: the lookup below uses it in this module.
+import { describeError } from "@nexus/ui/errors";
 
-  if (error instanceof Error && error.message) return error.message;
-
-  if (typeof error === "object") {
-    const candidate = error as Record<string, unknown>;
-
-    // message: PostgrestError and AuthError. error_description/error: GoTrue.
-    const message = [
-      candidate.message,
-      candidate.error_description,
-      candidate.error,
-      candidate.msg,
-    ].find(
-      (value): value is string =>
-        typeof value === "string" && value.trim() !== "",
-    );
-
-    if (message) {
-      // details and hint are where Postgres says what to do about it.
-      const extras = [candidate.details, candidate.hint].filter(
-        (value): value is string =>
-          typeof value === "string" && value.trim() !== "",
-      );
-
-      return [message, ...extras].join(" — ");
-    }
-
-    try {
-      const serialised = JSON.stringify(error);
-      if (serialised && serialised !== "{}") return serialised;
-    } catch {
-      // Circular or otherwise unserialisable; fall through.
-    }
-  }
-
-  return String(error);
-}
+export { describeError };
 
 export interface Category {
   id: number;

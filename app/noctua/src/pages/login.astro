@@ -1,10 +1,12 @@
 ---
+import { themeBootstrapScript } from "@nexus/ui";
 import LoginPanel from "../components/LoginPanel.svelte";
 import { getBaseUrl, getWebsiteTitle } from "../lib/config";
 import "../styles/app.css";
 
 const baseUrl = getBaseUrl();
 const siteTitle = getWebsiteTitle();
+const themeScript = themeBootstrapScript("noctua_theme");
 ---
 
 <!doctype html>
@@ -37,23 +39,7 @@ const siteTitle = getWebsiteTitle();
     />
     <link rel="manifest" href={baseUrl + "/manifest.webmanifest"} />
 
-    <script is:inline>
-      (function () {
-        const theme = localStorage.getItem("noctua_theme");
-        const prefersDark = window.matchMedia(
-          "(prefers-color-scheme: dark)",
-        ).matches;
-
-        let actualTheme = "dark";
-        if (theme && theme !== '"auto"') {
-          actualTheme = JSON.parse(theme);
-        } else if (!prefersDark) {
-          actualTheme = "light";
-        }
-
-        document.documentElement.setAttribute("data-theme", actualTheme);
-      })();
-    </script>
+    <script is:inline set:html={themeScript}></script>
   </head>
   <body class="bg-base-100 text-base-content overflow-x-hidden">
     <LoginPanel siteTitle={siteTitle} baseUrl={baseUrl} client:load />

@@ -1,14 +1,15 @@
 <script lang="ts">
+  import { AppShell as SharedAppShell } from "@nexus/ui";
+  import type { Session } from "@supabase/supabase-js";
   import type { Snippet } from "svelte";
-  import { onMount } from "svelte";
   import { getBaseUrl, getWebsiteTitle } from "../lib/config";
   import {
     getSession,
     onAuthStateChange,
     seedDefaultCategories,
+    signInWithPassword,
   } from "../lib/data";
   import { session } from "../lib/stores";
-  import LoginPanel from "./LoginPanel.svelte";
   import Sidebar from "./Sidebar.svelte";
 
   interface Props {
@@ -26,45 +27,38 @@
 
   const baseUrl = getBaseUrl();
   const siteTitle = getWebsiteTitle();
-  let loading = $state(true);
 
-  onMount(() => {
-    getSession()
-      .then(async (s) => {
-        session.set(s);
-        if (s?.user) {
-          await seedDefaultCategories().catch(() => {});
-        }
-        loading = false;
-      })
-      .catch(() => {
-        loading = false;
-      });
+  // The shared shell owns the gate; the app keeps its own session store in sync
+  // so components that read $session keep working unchanged.
+  async function resolveSession(): Promise<Session | null> {
+    const resolved = await getSession();
+    session.set(resolved);
+    return resolved;
+  }
 
-    const {
-      data: { subscription },
-    } = onAuthStateChange((_event, s) => {
-      session.set(s);
+  function subscribeToAuth(cb: (event: string, next: Session | null) => void) {
+    return onAuthStateChange((event, next) => {
+      session.set(next);
+      cb(event, next);
     });
+  }
 
-    return () => subscription.unsubscribe();
-  });
+  async function seedOnFirstLoad() {
+    await seedDefaultCategories().catch(() => {});
+  }
 </script>
 
-{#if loading}
-  <div class="min-h-screen flex items-center justify-center bg-base-100">
-    <span class="loading loading-infinity loading-lg text-primary"></span>
-  </div>
-{:else if !$session}
-  <LoginPanel />
-{:else}
-  <div class="flex min-h-screen">
+<SharedAppShell
+  getSession={resolveSession}
+  onAuthStateChange={subscribeToAuth}
+  signIn={signInWithPassword}
+  onSignedIn={seedOnFirstLoad}
+  {siteTitle}
+  logoSrc={`${baseUrl}/annona.png`}
+>
+  {#snippet sidebar()}
     <Sidebar {activeId} {baseUrl} {siteTitle} />
+  {/snippet}
 
-    <div class="flex-1 flex flex-col min-w-0">
-      <main class="flex-1 p-4 md:p-6 lg:p-8 max-w-5xl mx-auto w-full">
-        {@render children?.()}
-      </main>
-    </div>
-  </div>
-{/if}
+  {@render children?.()}
+</SharedAppShell>
