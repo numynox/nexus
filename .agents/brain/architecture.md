@@ -209,7 +209,7 @@ Annona namespaces everything with `annona_`. **New tables get a prefix.**
 | Owner | Tables |
 | :--- | :--- |
 | shared | `profiles` |
-| Noctua | `feeds`, `articles`, `sections`, `sections_feeds`, `article_reads` |
+| Noctua | `feeds`, `articles`, `sections`, `sections_feeds`, `article_reads`, `article_stars` |
 | Vibilia | `cars`, `car_access`, `refuel_events`, `car_expenses`, `fuel_stations`, `fuel_prices`, `fuel_prices_daily` |
 | Annona | `annona_categories`, `annona_storage_locations`, `annona_products`, `annona_items`, `annona_item_log` |
 

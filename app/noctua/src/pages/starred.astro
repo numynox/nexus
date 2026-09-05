@@ -1,0 +1,9 @@
+---
+import ArticleFeedView from "../components/ArticleFeedView.svelte";
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Starred" activeId="starred">
+  <!-- `onlyStarred` shows what was saved to come back to, not what was read -->
+  <ArticleFeedView client:load onlyStarred={true} />
+</Layout>

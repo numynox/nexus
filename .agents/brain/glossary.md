@@ -28,6 +28,7 @@ mean something narrower than they look.
 | `sections_feeds` | — | join table, carries the feed's `sort_order` within a section |
 | `article_reads` | — | **read**: durable, per-user, in the database; drives statistics |
 | `noctua_seen_articles` (localStorage) | — | **seen**: device-local, disposable; drives "hide what I've already looked at" |
+| `article_stars` | Starred | **intent**, not history: what you meant to come back to. `/read` is where you have been, `/starred` is what you saved |
 
 "Read" and "seen" are two different things tracked in two different places.
 Clearing seen history does not touch statistics.
