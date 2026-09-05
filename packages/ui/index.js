@@ -1,3 +1,4 @@
+export { describeError } from "./src/errors.js";
 export { default as AppShell } from "./src/AppShell.svelte";
 export { default as LoginPanel } from "./src/LoginPanel.svelte";
 export { default as ThemePicker } from "./src/ThemePicker.svelte";

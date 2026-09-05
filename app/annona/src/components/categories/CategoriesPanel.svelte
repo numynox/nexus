@@ -13,7 +13,7 @@
     fetchCategories,
     updateCategory,
     type Category,
-  } from "../../lib/data";
+    describeError,} from "../../lib/data";
   import { session } from "../../lib/stores";
 
   let categories: Category[] = $state([]);
@@ -52,7 +52,7 @@
     try {
       categories = sortAlpha(await fetchCategories());
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     } finally {
       loading = false;
     }
@@ -73,7 +73,7 @@
       newIcon = "";
       adding = false;
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     }
   }
 
@@ -115,7 +115,7 @@
       );
       cancelEdit();
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     }
   }
 
@@ -126,7 +126,7 @@
       categories = categories.filter((c) => c.id !== id);
       confirmDeleteId = null;
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
       confirmDeleteId = null;
     }
   }

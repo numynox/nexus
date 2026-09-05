@@ -23,3 +23,11 @@ entrypoint = "./functions/refresh-fuel-prices/index.ts"
 enabled = true
 verify_jwt = true
 entrypoint = "./functions/fetch-nearby-fuel-prices/index.ts"
+
+# Called from Annona's scanner with the signed-in user's JWT, which the function
+# re-checks with auth.getUser(). Like fetch-nearby-fuel-prices, it runs as the
+# caller rather than behind a shared secret.
+[functions.lookup-food-product]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/lookup-food-product/index.ts"

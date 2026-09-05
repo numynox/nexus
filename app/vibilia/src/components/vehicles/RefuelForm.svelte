@@ -12,7 +12,7 @@
     createRefuelEvent,
     fetchFuelStations,
     updateRefuelEvent,
-  } from "../../lib/data";
+    describeError,} from "../../lib/data";
   import { session } from "../../lib/stores";
 
   let {
@@ -218,7 +218,7 @@
       stations = await fetchFuelStations();
       await autoSelectNearestStation(stations);
     } catch (error) {
-      alert(error instanceof Error ? error.message : String(error));
+      alert(describeError(error));
     } finally {
       stationsLoading = false;
     }
@@ -334,7 +334,7 @@
 
       onSuccess();
     } catch (error) {
-      alert(error instanceof Error ? error.message : String(error));
+      alert(describeError(error));
     } finally {
       loading = false;
     }

@@ -1,4 +1,5 @@
 <script>
+  import { describeError } from "./errors.js";
   /**
    * @typedef {Object} Props
    * @property {string} siteTitle
@@ -26,7 +27,7 @@
       await signIn(email.trim(), password);
       onSignedIn?.();
     } catch (err) {
-      error = err instanceof Error ? err.message : "Sign in failed.";
+      error = describeError(err);
     } finally {
       submitting = false;
     }

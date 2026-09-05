@@ -273,11 +273,12 @@ Deno, in `supabase/functions/`, deployed manually. Two authentication styles:
 | `fetch-rss` | `pg_cron`, hourly | shared secret in `Authorization: Bearer` | fetches every enabled feed, maps entries, applies per-feed keyword filters, upserts `articles` on `(feed_id, url)` |
 | `refresh-fuel-prices` | `pg_cron`, 6×/hour | shared secret (bearer or `x-invoke-secret`) | Tankerkoenig prices for tracked stations; refreshes one station's details per call, at most weekly per station |
 | `fetch-nearby-fuel-prices` | called from Vibilia's UI | the end user's JWT, verified with `auth.getUser()` | radius search against Tankerkoenig for the nearby view |
+| `lookup-food-product` | called from Annona's scanner | the end user's JWT, verified with `auth.getUser()` | asks Open Food Facts about a barcode Annona has no product for (`decisions/2026-09-05-open-food-facts-lookup.md`) |
 
 The first two use the service-role key and must never be reachable without the
-secret. The third runs as the caller and validates its own inputs (lat/lng
-bounds, radius 0.1–25 km, fuel type allow-list) because the request comes from a
-browser. `supabase/config.toml` declares all three: `verify_jwt = false` for the two
+secret. The last two run as the caller and validate their own inputs (lat/lng
+bounds, radius 0.1–25 km, fuel type allow-list; barcode digits and length)
+because the requests come from a browser. `supabase/config.toml` declares all three: `verify_jwt = false` for the two
 guarded by a shared secret, `true` for the one called from a browser.
 
 ### Scheduling
