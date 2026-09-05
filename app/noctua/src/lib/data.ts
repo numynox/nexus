@@ -509,8 +509,6 @@ export async function fetchArticlesForSections(
   sections: Section[],
   selectedSectionId?: string | null,
   limit = 300,
-  /** Rows to skip; the feed pages by offset rather than raising the limit. */
-  offset = 0,
 ): Promise<Article[]> {
   const scopedSections = selectedSectionId
     ? sections.filter((section) => section.id === selectedSectionId)
@@ -536,10 +534,10 @@ export async function fetchArticlesForSections(
     )
     .in("feed_id", feedIds)
     .order("published_at", { ascending: false })
-    // A stable tiebreak: without it, two articles published in the same second
-    // can swap places between pages and one of them is never returned.
+    // A stable tiebreak, so two articles published in the same second do not
+    // trade places between loads.
     .order("id", { ascending: false })
-    .range(offset, offset + limit - 1);
+    .limit(limit);
 
   if (error) {
     throw error;
