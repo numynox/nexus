@@ -501,6 +501,8 @@ export async function fetchArticlesForSections(
   sections: Section[],
   selectedSectionId?: string | null,
   limit = 300,
+  /** Rows to skip; the feed pages by offset rather than raising the limit. */
+  offset = 0,
 ): Promise<Article[]> {
   const scopedSections = selectedSectionId
     ? sections.filter((section) => section.id === selectedSectionId)
@@ -526,7 +528,10 @@ export async function fetchArticlesForSections(
     )
     .in("feed_id", feedIds)
     .order("published_at", { ascending: false })
-    .limit(limit);
+    // A stable tiebreak: without it, two articles published in the same second
+    // can swap places between pages and one of them is never returned.
+    .order("id", { ascending: false })
+    .range(offset, offset + limit - 1);
 
   if (error) {
     throw error;
@@ -653,6 +658,37 @@ export async function markArticleAsReadForUser(
   if (error) {
     throw error;
   }
+}
+
+/**
+ * Ask Postgres which of these articles are the same story.
+ *
+ * Returns article id → group key (the lowest id in its cluster). Articles with
+ * no similar neighbour map to themselves, so the caller can group by the value
+ * without special cases.
+ */
+export async function fetchSimilarArticleGroups(
+  articleIds: string[],
+): Promise<Record<string, string>> {
+  if (articleIds.length === 0) return {};
+
+  const supabase = getSupabaseClient();
+  const db = supabase as any;
+
+  const { data, error } = await db.rpc("get_similar_article_groups", {
+    p_article_ids: articleIds.map((id) => toDbId(id)),
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const groups: Record<string, string> = {};
+  (data ?? []).forEach((row: { article_id: number; group_key: number }) => {
+    groups[String(row.article_id)] = String(row.group_key);
+  });
+
+  return groups;
 }
 
 /** Articles the user has starred, as a set for quick membership tests. */
