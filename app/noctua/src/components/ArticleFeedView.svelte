@@ -189,6 +189,7 @@
           : content.articles;
       }
 
+
       // update URL parameters: clear section when in read mode, otherwise
       // keep them in sync with current selection
       if (onlyRead) {
@@ -382,5 +383,6 @@
       onRefresh={refreshContent}
       {onlyStarred}
     />
+
   </div>
 {/if}

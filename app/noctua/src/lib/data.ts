@@ -534,6 +534,9 @@ export async function fetchArticlesForSections(
     )
     .in("feed_id", feedIds)
     .order("published_at", { ascending: false })
+    // A stable tiebreak, so two articles published in the same second do not
+    // trade places between loads.
+    .order("id", { ascending: false })
     .limit(limit);
 
   if (error) {
@@ -661,6 +664,37 @@ export async function markArticleAsReadForUser(
   if (error) {
     throw error;
   }
+}
+
+/**
+ * Ask Postgres which of these articles are the same story.
+ *
+ * Returns article id → group key (the lowest id in its cluster). Articles with
+ * no similar neighbour map to themselves, so the caller can group by the value
+ * without special cases.
+ */
+export async function fetchSimilarArticleGroups(
+  articleIds: string[],
+): Promise<Record<string, string>> {
+  if (articleIds.length === 0) return {};
+
+  const supabase = getSupabaseClient();
+  const db = supabase as any;
+
+  const { data, error } = await db.rpc("get_similar_article_groups", {
+    p_article_ids: articleIds.map((id) => toDbId(id)),
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const groups: Record<string, string> = {};
+  (data ?? []).forEach((row: { article_id: number; group_key: number }) => {
+    groups[String(row.article_id)] = String(row.group_key);
+  });
+
+  return groups;
 }
 
 /** Articles the user has starred, as a set for quick membership tests. */
