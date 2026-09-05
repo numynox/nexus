@@ -9,7 +9,7 @@
     listCarMembers,
     shareCarWithEmail,
     updateCarById,
-  } from "../../lib/data";
+    describeError,} from "../../lib/data";
   import { session } from "../../lib/stores";
 
   interface Props {
@@ -126,7 +126,7 @@
       newCarModel = "";
       newCarYear = "";
     } catch (error) {
-      shareMessage = error instanceof Error ? error.message : String(error);
+      shareMessage = describeError(error);
     }
   }
 
@@ -162,7 +162,7 @@
       cars = cars.map((car) => (car.id === editingCarId ? updated : car));
       editingCarId = null;
     } catch (error) {
-      shareMessage = error instanceof Error ? error.message : String(error);
+      shareMessage = describeError(error);
     }
   }
 
@@ -177,7 +177,7 @@
       await deleteCarById(id);
       cars = cars.filter((c) => c.id !== id);
     } catch (error) {
-      shareMessage = error instanceof Error ? error.message : String(error);
+      shareMessage = describeError(error);
     }
   }
 
@@ -199,7 +199,7 @@
       }, 2000);
     } catch (error) {
       shareMessage =
-        error instanceof Error ? error.message : "Error sharing vehicle.";
+        describeError(error);
     }
   }
 </script>

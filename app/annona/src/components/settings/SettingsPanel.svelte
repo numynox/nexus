@@ -14,7 +14,7 @@
     signOut,
     updateCategory,
     type Category,
-  } from "../../lib/data";
+    describeError,} from "../../lib/data";
   import { getTheme, setTheme } from "../../lib/storage";
   import { session } from "../../lib/stores";
 
@@ -94,7 +94,7 @@
     try {
       categories = sortAlpha(await fetchCategories());
     } catch (e) {
-      catError = e instanceof Error ? e.message : String(e);
+      catError = describeError(e);
     } finally {
       catLoading = false;
     }
@@ -115,7 +115,7 @@
       newIcon = "";
       adding = false;
     } catch (e) {
-      catError = e instanceof Error ? e.message : String(e);
+      catError = describeError(e);
     }
   }
 
@@ -157,7 +157,7 @@
       );
       cancelEdit();
     } catch (e) {
-      catError = e instanceof Error ? e.message : String(e);
+      catError = describeError(e);
     }
   }
 
@@ -168,7 +168,7 @@
       categories = categories.filter((c) => c.id !== id);
       confirmDeleteId = null;
     } catch (e) {
-      catError = e instanceof Error ? e.message : String(e);
+      catError = describeError(e);
       confirmDeleteId = null;
     }
   }
@@ -185,7 +185,7 @@
     try {
       await signOut();
     } catch (error) {
-      authError = error instanceof Error ? error.message : String(error);
+      authError = describeError(error);
     } finally {
       isBusy = false;
     }

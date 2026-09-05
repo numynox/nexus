@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { getSession, signInWithPassword } from "../lib/data";
+  import { getSession, signInWithPassword,
+    describeError,} from "../lib/data";
 
   const siteTitle = "Vibilia";
   let email = $state("");
@@ -44,7 +45,7 @@
       await signInWithPassword(email.trim(), password);
       window.location.replace(homeHref);
     } catch (error) {
-      authError = error instanceof Error ? error.message : String(error);
+      authError = describeError(error);
     } finally {
       isBusy = false;
     }

@@ -137,6 +137,27 @@ npm run db:functions:serve
 Then invoke them with the Bruno collection in `.bruno/supabase/`; the two
 scheduled functions require their invoke secret and will return 401 without it.
 
+**Anything that calls an Edge Function needs this running** — Annona's barcode
+lookup most obviously. `npm run db:start` does not serve functions; only
+`db:functions:serve` does.
+
+With it stopped, the request still reaches the API gateway, which then fails to
+resolve the missing runtime container and answers **"name resolution failed"**.
+That message names DNS and means nothing of the sort: start the functions and it
+goes away.
+
+A genuine DNS fault inside the container looks the same from the outside but
+survives starting them, because these functions call external APIs — Open Food
+Facts, Tankerkoenig, RSS feeds. Test that case with:
+
+```bash
+docker run --rm alpine nslookup world.openfoodfacts.org
+```
+
+If *that* fails, give the Docker daemon explicit resolvers in
+`/etc/docker/daemon.json` (`{"dns": ["1.1.1.1", "8.8.8.8"]}`), restart Docker,
+then `npm run db:stop && npm run db:start`.
+
 Optional test data:
 
 ```bash

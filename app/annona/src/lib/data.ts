@@ -3,6 +3,57 @@ import { getSupabaseClient } from "./supabase";
 
 // ── Types ──────────────────────────────────────────────────────────
 
+
+/**
+ * Turn anything thrown into something worth showing a person.
+ *
+ * Supabase rejects with a plain object — `{ message, details, hint, code }` —
+ * not an `Error`, so the usual
+ * `e instanceof Error ? e.message : String(e)` renders it as the literal string
+ * "[object Object]". That is what the UI has been showing for every database
+ * failure: the one moment the message matters most.
+ */
+export function describeError(error: unknown): string {
+  if (error === null || error === undefined) return "Something went wrong.";
+  if (typeof error === "string") return error.trim() || "Something went wrong.";
+
+  if (error instanceof Error && error.message) return error.message;
+
+  if (typeof error === "object") {
+    const candidate = error as Record<string, unknown>;
+
+    // message: PostgrestError and AuthError. error_description/error: GoTrue.
+    const message = [
+      candidate.message,
+      candidate.error_description,
+      candidate.error,
+      candidate.msg,
+    ].find(
+      (value): value is string =>
+        typeof value === "string" && value.trim() !== "",
+    );
+
+    if (message) {
+      // details and hint are where Postgres says what to do about it.
+      const extras = [candidate.details, candidate.hint].filter(
+        (value): value is string =>
+          typeof value === "string" && value.trim() !== "",
+      );
+
+      return [message, ...extras].join(" — ");
+    }
+
+    try {
+      const serialised = JSON.stringify(error);
+      if (serialised && serialised !== "{}") return serialised;
+    } catch {
+      // Circular or otherwise unserialisable; fall through.
+    }
+  }
+
+  return String(error);
+}
+
 export interface Category {
   id: number;
   name: string;
@@ -28,6 +79,18 @@ export interface Product {
   image_url: string | null;
   created_at: string;
   updated_at: string;
+  // nutrition declaration per 100 g/ml
+  energy_kcal_100g: number | null;
+  fat_100g: number | null;
+  saturated_fat_100g: number | null;
+  carbohydrates_100g: number | null;
+  sugars_100g: number | null;
+  protein_100g: number | null;
+  salt_100g: number | null;
+  serving_size: string | null;
+  nutriscore: string | null;
+  nutrition_source: string | null;
+  nutrition_updated_at: string | null;
   // joined
   category_name?: string | null;
   category_color?: string | null;
@@ -424,13 +487,115 @@ export async function fetchProductById(
   } as Product;
 }
 
-export interface ProductInsert {
+export interface ProductNutrition {
+  energy_kcal_100g?: number | null;
+  fat_100g?: number | null;
+  saturated_fat_100g?: number | null;
+  carbohydrates_100g?: number | null;
+  sugars_100g?: number | null;
+  protein_100g?: number | null;
+  salt_100g?: number | null;
+  serving_size?: string | null;
+  nutriscore?: string | null;
+  nutrition_source?: string | null;
+  nutrition_updated_at?: string | null;
+}
+
+export interface ProductInsert extends ProductNutrition {
   name: string;
   brand: string | null;
   ean: string | null;
   quantity: string | null;
   category_id: number | null;
   image_url: string | null;
+}
+
+/** What the Open Food Facts lookup can offer for a scanned barcode. */
+export interface ProductLookupResult {
+  found: boolean;
+  ean: string;
+  product?: {
+    name: string;
+    brand: string | null;
+    quantity: string | null;
+    image_url: string | null;
+    serving_size: string | null;
+    nutriscore: string | null;
+    energy_kcal_100g: number | null;
+    fat_100g: number | null;
+    saturated_fat_100g: number | null;
+    carbohydrates_100g: number | null;
+    sugars_100g: number | null;
+    protein_100g: number | null;
+    salt_100g: number | null;
+    source: string;
+  };
+}
+
+/** A lookup that failed is not the same as a barcode nobody knows. */
+export type ProductLookupOutcome =
+  | { status: "found"; product: NonNullable<ProductLookupResult["product"]> }
+  | { status: "not-found" }
+  | { status: "failed"; reason: string };
+
+/**
+ * Ask Open Food Facts about a barcode Annona has never seen.
+ *
+ * Only called when fetchProductByEan finds nothing: an existing product is
+ * always preferred, so a product edited by hand is never overwritten by the
+ * database's idea of it.
+ *
+ * The three outcomes are kept apart on purpose. Collapsing "failed" into
+ * "not-found" — which this did at first — leaves the scanner silent for eight
+ * seconds and then simply empty, with no way to tell a barcode Open Food Facts
+ * has never heard of from a lookup that never arrived.
+ */
+export async function lookupProductByEan(
+  ean: string,
+): Promise<ProductLookupOutcome> {
+  const sb = getSupabaseClient();
+
+  try {
+    const { data, error } = await sb.functions.invoke("lookup-food-product", {
+      body: { ean },
+    });
+
+    if (error) {
+      return { status: "failed", reason: await describeFunctionError(error) };
+    }
+
+    const result = data as ProductLookupResult | null;
+
+    if (result?.found && result.product) {
+      return { status: "found", product: result.product };
+    }
+
+    return { status: "not-found" };
+  } catch (error) {
+    return { status: "failed", reason: describeError(error) };
+  }
+}
+
+/**
+ * Edge Functions answer errors with a JSON body; supabase-js hands back a
+ * generic "non-2xx status code" and hides that body in `context`. Read it, so
+ * the message says which of the two things went wrong: the function could not
+ * be reached, or Open Food Facts did not answer it.
+ */
+async function describeFunctionError(error: unknown): Promise<string> {
+  const context = (error as { context?: unknown })?.context;
+
+  if (context && typeof (context as Response).json === "function") {
+    try {
+      const body = await (context as Response).json();
+      const message = body?.error ?? body?.message;
+      if (typeof message === "string" && message.trim() !== "") return message;
+    } catch {
+      // Not JSON, or already consumed; fall back to the generic message.
+    }
+  }
+
+  return describeError(error);
 }
 
 export async function createProduct(product: ProductInsert): Promise<Product> {
