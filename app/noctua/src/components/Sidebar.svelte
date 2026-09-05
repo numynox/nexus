@@ -1,4 +1,14 @@
 <script lang="ts">
+  import {
+    BarChart3,
+    Check,
+    Menu,
+    Search,
+    Settings,
+    Star,
+    X,
+  } from "lucide-svelte";
+  import { getSectionColor, getSectionIconComponent } from "../lib/sectionMeta";
   import { onMount } from "svelte";
   import {
     fetchSectionsForUser,
@@ -149,9 +159,9 @@
     aria-label="Toggle Menu"
   >
     {#if isMobileMenuOpen}
-      <span class="text-2xl">✕</span>
+      <X class="h-6 w-6" />
     {:else}
-      <span class="text-2xl">☰</span>
+      <Menu class="h-6 w-6" />
     {/if}
   </button>
 </div>
@@ -200,10 +210,9 @@
         bind:value={searchQuery}
         oninput={updateSearch}
       />
-      <span
-        class="absolute left-3 top-1/2 -translate-y-1/2 text-base-content/40"
-        >🔍</span
-      >
+      <Search
+        class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/40"
+      />
     </div>
   </div>
 
@@ -211,6 +220,7 @@
     <div class="space-y-2">
       {#if isLoggedIn}
         {#each sections as section}
+          {@const SectionIcon = getSectionIconComponent(section.icon)}
           <div class="space-y-1">
             <a
               href={sectionHref(section.id)}
@@ -220,7 +230,12 @@
                 : 'hover:bg-base-300 text-base-content/80'}"
               onclick={closeMobileMenu}
             >
-              <span class="text-xl">{section.icon}</span>
+              <SectionIcon
+                class="h-5 w-5 shrink-0"
+                style={getSectionColor(section.color)
+                  ? `color: ${getSectionColor(section.color)}`
+                  : ""}
+              />
               <span class="flex-1 truncate">{section.name}</span>
             </a>
 
@@ -280,7 +295,7 @@
         : 'hover:bg-base-300 text-base-content/80'}"
       onclick={closeMobileMenu}
     >
-      <span class="text-xl">✅</span>
+      <Check class="h-5 w-5" />
       <span>Read</span>
     </a>
 
@@ -292,7 +307,7 @@
         : 'hover:bg-base-300 text-base-content/80'}"
       onclick={closeMobileMenu}
     >
-      <span class="text-xl">⭐</span>
+      <Star class="h-5 w-5" />
       <span>Starred</span>
     </a>
 
@@ -304,7 +319,7 @@
         : 'hover:bg-base-300 text-base-content/80'}"
       onclick={closeMobileMenu}
     >
-      <span class="text-xl">📊</span>
+      <BarChart3 class="h-5 w-5" />
       <span>Statistics</span>
     </a>
 
@@ -316,7 +331,7 @@
         : 'hover:bg-base-300 text-base-content/80'}"
       onclick={closeMobileMenu}
     >
-      <span class="text-xl">⚙️</span>
+      <Settings class="h-5 w-5" />
       <span>Settings</span>
     </a>
   </div>

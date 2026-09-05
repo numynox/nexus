@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Palette } from "lucide-svelte";
   import { ThemePicker } from "@nexus/ui";
   interface Props {
     currentTheme: string;
@@ -20,7 +21,7 @@
 <section class="card bg-base-200 shadow-sm overflow-hidden">
   <div class="card-body p-6 lg:p-8">
     <h2 class="text-xl font-bold mb-6 flex items-center gap-2">
-      <span>🎨</span> Appearance
+      <Palette class="h-5 w-5" /> Appearance
     </h2>
 
     <div class="space-y-4">

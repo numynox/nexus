@@ -1,4 +1,13 @@
 <script lang="ts">
+  import { FolderTree } from "lucide-svelte";
+  import {
+    DEFAULT_SECTION_COLOR,
+    DEFAULT_SECTION_ICON,
+    SECTION_COLORS,
+    SECTION_ICONS,
+    getSectionColor,
+    getSectionIconComponent,
+  } from "../../lib/sectionMeta";
   import {
     addFeedToSectionForUser,
     createSectionForUser,
@@ -28,13 +37,15 @@
 
   let createSectionDialog = $state<HTMLDialogElement | null>(null);
   let createSectionName = $state("");
-  let createSectionIcon = $state("🦉");
+  let createSectionIcon = $state(DEFAULT_SECTION_ICON);
+  let createSectionColor = $state(DEFAULT_SECTION_COLOR);
   let createSectionError = $state("");
 
   let editSectionDialog = $state<HTMLDialogElement | null>(null);
   let editSectionId = $state<string | null>(null);
   let editSectionName = $state("");
-  let editSectionIcon = $state("🦉");
+  let editSectionIcon = $state(DEFAULT_SECTION_ICON);
+  let editSectionColor = $state(DEFAULT_SECTION_COLOR);
   let editSectionError = $state("");
   let selectedFeedToAddId = $state("");
 
@@ -129,7 +140,8 @@
 
   function openCreateSectionModal() {
     createSectionName = "";
-    createSectionIcon = "🦉";
+    createSectionIcon = DEFAULT_SECTION_ICON;
+    createSectionColor = DEFAULT_SECTION_COLOR;
     createSectionError = "";
     createSectionDialog?.showModal();
   }
@@ -155,7 +167,12 @@
     createSectionError = "";
 
     try {
-      await createSectionForUser(userId, title, createSectionIcon);
+      await createSectionForUser(
+        userId,
+        title,
+        createSectionIcon,
+        createSectionColor,
+      );
       await loadSectionManagementData(userId);
       closeCreateSectionModal();
       sectionsFeedback = "Section created.";
@@ -171,7 +188,8 @@
   function openEditSectionModal(section: Section) {
     editSectionId = section.id;
     editSectionName = section.name;
-    editSectionIcon = section.icon || "🦉";
+    editSectionIcon = section.icon || DEFAULT_SECTION_ICON;
+    editSectionColor = section.color || DEFAULT_SECTION_COLOR;
     editSectionError = "";
     selectedFeedToAddId =
       availableFeeds.find(
@@ -204,7 +222,13 @@
     editSectionError = "";
 
     try {
-      await updateSectionForUser(userId, editSectionId, title, editSectionIcon);
+      await updateSectionForUser(
+        userId,
+        editSectionId,
+        title,
+        editSectionIcon,
+        editSectionColor,
+      );
       await loadSectionManagementData(userId);
       sectionsFeedback = "Section updated.";
       onSectionDataChanged?.();
@@ -331,7 +355,7 @@
   <div class="card-body p-6 lg:p-8">
     <div class="flex items-center justify-between gap-4 mb-4">
       <h2 class="text-xl font-bold flex items-center gap-2">
-        <span>🗂️</span> Sections
+        <FolderTree class="h-5 w-5" /> Sections
       </h2>
       <button
         class="btn btn-primary btn-sm"
@@ -365,9 +389,15 @@
     {:else}
       <div class="space-y-3">
         {#each sections as section, index}
+          {@const RowIcon = getSectionIconComponent(section.icon)}
           <div class="bg-base-100 rounded-xl px-4 py-3 border border-base-300">
             <div class="flex items-center gap-3">
-              <span class="text-xl">{section.icon || "🦉"}</span>
+              <RowIcon
+                class="h-5 w-5 shrink-0"
+                style={getSectionColor(section.color)
+                  ? `color: ${getSectionColor(section.color)}`
+                  : ""}
+              />
               <div class="flex-1 min-w-0">
                 <p class="font-semibold truncate">{section.name}</p>
                 <p class="text-xs text-base-content/60">
@@ -426,18 +456,50 @@
         />
       </label>
 
-      <label class="form-control w-full">
+      <div class="form-control w-full">
         <div class="label">
           <span class="label-text">Icon</span>
         </div>
-        <input
-          type="text"
-          class="input input-bordered w-full"
-          bind:value={createSectionIcon}
-          placeholder="🦉"
-          maxlength="8"
-        />
-      </label>
+        <div class="grid grid-cols-6 gap-2 sm:grid-cols-10">
+          {#each SECTION_ICONS as option (option.key)}
+            {@const OptionIcon = option.component}
+            <button
+              type="button"
+              class="btn btn-square btn-sm {createSectionIcon === option.key
+                ? 'btn-primary'
+                : 'btn-ghost'}"
+              title={option.label}
+              aria-label={option.label}
+              aria-pressed={createSectionIcon === option.key}
+              onclick={() => (createSectionIcon = option.key)}
+            >
+              <OptionIcon class="h-4 w-4" />
+            </button>
+          {/each}
+        </div>
+      </div>
+
+      <div class="form-control w-full">
+        <div class="label">
+          <span class="label-text">Colour</span>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          {#each SECTION_COLORS as option (option.key)}
+            <button
+              type="button"
+              class="h-7 w-7 rounded-full border-2 transition {createSectionColor ===
+              option.key
+                ? 'border-base-content scale-110'
+                : 'border-transparent'}"
+              style={`background-color: ${option.value}`}
+              title={option.label}
+              aria-label={option.label}
+              aria-pressed={createSectionColor === option.key}
+              onclick={() => (createSectionColor = option.key)}
+            ></button>
+          {/each}
+        </div>
+      </div>
     </div>
 
     {#if createSectionError}
@@ -480,17 +542,50 @@
             />
           </label>
 
-          <label class="form-control w-full">
+          <div class="form-control w-full">
             <div class="label">
               <span class="label-text">Icon</span>
             </div>
-            <input
-              type="text"
-              class="input input-bordered w-full"
-              bind:value={editSectionIcon}
-              maxlength="8"
-            />
-          </label>
+            <div class="grid grid-cols-6 gap-2 sm:grid-cols-10">
+              {#each SECTION_ICONS as option (option.key)}
+                {@const OptionIcon = option.component}
+                <button
+                  type="button"
+                  class="btn btn-square btn-sm {editSectionIcon === option.key
+                    ? 'btn-primary'
+                    : 'btn-ghost'}"
+                  title={option.label}
+                  aria-label={option.label}
+                  aria-pressed={editSectionIcon === option.key}
+                  onclick={() => (editSectionIcon = option.key)}
+                >
+                  <OptionIcon class="h-4 w-4" />
+                </button>
+              {/each}
+            </div>
+          </div>
+
+          <div class="form-control w-full">
+            <div class="label">
+              <span class="label-text">Colour</span>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              {#each SECTION_COLORS as option (option.key)}
+                <button
+                  type="button"
+                  class="h-7 w-7 rounded-full border-2 transition {editSectionColor ===
+                  option.key
+                    ? 'border-base-content scale-110'
+                    : 'border-transparent'}"
+                  style={`background-color: ${option.value}`}
+                  title={option.label}
+                  aria-label={option.label}
+                  aria-pressed={editSectionColor === option.key}
+                  onclick={() => (editSectionColor = option.key)}
+                ></button>
+              {/each}
+            </div>
+          </div>
         </div>
 
         <div class="flex items-center gap-2">

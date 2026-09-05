@@ -24,7 +24,9 @@ export interface Feed {
 export interface Section {
   id: string;
   name: string;
+  /** A key from SECTION_ICONS, not an emoji — see lib/sectionMeta.ts */
   icon: string;
+  color: string | null;
   sort_order: number;
   feeds: Feed[];
 }

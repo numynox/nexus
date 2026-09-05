@@ -1118,7 +1118,7 @@
     <div
       class="text-center py-8 md:py-20 bg-base-200/50 rounded-3xl border border-dashed border-base-300 w-full max-w-3xl"
     >
-      <div class="text-6xl mb-4">✅</div>
+      <CheckCheck class="mx-auto mb-4 h-14 w-14 text-success" />
       <h3 class="text-2xl font-bold mb-2">You're all caught up</h3>
       <p class="text-base-content/60 mb-6 px-6 md:px-16">
         There are no articles to show right now — either you've already viewed
