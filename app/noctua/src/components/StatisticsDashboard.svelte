@@ -17,6 +17,7 @@
     type HeatmapDay,
   } from "./statistics/ArticleHeatmap.svelte";
   import FeedReadsBarChart from "./statistics/FeedReadsBarChart.svelte";
+  import ReadingHabits from "./statistics/ReadingHabits.svelte";
   import SummaryCards from "./statistics/SummaryCards.svelte";
   import WeekdayAverageBarChart from "./statistics/WeekdayAverageBarChart.svelte";
 
@@ -220,6 +221,118 @@
       .sort((a, b) => b.count - a.count);
   });
 
+  /** Local calendar days on which at least one article was read. */
+  let readDays = $derived.by(() => {
+    const days = new Set<string>();
+
+    for (const record of records) {
+      const date = new Date(record.readAt);
+      if (Number.isNaN(date.getTime())) continue;
+      days.add(
+        `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`,
+      );
+    }
+
+    return days;
+  });
+
+  function dayKey(date: Date): string {
+    return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+  }
+
+  /**
+   * Days in a row ending today — or yesterday, so the streak does not appear
+   * broken all morning before the day's first article.
+   */
+  let currentStreak = $derived.by(() => {
+    const days = readDays;
+    if (days.size === 0) return 0;
+
+    const cursor = new Date();
+    if (!days.has(dayKey(cursor))) {
+      cursor.setDate(cursor.getDate() - 1);
+      if (!days.has(dayKey(cursor))) return 0;
+    }
+
+    let streak = 0;
+    while (days.has(dayKey(cursor))) {
+      streak += 1;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+
+    return streak;
+  });
+
+  let longestStreak = $derived.by(() => {
+    const keys = Array.from(readDays)
+      .map((key) => {
+        const [year, month, day] = key.split("-").map(Number);
+        return new Date(year, month - 1, day).getTime();
+      })
+      .sort((a, b) => a - b);
+
+    if (keys.length === 0) return 0;
+
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    let longest = 1;
+    let run = 1;
+
+    for (let i = 1; i < keys.length; i += 1) {
+      // Compare calendar days, not exact milliseconds: DST shifts a day by an
+      // hour and would otherwise break the run.
+      const gap = Math.round((keys[i] - keys[i - 1]) / DAY_MS);
+      run = gap === 1 ? run + 1 : 1;
+      longest = Math.max(longest, run);
+    }
+
+    return longest;
+  });
+
+  let mostReadFeed = $derived.by(() =>
+    feedReadEntries.length > 0
+      ? { label: feedReadEntries[0].label, count: feedReadEntries[0].count }
+      : null,
+  );
+
+  let busiestHour = $derived.by(() => {
+    const currentWeekStart = startOfWeekMonday(new Date());
+    const windowStart = addDays(currentWeekStart, -(effectiveWeeks - 1) * 7);
+    const hours = Array.from({ length: 24 }, () => 0);
+
+    for (const record of records) {
+      const date = new Date(record.readAt);
+      if (Number.isNaN(date.getTime()) || date < windowStart) continue;
+      hours[date.getHours()] += 1;
+    }
+
+    let best = -1;
+    let bestCount = 0;
+    hours.forEach((count, hour) => {
+      if (count > bestCount) {
+        best = hour;
+        bestCount = count;
+      }
+    });
+
+    return best >= 0 ? { hour: best, count: bestCount } : null;
+  });
+
+  let windowDays = $derived(effectiveWeeks * 7);
+
+  let activeDaysInWindow = $derived.by(() => {
+    const currentWeekStart = startOfWeekMonday(new Date());
+    const windowStart = addDays(currentWeekStart, -(effectiveWeeks - 1) * 7);
+    const days = new Set<string>();
+
+    for (const record of records) {
+      const date = new Date(record.readAt);
+      if (Number.isNaN(date.getTime()) || date < windowStart) continue;
+      days.add(dayKey(date));
+    }
+
+    return days.size;
+  });
+
   let weekdayAverages = $derived.by(() => {
     const counts = Array.from({ length: 7 }, () => 0);
     const currentWeekStart = startOfWeekMonday(new Date());
@@ -331,6 +444,15 @@
   </div>
 {:else}
   <div class="max-w-6xl mx-auto space-y-6">
+    <ReadingHabits
+      {currentStreak}
+      {longestStreak}
+      {mostReadFeed}
+      {busiestHour}
+      activeDays={activeDaysInWindow}
+      {windowDays}
+    />
+
     <SummaryCards
       {totalReadCount}
       {totalArticleCount}
