@@ -41,7 +41,8 @@ Clearing seen history does not touch statistics.
 | `refuel_events` | Refuel | one fill-up: mileage, litres, total, price per litre, station, plus `is_full_refuel` and `missed_previous_refuel`. `missed_previous_refuel` means a fill went unrecorded before this one, so the statistics RPCs return `null` consumption for that interval instead of a wrong number |
 | `car_expenses` | Expense | non-fuel cost against a vehicle |
 | `fuel_stations` | Station | a Tankerkoenig station. Its `id` **is** the Tankerkoenig id, not ours |
-| `fuel_prices` | Price | one price reading for one fuel type at one station at one `checked_at` |
+| `fuel_prices` | Price | one price reading for one fuel type at one station at one `checked_at`. Only the last 21 days are kept |
+| `fuel_prices_daily` | — | min/max/avg per station, fuel type and **Europe/Berlin day**; the long-term history behind the "weekly market low" line once raw readings are pruned |
 | `fuel_type` | E5 / E10 / Diesel | stored capitalised; the Tankerkoenig API wants lowercase — mapped inside the Edge Function |
 | `opening_times`, `overrides`, `whole_day` | Open now | Tankerkoenig's opening-hours shape, stored raw as JSONB and interpreted in SQL |
 | fuel level estimate | Fuel Level | derived, never stored: last refuel plus `tank_capacity` and average consumption |

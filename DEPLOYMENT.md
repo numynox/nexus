@@ -167,6 +167,18 @@ function's environment — or the job starts getting 401s.
 | :--- | :--- | :--- |
 | `fetch-rss-hourly` | `0 * * * *` | `public.invoke_fetch_rss()` |
 | `refresh-fuel-prices-every-10min` | `7,17,27,37,47,57 * * * *` | `public.invoke_refresh_fuel_prices()` |
+| `nexus-maintenance-daily` | `20 3 * * *` | `public.run_nexus_maintenance()` |
+
+`nexus-maintenance-daily` never leaves the database — no Edge Function, no Vault
+secret — so unlike the other two it reports its own outcome. It returns a JSON
+summary of rows touched per step, which `cron.job_run_details` records:
+
+```sql
+select start_time, return_message
+from cron.job_run_details
+where jobid = (select jobid from cron.job where jobname = 'nexus-maintenance-daily')
+order by start_time desc limit 7;
+```
 
 ### Verifying and debugging a job
 
@@ -207,6 +219,11 @@ The local restore rebuilds the schema from `supabase/migrations/` and then loads
 only the backup's **data**, so a restored database is always at the current
 schema version — old backups work without any per-migration fix-ups.
 
+Restoring a backup taken before the fuel price rollup existed leaves
+`fuel_prices_daily` empty. Nothing breaks — the weekly minima RPC falls back to
+raw readings and the prune refuses to delete anything — but rebuild it with
+`select public.rollup_fuel_prices_daily();` to get the aggregated history back.
+
 Because the default backup covers `public` only, a local restore brings data but
 not users; ids will not match. Repoint ownership with:
 
@@ -237,6 +254,45 @@ SUPABASE_DB_URL='postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.su
 ```
 
 ---
+
+## Reclaiming database space
+
+Retention runs nightly (see the schedule above), but Postgres does not return
+freed space to the operating system on its own: a `DELETE` only marks the rows
+reusable. After the first maintenance run — or any other large cleanup — the
+dashboard number moves only once the tables are rewritten.
+
+Run it once by hand after deploying the retention migrations:
+
+```sql
+-- 1. Aggregate, then prune. Safe to repeat; reports what it touched.
+select public.run_nexus_maintenance();
+
+-- 2. Check the charts still look right in Vibilia before reclaiming.
+
+-- 3. Rewrite the tables. Brief exclusive lock; seconds at this size.
+vacuum full public.fuel_prices;
+vacuum full public.articles;
+reindex table public.fuel_prices;
+reindex table public.articles;
+
+-- 4. pg_net's log is a log: truncating returns the space immediately.
+truncate net._http_response;
+```
+
+Measured against a restored production backup (2026-09-05): `fuel_prices` fell
+from 71 MB to 7.9 MB, `articles` from 19 MB to 10 MB, and `fuel_prices_daily`
+cost 560 kB. `VACUUM FULL` cannot run inside a transaction, so it can never be
+part of a migration.
+
+To see where the space actually is:
+
+```sql
+select relname, pg_size_pretty(pg_total_relation_size(c.oid)) as total
+from pg_class c join pg_namespace n on n.oid = c.relnamespace
+where c.relkind = 'r' and n.nspname in ('public', 'net', 'cron')
+order by pg_total_relation_size(c.oid) desc limit 10;
+```
 
 ## Standing up a new environment
 
