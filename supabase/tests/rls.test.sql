@@ -9,7 +9,7 @@ begin;
 
 create extension if not exists pgtap;
 
-select plan(13);
+select plan(16);
 
 -- ── Fixtures, created as postgres (RLS does not apply) ─────────────────────
 insert into auth.users (id, email) values
@@ -29,6 +29,9 @@ values (900001, 'RLS T Section', 'bbbb0000-0000-4000-8000-000000000001');
 insert into public.sections_feeds (section_id, feed_id) values (900001, 900001);
 
 insert into public.article_reads (user_id, article_id)
+values ('bbbb0000-0000-4000-8000-000000000001', 900001);
+
+insert into public.article_stars (user_id, article_id)
 values ('bbbb0000-0000-4000-8000-000000000001', 900001);
 
 -- Vibilia: access is per car, via owner_id or a car_access row.
@@ -72,6 +75,11 @@ select is(
   'Noctua: a user sees articles from a feed in one of their own sections'
 );
 
+select is(
+  (select count(*) from public.article_stars where article_id = 900001), 1::bigint,
+  'Noctua: a user sees their own stars'
+);
+
 set local request.jwt.claims to '{"sub":"bbbb0000-0000-4000-8000-000000000002","role":"authenticated"}';
 
 select is(
@@ -82,6 +90,21 @@ select is(
 select is(
   (select count(*) from public.article_reads where article_id = 900001), 0::bigint,
   'Noctua: another user cannot see those read marks'
+);
+
+select is(
+  (select count(*) from public.article_stars where article_id = 900001), 0::bigint,
+  'Noctua: another user cannot see those stars'
+);
+
+-- Stars are intent, not history, but they reach no further than reads do: an
+-- article you cannot see is one you cannot star.
+select throws_ok(
+  $$insert into public.article_stars (user_id, article_id)
+    values ('bbbb0000-0000-4000-8000-000000000002', 900001)$$,
+  '42501',
+  'new row violates row-level security policy for table "article_stars"',
+  'Noctua: a user cannot star an article no section of theirs covers'
 );
 
 select is(

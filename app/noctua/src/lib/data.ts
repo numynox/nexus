@@ -655,6 +655,69 @@ export async function markArticleAsReadForUser(
   }
 }
 
+/** Articles the user has starred, as a set for quick membership tests. */
+export async function fetchStarredArticleIdsForUser(
+  userId: string,
+): Promise<Record<string, true>> {
+  const supabase = getSupabaseClient();
+  const db = supabase as any;
+
+  const { data, error } = await db
+    .from("article_stars")
+    .select("article_id")
+    .eq("user_id", userId);
+
+  if (error) {
+    throw error;
+  }
+
+  const starred: Record<string, true> = {};
+  (data ?? []).forEach((row: { article_id: number }) => {
+    starred[String(row.article_id)] = true;
+  });
+
+  return starred;
+}
+
+export async function starArticleForUser(
+  userId: string,
+  articleId: string,
+): Promise<void> {
+  const supabase = getSupabaseClient();
+  const db = supabase as any;
+
+  const { error } = await db.from("article_stars").upsert(
+    {
+      user_id: userId,
+      article_id: toDbId(articleId),
+      starred_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id,article_id", ignoreDuplicates: true },
+  );
+
+  if (error) {
+    throw error;
+  }
+}
+
+export async function unstarArticleForUser(
+  userId: string,
+  articleId: string,
+): Promise<void> {
+  const supabase = getSupabaseClient();
+  const db = supabase as any;
+
+  const { error } = await db
+    .from("article_stars")
+    .delete()
+    .eq("user_id", userId)
+    .eq("article_id", toDbId(articleId));
+
+  if (error) {
+    throw error;
+  }
+}
+
 /**
  * Mark a whole batch read in one round trip — a section or a feed at a time.
  *
