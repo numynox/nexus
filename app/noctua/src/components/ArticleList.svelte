@@ -522,61 +522,30 @@
     ["?", "This list"],
   ];
 
-  // ── Touch: swipe an article to toggle read, pull down to refresh ─────────
-  let swipeStartX = 0;
-  let swipeStartY = 0;
-  let swipeId: string | null = null;
-  let swipeOffset = $state(0);
-  let pullDistance = $state(0);
+  // ── Touch: pull down to refresh ─────────────────────────────────────────
+  let pullStartY = 0;
   let pullActive = false;
+  let pullDistance = $state(0);
 
-  const SWIPE_THRESHOLD = 90;
   const PULL_THRESHOLD = 80;
 
-  function onTouchStart(event: TouchEvent, articleId: string) {
-    const touch = event.touches[0];
-    swipeStartX = touch.clientX;
-    swipeStartY = touch.clientY;
-    swipeId = articleId;
-    swipeOffset = 0;
-
+  function onTouchStart(event: TouchEvent) {
+    // Only from the very top, or the gesture fights with normal scrolling.
     pullActive = window.scrollY <= 0 && !!onRefresh;
+    pullStartY = event.touches[0].clientY;
     pullDistance = 0;
   }
 
   function onTouchMove(event: TouchEvent) {
-    const touch = event.touches[0];
-    const dx = touch.clientX - swipeStartX;
-    const dy = touch.clientY - swipeStartY;
+    if (!pullActive) return;
 
-    if (pullActive && dy > 0 && Math.abs(dy) > Math.abs(dx)) {
-      pullDistance = Math.min(dy, PULL_THRESHOLD * 1.5);
-      return;
-    }
-
-    if (Math.abs(dx) > Math.abs(dy)) {
-      swipeOffset = dx;
-    }
+    const dy = event.touches[0].clientY - pullStartY;
+    pullDistance = dy > 0 ? Math.min(dy, PULL_THRESHOLD * 1.5) : 0;
   }
 
   function onTouchEnd() {
-    if (pullDistance >= PULL_THRESHOLD) {
-      pullDistance = 0;
-      pullActive = false;
-      void refresh();
-      return;
-    }
+    if (pullDistance >= PULL_THRESHOLD) void refresh();
 
-    if (swipeId && Math.abs(swipeOffset) >= SWIPE_THRESHOLD) {
-      const index = navigableArticles.findIndex((a) => a.id === swipeId);
-      if (index >= 0) {
-        focusedIndex = index;
-        toggleReadFocused();
-      }
-    }
-
-    swipeId = null;
-    swipeOffset = 0;
     pullDistance = 0;
     pullActive = false;
   }
@@ -873,16 +842,18 @@
           type="button"
           class="btn btn-ghost btn-sm gap-1"
           onclick={markAllVisibleRead}
-          title="Mark everything shown as read (a)"
+          title="Mark everything shown as read"
         >
           <CheckCheck class="h-4 w-4" />
           <span class="hidden sm:inline">Mark read</span>
         </button>
       {/if}
 
+      <!-- Nothing to press on a phone; the sm breakpoint is close enough to
+           "has a keyboard" for a button whose only job is to explain one. -->
       <button
         type="button"
-        class="btn btn-ghost btn-sm btn-square"
+        class="btn btn-ghost btn-sm btn-square hidden sm:inline-flex"
         onclick={() => (showShortcuts = !showShortcuts)}
         title="Keyboard shortcuts (?)"
         aria-label="Keyboard shortcuts"
@@ -892,10 +863,16 @@
     </div>
   </div>
 
-  {#each groupedArticles as group (group.label)}
-    <section class="mb-6">
+  <div
+    ontouchstart={onTouchStart}
+    ontouchmove={onTouchMove}
+    ontouchend={onTouchEnd}
+  >
+    {#each groupedArticles as group (group.label)}
+      <section class="mb-6">
       <h2
-        class="sticky top-16 z-10 -mx-2 mb-3 bg-base-100/90 px-2 py-1 text-sm font-semibold text-base-content/70 backdrop-blur-sm"
+        class="sticky z-10 -mx-2 mb-3 bg-base-100/90 px-2 py-1 text-sm font-semibold text-base-content/70 backdrop-blur-sm"
+        style="top: var(--noctua-header-height, 4rem)"
       >
         {group.label}
       </h2>
@@ -905,30 +882,25 @@
           {#each group.items as { article, index, similar } (article.id)}
             <li
               data-article-id={article.id}
-              class="flex items-center gap-1 pr-1 transition-colors {focusedIndex ===
+              class="isolate flex items-center gap-1 pr-1 transition-colors {focusedIndex ===
               index
                 ? 'bg-base-200 ring-1 ring-primary/40'
                 : ''}"
-              style={swipeId === article.id
-                ? `transform: translateX(${swipeOffset}px)`
-                : ""}
-              ontouchstart={(e) => onTouchStart(e, article.id)}
-              ontouchmove={onTouchMove}
-              ontouchend={onTouchEnd}
             >
               <a
                 href={article.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 onclick={() => handleArticleClick(article.id)}
-                class="flex min-w-0 flex-1 items-baseline gap-3 px-2 py-2 hover:bg-base-200/60 {article.id in
-                  readArticles && !noDim
+                class="flex min-w-0 flex-1 items-baseline gap-3 px-2 py-2 hover:bg-base-200/60 {(article.id in
+                  readArticles ||
+                  article.id in seenArticles) && !noDim
                   ? 'opacity-50'
                   : ''}"
               >
                 <span
                   class="h-2 w-2 shrink-0 rounded-full {article.id in
-                  readArticles
+                    readArticles || article.id in seenArticles
                     ? 'bg-transparent'
                     : 'bg-primary'}"
                   aria-hidden="true"
@@ -1001,17 +973,16 @@
       {:else}
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 xl:grid-cols-3">
           {#each group.items as { article, index, similar } (article.id)}
+            <!-- isolate: ArticleCard lifts its body with `relative z-10`, which
+                 otherwise competes with the sticky date header on equal terms
+                 and wins on DOM order. Read cards happened to be dimmed with
+                 opacity, which made a stacking context by accident and hid the
+                 bug; unread ones cut straight across the date bar. -->
             <div
               data-article-id={article.id}
-              class="rounded-2xl transition-transform {focusedIndex === index
+              class="isolate rounded-2xl {focusedIndex === index
                 ? 'ring-2 ring-primary/50'
                 : ''}"
-              style={swipeId === article.id
-                ? `transform: translateX(${swipeOffset}px)`
-                : ""}
-              ontouchstart={(e) => onTouchStart(e, article.id)}
-              ontouchmove={onTouchMove}
-              ontouchend={onTouchEnd}
             >
               <div class="relative">
                 <ArticleCard
@@ -1078,8 +1049,9 @@
           {/each}
         </div>
       {/if}
-    </section>
-  {/each}
+      </section>
+    {/each}
+  </div>
 {/if}
 
 {#if undoable.length > 0}

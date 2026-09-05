@@ -9,7 +9,7 @@
     reorderFeedInSectionForUser,
     reorderSectionForUser,
     updateSectionForUser,
-  } from "../../lib/data";
+    describeError,} from "../../lib/data";
   import type { Feed, Section } from "../../lib/types";
 
   interface Props {
@@ -94,7 +94,7 @@
         selectedFeedToAddId = feedsAvailableToAdd[0]?.id || "";
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = describeError(error);
       sectionsError = message;
       sections = [];
       availableFeeds = [];
@@ -120,7 +120,7 @@
       await loadSectionManagementData(userId);
       onSectionDataChanged?.();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = describeError(error);
       sectionsError = message;
     } finally {
       sectionsBusy = false;
@@ -161,7 +161,7 @@
       sectionsFeedback = "Section created.";
       onSectionDataChanged?.();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = describeError(error);
       createSectionError = message;
     } finally {
       sectionsBusy = false;
@@ -209,7 +209,7 @@
       sectionsFeedback = "Section updated.";
       onSectionDataChanged?.();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = describeError(error);
       editSectionError = message;
     } finally {
       sectionsBusy = false;
@@ -240,7 +240,7 @@
       sectionsFeedback = "Section deleted.";
       onSectionDataChanged?.();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = describeError(error);
       editSectionError = message;
     } finally {
       sectionsBusy = false;
@@ -264,7 +264,7 @@
       sectionsFeedback = "Feed added to section.";
       onSectionDataChanged?.();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = describeError(error);
       editSectionError = message;
     } finally {
       sectionsBusy = false;
@@ -288,7 +288,7 @@
       sectionsFeedback = "Feed removed from section.";
       onSectionDataChanged?.();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = describeError(error);
       editSectionError = message;
     } finally {
       sectionsBusy = false;
@@ -319,7 +319,7 @@
       sectionsFeedback = "Feed order updated.";
       onSectionDataChanged?.();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = describeError(error);
       editSectionError = message;
     } finally {
       sectionsBusy = false;
