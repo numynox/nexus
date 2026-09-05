@@ -1,0 +1,84 @@
+{
+  "version": "5",
+  "redirects": {
+    "https://esm.sh/@supabase/supabase-js@2": "https://esm.sh/@supabase/supabase-js@2.101.1"
+  },
+  "remote": {
+    "https://esm.sh/@supabase/supabase-js@2.101.1": "a0b3bce15718ea65beee03d44136fb795fab037a2f7134cc4e0157eee6f8063a"
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:supabase@^2.84.2"
+      ]
+    },
+    "members": {
+      "app/annona": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@astrojs/check@~0.9.10",
+            "npm:@astrojs/svelte@^9.0.1",
+            "npm:@nexus/config@*",
+            "npm:@supabase/supabase-js@^2.45.0",
+            "npm:@tailwindcss/vite@^4.3.3",
+            "npm:astro@^7.3.1",
+            "npm:chart.js@^4.5.1",
+            "npm:daisyui@^5.5.19",
+            "npm:html5-qrcode@^2.3.8",
+            "npm:lucide-svelte@0.577",
+            "npm:svelte@^5.55.0",
+            "npm:tailwindcss@^4.3.3",
+            "npm:typescript@^5.9.3"
+          ]
+        }
+      },
+      "app/noctua": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@astrojs/check@~0.9.10",
+            "npm:@astrojs/svelte@^9.0.1",
+            "npm:@nexus/config@*",
+            "npm:@supabase/supabase-js@2",
+            "npm:@tailwindcss/vite@^4.3.3",
+            "npm:@types/node@^25.0.9",
+            "npm:astro@^7.3.1",
+            "npm:daisyui@5",
+            "npm:marked@^17.0.1",
+            "npm:svelte@^5.55.0",
+            "npm:tailwindcss@^4.3.3",
+            "npm:typescript@^5.9.3"
+          ]
+        }
+      },
+      "app/vibilia": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@astrojs/check@~0.9.10",
+            "npm:@astrojs/svelte@^9.0.1",
+            "npm:@nexus/config@*",
+            "npm:@supabase/supabase-js@^2.45.0",
+            "npm:@tailwindcss/vite@^4.3.3",
+            "npm:@types/leaflet@^1.9.21",
+            "npm:astro@^7.3.1",
+            "npm:chart.js@^4.5.1",
+            "npm:daisyui@^5.5.19",
+            "npm:dayjs@^1.11.20",
+            "npm:leaflet@^1.9.4",
+            "npm:lucide-svelte@0.577",
+            "npm:svelte-chartjs@^4.0.1",
+            "npm:svelte@^5.55.0",
+            "npm:tailwindcss@^4.3.3",
+            "npm:typescript@^5.9.3"
+          ]
+        }
+      },
+      "packages/config": {
+        "packageJson": {
+          "dependencies": [
+            "npm:js-yaml@^4.1.1"
+          ]
+        }
+      }
+    }
+  }
+}

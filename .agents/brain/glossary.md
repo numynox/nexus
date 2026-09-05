@@ -58,7 +58,9 @@ Clearing seen history does not touch statistics.
 | `annona_storage_locations` | Location | Fridge, Pantry, Freezer… |
 | `annona_categories` | Category | shared list, seeded from `DEFAULT_CATEGORIES` on first login; each has a `color` and `icon` key resolved through `lib/categoryMeta.ts` |
 | `annona_item_log` | Activity / Comments | append-only trail per item (`created`, `consumed`, `expiration_changed`, `location_changed`, `comment`, …) with the acting `user_id` — the only record of *who* in a shared database |
-| `ean` | Barcode | scanned with the camera; the scan path is Product-first: find by EAN, else create the product, then add an item |
+| `ean` | Barcode | scanned with the camera; the scan path is Product-first: find by EAN, else look it up in Open Food Facts, then create the product and add an item |
+| `energy_kcal_100g` … `salt_100g` | Nutrition | the EU nutrition declaration per 100 g/ml, as printed on the packet |
+| `nutrition_source` | — | `openfoodfacts` when the values came from a lookup; NULL when typed by hand |
 
 Products, categories and locations in Annona are **shared by every user**, not
 owned. There is no "my products".

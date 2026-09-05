@@ -6,7 +6,7 @@
     getLoginHref,
     loadUserContent,
     onAuthStateChange,
-  } from "../lib/data";
+    describeError,} from "../lib/data";
   import type { Article, Section } from "../lib/types";
   import ArticleList from "./ArticleList.svelte";
 
@@ -31,10 +31,37 @@
   let baseUrl = $state("/");
   let siteTitle = $state("Noctua");
   let articleFetchLimit = $state(300);
-  // Paging state: the fetch limit is a page size, not a ceiling. Before this,
-  // anything past the first 300 was simply unreachable.
-  let loadingMore = $state(false);
-  let hasMore = $state(false);
+
+  /**
+   * The date headers stick directly below this one, so they need its height —
+   * which is set by its content and changes with the viewport. Publishing it as
+   * a custom property beats hardcoding a value that is right at one width and a
+   * few pixels out at every other.
+   */
+  let stickyHeader = $state<HTMLDivElement | null>(null);
+
+  $effect(() => {
+    const element = stickyHeader;
+    if (!element || typeof ResizeObserver === "undefined") return;
+
+    const publishHeight = () => {
+      const { height } = element.getBoundingClientRect();
+      document.documentElement.style.setProperty(
+        "--noctua-header-height",
+        `${Math.round(height)}px`,
+      );
+    };
+
+    publishHeight();
+
+    const observer = new ResizeObserver(publishHeight);
+    observer.observe(element);
+
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.removeProperty("--noctua-header-height");
+    };
+  });
 
   // Progress tracking for unseen articles
   let initialUnseen = $state(0);
@@ -166,8 +193,6 @@
           : content.articles;
       }
 
-      // A full page suggests there is more behind it; the next fetch settles it.
-      hasMore = (content.articles?.length ?? 0) >= articleFetchLimit;
 
       // update URL parameters: clear section when in read mode, otherwise
       // keep them in sync with current selection
@@ -200,7 +225,7 @@
         }
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = describeError(error);
       errorMessage = message;
       isLoggedIn = false;
       sections = [];
@@ -209,43 +234,6 @@
       selectedFeedId = null;
     } finally {
       loading = false;
-    }
-  }
-
-  /**
-   * Fetch the next page and append it.
-   *
-   * Offset paging over a feed that gains articles at the top can repeat a row;
-   * appending only ids we do not already have keeps that from showing.
-   */
-  async function loadMore() {
-    if (loadingMore || !hasMore) return;
-
-    loadingMore = true;
-
-    try {
-      const older = await fetchArticlesForSections(
-        sections,
-        onlyRead || onlyStarred ? null : selectedSectionId,
-        articleFetchLimit,
-        articles.length,
-      );
-
-      const known = new Set(articles.map((article) => article.id));
-      const fresh = older.filter((article) => !known.has(article.id));
-
-      articles = [
-        ...articles,
-        ...(selectedFeedId
-          ? fresh.filter((article) => article.feed_id === selectedFeedId)
-          : fresh),
-      ];
-
-      hasMore = older.length >= articleFetchLimit;
-    } catch (error) {
-      errorMessage = error instanceof Error ? error.message : String(error);
-    } finally {
-      loadingMore = false;
     }
   }
 
@@ -315,6 +303,7 @@
   </div>
 {:else}
   <div
+    bind:this={stickyHeader}
     class="sticky top-0 z-20 mb-6 -mx-4 lg:-mx-8 px-6 lg:px-8 bg-base-100/80 backdrop-blur-sm border-b border-base-300/60 relative"
   >
     <div class="py-3 flex items-center justify-between gap-4">
@@ -397,19 +386,5 @@
       {onlyStarred}
     />
 
-    {#if hasMore}
-      <div class="flex justify-center py-8">
-        <button
-          class="btn btn-outline"
-          onclick={loadMore}
-          disabled={loadingMore}
-        >
-          {#if loadingMore}
-            <span class="loading loading-spinner loading-sm"></span>
-          {/if}
-          Load older articles
-        </button>
-      </div>
-    {/if}
   </div>
 {/if}

@@ -33,7 +33,7 @@
     fetchExpiringItems,
     type DashboardSummary,
     type Item,
-  } from "../../lib/data";
+    describeError,} from "../../lib/data";
   import { session } from "../../lib/stores";
 
   Chart.register(
@@ -93,7 +93,7 @@
       expiringItems = items;
       allActiveItems = all;
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     } finally {
       loading = false;
     }
@@ -290,7 +290,7 @@
         };
       }
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     }
   }
 
@@ -306,7 +306,7 @@
         };
       }
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     }
   }
 </script>
