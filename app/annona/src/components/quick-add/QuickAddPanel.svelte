@@ -20,7 +20,7 @@
     type Category,
     type Product,
     type StorageLocation,
-  } from "../../lib/data";
+    describeError,} from "../../lib/data";
   import { session } from "../../lib/stores";
 
   let categories: Category[] = $state([]);
@@ -109,7 +109,7 @@
       categories = cats;
       locations = locs;
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     } finally {
       loading = false;
     }
@@ -375,7 +375,7 @@
       }
       step = "details";
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     }
   }
 
@@ -448,7 +448,7 @@
       addAnother();
       showToast(`Added ${countLabel} for "${displayName}"`);
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     } finally {
       saving = false;
     }

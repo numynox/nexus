@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { getSession, signInWithPassword } from "../lib/data";
+  import { getSession, signInWithPassword,
+    describeError,} from "../lib/data";
 
   interface Props {
     siteTitle?: string;
@@ -48,7 +49,7 @@
       await signInWithPassword(email.trim(), password);
       window.location.replace(homeHref);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = describeError(error);
       authError = message;
     } finally {
       isBusy = false;

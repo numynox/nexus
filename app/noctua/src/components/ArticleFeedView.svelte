@@ -5,7 +5,7 @@
     getLoginHref,
     loadUserContent,
     onAuthStateChange,
-  } from "../lib/data";
+    describeError,} from "../lib/data";
   import type { Article, Section } from "../lib/types";
   import ArticleList from "./ArticleList.svelte";
 
@@ -187,7 +187,7 @@
         }
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = describeError(error);
       errorMessage = message;
       isLoggedIn = false;
       sections = [];

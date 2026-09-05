@@ -6,7 +6,7 @@
     type Category,
     type Product,
     type ProductInsert,
-  } from "../../lib/data";
+    describeError,} from "../../lib/data";
 
   interface Props {
     categories: Category[];
@@ -58,7 +58,7 @@
       }
       onClose();
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     } finally {
       saving = false;
     }

@@ -32,7 +32,7 @@
     type ItemLogEntry,
     type Product,
     type StorageLocation,
-  } from "../../lib/data";
+    describeError,} from "../../lib/data";
   import { session } from "../../lib/stores";
   import ItemForm from "./ItemForm.svelte";
 
@@ -80,7 +80,7 @@
       items = i;
       locations = l;
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     } finally {
       loading = false;
     }
@@ -127,7 +127,7 @@
           : i,
       );
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     } finally {
       sendingComment = null;
     }
@@ -189,7 +189,7 @@
       }
       cancelEdit();
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     } finally {
       savingEdit = false;
     }
@@ -279,7 +279,7 @@
         itemLogs[item.id] = await fetchItemLog(item.id);
       }
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     }
   }
 
@@ -295,7 +295,7 @@
         itemLogs[item.id] = await fetchItemLog(item.id);
       }
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     }
   }
 
@@ -307,7 +307,7 @@
       await deleteItem(item.id);
       items = items.filter((i) => i.id !== item.id);
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     }
   }
 
@@ -351,7 +351,7 @@
       await deleteProduct(product.id);
       onBack();
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
       confirmDeleteProduct = false;
     }
   }

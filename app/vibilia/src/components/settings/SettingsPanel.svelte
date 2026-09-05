@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { signOut } from "../../lib/data";
+  import { signOut,
+    describeError,} from "../../lib/data";
   import {
     getFuelPricePreviousDays,
     getPreferredFuelType,
@@ -75,7 +76,7 @@
     try {
       await signOut();
     } catch (error) {
-      authError = error instanceof Error ? error.message : String(error);
+      authError = describeError(error);
     } finally {
       isBusy = false;
     }

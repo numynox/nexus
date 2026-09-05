@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { describeError } from "../../lib/data";
   import { Banknote, CalendarClock, FileText, Gauge, Tag } from "lucide-svelte";
   import * as dataApi from "../../lib/data";
   import { session } from "../../lib/stores";
@@ -140,7 +141,7 @@
 
       onSuccess();
     } catch (error) {
-      alert(error instanceof Error ? error.message : String(error));
+      alert(describeError(error));
     } finally {
       loading = false;
     }

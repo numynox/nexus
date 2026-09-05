@@ -14,7 +14,7 @@
     updateStorageLocation,
     type LocationGroup,
     type StorageLocation,
-  } from "../../lib/data";
+    describeError,} from "../../lib/data";
   import { session } from "../../lib/stores";
 
   const baseUrl = getBaseUrl();
@@ -52,7 +52,7 @@
       locations = locs;
       groups = grps;
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     } finally {
       loading = false;
     }
@@ -67,7 +67,7 @@
       newName = "";
       adding = false;
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     }
   }
 
@@ -96,7 +96,7 @@
       );
       cancelEdit();
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
     }
   }
 
@@ -108,7 +108,7 @@
       groups = groups.filter((g) => g.location_id !== id);
       confirmDeleteId = null;
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      error = describeError(e);
       confirmDeleteId = null;
     }
   }
