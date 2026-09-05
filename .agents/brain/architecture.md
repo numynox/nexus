@@ -62,9 +62,6 @@ Pages site and the `base` paths are load-bearing — every internal link is buil
 from `getBaseUrl()`, never hardcoded. All three set `vite.envDir: "../.."`, so
 they read the **root** `.env`; there are no per-app env files.
 
-The Astro/Svelte version split is unintended drift — see
-`issues/astro-version-divergence.md`.
-
 ### Layering inside an app
 
 ```
@@ -200,7 +197,7 @@ Annona namespaces everything with `annona_`. **New tables get a prefix.**
 | :--- | :--- |
 | shared | `profiles` |
 | Noctua | `feeds`, `articles`, `sections`, `sections_feeds`, `article_reads` |
-| Vibilia | `cars`, `car_access`, `refuel_events`, `car_expenses`, `fuel_stations`, `fuel_prices` |
+| Vibilia | `cars`, `car_access`, `refuel_events`, `car_expenses`, `fuel_stations`, `fuel_prices`, `fuel_prices_daily` |
 | Annona | `annona_categories`, `annona_storage_locations`, `annona_products`, `annona_items`, `annona_item_log` |
 
 `profiles` is the one genuinely shared table: `id` matches `auth.users.id`, and
@@ -244,7 +241,10 @@ Anything aggregating, joining or crossing a permission boundary is a
   `user_can_access_car`
 - Annona: `annona_dashboard_summary`
 - Operational: `reassign_profile_user`, `invoke_fetch_rss`,
-  `invoke_refresh_fuel_prices`
+  `invoke_refresh_fuel_prices`, `nexus_time_zone`,
+  `rollup_fuel_prices_daily`, `prune_fuel_prices_raw`,
+  `prune_articles_unread`, `prune_net_http_response`,
+  `prune_cron_job_run_details`, `run_nexus_maintenance`
 
 A `SECURITY DEFINER` function bypasses RLS, so each one re-checks access itself
 (`user_can_access_car`, or an explicit `auth.uid()` filter). Several have been
@@ -264,8 +264,8 @@ Deno, in `supabase/functions/`, deployed manually. Two authentication styles:
 The first two use the service-role key and must never be reachable without the
 secret. The third runs as the caller and validates its own inputs (lat/lng
 bounds, radius 0.1–25 km, fuel type allow-list) because the request comes from a
-browser. `supabase/config.toml` declares only the first two — the third relies
-on default JWT verification (`issues/config-toml-missing-function.md`).
+browser. `supabase/config.toml` declares all three: `verify_jwt = false` for the two
+guarded by a shared secret, `true` for the one called from a browser.
 
 ### Scheduling
 
@@ -276,10 +276,42 @@ via `pg_net`
 
 - `fetch-rss-hourly` — `0 * * * *`
 - `refresh-fuel-prices-every-10min` — `7,17,27,37,47,57 * * * *`
+- `nexus-maintenance-daily` — `20 3 * * *`, calling
+  `public.run_nexus_maintenance()` (see *Retention* below). Unlike the other
+  two it stays inside Postgres; no Edge Function, no Vault secret.
 
 Both scheduling migrations first unschedule any earlier job with the same name
 or command, so re-running them is safe. Vault secrets are **not** in migrations
 and must exist in each environment or the job raises.
+
+### Retention
+
+Nothing here grows without a bound, because the free tier is 500 MB for all
+three apps and two writers would otherwise eat it: the fuel price cron (~3,000
+rows a day) and `pg_net`, which logs the HTTP response of every scheduled call
+even though both invoke wrappers are fire-and-forget.
+
+`run_nexus_maintenance()` runs nightly and does five things, each isolated so
+one failure cannot stop the rest:
+
+| Step | Keeps |
+| :--- | :--- |
+| `rollup_fuel_prices_daily()` | aggregates raw prices into `fuel_prices_daily` through yesterday, in Europe/Berlin days |
+| `prune_fuel_prices_raw()` | 21 days of raw readings, and only deletes rows whose daily aggregate already exists |
+| `prune_articles_unread()` | every article ever read, plus 90 days of everything else |
+| `prune_net_http_response()` | 24 hours of pg_net responses |
+| `prune_cron_job_run_details()` | 7 days of pg_cron history |
+
+Two traps are encoded in those rules. `article_reads.article_id` cascades on
+delete, so pruning read articles would silently delete the read history and
+rewrite Noctua's statistics — hence "unread only". And the vehicle statistics
+page charts weekly price minima over *years*, so raw prices could not simply be
+deleted; the rollup preserves that chart exactly, because the minimum of daily
+minima is the weekly minimum. Reasoning and the measured effect:
+`decisions/2026-09-05-fuel-price-rollup-and-retention.md`.
+
+Deletes alone do not shrink the database — reclaiming space needs `VACUUM FULL`,
+which is a manual step in `DEPLOYMENT.md`.
 
 ### Migrations
 
