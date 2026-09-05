@@ -137,6 +137,20 @@ npm run db:functions:serve
 Then invoke them with the Bruno collection in `.bruno/supabase/`; the two
 scheduled functions require their invoke secret and will return 401 without it.
 
+**Edge Functions need working DNS inside their container.** They call external
+APIs — Open Food Facts, Tankerkoenig, RSS feeds — so a Docker setup without
+usable name resolution fails them all with "name resolution failed" while the
+rest of the stack works fine. A VPN or a Docker restart is the usual cause. Test
+it with:
+
+```bash
+docker run --rm alpine nslookup world.openfoodfacts.org
+```
+
+If that fails, give the Docker daemon explicit resolvers in
+`/etc/docker/daemon.json` (`{"dns": ["1.1.1.1", "8.8.8.8"]}`), restart Docker,
+then `npm run db:stop && npm run db:start`.
+
 Optional test data:
 
 ```bash

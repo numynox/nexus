@@ -198,11 +198,23 @@ Deno.serve(async (req) => {
     });
   } catch (error) {
     const aborted = error instanceof Error && error.name === "AbortError";
+    const detail = error instanceof Error ? error.message : String(error);
+
+    // A DNS or connect failure here is the runtime's network, not Open Food
+    // Facts — locally that usually means the Edge Runtime container cannot
+    // resolve names (a VPN, or Docker restarted without usable DNS). Say so,
+    // because "name resolution failed" on its own sends people looking in the
+    // wrong place.
+    const networkFailure = /name resolution|dns|error sending request|connect/i
+      .test(detail);
+
     return jsonResponse(
       {
         error: aborted
           ? "Open Food Facts did not respond in time"
-          : `Lookup failed: ${error instanceof Error ? error.message : String(error)}`,
+          : networkFailure
+            ? `Could not reach Open Food Facts from the Edge Function runtime (${detail}). Check that the runtime has working DNS and outbound network access.`
+            : `Lookup failed: ${detail}`,
       },
       aborted ? 504 : 502,
     );
