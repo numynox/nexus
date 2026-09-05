@@ -780,7 +780,8 @@
   {#each groupedArticles as group (group.label)}
     <section class="mb-6">
       <h2
-        class="sticky top-16 z-10 -mx-2 mb-3 bg-base-100/90 px-2 py-1 text-sm font-semibold text-base-content/70 backdrop-blur-sm"
+        class="sticky z-10 -mx-2 mb-3 bg-base-100/90 px-2 py-1 text-sm font-semibold text-base-content/70 backdrop-blur-sm"
+        style="top: var(--noctua-header-height, 4rem)"
       >
         {group.label}
       </h2>

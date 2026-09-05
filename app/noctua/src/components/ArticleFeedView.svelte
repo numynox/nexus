@@ -29,6 +29,37 @@
   let siteTitle = $state("Noctua");
   let articleFetchLimit = $state(300);
 
+  /**
+   * The date headers stick directly below this one, so they need its height —
+   * which is set by its content and changes with the viewport. Publishing it as
+   * a custom property beats hardcoding a value that is right at one width and a
+   * few pixels out at every other.
+   */
+  let stickyHeader = $state<HTMLDivElement | null>(null);
+
+  $effect(() => {
+    const element = stickyHeader;
+    if (!element || typeof ResizeObserver === "undefined") return;
+
+    const publishHeight = () => {
+      const { height } = element.getBoundingClientRect();
+      document.documentElement.style.setProperty(
+        "--noctua-header-height",
+        `${Math.round(height)}px`,
+      );
+    };
+
+    publishHeight();
+
+    const observer = new ResizeObserver(publishHeight);
+    observer.observe(element);
+
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.removeProperty("--noctua-header-height");
+    };
+  });
+
   // Progress tracking for unseen articles
   let initialUnseen = $state(0);
   let progress = $derived.by(() => {
@@ -265,6 +296,7 @@
   </div>
 {:else}
   <div
+    bind:this={stickyHeader}
     class="sticky top-0 z-20 mb-6 -mx-4 lg:-mx-8 px-6 lg:px-8 bg-base-100/80 backdrop-blur-sm border-b border-base-300/60 relative"
   >
     <div class="py-3 flex items-center justify-between gap-4">
