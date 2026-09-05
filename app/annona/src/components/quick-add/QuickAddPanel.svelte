@@ -1,5 +1,12 @@
 <script lang="ts">
-  import { CameraOff, Check, Package, Plus, Search } from "lucide-svelte";
+  import {
+    CameraOff,
+    Check,
+    Package,
+    Plus,
+    Search,
+    Sparkles,
+  } from "lucide-svelte";
   import { onDestroy, onMount } from "svelte";
   import { getCategoryIconComponent } from "../../lib/categoryMeta";
   import {
@@ -7,6 +14,7 @@
     createProduct,
     fetchCategories,
     fetchProductByEan,
+    lookupProductByEan,
     fetchStorageLocations,
     searchProducts,
     type Category,
@@ -28,6 +36,11 @@
 
   // Product form state
   let scannedEan = $state("");
+  // What Open Food Facts offered for a barcode Annona has not seen before —
+  // shown as a note so a suggested product is never mistaken for a known one.
+  let lookupSource = $state<string | null>(null);
+  let lookupNutrition = $state<Record<string, unknown> | null>(null);
+  let lookingUp = $state(false);
   let foundProduct: Product | null = $state(null);
   let showProductFields = $state(false);
 
@@ -277,7 +290,7 @@
     step = "details";
   }
 
-  function selectNewProduct(query: string) {
+  async function selectNewProduct(query: string) {
     stopScanner();
     const isNumeric = /^\d+$/.test(query);
     foundProduct = null;
@@ -291,6 +304,45 @@
     searchOpen = false;
     manualQuery = "";
     step = "details";
+
+    // A barcode typed by hand is the same situation as a scanned one.
+    if (isNumeric) await prefillFromLookup(query);
+  }
+
+  /**
+   * Fill the new-product form from Open Food Facts. Only ever called for a
+   * barcode Annona has no product for, so an existing product — which may have
+   * been corrected by hand — is never overwritten. A failed lookup is not an
+   * error: it just leaves the form empty to type into.
+   */
+  async function prefillFromLookup(ean: string) {
+    lookupSource = null;
+    lookupNutrition = null;
+    lookingUp = true;
+
+    const suggestion = await lookupProductByEan(ean.trim());
+
+    lookingUp = false;
+
+    if (!suggestion?.found || !suggestion.product) return;
+
+    const p = suggestion.product;
+    productName = p.name;
+    productBrand = p.brand ?? "";
+    productQuantity = p.quantity ?? "";
+    productImageUrl = p.image_url ?? "";
+    lookupSource = p.source;
+    lookupNutrition = {
+      energy_kcal_100g: p.energy_kcal_100g,
+      fat_100g: p.fat_100g,
+      saturated_fat_100g: p.saturated_fat_100g,
+      carbohydrates_100g: p.carbohydrates_100g,
+      sugars_100g: p.sugars_100g,
+      protein_100g: p.protein_100g,
+      salt_100g: p.salt_100g,
+      serving_size: p.serving_size,
+      nutriscore: p.nutriscore,
+    };
   }
 
   async function lookupEan() {
@@ -314,6 +366,12 @@
         productCategoryId = "";
         productImageUrl = "";
         showProductFields = true;
+        step = "details";
+
+        // Nothing local: ask Open Food Facts rather than hand the user an
+        // empty form.
+        await prefillFromLookup(scannedEan);
+        return;
       }
       step = "details";
     } catch (e) {
@@ -358,6 +416,15 @@
           quantity: productQuantity.trim() || null,
           category_id: productCategoryId === "" ? null : productCategoryId,
           image_url: productImageUrl.trim() || null,
+          // Only set when the fields actually came from a lookup, so a
+          // hand-typed product is never labelled as sourced.
+          ...(lookupSource && lookupNutrition
+            ? {
+                ...lookupNutrition,
+                nutrition_source: lookupSource,
+                nutrition_updated_at: new Date().toISOString(),
+              }
+            : {}),
         });
         productId = newProduct.id;
       }
@@ -405,6 +472,8 @@
     if (searchTimeout) clearTimeout(searchTimeout);
     searchTimeout = null;
     scannedEan = "";
+    lookupSource = null;
+    lookupNutrition = null;
     foundProduct = null;
     showProductFields = false;
     productName = "";
@@ -639,6 +708,26 @@
             {#if scannedEan}
               <div class="text-sm text-base-content/60">
                 EAN: <span class="font-mono">{scannedEan}</span>
+              </div>
+            {/if}
+
+            {#if lookingUp}
+              <div class="flex items-center gap-2 text-sm text-base-content/60">
+                <span class="loading loading-spinner loading-xs"></span>
+                Looking this barcode up…
+              </div>
+            {:else if lookupSource === "openfoodfacts"}
+              <div class="alert alert-info alert-soft py-2 text-sm">
+                <Sparkles class="h-4 w-4 shrink-0" />
+                <span>
+                  Filled in from
+                  <a
+                    class="link"
+                    href={`https://world.openfoodfacts.org/product/${scannedEan}`}
+                    target="_blank"
+                    rel="noreferrer noopener">Open Food Facts</a
+                  >. Check it before saving.
+                </span>
               </div>
             {/if}
 

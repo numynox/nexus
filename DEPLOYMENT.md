@@ -114,10 +114,14 @@ npm run db:functions:list                        # what is deployed
 | `fetch-rss` | `pg_cron`, hourly | `FETCH_RSS_INVOKE_SECRET` as a bearer token |
 | `refresh-fuel-prices` | `pg_cron`, every 10 minutes | `FUEL_PRICE_INVOKE_SECRET`, bearer or `x-invoke-secret` |
 | `fetch-nearby-fuel-prices` | Vibilia's browser UI | the signed-in user's JWT |
+| `lookup-food-product` | Annona's browser UI | the signed-in user's JWT |
 
-`supabase/config.toml` sets `verify_jwt = false` for the first two — they are
-guarded by the shared secret instead, and must never be deployed without it
-configured.
+`supabase/config.toml` sets `verify_jwt = false` for the two scheduled functions
+— they are guarded by the shared secret instead, and must never be deployed
+without it configured. The two called from a browser verify JWTs.
+
+`lookup-food-product` needs no secret at all: Open Food Facts is public and
+identifies callers by User-Agent.
 
 ### Edge Function secrets
 
