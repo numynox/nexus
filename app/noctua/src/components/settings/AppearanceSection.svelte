@@ -3,7 +3,7 @@
   import { ThemePicker } from "@nexus/ui";
   interface Props {
     currentTheme: string;
-    showReadArticles: boolean;
+    hideSeenArticles: boolean;
     autoMarkAsSeen: boolean;
     onThemeChange: (theme: string) => void;
     onPreferencesChange: () => void;
@@ -11,7 +11,7 @@
 
   let {
     currentTheme,
-    showReadArticles = $bindable(false),
+    hideSeenArticles = $bindable(false),
     autoMarkAsSeen = $bindable(false),
     onThemeChange,
     onPreferencesChange,
@@ -35,7 +35,7 @@
         <input
           type="checkbox"
           class="toggle toggle-primary"
-          bind:checked={showReadArticles}
+          bind:checked={hideSeenArticles}
           onchange={onPreferencesChange}
         />
       </label>

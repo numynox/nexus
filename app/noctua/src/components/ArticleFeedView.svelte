@@ -6,7 +6,8 @@
     getLoginHref,
     loadUserContent,
     onAuthStateChange,
-    describeError,} from "../lib/data";
+    describeError,
+  } from "../lib/data";
   import type { Article, Section } from "../lib/types";
   import ArticleList from "./ArticleList.svelte";
 
@@ -193,7 +194,6 @@
           : content.articles;
       }
 
-
       // update URL parameters: clear section when in read mode, otherwise
       // keep them in sync with current selection
       if (onlyRead) {
@@ -304,7 +304,7 @@
 {:else}
   <div
     bind:this={stickyHeader}
-    class="sticky top-0 z-20 mb-6 -mx-4 lg:-mx-8 px-6 lg:px-8 bg-base-100/80 backdrop-blur-sm border-b border-base-300/60 relative"
+    class="sticky top-0 z-20 mb-6 -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 bg-base-100/80 backdrop-blur-sm border-b border-base-300/60 relative"
   >
     <div class="py-3 flex items-center justify-between gap-4">
       {#if onlyStarred}
@@ -376,15 +376,12 @@
     {/if}
   </div>
 
-  <div id="article-list">
-    <ArticleList
-      {articles}
-      onStatsChange={handleStatsChange}
-      {onlyRead}
-      noDim={onlyRead}
-      onRefresh={refreshContent}
-      {onlyStarred}
-    />
-
-  </div>
+  <ArticleList
+    {articles}
+    onStatsChange={handleStatsChange}
+    {onlyRead}
+    noDim={onlyRead}
+    onRefresh={refreshContent}
+    {onlyStarred}
+  />
 {/if}
