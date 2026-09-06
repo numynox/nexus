@@ -35,6 +35,9 @@ keep it still.
   then pull. `r` on a keyboard and a reload from the panel remain.
 - The panel's height depends on layout values it does not own (main's padding,
   the header's margin). They are named and explained in one place, but a change
-  to `Layout.astro`'s padding needs a matching change to `--noctua-feed-height`.
+  to `Layout.astro`'s padding needs a matching change to `--noctua-feed-height`
+  — and to the spacer that follows the last article, which has to be taller
+  than main's bottom padding or the last row never scrolls behind the header
+  and is never marked seen.
 - Do not reintroduce a top-of-page pull gesture. It is not a bug that it is
   missing; the browser has that gesture and will win.
