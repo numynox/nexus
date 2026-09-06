@@ -1,11 +1,8 @@
 <script lang="ts">
   import { FolderTree } from "lucide-svelte";
   import {
-    DEFAULT_SECTION_COLOR,
     DEFAULT_SECTION_ICON,
-    SECTION_COLORS,
     SECTION_ICONS,
-    getSectionColor,
     getSectionIconComponent,
   } from "../../lib/sectionMeta";
   import {
@@ -18,7 +15,8 @@
     reorderFeedInSectionForUser,
     reorderSectionForUser,
     updateSectionForUser,
-    describeError,} from "../../lib/data";
+    describeError,
+  } from "../../lib/data";
   import type { Feed, Section } from "../../lib/types";
 
   interface Props {
@@ -38,14 +36,12 @@
   let createSectionDialog = $state<HTMLDialogElement | null>(null);
   let createSectionName = $state("");
   let createSectionIcon = $state(DEFAULT_SECTION_ICON);
-  let createSectionColor = $state(DEFAULT_SECTION_COLOR);
   let createSectionError = $state("");
 
   let editSectionDialog = $state<HTMLDialogElement | null>(null);
   let editSectionId = $state<string | null>(null);
   let editSectionName = $state("");
   let editSectionIcon = $state(DEFAULT_SECTION_ICON);
-  let editSectionColor = $state(DEFAULT_SECTION_COLOR);
   let editSectionError = $state("");
   let selectedFeedToAddId = $state("");
 
@@ -141,7 +137,6 @@
   function openCreateSectionModal() {
     createSectionName = "";
     createSectionIcon = DEFAULT_SECTION_ICON;
-    createSectionColor = DEFAULT_SECTION_COLOR;
     createSectionError = "";
     createSectionDialog?.showModal();
   }
@@ -167,12 +162,7 @@
     createSectionError = "";
 
     try {
-      await createSectionForUser(
-        userId,
-        title,
-        createSectionIcon,
-        createSectionColor,
-      );
+      await createSectionForUser(userId, title, createSectionIcon);
       await loadSectionManagementData(userId);
       closeCreateSectionModal();
       sectionsFeedback = "Section created.";
@@ -189,7 +179,6 @@
     editSectionId = section.id;
     editSectionName = section.name;
     editSectionIcon = section.icon || DEFAULT_SECTION_ICON;
-    editSectionColor = section.color || DEFAULT_SECTION_COLOR;
     editSectionError = "";
     selectedFeedToAddId =
       availableFeeds.find(
@@ -222,13 +211,7 @@
     editSectionError = "";
 
     try {
-      await updateSectionForUser(
-        userId,
-        editSectionId,
-        title,
-        editSectionIcon,
-        editSectionColor,
-      );
+      await updateSectionForUser(userId, editSectionId, title, editSectionIcon);
       await loadSectionManagementData(userId);
       sectionsFeedback = "Section updated.";
       onSectionDataChanged?.();
@@ -392,12 +375,7 @@
           {@const RowIcon = getSectionIconComponent(section.icon)}
           <div class="bg-base-100 rounded-xl px-4 py-3 border border-base-300">
             <div class="flex items-center gap-3">
-              <RowIcon
-                class="h-5 w-5 shrink-0"
-                style={getSectionColor(section.color)
-                  ? `color: ${getSectionColor(section.color)}`
-                  : ""}
-              />
+              <RowIcon class="h-5 w-5 shrink-0" aria-hidden="true" />
               <div class="flex-1 min-w-0">
                 <p class="font-semibold truncate">{section.name}</p>
                 <p class="text-xs text-base-content/60">
@@ -478,28 +456,6 @@
           {/each}
         </div>
       </div>
-
-      <div class="form-control w-full">
-        <div class="label">
-          <span class="label-text">Colour</span>
-        </div>
-        <div class="flex flex-wrap gap-2">
-          {#each SECTION_COLORS as option (option.key)}
-            <button
-              type="button"
-              class="h-7 w-7 rounded-full border-2 transition {createSectionColor ===
-              option.key
-                ? 'border-base-content scale-110'
-                : 'border-transparent'}"
-              style={`background-color: ${option.value}`}
-              title={option.label}
-              aria-label={option.label}
-              aria-pressed={createSectionColor === option.key}
-              onclick={() => (createSectionColor = option.key)}
-            ></button>
-          {/each}
-        </div>
-      </div>
     </div>
 
     {#if createSectionError}
@@ -561,28 +517,6 @@
                 >
                   <OptionIcon class="h-4 w-4" />
                 </button>
-              {/each}
-            </div>
-          </div>
-
-          <div class="form-control w-full">
-            <div class="label">
-              <span class="label-text">Colour</span>
-            </div>
-            <div class="flex flex-wrap gap-2">
-              {#each SECTION_COLORS as option (option.key)}
-                <button
-                  type="button"
-                  class="h-7 w-7 rounded-full border-2 transition {editSectionColor ===
-                  option.key
-                    ? 'border-base-content scale-110'
-                    : 'border-transparent'}"
-                  style={`background-color: ${option.value}`}
-                  title={option.label}
-                  aria-label={option.label}
-                  aria-pressed={editSectionColor === option.key}
-                  onclick={() => (editSectionColor = option.key)}
-                ></button>
               {/each}
             </div>
           </div>
