@@ -8,7 +8,7 @@
     Star,
     X,
   } from "lucide-svelte";
-  import { getSectionColor, getSectionIconComponent } from "../lib/sectionMeta";
+  import { getSectionIconComponent } from "../lib/sectionMeta";
   import { onMount } from "svelte";
   import {
     fetchSectionsForUser,
@@ -230,12 +230,11 @@
                 : 'hover:bg-base-300 text-base-content/80'}"
               onclick={closeMobileMenu}
             >
-              <SectionIcon
-                class="h-5 w-5 shrink-0"
-                style={getSectionColor(section.color)
-                  ? `color: ${getSectionColor(section.color)}`
-                  : ""}
-              />
+              <!-- Inherits the row's text colour: the section's own colour
+                   became unreadable against the selected row's primary fill,
+                   and an icon in a different colour from its label reads as a
+                   second piece of information rather than the same one. -->
+              <SectionIcon class="h-5 w-5 shrink-0" aria-hidden="true" />
               <span class="flex-1 truncate">{section.name}</span>
             </a>
 
