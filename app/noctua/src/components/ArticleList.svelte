@@ -221,6 +221,9 @@
   let sortOrder = $state<SortOrder>("newest");
   let showShortcuts = $state(false);
   let focusedIndex = $state(-1);
+  /** Articles the mark-all confirmation is waiting on, empty when it is shut. */
+  let pendingMarkRead = $state<string[]>([]);
+  let markReadDialog = $state<HTMLDialogElement | null>(null);
   /** Articles marked read by the last bulk action, so it can be undone. */
   let undoable = $state<string[]>([]);
   let undoTimer: ReturnType<typeof setTimeout> | null = null;
@@ -334,10 +337,24 @@
   }
 
   // ── Mark everything visible as read, with an undo ────────────────────────
-  function markAllVisibleRead() {
+  /**
+   * Marking a section read is the one action here that touches every article at
+   * once, and the toast that follows only lives for fifteen seconds. Confirm
+   * first; the undo stays for the fifteen seconds after that.
+   */
+  function requestMarkAllRead() {
     const ids = sortedArticles
       .filter((article) => !readArticles[article.id])
       .map((article) => article.id);
+
+    if (ids.length === 0) return;
+
+    pendingMarkRead = ids;
+  }
+
+  function confirmMarkAllRead() {
+    const ids = pendingMarkRead;
+    pendingMarkRead = [];
 
     if (ids.length === 0) return;
 
@@ -362,6 +379,21 @@
       })
       .catch((error) => console.warn("Failed to mark all read", error));
   }
+
+  function cancelMarkAllRead() {
+    pendingMarkRead = [];
+  }
+
+  $effect(() => {
+    const dialog = markReadDialog;
+    if (!dialog) return;
+
+    if (pendingMarkRead.length > 0) {
+      if (!dialog.open) dialog.showModal();
+    } else if (dialog.open) {
+      dialog.close();
+    }
+  });
 
   function undoMarkAllRead() {
     const ids = undoable;
@@ -438,6 +470,9 @@
   }
 
   function handleKeydown(event: KeyboardEvent) {
+    // The confirmation dialog is modal; let it have the keyboard to itself.
+    if (pendingMarkRead.length > 0) return;
+
     const target = event.target as HTMLElement | null;
     const typing =
       target &&
@@ -478,7 +513,7 @@
         break;
       case "a":
         event.preventDefault();
-        markAllVisibleRead();
+        requestMarkAllRead();
         break;
       case "u":
         event.preventDefault();
@@ -821,7 +856,7 @@
         <button
           type="button"
           class="btn btn-ghost btn-sm gap-1"
-          onclick={markAllVisibleRead}
+          onclick={requestMarkAllRead}
           title="Mark everything shown as read"
         >
           <CheckCheck class="h-4 w-4" />
@@ -1055,6 +1090,29 @@
     {/each}
   </div>
 {/if}
+
+<dialog class="modal" bind:this={markReadDialog} onclose={cancelMarkAllRead}>
+  <div class="modal-box">
+    <h3 class="text-lg font-bold">
+      Mark {pendingMarkRead.length}
+      {pendingMarkRead.length === 1 ? "article" : "articles"} as read?
+    </h3>
+    <p class="py-4 text-sm text-base-content/70">
+      Everything currently shown is marked read. You can undo it for fifteen
+      seconds afterwards.
+    </p>
+    <div class="modal-action">
+      <button class="btn btn-ghost" onclick={cancelMarkAllRead}>Cancel</button>
+      <button class="btn btn-primary gap-1" onclick={confirmMarkAllRead}>
+        <CheckCheck class="h-4 w-4" />
+        Mark read
+      </button>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop">
+    <button aria-label="Cancel">close</button>
+  </form>
+</dialog>
 
 {#if undoable.length > 0}
   <div class="toast toast-center toast-bottom z-50">
