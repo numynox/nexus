@@ -47,9 +47,12 @@
 
     const publishHeight = () => {
       const { height } = element.getBoundingClientRect();
+      // Floor, never round: half a pixel too *large* puts the date headers
+      // below the header's real bottom edge and opens the seam they are
+      // supposed to close. Half a pixel too small only tucks them under it.
       document.documentElement.style.setProperty(
         "--noctua-header-height",
-        `${Math.round(height)}px`,
+        `${Math.floor(height)}px`,
       );
     };
 
@@ -304,7 +307,7 @@
 {:else}
   <div
     bind:this={stickyHeader}
-    class="sticky top-0 z-20 mb-6 -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 bg-base-100/80 backdrop-blur-sm border-b border-base-300/60 relative"
+    class="sticky top-0 z-20 mb-6 -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 bg-base-100 border-b border-base-300/60 relative"
   >
     <div class="py-3 flex items-center justify-between gap-4">
       {#if onlyStarred}

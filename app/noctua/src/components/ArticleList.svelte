@@ -89,6 +89,19 @@
   // Track last scroll position so we only mark as seen when scrolling down
   let lastScrollY = 0;
 
+  /**
+   * Where the list actually becomes visible: below the sticky header, which
+   * covers the top of it. An article that has gone behind the header is out of
+   * sight, whatever the viewport edge underneath it says.
+   */
+  function readingAreaTop(): number {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue(
+      "--noctua-header-height",
+    );
+    const parsed = Number.parseFloat(raw);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
   function setupScrollDetection() {
     if (scrollHandler) {
       window.removeEventListener("scroll", scrollHandler);
@@ -106,22 +119,23 @@
         return;
       }
 
+      const readingTop = readingAreaTop();
+
       // Check all article elements that are currently rendered
       const articleElements = document.querySelectorAll("[data-article-id]");
       articleElements.forEach((element) => {
         const rect = element.getBoundingClientRect();
         const articleId = element.getAttribute("data-article-id");
 
-        // Mark as seen if article is above viewport (scrolled past) and not already marked
-        // but only if it is within half the viewport height above the top. This
-        // prevents marking items that were jumped far past (e.g., from a
-        // navigation or rapid scroll).
+        // Mark as seen once the article has gone behind the header, and only
+        // if it is still within half a viewport of it — that keeps items that
+        // were jumped far past (a navigation, a flung scroll) unmarked.
         const bottom = rect.bottom;
         const viewportH =
           window.innerHeight || document.documentElement.clientHeight || 0;
         if (
-          bottom < 0 &&
-          bottom > -0.5 * viewportH &&
+          bottom < readingTop &&
+          bottom > readingTop - 0.5 * viewportH &&
           articleId &&
           !seenArticles[articleId]
         ) {
@@ -869,9 +883,17 @@
 
   {#each groupedArticles as group (group.label)}
     <section class="mb-6">
+      <!--
+        Opaque, and the same fill as the header above it: two translucent panes
+        stacked here each blur a different piece of the list behind them, and
+        the tone where they meet does not match, which reads as a seam under
+        the progress bar. The 1px is slack against sub-pixel rounding — the
+        header's measured height is floored, so this always tucks under it
+        rather than leaving a hairline.
+      -->
       <h2
-        class="sticky z-10 -mx-2 mb-3 bg-base-100/90 px-2 py-1 text-sm font-semibold text-base-content/70 backdrop-blur-sm"
-        style="top: var(--noctua-header-height, 4rem)"
+        class="sticky z-10 -mx-2 mb-3 bg-base-100 px-2 py-1 text-sm font-semibold text-base-content/70"
+        style="top: calc(var(--noctua-header-height, 4rem) - 1px)"
       >
         {group.label}
       </h2>
@@ -1072,6 +1094,18 @@
       {/if}
     </section>
   {/each}
+
+  <!--
+    Scroll room past the last article. Without it the end of the list stops a
+    little below the header at maximum scroll — main's bottom padding keeps it
+    there — so the last row never crosses the boundary above and is never
+    marked seen, which leaves the unread count stuck at one.
+
+    Only when there is a list: on an empty feed this would push the caught-up
+    panel below the middle of the screen, which is the whole thing
+    --noctua-feed-height exists to prevent.
+  -->
+  <div class="h-16"></div>
 {/if}
 
 <dialog class="modal" bind:this={markReadDialog} onclose={cancelMarkAllRead}>
