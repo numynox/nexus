@@ -24,7 +24,7 @@ mean something narrower than they look.
 | :--- | :--- | :--- |
 | `feeds` | Feed | an RSS source. Global: the catalogue is shared by all users. `filter` holds per-feed keyword exclusions applied at fetch time |
 | `articles` | Article | one entry from a feed, deduplicated on `(feed_id, url)`. `summary` is the feed's own description — **not** a generated summary. Visible only while one of *your* sections contains its feed, unlike the feed itself |
-| `sections` | Section | a user's named, ordered grouping of feeds — the personal arrangement of the shared catalogue. `icon` is a key from `SECTION_ICONS` (not an emoji), `color` a key from `SECTION_COLORS` — the same scheme as Annona's categories |
+| `sections` | Section | a user's named, ordered grouping of feeds — the personal arrangement of the shared catalogue. `icon` is a key from `SECTION_ICONS`, not an emoji. Sections have no colour — see `decisions/2026-09-06-sections-have-no-colour.md` |
 | `sections_feeds` | — | join table, carries the feed's `sort_order` within a section |
 | `article_reads` | — | **read**: durable, per-user, in the database; drives statistics |
 | `noctua_seen_articles` (localStorage) | — | **seen**: device-local, disposable; drives "hide what I've already looked at" |

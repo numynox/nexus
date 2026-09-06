@@ -6,7 +6,8 @@
     getSession,
     onAuthStateChange,
     signOut,
-    describeError,} from "../lib/data";
+    describeError,
+  } from "../lib/data";
   import {
     clearSeenHistory,
     getPreferences,
@@ -23,7 +24,7 @@
   let isBusy = $state(false);
   let userEmail = $state("");
   let authError = $state("");
-  let showReadArticles = $state(true);
+  let hideSeenArticles = $state(true);
   let autoMarkAsSeen = $state(true);
   let currentTheme = $state<string>("auto");
   let userId = $state("");
@@ -44,7 +45,7 @@
 
   onMount(() => {
     const prefs = getPreferences();
-    showReadArticles = prefs.hideSeenArticles;
+    hideSeenArticles = prefs.hideSeenArticles;
     autoMarkAsSeen = prefs.autoMarkAsSeen;
     currentTheme = getTheme();
 
@@ -92,17 +93,11 @@
   }
 
   function updatePreferences() {
-    setPreferences({
-      hideSeenArticles: showReadArticles,
-      autoMarkAsSeen,
-    });
+    setPreferences({ hideSeenArticles, autoMarkAsSeen });
 
     window.dispatchEvent(
       new CustomEvent("preferencesChanged", {
-        detail: {
-          hideSeenArticles: showReadArticles,
-          autoMarkAsSeen,
-        },
+        detail: { hideSeenArticles, autoMarkAsSeen },
       }),
     );
   }
@@ -147,7 +142,7 @@
     <SectionsSection {userId} onSectionDataChanged={notifySectionDataChanged} />
 
     <AppearanceSection
-      bind:showReadArticles
+      bind:hideSeenArticles
       bind:autoMarkAsSeen
       {currentTheme}
       onThemeChange={handleThemeChange}

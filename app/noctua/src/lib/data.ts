@@ -112,7 +112,6 @@ export async function fetchSectionsForUser(userId: string): Promise<Section[]> {
       id,
       title,
       icon,
-      color,
       sort_order,
       sections_feeds (
         sort_order,
@@ -163,7 +162,6 @@ export async function fetchSectionsForUser(userId: string): Promise<Section[]> {
       id: String(section.id),
       name: section.title,
       icon: section.icon || "newspaper",
-      color: section.color ?? null,
       sort_order:
         typeof section.sort_order === "number" ? section.sort_order : 0,
       feeds,
@@ -200,7 +198,6 @@ export async function createSectionForUser(
   userId: string,
   title: string,
   icon: string,
-  color: string | null = null,
 ): Promise<void> {
   await ensureProfile(userId);
 
@@ -229,7 +226,6 @@ export async function createSectionForUser(
     user_id: userId,
     title: title.trim(),
     icon: icon.trim() || "newspaper",
-    color: color ?? "slate",
     sort_order: nextSortOrder,
   });
 
@@ -243,7 +239,6 @@ export async function updateSectionForUser(
   sectionId: string,
   title: string,
   icon: string,
-  color: string | null = null,
 ): Promise<void> {
   const supabase = getSupabaseClient();
   const db = supabase as any;
@@ -252,7 +247,6 @@ export async function updateSectionForUser(
     .update({
       title: title.trim(),
       icon: icon.trim() || "newspaper",
-      color: color ?? "slate",
     })
     .eq("id", toDbId(sectionId))
     .eq("user_id", userId);

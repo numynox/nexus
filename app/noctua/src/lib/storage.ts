@@ -18,7 +18,6 @@ const STORAGE_KEYS = {
   FILTERS: "noctua_filters",
   DENSITY: "noctua_density",
   SORT_ORDER: "noctua_sort_order",
-  LAST_VISIT_AT: "noctua_last_visit_at",
   PREFERENCES: "noctua_preferences",
 } as const;
 
@@ -97,6 +96,7 @@ function migrateLocalStorage(): void {
     const oldKeys = [
       "noctua_hidden_sections", // This was replaced by hidden feeds logic
       "noctua_hidden_feeds",
+      "noctua_last_visit_at", // "new since your last visit" was removed
     ];
     oldKeys.forEach((key) => {
       localStorage.removeItem(key);
@@ -156,7 +156,6 @@ export function setTheme(theme: string): void {
   writeTheme(STORAGE_KEYS.THEME, theme);
 }
 
-
 // ============ Seen Articles ============
 
 export function getSeenArticles(): SeenArticleStatuses {
@@ -177,7 +176,6 @@ export function clearSeenHistory(): void {
   } catch (e) {
     setStorageItem(STORAGE_KEYS.SEEN_ARTICLES, {});
   }
-  dispatchEventSafe("seenHistoryCleared");
   dispatchEventSafe("noctua:activity");
 }
 
@@ -230,18 +228,4 @@ export function getSortOrder(): SortOrder {
 
 export function setSortOrder(order: SortOrder): void {
   setStorageItem(STORAGE_KEYS.SORT_ORDER, order);
-}
-
-/**
- * When the feed was last opened, so "new since your last visit" can be marked.
- * Read once on mount and written immediately after, so a reload during the same
- * sitting does not keep re-announcing the same articles.
- */
-export function getLastVisitAt(): string | null {
-  const value = getStorageItem<string | null>(STORAGE_KEYS.LAST_VISIT_AT, null);
-  return typeof value === "string" ? value : null;
-}
-
-export function setLastVisitAt(iso: string): void {
-  setStorageItem(STORAGE_KEYS.LAST_VISIT_AT, iso);
 }

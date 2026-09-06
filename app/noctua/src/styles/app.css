@@ -18,3 +18,33 @@ html {
     background-color 0.3s ease,
     color 0.3s ease;
 }
+
+/*
+ * The feed area: the viewport minus the sticky header and main's own vertical
+ * padding (p-4 / md:p-6 / lg:p-8, doubled) plus the header's mb-6.
+ *
+ * The "you're all caught up" panel fills it, which is what makes it land in
+ * the same place whether it is scrolled to at the end of a full feed or shown
+ * on its own when there is nothing left to read.
+ */
+:root {
+  --noctua-feed-height: calc(
+    100svh - var(--noctua-header-height, 4rem) - 3.5rem
+  );
+}
+
+@media (min-width: 48rem) {
+  :root {
+    --noctua-feed-height: calc(
+      100svh - var(--noctua-header-height, 4rem) - 4.5rem
+    );
+  }
+}
+
+@media (min-width: 64rem) {
+  :root {
+    --noctua-feed-height: calc(
+      100svh - var(--noctua-header-height, 4rem) - 5.5rem
+    );
+  }
+}
