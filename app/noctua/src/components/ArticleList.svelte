@@ -15,13 +15,11 @@
   import {
     getDensity,
     getFilters,
-    getLastVisitAt,
     getPreferences,
     getSeenArticles,
     getSortOrder,
     markAsSeen,
     setDensity,
-    setLastVisitAt,
     setSortOrder,
     type Density,
     type SeenArticleStatuses,
@@ -223,7 +221,6 @@
   let sortOrder = $state<SortOrder>("newest");
   let showShortcuts = $state(false);
   let focusedIndex = $state(-1);
-  let lastVisitAt = $state<string | null>(null);
   /** Articles marked read by the last bulk action, so it can be undone. */
   let undoable = $state<string[]>([]);
   let undoTimer: ReturnType<typeof setTimeout> | null = null;
@@ -243,14 +240,6 @@
         : articleTime(b) - articleTime(a),
     );
     return result;
-  });
-
-  /** How many of the visible articles arrived since the feed was last opened. */
-  let newSinceLastVisit = $derived.by(() => {
-    if (!lastVisitAt || onlyRead) return 0;
-    const since = Date.parse(lastVisitAt);
-    if (Number.isNaN(since)) return 0;
-    return sortedArticles.filter((a) => articleTime(a) > since).length;
   });
 
   const DAY = 24 * 60 * 60 * 1000;
@@ -588,11 +577,6 @@
     density = getDensity();
     sortOrder = getSortOrder();
 
-    // Read the previous visit, then stamp this one straight away: a reload in
-    // the same sitting should not keep announcing the same articles as new.
-    lastVisitAt = getLastVisitAt();
-    setLastVisitAt(new Date().toISOString());
-
     window.addEventListener("keydown", handleKeydown);
 
     seenArticles = getSeenArticles();
@@ -794,11 +778,6 @@
   >
     <div class="flex items-center gap-2 text-sm text-base-content/60">
       <span>{sortedArticles.length} articles</span>
-      {#if newSinceLastVisit > 0}
-        <span class="badge badge-primary badge-sm">
-          {newSinceLastVisit} new since your last visit
-        </span>
-      {/if}
       {#if refreshing}
         <span class="loading loading-spinner loading-xs"></span>
       {/if}
