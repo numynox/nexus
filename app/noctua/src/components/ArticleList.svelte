@@ -883,9 +883,17 @@
 
   {#each groupedArticles as group (group.label)}
     <section class="mb-6">
+      <!--
+        Opaque, and the same fill as the header above it: two translucent panes
+        stacked here each blur a different piece of the list behind them, and
+        the tone where they meet does not match, which reads as a seam under
+        the progress bar. The 1px is slack against sub-pixel rounding — the
+        header's measured height is floored, so this always tucks under it
+        rather than leaving a hairline.
+      -->
       <h2
-        class="sticky z-10 -mx-2 mb-3 bg-base-100/90 px-2 py-1 text-sm font-semibold text-base-content/70 backdrop-blur-sm"
-        style="top: var(--noctua-header-height, 4rem)"
+        class="sticky z-10 -mx-2 mb-3 bg-base-100 px-2 py-1 text-sm font-semibold text-base-content/70"
+        style="top: calc(var(--noctua-header-height, 4rem) - 1px)"
       >
         {group.label}
       </h2>
