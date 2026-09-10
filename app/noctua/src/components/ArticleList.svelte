@@ -18,7 +18,7 @@
     getPreferences,
     getSeenArticles,
     getSortOrder,
-    markAsSeen,
+    markManyAsSeen,
     setDensity,
     setSortOrder,
     type Density,
@@ -137,10 +137,9 @@
           bottom < readingTop &&
           bottom > readingTop - 0.5 * viewportH &&
           articleId &&
-          !seenArticles[articleId]
+          hasUnseenInCluster(articleId)
         ) {
-          markAsSeen(articleId);
-          seenArticles = getSeenArticles();
+          markClusterAsSeen(articleId);
         }
       });
 
@@ -198,6 +197,54 @@
       next[groupKey] = true;
     }
     expandedGroups = next;
+  }
+
+  /**
+   * article id → every article in its cluster, itself included.
+   *
+   * Only the leader of a cluster is rendered, so marking just the leader as
+   * seen leaves the others unseen: on the next refresh one of them leads the
+   * cluster and the same story is back. A cluster is one story here, so it is
+   * seen or unseen as a whole.
+   */
+  let clusterMembers = $derived.by(() => {
+    const byKey = new Map<string, string[]>();
+
+    filteredArticles.forEach((article) => {
+      const key = similarGroups[article.id] ?? article.id;
+      const members = byKey.get(key);
+
+      if (members) {
+        members.push(article.id);
+      } else {
+        byKey.set(key, [article.id]);
+      }
+    });
+
+    const byArticle: Record<string, string[]> = {};
+    byKey.forEach((members) => {
+      members.forEach((id) => (byArticle[id] = members));
+    });
+
+    return byArticle;
+  });
+
+  function clusterOf(articleId: string): string[] {
+    return clusterMembers[articleId] ?? [articleId];
+  }
+
+  /**
+   * Checked rather than just the article's own status, so a cluster whose
+   * leader was marked before the grouping RPC answered still gets its
+   * followers marked once it has.
+   */
+  function hasUnseenInCluster(articleId: string): boolean {
+    return clusterOf(articleId).some((id) => !seenArticles[id]);
+  }
+
+  function markClusterAsSeen(articleId: string) {
+    markManyAsSeen(clusterOf(articleId));
+    seenArticles = getSeenArticles();
   }
 
   function toggleStar(articleId: string) {
@@ -772,9 +819,8 @@
       [articleId]: { timestamp: now },
     };
 
-    if (!seenArticles[articleId]) {
-      markAsSeen(articleId);
-      seenArticles = getSeenArticles();
+    if (hasUnseenInCluster(articleId)) {
+      markClusterAsSeen(articleId);
     }
 
     if (!userId) {

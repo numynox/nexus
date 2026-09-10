@@ -162,9 +162,27 @@ export function getSeenArticles(): SeenArticleStatuses {
   return getStorageItem(STORAGE_KEYS.SEEN_ARTICLES, {});
 }
 
-export function markAsSeen(articleId: string): void {
+/**
+ * Mark articles as seen in a single write.
+ *
+ * Takes a list because a cluster of duplicate stories is marked as a whole —
+ * one write and one activity event instead of one of each per member.
+ */
+export function markManyAsSeen(articleIds: string[]): void {
+  if (articleIds.length === 0) return;
+
   const seen = getSeenArticles();
-  seen[articleId] = true;
+  let changed = false;
+
+  articleIds.forEach((articleId) => {
+    if (!seen[articleId]) {
+      seen[articleId] = true;
+      changed = true;
+    }
+  });
+
+  if (!changed) return;
+
   setStorageItem(STORAGE_KEYS.SEEN_ARTICLES, seen);
   dispatchEventSafe("noctua:activity");
 }

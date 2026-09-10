@@ -44,5 +44,9 @@ match.
   filtered by the time window first, so milliseconds. It would need an index
   strategy if a page ever meant thousands.
 - Keyboard navigation walks leaders only; a collapsed article is not a stop.
+- A cluster is seen or unseen as a whole: marking the leader seen (by scroll
+  or by opening it) marks every member. Marking only the leader left the
+  followers unseen, so one of them led the cluster after the next refresh and
+  the same story kept coming back.
 - Pinned by `supabase/tests/article_similarity.test.sql`, including that an
   identical headline from a month ago stays a separate story.
