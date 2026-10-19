@@ -400,11 +400,23 @@ The web shows what the phone records but cannot record it: the drive-based
 fuel estimate and day-accurate monthly chart come from Postgres for both, the
 statistics page shows the model, vehicle settings show the linked device.
 
+Navigation is Navigation 3: the back stack is a list of `NavKey`s owned by
+`MainScaffold`; a tab switch resets it to Prices plus that tab. View models are
+scoped to back-stack entries (`rememberViewModelStoreNavEntryDecorator`), the
+editor sheet's to the sheet.
+
 Checks: `./gradlew :vibilia:testDebugUnitTest` (JVM unit tests: tracker,
 consumption arithmetic, row decoding) and `:vibilia:recordRoborazziDebug`,
-which renders the main screens with sample data through Robolectric — the
-way to look at the design without a device. CI runs the unit tests and the
-release build (`DEPLOYMENT.md`).
+which also runs `AppScreenshots` — the whole app in Robolectric against a fake
+Supabase (`FakeBackend`, a Ktor `MockEngine`), walked screen by screen and
+photographed. That is how the UI is reviewed without a device; CI publishes
+the images as the `vibilia-screenshots` artifact. Two seams exist for it and
+nothing else: `AppContainer` takes an HTTP engine, and
+`VibiliaApplication.mapsAvailable` swaps MapLibre for a schematic map.
+
+The Supabase session is stored in the app's own `SharedPreferences`, handed to
+supabase-kt explicitly — its default finds a context through App Startup,
+which is invisible and does not run in tests.
 
 ---
 

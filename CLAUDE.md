@@ -85,8 +85,9 @@ The conventions that carry the most weight here — reasoning in
   `public` schema.
 - **Device-local preference → `lib/storage.ts`; anything shared → Postgres.**
 - **Build all three apps before pushing** (`npm run build:websites`). For
-  changes under `android/`, also run `./gradlew :vibilia:testDebugUnitTest
-  :vibilia:assembleRelease` there.
+  changes under `android/`, also run `./gradlew :vibilia:recordRoborazziDebug
+  :vibilia:assembleRelease` there, and look at the screenshots it writes to
+  `android/vibilia/build/outputs/roborazzi/app/` (README.md, "Screenshots").
 - **New features reach both clients.** Build an Android feature on the web too
   where the browser allows it, otherwise show its result read-only or hide it
   gracefully — and put shared logic in Postgres RPCs so both get it

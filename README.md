@@ -232,9 +232,25 @@ from the root `.env` (or the environment) and Vibilia's bucket and radius from
 cd android
 ./gradlew :vibilia:installDebug           # onto a connected phone or emulator
 ./gradlew :vibilia:testDebugUnitTest      # tracker, arithmetic, row decoding
-./gradlew :vibilia:recordRoborazziDebug   # renders the main screens to vibilia/build/outputs/roborazzi
+./gradlew :vibilia:recordRoborazziDebug   # unit tests + screenshots of every screen
 ./gradlew :vibilia:assembleRelease        # what CI publishes
 ```
+
+### Screenshots
+
+`recordRoborazziDebug` runs `AppScreenshots`: the real app — `MainActivity`,
+its view models and repositories — in Robolectric, against `FakeBackend`, a
+fake Supabase serving plausible data. It signs in, taps through every screen
+like a person would (prices, nearby, the refuel form, logbook, statistics,
+settings, a vehicle, dark mode, sign-out) and saves each as a PNG in
+`android/vibilia/build/outputs/roborazzi/app/`. No device, emulator or
+network needed; about a minute.
+
+CI does the same on every pull request and push and attaches the PNGs as the
+**`vibilia-screenshots`** artifact of the run (Actions → the run → Artifacts),
+so a UI change can be reviewed from the PR. The map is drawn schematically in
+screenshots, because MapLibre's native library cannot load on the JVM. A
+screen that needs new data needs it in `FakeBackend` too.
 
 Debug builds install beside a release build (`.debug` suffix). Drive tracking
 needs a real phone paired with a car; everything else works in the emulator.

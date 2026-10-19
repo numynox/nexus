@@ -41,7 +41,19 @@ capabilities, not the web UI in a frame.
   logic goes into Postgres RPCs, so both clients get it for free.
 - The Android app does **not** have to mirror the web app screen by screen.
   It is free to restructure navigation and data access where that makes a
-  better app.
+  better app — but it must do **at least everything the web app does**.
+- **Start current, stay stable.** Newest stable releases throughout (AGP 9,
+  Gradle 9, Kotlin 2.4, Compose BOM, Navigation 3 rather than Navigation 2,
+  supabase-kt 3), with three deliberate exceptions:
+  - Material 3 is pinned to the **1.5 beta**: the Expressive components
+    (loading indicator, connected button groups, FAB menu, shape morphing)
+    exist only there, and they are the design. It needs nothing beyond the
+    stable Compose 1.12 of the BOM. Move to 1.5 stable when it ships.
+  - `targetSdk` stays one behind `compileSdk` (36 vs 37) until the app has
+    been tried on a device with the newer platform's behaviour changes; no
+    store forces it, since the app is sideloaded.
+  - `material-icons-extended` is frozen upstream at 1.7.x but still the
+    simplest way to Material icons in Compose; R8 drops the unused ones.
 
 ## Consequences
 - **Version skew is now permanent.** A website is replaced on the next page
