@@ -44,16 +44,26 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 21
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
-      - name: Unit tests
-        run: ./gradlew :vibilia:testDebugUnitTest
+      - name: Unit tests and screenshots
+        # The screenshot walkthrough (AppScreenshots) runs the real app against a
+        # fake backend; recording it also runs every other unit test.
+        run: ./gradlew :vibilia:recordRoborazziDebug
+
+      - name: Keep the screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: vibilia-screenshots
+          path: android/vibilia/build/outputs/roborazzi/app/*.png
+          retention-days: 30
 
       - name: Decode signing key
         id: signing
@@ -80,7 +90,7 @@ jobs:
           cp vibilia/build/outputs/apk/release/vibilia-release.apk "$RUNNER_TEMP/vibilia-1.0.${NEXUS_VERSION_CODE}.apk"
 
       - name: Keep the APK as a build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: vibilia-apk
           path: ${{ runner.temp }}/vibilia-*.apk

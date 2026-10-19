@@ -3,7 +3,10 @@ package io.github.numynox.nexus.vibilia.ui.prices
 import android.graphics.PointF
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -33,6 +36,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import io.github.numynox.nexus.core.ui.components.PriceText
 import io.github.numynox.nexus.vibilia.BuildConfig
+import io.github.numynox.nexus.vibilia.VibiliaApplication
 import io.github.numynox.nexus.vibilia.data.StationPrice
 import io.github.numynox.nexus.vibilia.location.LatLng
 import kotlinx.serialization.json.add
@@ -108,6 +112,10 @@ fun StationsMap(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    if ((context.applicationContext as? VibiliaApplication)?.mapsAvailable == false) {
+        SchematicStationsMap(stations, userLocation, selectedId, lowestPrice, onSelect, modifier)
+        return
+    }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val mapView = remember { MapView(context).apply { onCreate(null) } }
@@ -258,4 +266,57 @@ private fun UserDot(modifier: Modifier) {
             .background(MaterialTheme.colorScheme.tertiary, CircleShape)
             .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape),
     )
+}
+
+/**
+ * The same pills on a plain grid, placed by coordinates — for the JVM
+ * screenshot tests, where MapLibre's native library cannot load.
+ */
+@Composable
+private fun SchematicStationsMap(
+    stations: List<StationPrice>,
+    userLocation: LatLng?,
+    selectedId: String?,
+    lowestPrice: Double?,
+    onSelect: (String) -> Unit,
+    modifier: Modifier,
+) {
+    val grid = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+    val road = MaterialTheme.colorScheme.surfaceContainerHighest
+    BoxWithConstraints(modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
+        Canvas(Modifier.fillMaxSize()) {
+            val step = 48.dp.toPx()
+            var x = 0f
+            while (x < size.width) { drawLine(grid, Offset(x, 0f), Offset(x, size.height)); x += step }
+            var y = 0f
+            while (y < size.height) { drawLine(grid, Offset(0f, y), Offset(size.width, y)); y += step }
+            drawLine(road, Offset(0f, size.height * 0.62f), Offset(size.width, size.height * 0.38f), strokeWidth = 14.dp.toPx())
+            drawLine(road, Offset(size.width * 0.3f, 0f), Offset(size.width * 0.45f, size.height), strokeWidth = 10.dp.toPx())
+        }
+        val points = stations.mapNotNull { s -> s.lat?.let { lat -> s.lng?.let { LatLng(lat, it) } } } + listOfNotNull(userLocation)
+        if (points.isEmpty()) return@BoxWithConstraints
+        val minLat = points.minOf { it.lat }; val maxLat = points.maxOf { it.lat }
+        val minLng = points.minOf { it.lng }; val maxLng = points.maxOf { it.lng }
+        // Room for half a pill on every side, so none is cut off at the edge.
+        val pad = 160f
+        val w = constraints.maxWidth - 2 * pad
+        val h = constraints.maxHeight - 2 * pad
+        fun place(p: LatLng) = PointF(
+            pad + (if (maxLng > minLng) ((p.lng - minLng) / (maxLng - minLng)).toFloat() else 0.5f) * w,
+            pad + (if (maxLat > minLat) ((maxLat - p.lat) / (maxLat - minLat)).toFloat() else 0.5f) * h,
+        )
+        userLocation?.let { UserDot(Modifier.centeredAt(place(it))) }
+        stations.sortedBy { it.id == selectedId }.forEach { station ->
+            val lat = station.lat ?: return@forEach
+            val lng = station.lng ?: return@forEach
+            val price = station.effectivePrice
+            PricePill(
+                price = price,
+                cheapest = price != null && lowestPrice != null && kotlin.math.abs(price - lowestPrice) < 1e-6,
+                selected = station.id == selectedId,
+                onClick = { onSelect(station.id) },
+                modifier = Modifier.centeredAt(place(LatLng(lat, lng))),
+            )
+        }
+    }
 }
