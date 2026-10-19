@@ -1,20 +1,11 @@
 plugins {
-    alias(libs.plugins.android.library)
+    alias(libs.plugins.nexus.android.library)
     alias(libs.plugins.kotlin.serialization)
 }
 
 android {
-    namespace = "io.github.numynox.nexus.core.data"
-    compileSdk = 37
-
     defaultConfig {
-        minSdk = 29
         consumerProguardFiles("consumer-rules.pro")
-    }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
     }
 }
 

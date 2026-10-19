@@ -2,10 +2,10 @@ package io.github.numynox.nexus.vibilia.ui.logbook
 
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
@@ -16,7 +16,7 @@ import io.github.numynox.nexus.vibilia.data.Car
 import io.github.numynox.nexus.vibilia.ui.AppViewModel
 import io.github.numynox.nexus.vibilia.ui.EditorRequest
 import io.github.numynox.nexus.vibilia.ui.common.containerViewModel
-import io.github.numynox.nexus.vibilia.ui.common.valueOrNull
+import io.github.numynox.nexus.core.ui.valueOrNull
 import kotlinx.coroutines.launch
 
 /**

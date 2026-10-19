@@ -1,15 +1,7 @@
 package io.github.numynox.nexus.vibilia.screenshots
 
-import io.github.numynox.nexus.core.data.NexusConfig
+import io.github.numynox.nexus.core.testing.FakeSupabase
 import io.github.numynox.nexus.vibilia.data.BluetoothLink
-import io.ktor.client.engine.mock.MockEngine
-import io.ktor.client.engine.mock.MockRequestHandleScope
-import io.ktor.client.engine.mock.respond
-import io.ktor.client.request.HttpRequestData
-import io.ktor.client.request.HttpResponseData
-import io.ktor.http.HttpHeaders
-import io.ktor.http.HttpStatusCode
-import io.ktor.http.headersOf
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -31,43 +23,24 @@ import kotlinx.serialization.json.putJsonObject
  * to now, so the screenshots always look current.
  */
 object FakeBackend {
-    const val USER_ID = "11111111-1111-4111-8111-111111111111"
+    const val USER_ID = FakeSupabase.USER_ID
     const val GOLF = "c1111111-1111-4111-8111-111111111111"
     const val POLO = "c2222222-2222-4222-8222-222222222222"
     const val GOLF_RADIO = "F4:5E:AB:12:34:56"
 
     val links = listOf(BluetoothLink(GOLF, GOLF_RADIO, "VW Radio"))
 
-    val config = NexusConfig(
-        appName = "Vibilia",
-        supabaseUrl = "https://fake.supabase.co",
-        supabaseAnonKey = "fake-anon-key",
-        versionName = "0.0.42",
-        versionCode = 42,
-        releaseRepository = "numynox/nexus",
-        releaseTagPrefix = "vibilia-android-v",
-    )
-
-    /** A session as GoTrue returns it, decoded by supabase-kt's own serializer. */
-    val sessionJson = """
-        {"access_token": "fake.jwt.token", "refresh_token": "fake-refresh", "expires_in": 31536000, "token_type": "bearer",
-         "user": {"id": "$USER_ID", "aud": "authenticated", "email": "jannis@example.com", "app_metadata": {}, "user_metadata": {}}}
-    """.trimIndent()
+    val config = FakeSupabase.config("Vibilia")
 
     private val zone = ZoneId.systemDefault()
     private val now = Instant.now().truncatedTo(ChronoUnit.MINUTES)
     private fun daysAgo(days: Long, hour: Int = 17) =
         LocalDate.now(zone).minusDays(days).atTime(hour, 12).atZone(zone).toInstant().toString()
 
-    fun engine() = MockEngine { request -> respondTo(request) }
-
-    private fun MockRequestHandleScope.respondTo(request: HttpRequestData): HttpResponseData {
-        val path = request.url.encodedPath
+    fun engine() = FakeSupabase.engine { request, path ->
         val params = request.url.parameters
-        val body = when {
-            request.url.host == "api.github.com" -> "[]"
+        when {
             path.endsWith("/functions/v1/fetch-nearby-fuel-prices") -> nearby().toString()
-            path.startsWith("/auth/") -> "{}"
             path.endsWith("/rpc/get_fuel_stations_current_prices") -> currentPrices().toString()
             path.endsWith("/rpc/get_fuel_price_plot_history") -> priceHistory().toString()
             path.endsWith("/rpc/get_fuel_price_weekly_minima") -> weeklyMinima().toString()
@@ -87,9 +60,8 @@ object FakeBackend {
             path.endsWith("/rest/v1/fuel_stations") -> stations().toString()
             path.endsWith("/rest/v1/vibilia_car_bluetooth_devices") ->
                 buildJsonArray { links.forEach { addJsonObject { put("car_id", it.carId); put("address", it.address); put("name", it.name) } } }.toString()
-            else -> "[]"
+            else -> null
         }
-        return respond(body, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
     }
 
     private fun cars() = buildJsonArray {

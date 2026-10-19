@@ -13,9 +13,9 @@ import io.github.numynox.nexus.vibilia.data.RefuelEvent
 import io.github.numynox.nexus.vibilia.data.VibiliaSettings
 import io.github.numynox.nexus.vibilia.tracking.DriveSync
 import io.github.numynox.nexus.vibilia.tracking.TrackerState
-import io.github.numynox.nexus.vibilia.ui.common.Loadable
-import io.github.numynox.nexus.vibilia.ui.common.loadable
-import io.github.numynox.nexus.vibilia.ui.common.valueOrNull
+import io.github.numynox.nexus.core.ui.Loadable
+import io.github.numynox.nexus.core.ui.loadable
+import io.github.numynox.nexus.core.ui.valueOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow

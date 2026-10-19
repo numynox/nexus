@@ -12,8 +12,8 @@ import io.github.numynox.nexus.vibilia.data.LastRefuelPrice
 import io.github.numynox.nexus.vibilia.data.PriceBucket
 import io.github.numynox.nexus.vibilia.data.StationPrice
 import io.github.numynox.nexus.vibilia.location.LatLng
-import io.github.numynox.nexus.vibilia.ui.common.Loadable
-import io.github.numynox.nexus.vibilia.ui.common.loadable
+import io.github.numynox.nexus.core.ui.Loadable
+import io.github.numynox.nexus.core.ui.loadable
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
