@@ -9,7 +9,7 @@ publishes, and the backend, which is pushed by hand:
 | What | How | Automated? |
 | :--- | :--- | :--- |
 | The three websites | GitHub Actions → GitHub Pages | yes |
-| The Android apps (Vibilia so far) | GitHub Actions → GitHub Releases, sideloaded | yes |
+| The three Android apps | GitHub Actions → GitHub Releases, sideloaded | yes |
 | Database migrations | `npm run db:push` from a laptop | no |
 | Edge Functions | `npm run db:functions:deploy` from a laptop | no |
 | Vault / function secrets | Supabase dashboard or CLI | no |
@@ -87,21 +87,31 @@ Changing any of them requires a rebuild; there is no runtime configuration.
 
 ## Android app release (automated)
 
-`.github/workflows/android-vibilia.yml` builds the native Vibilia app
-(`android/`, see `.agents/brain/decisions/2026-10-19-native-android-apps.md`):
+Each native app (`android/`, see
+`.agents/brain/decisions/2026-10-19-native-android-apps.md`) has its own
+workflow — `android-noctua.yml`, `android-vibilia.yml`, `android-annona.yml` —
+and all three call the same build, `android-app.yml`
+(`.agents/brain/decisions/2026-10-19-shared-android-build-and-per-app-ci.md`):
 
-1. Triggers on pull requests and pushes to `main` that touch `android/**` or
-   `config.yaml`, and on `workflow_dispatch`.
-2. Runs the unit tests, then `./gradlew :vibilia:assembleRelease` with Java 21.
+1. Triggers on pull requests and pushes to `main` that touch **that app's
+   module or the shared Android code** (`android/core`, `android/build-logic`,
+   the Gradle files) or `config.yaml`, and on `workflow_dispatch`. A change to
+   Noctua alone builds Noctua alone.
+2. One Gradle run, Java 21: the unit tests and the screenshot walk
+   (`:<app>:recordRoborazziDebug`), then `:<app>:assembleRelease`. The Gradle
+   cache is written from `main` only and read by pull requests.
 3. On a push to `main` with the signing key configured, publishes a GitHub
-   release tagged `vibilia-android-v<version>` with the APK attached. The
+   release tagged `<app>-android-v<version>` with the APK attached. The
    version is `0.0.<run number>`; its prefix is set in one place,
-   `android/vibilia/build.gradle.kts`.
+   `android/build-logic/src/main/kotlin/NexusApplicationPlugin.kt`.
    Pull requests only keep the APK as a 14-day build artifact.
 
-The version code is the workflow's run number, so every release is newer than
-the last. Releases are created with `--latest=false`, so no app's release
-becomes the repository's "latest" over another's.
+The version code is the app's workflow run number, so every release is newer
+than the last — **do not rename an `android-<app>.yml`**: a new file name
+starts counting at one, and Android refuses to install a lower version code
+over a higher one. Releases are created with `--latest=false`, so no app's
+release becomes the repository's "latest" over another's; each app's update
+check looks only at tags with its own prefix.
 
 ### Installing and updating on a phone
 
@@ -425,8 +435,8 @@ Order matters:
 6. Create user accounts in the dashboard. **The apps have no sign-up screen** —
    sign-in only, by design.
 7. Set `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_ANON_KEY` as GitHub repository
-   variables, then run the Pages workflow. For the Android app, also add the
-   signing secrets (above) and run the Vibilia Android workflow.
+   variables, then run the Pages workflow. For the Android apps, also add the
+   signing secrets (above) and run the three Android workflows.
 8. Optionally seed: `npm run db:seed:fuel-prices`, `npm run db:seed:products`,
    or `supabase/seed.sql` for feeds and stations.
 

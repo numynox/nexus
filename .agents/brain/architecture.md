@@ -31,8 +31,8 @@ covers how it is put together.
                             Tankerkoenig API · RSS feeds (outbound)
 ```
 
-There is **no application server**. The three apps are static HTML + JS — plus,
-for Vibilia, a native Android app — and the only backend is Supabase. See
+There is **no application server**. The three apps are static HTML + JS — plus
+a native Android app each — and the only backend is Supabase. See
 `decisions/2026-02-15-static-astro-svelte-on-github-pages.md` for why, and what
 that costs.
 
@@ -363,60 +363,87 @@ Expressive components), supabase-kt on Ktor/OkHttp.
 
 ```
 android/
-  core/data   Supabase client, AuthRepository, error wording, NexusConfig, UpdateChecker
-  core/ui     NexusTheme (palette per app, wallpaper colours optional), formatting,
-              components, NexusChart, SignInScreen
-  vibilia/    the app: data/ (rows, repositories, preferences), tracking/,
-              location/, ui/ (one package per screen)
+  build-logic/  convention plugins: nexus.android.application (SDKs, version,
+                signing, Supabase BuildConfig, config.yaml access) and
+                nexus.android.library
+  core/data     NexusCore (Supabase client, session, AuthRepository, UpdateChecker),
+                error wording, NexusConfig, date serializers
+  core/ui       NexusTheme (palette per app, wallpaper colours optional), NexusApp
+                (theme + session gate + sign-in), Loadable, formatting, components,
+                NexusChart, shared settings cards
+  core/testing  FakeSupabase and ScreenshotRobot — test-only
+  noctua/ vibilia/ annona/   one module per app: data/ (rows, repository,
+                preferences), ui/ (one package per screen), plus what is the
+                app's own (Vibilia's tracking/, Annona's scan/ and reminders/)
 ```
 
-The layering mirrors the web apps. `vibilia/data/Repositories.kt` is the
+The split mirrors the websites: `core/` is `packages/`, an app module is an
+`app/<name>`. What every app module has in common — SDK levels, the version,
+signing, the Supabase fields, test setup — is not in its build file but in the
+convention plugin (`decisions/2026-10-19-shared-android-build-and-per-app-ci.md`);
+an app's `build.gradle.kts` holds only its dependencies and its own
+`config.yaml` values.
+
+The layering inside an app mirrors the web apps. `data/*Repository.kt` is the
 Android `lib/data.ts`: every query and RPC, and the only code that talks to
 Supabase. Row classes are hand-written there, like the web's interfaces — the
-same row shape now exists twice, in TypeScript and Kotlin. Preferences are
-device-local in DataStore, validated on read, like `lib/storage.ts`.
-`AppContainer` wires everything by hand; there is no DI framework.
+same row shape exists twice, in TypeScript and Kotlin. Preferences are
+device-local in DataStore, validated on read, like `lib/storage.ts`. Each app
+has an `AppContainer` around one `NexusCore`, wired by hand; there is no DI
+framework. Each app's scoping model is the web app's — RLS does not change for
+a native client.
 
 Build-time settings come from the sources the websites use: the root `.env` or
-CI variables for `PUBLIC_*`, and `config.yaml` (read with a regex in
-`vibilia/build.gradle.kts`) for the price bucket and the nearby radius.
+CI variables for `PUBLIC_*`, and the app's block of `config.yaml` (read with a
+line scan in `build-logic`, `NexusBuildSettings`) — Vibilia's price bucket and
+radius, Noctua's article limit and statistics window.
+
+Navigation is the same everywhere: Navigation 3, the back stack a list of
+`NavKey`s owned by the app's `MainScaffold`; a tab switch resets it to the home
+tab plus that tab. View models are scoped to back-stack entries
+(`rememberViewModelStoreNavEntryDecorator`). Forms are bottom sheets.
 
 Things that differ from the web on purpose:
 
-- **One navigation for the whole app** (Prices, Logbook, Statistics, Settings)
-  with a bottom bar or rail; the refuel and expense forms are one bottom sheet
-  above every screen.
-- **Location from `LocationManager`**, not Google Play services, so the app
-  needs nothing from Google. The map is MapLibre with the web's tile choice
-  (CARTO with the public key, OpenStreetMap otherwise), price pills drawn in
-  Compose over the map's projection.
-- **Bluetooth drive tracking** (`tracking/`): a manifest receiver for
-  `ACL_CONNECTED`/`ACL_DISCONNECTED` feeds `DriveTracker`, a state machine
-  persisted in DataStore; WorkManager uploads finished drives and keeps a
-  15-minute heartbeat while one is open. The links (`address → car`) are
-  cached on the phone because the car is often a dead spot.
+- **Vibilia** — one navigation for the whole app (Prices, Logbook, Statistics,
+  Settings); the refuel and expense forms are one sheet above every screen.
+  Location from `LocationManager`, not Google Play services. MapLibre with the
+  web's tile choice. **Bluetooth drive tracking** (`tracking/`): a manifest
+  receiver for `ACL_CONNECTED`/`ACL_DISCONNECTED` feeds `DriveTracker`, a
+  state machine persisted in DataStore; WorkManager uploads finished drives and
+  keeps a 15-minute heartbeat while one is open.
+- **Noctua** — Feed, Library (the web's /starred and /read as two shelves),
+  Statistics, Settings. Sections are chips above the feed, with an "All"; a
+  section's feeds are a filter in the top bar. Swipe right stars, swipe left
+  toggles read, a long press shares; articles open in a Custom Tab. Seen is
+  marked as items scroll up past the top of the list and kept in DataStore,
+  capped at 5,000 ids. Statistics are computed on the phone from the same
+  queries as the web dashboard (`ReadingStats`).
+- **Annona** — Pantry (the dashboard, then stock grouped by how soon it
+  expires), Products, Places, Settings (reminders, places, categories). Adding
+  and using up start from a FAB menu on every tab, or from launcher shortcuts.
+  Barcodes are read on the device by CameraX + zxing-cpp; an unknown barcode
+  goes to the `lookup-food-product` Edge Function as on the web. A daily
+  **expiry reminder** (WorkManager, device-local and off by default) lists
+  what expires within the chosen window.
 
-The web shows what the phone records but cannot record it: the drive-based
-fuel estimate and day-accurate monthly chart come from Postgres for both, the
-statistics page shows the model, vehicle settings show the linked device.
+The web shows what the phone records where it can, and hides what it cannot
+do: the drive-based fuel estimate and day-accurate monthly chart come from
+Postgres for both clients; reminders and shortcuts are Android-only.
 
-Navigation is Navigation 3: the back stack is a list of `NavKey`s owned by
-`MainScaffold`; a tab switch resets it to Prices plus that tab. View models are
-scoped to back-stack entries (`rememberViewModelStoreNavEntryDecorator`), the
-editor sheet's to the sheet.
+Checks: `./gradlew :<app>:recordRoborazziDebug` runs the app's JVM unit tests
+and its `AppScreenshots` — the whole app in Robolectric against a fake
+Supabase (`FakeBackend` routing over `core/testing`'s `FakeSupabase`, a Ktor
+`MockEngine`), walked screen by screen and photographed. That is how the UI is
+reviewed without a device; CI publishes the images as `<app>-screenshots`. The
+seams that exist for it: every `AppContainer` takes an HTTP engine,
+`VibiliaApplication.mapsAvailable` swaps MapLibre for a schematic map, and the
+screenshot applications install a fake Coil image engine.
 
-Checks: `./gradlew :vibilia:testDebugUnitTest` (JVM unit tests: tracker,
-consumption arithmetic, row decoding) and `:vibilia:recordRoborazziDebug`,
-which also runs `AppScreenshots` — the whole app in Robolectric against a fake
-Supabase (`FakeBackend`, a Ktor `MockEngine`), walked screen by screen and
-photographed. That is how the UI is reviewed without a device; CI publishes
-the images as the `vibilia-screenshots` artifact. Two seams exist for it and
-nothing else: `AppContainer` takes an HTTP engine, and
-`VibiliaApplication.mapsAvailable` swaps MapLibre for a schematic map.
-
-The Supabase session is stored in the app's own `SharedPreferences`, handed to
+The Supabase session is stored in each app's own `SharedPreferences`, handed to
 supabase-kt explicitly — its default finds a context through App Startup,
-which is invisible and does not run in tests.
+which is invisible and does not run in tests. Each app signs in separately;
+the account is the same.
 
 ---
 
