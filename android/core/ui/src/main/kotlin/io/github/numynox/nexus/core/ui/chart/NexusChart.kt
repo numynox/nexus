@@ -1,15 +1,11 @@
 package io.github.numynox.nexus.core.ui.chart
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,7 +23,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -71,9 +66,8 @@ data class ReferenceLine(val value: Double, val label: String, val color: Color)
 data class VerticalMarker(val x: Double, val color: Color)
 
 /**
- * The one chart every Nexus app draws with. Lines reveal left to right and
- * bars grow from the baseline when data arrives; touching the plot shows the
- * values under the finger. Horizontal drags scrub, vertical ones are left to
+ * The one chart every Nexus app draws with. It draws its data at once, with no
+ * entry animation; touching the plot shows the values under the finger. Horizontal drags scrub, vertical ones are left to
  * the surrounding list. Bar series sharing an x are stacked in series order.
  */
 @Composable
@@ -101,11 +95,6 @@ fun NexusChart(
     val tooltipColor = MaterialTheme.colorScheme.inverseSurface
     val surfaceColor = MaterialTheme.colorScheme.surfaceContainerLow
 
-    val reveal = remember { Animatable(0f) }
-    LaunchedEffect(series) {
-        reveal.snapTo(0f)
-        reveal.animateTo(1f, tween(durationMillis = 900, easing = FastOutSlowInEasing))
-    }
     var selectedX by remember(series) { mutableStateOf<Double?>(null) }
 
     val geometry = remember(series, xRange, includeZero, referenceLines) {
@@ -148,15 +137,13 @@ fun NexusChart(
             }
         }
 
-        drawBars(series, g, frame, reveal.value, selectedX)
+        drawBars(series, g, frame, selectedX)
 
-        clipRect(left = 0f, top = 0f, right = frame.left + frame.width * reveal.value, bottom = size.height) {
-            series.filter { it.style != SeriesStyle.Bars }.forEach { s ->
-                when (s.style) {
-                    SeriesStyle.Line, SeriesStyle.SteppedLine -> drawLineSeries(s, g, frame)
-                    SeriesStyle.Dots -> drawDots(s, g, frame, surfaceColor)
-                    SeriesStyle.Bars -> Unit
-                }
+        series.filter { it.style != SeriesStyle.Bars }.forEach { s ->
+            when (s.style) {
+                SeriesStyle.Line, SeriesStyle.SteppedLine -> drawLineSeries(s, g, frame)
+                SeriesStyle.Dots -> drawDots(s, g, frame, surfaceColor)
+                SeriesStyle.Bars -> Unit
             }
         }
 
@@ -366,7 +353,6 @@ private fun DrawScope.drawBars(
     series: List<ChartSeries>,
     g: ChartGeometry,
     frame: Frame,
-    progress: Float,
     selectedX: Double?,
 ) {
     val bars = series.filter { it.style == SeriesStyle.Bars }
@@ -380,7 +366,7 @@ private fun DrawScope.drawBars(
         val stack = bars.mapNotNull { s -> s.points.firstOrNull { it.x == x }?.let { s to it } }
         stack.forEachIndexed { index, (s, p) ->
             if (p.y <= 0) return@forEachIndexed
-            val top = base + p.y * progress
+            val top = base + p.y
             val left = frame.px(x, g) - barWidth / 2f
             val rect = androidx.compose.ui.geometry.Rect(left, frame.py(top, g), left + barWidth, frame.py(base, g))
             val isTop = index == stack.lastIndex || stack.drop(index + 1).all { it.second.y <= 0 }
