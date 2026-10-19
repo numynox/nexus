@@ -36,8 +36,9 @@ jobs:
       PUBLIC_SUPABASE_URL: ${{ vars.PUBLIC_SUPABASE_URL }}
       PUBLIC_SUPABASE_ANON_KEY: ${{ vars.PUBLIC_SUPABASE_ANON_KEY }}
       PUBLIC_CARTO_API_KEY: ${{ vars.PUBLIC_CARTO_API_KEY }}
-      # Becomes versionCode and the last part of versionName (1.0.<n>); the
-      # in-app update check compares it with the newest release tag.
+      # Becomes versionCode and the last part of versionName; the prefix is set
+      # in vibilia/build.gradle.kts. The in-app update check compares the run
+      # number with the newest release tag's.
       NEXUS_VERSION_CODE: ${{ github.run_number }}
     steps:
       - name: Checkout
@@ -87,7 +88,9 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           ./gradlew :vibilia:assembleRelease
-          cp vibilia/build/outputs/apk/release/vibilia-release.apk "$RUNNER_TEMP/vibilia-1.0.${NEXUS_VERSION_CODE}.apk"
+          version="$(./gradlew -q :vibilia:printVersionName)"
+          echo "VIBILIA_VERSION=${version}" >> "$GITHUB_ENV"
+          cp vibilia/build/outputs/apk/release/vibilia-release.apk "$RUNNER_TEMP/vibilia-${version}.apk"
 
       - name: Keep the APK as a build artifact
         uses: actions/upload-artifact@v7
@@ -101,7 +104,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          version="1.0.${NEXUS_VERSION_CODE}"
+          version="${VIBILIA_VERSION}"
           gh release create "vibilia-android-v${version}" "$RUNNER_TEMP/vibilia-${version}.apk" \
             --title "Vibilia for Android ${version}" \
             --notes "Built from ${GITHUB_SHA::7}. Open this page on the phone and install the APK; Android updates the installed app in place." \

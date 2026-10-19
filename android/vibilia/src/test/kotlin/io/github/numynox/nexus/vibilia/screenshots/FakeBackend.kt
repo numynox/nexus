@@ -42,7 +42,7 @@ object FakeBackend {
         appName = "Vibilia",
         supabaseUrl = "https://fake.supabase.co",
         supabaseAnonKey = "fake-anon-key",
-        versionName = "1.0.42",
+        versionName = "0.0.42",
         versionCode = 42,
         releaseRepository = "numynox/nexus",
         releaseTagPrefix = "vibilia-android-v",

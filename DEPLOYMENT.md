@@ -94,7 +94,9 @@ Changing any of them requires a rebuild; there is no runtime configuration.
    `config.yaml`, and on `workflow_dispatch`.
 2. Runs the unit tests, then `./gradlew :vibilia:assembleRelease` with Java 21.
 3. On a push to `main` with the signing key configured, publishes a GitHub
-   release tagged `vibilia-android-v1.0.<run number>` with the APK attached.
+   release tagged `vibilia-android-v<version>` with the APK attached. The
+   version is `0.0.<run number>`; its prefix is set in one place,
+   `android/vibilia/build.gradle.kts`.
    Pull requests only keep the APK as a 14-day build artifact.
 
 The version code is the workflow's run number, so every release is newer than

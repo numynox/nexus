@@ -28,8 +28,20 @@ val configYaml: String = repositoryRoot.resolve("config.yaml").takeIf { it.isFil
 fun vibiliaYamlNumber(key: String, default: String): String =
     Regex("""^\s+$key:\s*([0-9.]+)""", RegexOption.MULTILINE).find(configYaml)?.groupValues?.get(1) ?: default
 
-// CI passes the run number; local builds are version code 1.
+// ── Version ──────────────────────────────────────────────────────────────────
+// The one place the version is set. CI passes the run number, which becomes the
+// version code and the last part of the name; local builds are 1. CI reads the
+// name back with `printVersionName` for the APK file and the release tag, and
+// the in-app update check compares only the run number, so the prefix can
+// change freely.
+val nexusVersionPrefix = "0.0"
 val nexusVersionCode: Int = providers.environmentVariable("NEXUS_VERSION_CODE").orNull?.toIntOrNull() ?: 1
+val nexusVersionName = "$nexusVersionPrefix.$nexusVersionCode"
+
+tasks.register("printVersionName") {
+    val name = nexusVersionName
+    doLast { println(name) }
+}
 
 fun String.asBuildConfigString(): String = "\"" + replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
@@ -48,7 +60,7 @@ android {
         minSdk = 29
         targetSdk = 36
         versionCode = nexusVersionCode
-        versionName = "1.0.$nexusVersionCode"
+        versionName = nexusVersionName
 
         buildConfigField("String", "SUPABASE_URL", nexusSetting("PUBLIC_SUPABASE_URL").asBuildConfigString())
         buildConfigField("String", "SUPABASE_ANON_KEY", nexusSetting("PUBLIC_SUPABASE_ANON_KEY").asBuildConfigString())
