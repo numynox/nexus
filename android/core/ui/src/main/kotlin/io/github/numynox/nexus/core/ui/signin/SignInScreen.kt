@@ -119,7 +119,7 @@ fun SignInScreen(
                 modifier = Modifier
                     .size(132.dp)
                     .scale(logoScale.value)
-                    .background(MaterialTheme.colorScheme.primaryContainer, MaterialShapes.Cookie12Sided.toShape()),
+                    .background(MaterialTheme.colorScheme.secondaryContainer, MaterialShapes.Cookie12Sided.toShape()),
                 contentAlignment = Alignment.Center,
             ) {
                 Image(logo, contentDescription = null, modifier = Modifier.size(84.dp))

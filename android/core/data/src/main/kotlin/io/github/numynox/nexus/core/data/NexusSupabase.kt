@@ -6,6 +6,7 @@ import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.functions.Functions
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.serializer.KotlinXSerializer
+import io.ktor.client.engine.okhttp.OkHttp
 import kotlinx.serialization.json.Json
 
 /**
@@ -34,6 +35,9 @@ fun createNexusSupabaseClient(config: NexusConfig): SupabaseClient =
         supabaseKey = config.supabaseAnonKey.ifBlank { "not-configured" },
     ) {
         defaultSerializer = KotlinXSerializer(NexusJson)
+        // Named explicitly rather than discovered through ServiceLoader, which
+        // R8 can strip from a release build.
+        httpEngine = OkHttp.create()
         install(Auth)
         install(Postgrest)
         install(Functions)

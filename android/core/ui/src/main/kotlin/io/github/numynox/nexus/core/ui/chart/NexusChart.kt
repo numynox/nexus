@@ -160,7 +160,7 @@ fun NexusChart(
             }
         }
 
-        referenceLines.forEach { line -> drawReferenceLine(line, g, frame, textMeasurer, labelStyle, yFormatter) }
+        referenceLines.forEach { line -> drawReferenceLine(line, surfaceColor, g, frame, textMeasurer, labelStyle, yFormatter) }
 
         selectedX?.let { x ->
             drawSelection(x, series, g, frame, surfaceColor, tooltipColor, textMeasurer, tooltipTitleStyle, tooltipBodyStyle, tooltipXFormatter, tooltipYFormatter)
@@ -290,11 +290,22 @@ private fun DrawScope.drawXLabels(
     xFormatter: (Double) -> String,
 ) {
     val values = ticks ?: (0..4).map { g.minX + (g.maxX - g.minX) * it / 4.0 }
-    values.filter { it in g.minX..g.maxX }.forEach { value ->
+    // Labels that would touch the previous one are skipped, so the last
+    // (clamped to the edge) never lands on top of its neighbour.
+    var lastRight = Float.NEGATIVE_INFINITY
+    val gap = 8.dp.toPx()
+    val labels = values.filter { it in g.minX..g.maxX }.map { value ->
         val label = measurer.measure(xFormatter(value), style)
-        val x = (frame.px(value, g) - label.size.width / 2f)
-            .coerceIn(0f, size.width - label.size.width)
-        drawText(label, topLeft = Offset(x, frame.bottom + 8f))
+        val x = (frame.px(value, g) - label.size.width / 2f).coerceIn(0f, size.width - label.size.width)
+        x to label
+    }
+    labels.forEachIndexed { index, (x, label) ->
+        val next = labels.getOrNull(index + 1)
+        val collidesWithLast = index == labels.lastIndex - 1 && next != null && x + label.size.width + gap > next.first
+        if (x >= lastRight + gap && !collidesWithLast) {
+            drawText(label, topLeft = Offset(x, frame.bottom + 8f))
+            lastRight = x + label.size.width
+        }
     }
 }
 
@@ -386,6 +397,7 @@ private fun DrawScope.drawBars(
 
 private fun DrawScope.drawReferenceLine(
     line: ReferenceLine,
+    background: Color,
     g: ChartGeometry,
     frame: Frame,
     measurer: TextMeasurer,
@@ -401,7 +413,15 @@ private fun DrawScope.drawReferenceLine(
         pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 4.dp.toPx())),
     )
     val label = measurer.measure("${line.label} ${yFormatter(line.value)}", style.copy(color = line.color))
-    drawText(label, topLeft = Offset(frame.right - label.size.width, y - label.size.height - 2f))
+    val pad = 4.dp.toPx()
+    val topLeft = Offset(frame.right - label.size.width - pad, y - label.size.height - pad * 1.5f)
+    drawRoundRect(
+        background,
+        topLeft = Offset(topLeft.x - pad, topLeft.y - pad / 2),
+        size = Size(label.size.width + pad * 2, label.size.height + pad),
+        cornerRadius = CornerRadius(pad * 2),
+    )
+    drawText(label, topLeft = topLeft)
 }
 
 private fun DrawScope.drawSelection(
