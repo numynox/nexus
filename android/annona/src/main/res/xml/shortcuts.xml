@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Long-press the launcher icon: straight to the scanner, to add or to use up. -->
+<!-- Long-press the launcher icon: straight to the scanner, to add or to use up.
+     targetPackage is the release id, so the shortcuts work in release builds
+     only; a debug build (".debug") shows them but cannot open them. -->
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
     <shortcut
         android:shortcutId="scan_add"

@@ -129,7 +129,9 @@ private fun CameraPreview(onScanned: (String) -> Unit) {
             }.onFailure { failed = true }
         }, ContextCompat.getMainExecutor(context))
         onDispose {
-            runCatching { future.get().unbindAll() }
+            // Never block the main thread on a provider still starting up;
+            // if it is not ready, it bound nothing to unbind.
+            if (future.isDone) runCatching { future.get().unbindAll() }
             executor.shutdown()
         }
     }
