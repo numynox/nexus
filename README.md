@@ -12,6 +12,9 @@ one GitHub Pages site:
 One Supabase account signs you in to all three. There is no sign-up screen —
 accounts are created in the Supabase dashboard.
 
+Vibilia also has a native Android app (`android/`), on the same backend and
+installed from GitHub Releases; Noctua and Annona will follow.
+
 - **How it is put together:** `.agents/brain/architecture.md`
 - **How it is hosted and released:** `DEPLOYMENT.md`
 - **Conventions for changing it:** `CLAUDE.md`
@@ -29,6 +32,10 @@ nexus/
 │   ├── functions/       # Deno Edge Functions
 │   ├── config.toml
 │   └── seed.sql
+├── android/             # native apps: Gradle build, Kotlin + Jetpack Compose
+│   ├── core/data/       # Supabase client, session, update check — shared
+│   ├── core/ui/         # theme, components, charts, sign-in — shared
+│   └── vibilia/         # the Vibilia app
 ├── packages/
 │   └── config/          # the one reader for config.yaml, used by all three apps
 ├── scripts/             # backup, restore, seed, import
@@ -188,8 +195,9 @@ before doing it, and take a backup (`npm run db:backup`) first.
 npm run test:db               # pgTAP tests against the local Supabase stack
 ```
 
-`supabase/tests/` covers Vibilia's refuel statistics arithmetic and the RLS
-policies of all three apps. Each file runs in a transaction that is rolled back,
+`supabase/tests/` covers Vibilia's refuel statistics arithmetic, its drive
+tracking (deduplication, attribution to days, the model, the fuel estimate)
+and the RLS policies of all three apps. Each file runs in a transaction that is rolled back,
 so it is safe against a database with data in it, and it needs the local stack
 running (`npm run db:start`). It is not part of CI — run it when you touch a
 migration, a policy or an RPC.
@@ -209,6 +217,27 @@ type-checked — though `astro check` only covers `.astro` and `.ts` files, not
 the script block of a `.svelte` component. `output/` is generated and git-ignored. CI runs `build:websites`
 and publishes `output/pages`; this is the only automated check that exists, so
 build all three before pushing.
+
+## Android app
+
+Needs JDK 21 and the Android SDK (Android Studio brings both; otherwise set
+`sdk.dir` in `android/local.properties`). The build reads the same
+`PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY` and `PUBLIC_CARTO_API_KEY`
+from the root `.env` (or the environment) and Vibilia's bucket and radius from
+`config.yaml`, so nothing is configured twice. A phone cannot reach
+`127.0.0.1`; to run against the local stack, put the machine's LAN address in
+`PUBLIC_SUPABASE_URL`, or use `10.0.2.2` from the emulator.
+
+```bash
+cd android
+./gradlew :vibilia:installDebug           # onto a connected phone or emulator
+./gradlew :vibilia:testDebugUnitTest      # tracker, arithmetic, row decoding
+./gradlew :vibilia:recordRoborazziDebug   # renders the main screens to vibilia/build/outputs/roborazzi
+./gradlew :vibilia:assembleRelease        # what CI publishes
+```
+
+Debug builds install beside a release build (`.debug` suffix). Drive tracking
+needs a real phone paired with a car; everything else works in the emulator.
 
 ## Scripts reference
 
