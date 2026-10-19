@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The pump red of the Vibilia logo, the seed of the app's palette. -->
+    <color name="vibilia_red">#C4161C</color>
+    <color name="splash_background">#FFF8F7</color>
+</resources>

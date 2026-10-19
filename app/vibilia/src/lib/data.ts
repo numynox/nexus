@@ -61,13 +61,73 @@ export interface LastRefuelEventPoint {
 }
 
 export interface FuelLevelEstimate {
+  /**
+   * `drive`: driving time since the last refuel × the car's learned litres per
+   * hour (Bluetooth drive tracking, recorded by the Android app).
+   * `time`: calendar days × average litres per day.
+   */
+  method: "drive" | "time";
   lastRefuelAt: string;
   daysSinceLastRefuel: number;
-  averageConsumptionLitersPerDay: number;
+  averageConsumptionLitersPerDay: number | null;
   startingLiters: number;
   remainingLiters: number;
   tankCapacity: number;
   fillRatio: number;
+  drivingHours: number | null;
+  estimatedKm: number | null;
+  /** How far the remaining fuel goes at the learned consumption; drive method only. */
+  rangeKm: number | null;
+}
+
+export interface CarDailyDistance {
+  day: string;
+  km: number;
+  /** Since the last refuel, estimated from driving time. */
+  estimated_km: number;
+  driving_seconds: number;
+}
+
+/** Driving time merged across every phone that reported it. */
+export interface CarDrivePeriod {
+  started_at: string;
+  ended_at: string;
+  reporter_count: number;
+}
+
+/** What a car does per hour of driving, learned from Bluetooth drives. */
+export interface CarDriveModel {
+  trackingSince: string | null;
+  lastDriveAt: string | null;
+  sampleCount: number;
+  sampleHours: number;
+  sampleKm: number;
+  kmPerHour: number | null;
+  litersPerHour: number | null;
+  litersPer100Km: number | null;
+}
+
+export interface CarBluetoothDevice {
+  car_id: string;
+  address: string;
+  name: string | null;
+}
+
+export interface CarDistanceMonth {
+  month_key: string;
+  km_driven: number;
+  /** Distance since the last refuel, estimated from driving time. */
+  estimated_km: number;
+  /** Bluetooth driving time in the month; 0 without drive tracking. */
+  driving_hours: number;
+}
+
+/** A car's most recent drive, merged across phones. */
+export interface CarLastDrive {
+  startedAt: string;
+  endedAt: string;
+  /** Driving time times the model's km per hour; null until the model has one. */
+  estimatedKm: number | null;
 }
 
 export interface NearbyFuelStation {
@@ -376,11 +436,63 @@ export async function fetchLatestAccessibleRefuelEvent(): Promise<LastRefuelEven
   };
 }
 
+function finiteOrNull(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/**
+ * The estimate is computed in Postgres (get_car_fuel_level_estimate), so it can
+ * use drive tracking. The browser computation below is the fallback for a
+ * database that does not have that function yet — the websites can deploy
+ * before the migration is pushed.
+ */
 export async function fetchFuelLevelEstimateForCar(
   carId: string,
 ): Promise<FuelLevelEstimate | null> {
   if (!carId) return null;
 
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc("get_car_fuel_level_estimate", {
+    p_car_id: carId,
+  });
+
+  if (error) return computeFuelLevelEstimateInBrowser(carId);
+
+  const row = Array.isArray(data) ? (data[0] ?? null) : null;
+  if (!row?.last_refuel_at) return null;
+
+  const tankCapacity = finiteOrNull(row.tank_capacity);
+  const remainingLiters = finiteOrNull(row.remaining_liters);
+  if (!tankCapacity || remainingLiters === null) return null;
+  const kmPerHour = finiteOrNull(row.km_per_hour);
+  const litersPerHour = finiteOrNull(row.liters_per_hour);
+
+  return {
+    method: row.method === "drive" ? "drive" : "time",
+    lastRefuelAt: row.last_refuel_at,
+    daysSinceLastRefuel: Math.max(
+      0,
+      (Date.now() - Date.parse(row.last_refuel_at)) / (1000 * 60 * 60 * 24),
+    ),
+    averageConsumptionLitersPerDay: finiteOrNull(row.liters_per_day),
+    startingLiters: finiteOrNull(row.starting_liters) ?? 0,
+    remainingLiters,
+    tankCapacity,
+    fillRatio: finiteOrNull(row.fill_ratio) ?? 0,
+    drivingHours: finiteOrNull(row.driving_hours),
+    estimatedKm: finiteOrNull(row.estimated_km),
+    rangeKm:
+      row.method === "drive" && kmPerHour && litersPerHour
+        ? (remainingLiters / litersPerHour) * kmPerHour
+        : null,
+  };
+}
+
+async function computeFuelLevelEstimateInBrowser(
+  carId: string,
+): Promise<FuelLevelEstimate | null> {
   const supabase = getSupabaseClient();
   const [carResult, refuelEventsResult] = await Promise.all([
     supabase
@@ -488,6 +600,7 @@ export async function fetchFuelLevelEstimateForCar(
   const fillRatio = Math.max(0, Math.min(1, remainingLiters / tankCapacity));
 
   return {
+    method: "time",
     lastRefuelAt: latestEvent.fueled_at,
     daysSinceLastRefuel,
     averageConsumptionLitersPerDay,
@@ -495,7 +608,92 @@ export async function fetchFuelLevelEstimateForCar(
     remainingLiters,
     tankCapacity,
     fillRatio,
+    drivingHours: null,
+    estimatedKm: null,
+    rangeKm: null,
   };
+}
+
+/**
+ * Distance per day, spread over the days actually driven (Bluetooth drives
+ * recorded by the Android app). Empty without drive tracking or on a database
+ * that predates it.
+ */
+export async function fetchCarDailyDistance(
+  carId: string,
+  sinceIso: string,
+  untilIso: string,
+): Promise<CarDailyDistance[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc("get_car_daily_distance", {
+    p_car_id: carId,
+    p_since: sinceIso,
+    p_until: untilIso,
+  });
+
+  if (error) return [];
+  return (data || []).map((row: any) => ({
+    day: row.day,
+    km: Number(row.km) || 0,
+    estimated_km: Number(row.estimated_km) || 0,
+    driving_seconds: Number(row.driving_seconds) || 0,
+  }));
+}
+
+export async function fetchCarDrivePeriods(
+  carId: string,
+  sinceIso: string,
+  untilIso: string,
+): Promise<CarDrivePeriod[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc("get_car_drive_periods", {
+    p_car_id: carId,
+    p_since: sinceIso,
+    p_until: untilIso,
+  });
+
+  if (error) return [];
+  return data || [];
+}
+
+/** Null until the car has drives, or when the database predates tracking. */
+export async function fetchCarDriveModel(
+  carId: string,
+): Promise<CarDriveModel | null> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc("get_car_drive_model", {
+    p_car_id: carId,
+  });
+
+  if (error) return null;
+  const row = Array.isArray(data) ? (data[0] ?? null) : null;
+  if (!row?.tracking_since) return null;
+
+  return {
+    trackingSince: row.tracking_since,
+    lastDriveAt: row.last_drive_at ?? null,
+    sampleCount: Number(row.sample_count) || 0,
+    sampleHours: Number(row.sample_hours) || 0,
+    sampleKm: Number(row.sample_km) || 0,
+    kmPerHour: finiteOrNull(row.km_per_hour),
+    litersPerHour: finiteOrNull(row.liters_per_hour),
+    litersPer100Km: finiteOrNull(row.liters_per_100km),
+  };
+}
+
+/**
+ * Bluetooth links are made in the Android app; the web only shows them. An
+ * empty list also covers a database that predates the table.
+ */
+export async function fetchCarBluetoothDevices(): Promise<CarBluetoothDevice[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("vibilia_car_bluetooth_devices")
+    .select("car_id, address, name")
+    .order("created_at", { ascending: true });
+
+  if (error) return [];
+  return data || [];
 }
 
 export async function fetchCarExpensesForCar(carId: string): Promise<any[]> {
@@ -601,18 +799,65 @@ export async function fetchCarRefuelPlotEvents(
   return data || [];
 }
 
+/**
+ * Distance per month, spread over the days actually driven where the car has
+ * drive tracking (get_car_distance_per_month). Falls back to
+ * get_car_km_per_month — everything on the refuel's month — for a database
+ * that does not have the newer function yet.
+ */
 export async function fetchCarKmPerMonth(
   carId: string,
   sinceIso: string,
   untilIso: string,
-): Promise<any[]> {
+): Promise<CarDistanceMonth[]> {
   const supabase = getSupabaseClient();
-  const { data, error } = await (supabase as any).rpc("get_car_km_per_month", {
-    p_car_id: carId,
-    p_since: sinceIso,
-    p_until: untilIso,
-  });
+  const params = { p_car_id: carId, p_since: sinceIso, p_until: untilIso };
 
+  const distributed = await supabase.rpc("get_car_distance_per_month", params);
+  if (!distributed.error) {
+    return (distributed.data || []).map((row: any) => ({
+      month_key: row.month_key,
+      km_driven: Number(row.km_driven) || 0,
+      estimated_km: Number(row.estimated_km) || 0,
+      driving_hours: Number(row.driving_hours) || 0,
+    }));
+  }
+
+  const { data, error } = await supabase.rpc("get_car_km_per_month", params);
   if (error) throw error;
-  return data || [];
+  return (data || []).map((row: any) => ({
+    month_key: row.month_key,
+    km_driven: Number(row.km_driven) || 0,
+    estimated_km: 0,
+    driving_hours: 0,
+  }));
+}
+
+/**
+ * The period ending at the car's last reported moment, with its distance
+ * estimated from the drive model. Null without drive tracking.
+ */
+export async function fetchCarLastDrive(
+  carId: string,
+): Promise<CarLastDrive | null> {
+  const model = await fetchCarDriveModel(carId);
+  if (!model?.lastDriveAt) return null;
+
+  const since = new Date(new Date(model.lastDriveAt).getTime() - 1000);
+  const periods = await fetchCarDrivePeriods(
+    carId,
+    since.toISOString(),
+    new Date().toISOString(),
+  );
+  const last = periods.at(-1);
+  if (!last) return null;
+
+  const hours =
+    (new Date(last.ended_at).getTime() - new Date(last.started_at).getTime()) /
+    3_600_000;
+  return {
+    startedAt: last.started_at,
+    endedAt: last.ended_at,
+    estimatedKm: model.kmPerHour !== null ? model.kmPerHour * hours : null,
+  };
 }

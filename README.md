@@ -12,6 +12,9 @@ one GitHub Pages site:
 One Supabase account signs you in to all three. There is no sign-up screen —
 accounts are created in the Supabase dashboard.
 
+Vibilia also has a native Android app (`android/`), on the same backend and
+installed from GitHub Releases; Noctua and Annona will follow.
+
 - **How it is put together:** `.agents/brain/architecture.md`
 - **How it is hosted and released:** `DEPLOYMENT.md`
 - **Conventions for changing it:** `CLAUDE.md`
@@ -29,6 +32,10 @@ nexus/
 │   ├── functions/       # Deno Edge Functions
 │   ├── config.toml
 │   └── seed.sql
+├── android/             # native apps: Gradle build, Kotlin + Jetpack Compose
+│   ├── core/data/       # Supabase client, session, update check — shared
+│   ├── core/ui/         # theme, components, charts, sign-in — shared
+│   └── vibilia/         # the Vibilia app
 ├── packages/
 │   └── config/          # the one reader for config.yaml, used by all three apps
 ├── scripts/             # backup, restore, seed, import
@@ -106,7 +113,19 @@ npm run db:reset     # recreate the local database from supabase/migrations + se
 ### 5. Create a user
 
 The apps only sign in. Create a user in the local Supabase Studio
-(Authentication → Users), or use one from a restored backup.
+(Authentication → Users → Add user, with **Auto Confirm User**).
+
+Backups hold the `public` schema only, so a restored database has your data
+but no logins. Create a local user with the same email, then attach the
+restored profile to it in Studio's SQL Editor:
+
+```sql
+select public.reassign_profile_user(
+  '<restored profile id>'::uuid,   -- select id, email from profiles;
+  (select id from auth.users where email = '<email>'),
+  true
+);
+```
 
 ## Development
 
@@ -188,8 +207,9 @@ before doing it, and take a backup (`npm run db:backup`) first.
 npm run test:db               # pgTAP tests against the local Supabase stack
 ```
 
-`supabase/tests/` covers Vibilia's refuel statistics arithmetic and the RLS
-policies of all three apps. Each file runs in a transaction that is rolled back,
+`supabase/tests/` covers Vibilia's refuel statistics arithmetic, its drive
+tracking (deduplication, attribution to days, the model, the fuel estimate)
+and the RLS policies of all three apps. Each file runs in a transaction that is rolled back,
 so it is safe against a database with data in it, and it needs the local stack
 running (`npm run db:start`). It is not part of CI — run it when you touch a
 migration, a policy or an RPC.
@@ -209,6 +229,46 @@ type-checked — though `astro check` only covers `.astro` and `.ts` files, not
 the script block of a `.svelte` component. `output/` is generated and git-ignored. CI runs `build:websites`
 and publishes `output/pages`; this is the only automated check that exists, so
 build all three before pushing.
+
+## Android app
+
+Needs JDK 21 and the Android SDK (Android Studio brings both; otherwise set
+`sdk.dir` in `android/local.properties`). The build reads the same
+`PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY` and `PUBLIC_CARTO_API_KEY`
+from the root `.env` (or the environment) and Vibilia's bucket and radius from
+`config.yaml`, so nothing is configured twice. To run a phone against the
+local stack, keep `http://127.0.0.1:54321` and forward the port with
+`adb reverse tcp:54321 tcp:54321` (again after each reconnect); the emulator
+uses `10.0.2.2`. Debug builds allow plain HTTP to exactly those hosts
+(`src/debug/res/xml/network_security_config.xml`) — a LAN address would be
+refused.
+
+```bash
+cd android
+./gradlew :vibilia:installDebug           # onto a connected phone or emulator
+./gradlew :vibilia:testDebugUnitTest      # tracker, arithmetic, row decoding
+./gradlew :vibilia:recordRoborazziDebug   # unit tests + screenshots of every screen
+./gradlew :vibilia:assembleRelease        # what CI publishes
+```
+
+### Screenshots
+
+`recordRoborazziDebug` runs `AppScreenshots`: the real app — `MainActivity`,
+its view models and repositories — in Robolectric, against `FakeBackend`, a
+fake Supabase serving plausible data. It signs in, taps through every screen
+like a person would (prices, nearby, the refuel form, logbook, statistics,
+settings, a vehicle, dark mode, sign-out) and saves each as a PNG in
+`android/vibilia/build/outputs/roborazzi/app/`. No device, emulator or
+network needed; about a minute.
+
+CI does the same on every pull request and push and attaches the PNGs as the
+**`vibilia-screenshots`** artifact of the run (Actions → the run → Artifacts),
+so a UI change can be reviewed from the PR. The map is drawn schematically in
+screenshots, because MapLibre's native library cannot load on the JVM. A
+screen that needs new data needs it in `FakeBackend` too.
+
+Debug builds install beside a release build (`.debug` suffix). Drive tracking
+needs a real phone paired with a car; everything else works in the emulator.
 
 ## Scripts reference
 

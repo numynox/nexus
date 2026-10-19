@@ -1,0 +1,112 @@
+name: Vibilia Android
+
+# Builds the native Vibilia app. Pull requests get tests and a build; a push
+# to main also publishes a signed APK as a GitHub release, which is how the app
+# is installed and updated (sideloaded, no Play Store — DEPLOYMENT.md).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android/**"
+      - "config.yaml"
+      - ".github/workflows/android-vibilia.yml"
+  pull_request:
+    paths:
+      - "android/**"
+      - "config.yaml"
+      - ".github/workflows/android-vibilia.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-vibilia-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    env:
+      # The same public values the websites are built with.
+      PUBLIC_SUPABASE_URL: ${{ vars.PUBLIC_SUPABASE_URL }}
+      PUBLIC_SUPABASE_ANON_KEY: ${{ vars.PUBLIC_SUPABASE_ANON_KEY }}
+      PUBLIC_CARTO_API_KEY: ${{ vars.PUBLIC_CARTO_API_KEY }}
+      # Becomes versionCode and the last part of versionName; the prefix is set
+      # in vibilia/build.gradle.kts. The in-app update check compares the run
+      # number with the newest release tag's.
+      NEXUS_VERSION_CODE: ${{ github.run_number }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Unit tests and screenshots
+        # The screenshot walkthrough (AppScreenshots) runs the real app against a
+        # fake backend; recording it also runs every other unit test.
+        run: ./gradlew :vibilia:recordRoborazziDebug
+
+      - name: Keep the screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: vibilia-screenshots
+          path: android/vibilia/build/outputs/roborazzi/app/*.png
+          retention-days: 30
+
+      - name: Decode signing key
+        id: signing
+        if: github.event_name != 'pull_request'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::warning::ANDROID_KEYSTORE_BASE64 is not set: the APK is debug-signed and no release is published."
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+          echo "available=true" >> "$GITHUB_OUTPUT"
+
+      - name: Build release APK
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          ./gradlew :vibilia:assembleRelease
+          version="$(./gradlew -q :vibilia:printVersionName)"
+          echo "VIBILIA_VERSION=${version}" >> "$GITHUB_ENV"
+          cp vibilia/build/outputs/apk/release/vibilia-release.apk "$RUNNER_TEMP/vibilia-${version}.apk"
+
+      - name: Keep the APK as a build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: vibilia-apk
+          path: ${{ runner.temp }}/vibilia-*.apk
+          retention-days: 14
+
+      - name: Publish release
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && steps.signing.outputs.available == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${VIBILIA_VERSION}"
+          gh release create "vibilia-android-v${version}" "$RUNNER_TEMP/vibilia-${version}.apk" \
+            --title "Vibilia for Android ${version}" \
+            --notes "Built from ${GITHUB_SHA::7}. Open this page on the phone and install the APK; Android updates the installed app in place." \
+            --target "$GITHUB_SHA" \
+            --latest=false

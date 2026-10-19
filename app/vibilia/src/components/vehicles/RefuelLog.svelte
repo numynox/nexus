@@ -10,7 +10,9 @@
   } from "lucide-svelte";
   import {
     fetchCarExpensesForCar,
+    fetchCarKmPerMonth,
     fetchRefuelEventsForCar,
+    type CarDistanceMonth,
   } from "../../lib/data";
   import ExpenseForm from "./ExpenseForm.svelte";
   import RefuelForm from "./RefuelForm.svelte";
@@ -24,6 +26,8 @@
   let { car, cars = [], onSelectCar }: Props = $props();
   let events = $state<any[]>([]);
   let refuelEvents = $state<any[]>([]);
+  /** Distance and driving time per month, keyed "YYYY-MM". */
+  let distanceByMonth = $state<Record<string, CarDistanceMonth>>({});
   let loading = $state(true);
   let showForm = $state(false);
   let formType = $state<"refuel" | "expense">("refuel");
@@ -66,10 +70,19 @@
 
   async function fetchEvents() {
     loading = true;
-    const [refuels, expenses] = await Promise.all([
+    const [refuels, expenses, months] = await Promise.all([
       fetchRefuelEventsForCar(car.id),
       fetchCarExpensesForCar(car.id),
+      // Extra detail: the log still loads without it.
+      fetchCarKmPerMonth(
+        car.id,
+        new Date(0).toISOString(),
+        new Date().toISOString(),
+      ).catch(() => [] as CarDistanceMonth[]),
     ]);
+    distanceByMonth = Object.fromEntries(
+      months.map((month) => [month.month_key.slice(0, 7), month]),
+    );
 
     // Calculate interval consumption using fuel level deltas so partial refuels are handled correctly.
     refuelEvents = refuels.map((e: any, i: number) => {
@@ -135,6 +148,31 @@
     return `${brand} ${place} (${street} ${houseNumber})`
       .replace(/\s+/g, " ")
       .trim();
+  }
+
+  function monthKey(event: any) {
+    return dayjs(getEventTimestamp(event)).format("YYYY-MM");
+  }
+
+  /** "≈ 628 km · 9 h driven"; ≈ while part of it is still estimated. */
+  function formatMonthDistance(key: string): string {
+    const month = distanceByMonth[key];
+    if (!month) return "";
+    const km = month.km_driven + month.estimated_km;
+    const minutes = Math.round(month.driving_hours * 60);
+    const hours = Math.floor(minutes / 60);
+    const duration =
+      hours > 0
+        ? `${hours} h${minutes % 60 ? ` ${minutes % 60} min` : ""}`
+        : `${minutes} min`;
+    return [
+      km >= 1
+        ? `${month.estimated_km > 0 ? "≈ " : ""}${Math.round(km).toLocaleString("de-DE")} km`
+        : null,
+      minutes >= 1 ? `${duration} driven` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
   }
 
   function formatEventDate(value: string) {
@@ -381,7 +419,21 @@
       {/if}
 
       <div class="space-y-3">
-        {#each events as e (`${e.entryType}-${e.id}`)}
+        {#each events as e, i (`${e.entryType}-${e.id}`)}
+          {#if i === 0 || monthKey(events[i - 1]) !== monthKey(e)}
+            <div
+              class="flex flex-wrap items-baseline justify-between gap-x-3 pl-8 pt-2 text-xs sm:pl-10"
+            >
+              <span
+                class="font-semibold uppercase tracking-wide text-base-content/50"
+              >
+                {dayjs(getEventTimestamp(e)).format("MMMM YYYY")}
+              </span>
+              <span class="tabular-nums text-base-content/40">
+                {formatMonthDistance(monthKey(e))}
+              </span>
+            </div>
+          {/if}
           <article class="relative pl-8 sm:pl-10">
             <div
               class="absolute left-[0.875rem] top-[0.5rem] flex h-4 w-4 -translate-x-1/2 items-center justify-center rounded-full border border-primary/25 bg-base-100"

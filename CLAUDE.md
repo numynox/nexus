@@ -7,6 +7,10 @@ Supabase project:
 - Noctua: Read RSS feeds (`app/noctua`)
 - Vibilia: Track fuel prices and car expenses (`app/vibilia`)
 
+Vibilia also has a native Android app in `android/` (Kotlin, Jetpack Compose),
+on the same Supabase project, released to GitHub Releases and sideloaded. Noctua
+and Annona get theirs later, on the shared `android/core` modules.
+
 ## Project knowledge
 
 @.agents/brain/overview.md
@@ -80,8 +84,16 @@ The conventions that carry the most weight here — reasoning in
 - **Prefix new tables with the app name** (`annona_*`). All three apps share one
   `public` schema.
 - **Device-local preference → `lib/storage.ts`; anything shared → Postgres.**
-- **Build all three apps before pushing** (`npm run build:websites`). There are
-  no tests, and only Noctua type-checks.
+- **Build all three apps before pushing** (`npm run build:websites`). For
+  changes under `android/`, also run `./gradlew :vibilia:recordRoborazziDebug
+  :vibilia:assembleRelease` there, and look at the screenshots it writes to
+  `android/vibilia/build/outputs/roborazzi/app/` (README.md, "Screenshots").
+- **New features reach both clients.** Build an Android feature on the web too
+  where the browser allows it, otherwise show its result read-only or hide it
+  gracefully — and put shared logic in Postgres RPCs so both get it
+  (`.agents/brain/decisions/2026-10-19-native-android-apps.md`).
+- **Installed apps lag behind.** A migration must not drop or rename anything
+  an older APK still reads.
 - Internal links come from `getBaseUrl()` — the apps live under `/nexus/<app>`,
   never at the root.
 

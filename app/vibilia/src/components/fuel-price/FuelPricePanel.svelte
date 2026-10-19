@@ -13,6 +13,7 @@
   } from "../../lib/storage";
   import { preferredFuelType } from "../../lib/stores";
   import FuelLevelEstimateBadge from "./FuelLevelEstimateBadge.svelte";
+  import LastDriveNote from "./LastDriveNote.svelte";
   import PriceChart from "./PriceChart.svelte";
   import StationList from "./StationList.svelte";
 
@@ -74,6 +75,9 @@
         price by time of day and
         <span class="text-primary">last refuel price (•)</span>.
       </p>
+      <div class="mt-1">
+        <LastDriveNote carId={selectedCarId} />
+      </div>
     </div>
     <div
       class="flex flex-col items-end gap-2 self-start lg:flex-row lg:items-center lg:gap-4"

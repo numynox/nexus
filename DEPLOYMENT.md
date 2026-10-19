@@ -3,12 +3,13 @@
 How Nexus is hosted, released and recovered. `README.md` covers local
 development; the reasoning behind these choices is in `.agents/brain/decisions/`.
 
-There are **two independent deployment tracks**, and only the first is
-automated:
+There are **two independent deployment tracks** — the frontends, which CI
+publishes, and the backend, which is pushed by hand:
 
 | What | How | Automated? |
 | :--- | :--- | :--- |
 | The three websites | GitHub Actions → GitHub Pages | yes |
+| The Android apps (Vibilia so far) | GitHub Actions → GitHub Releases, sideloaded | yes |
 | Database migrations | `npm run db:push` from a laptop | no |
 | Edge Functions | `npm run db:functions:deploy` from a laptop | no |
 | Vault / function secrets | Supabase dashboard or CLI | no |
@@ -81,6 +82,70 @@ Changing any of them requires a rebuild; there is no runtime configuration.
 - All three builds run `astro check` first, so a type error in an `.astro` or
   `.ts` file fails the deploy rather than shipping. Svelte component scripts are
   not covered by that check.
+
+---
+
+## Android app release (automated)
+
+`.github/workflows/android-vibilia.yml` builds the native Vibilia app
+(`android/`, see `.agents/brain/decisions/2026-10-19-native-android-apps.md`):
+
+1. Triggers on pull requests and pushes to `main` that touch `android/**` or
+   `config.yaml`, and on `workflow_dispatch`.
+2. Runs the unit tests, then `./gradlew :vibilia:assembleRelease` with Java 21.
+3. On a push to `main` with the signing key configured, publishes a GitHub
+   release tagged `vibilia-android-v<version>` with the APK attached. The
+   version is `0.0.<run number>`; its prefix is set in one place,
+   `android/vibilia/build.gradle.kts`.
+   Pull requests only keep the APK as a 14-day build artifact.
+
+The version code is the workflow's run number, so every release is newer than
+the last. Releases are created with `--latest=false`, so no app's release
+becomes the repository's "latest" over another's.
+
+### Installing and updating on a phone
+
+Open the release page on the phone, download the APK and install it (Android
+asks once to allow installs from the browser). Later releases install over the
+existing app, keeping its sign-in and settings. The app checks GitHub's
+releases on start and shows a banner when a newer one exists. There is no Play
+Store listing.
+
+### Required configuration
+
+The same repository **variables** as the websites — `PUBLIC_SUPABASE_URL`,
+`PUBLIC_SUPABASE_ANON_KEY`, `PUBLIC_CARTO_API_KEY` — are baked into the APK.
+Changing them means a new release *and* every phone updating.
+
+Repository **secrets** for signing:
+
+| Secret | What |
+| :--- | :--- |
+| `ANDROID_KEYSTORE_BASE64` | the release keystore, `base64 -w0 release.jks` |
+| `ANDROID_KEYSTORE_PASSWORD` | the keystore's password |
+| `ANDROID_KEY_ALIAS` | the key's alias inside it |
+| `ANDROID_KEY_PASSWORD` | the key's password |
+
+Create the keystore once:
+
+```bash
+keytool -genkeypair -v -keystore release.jks -alias nexus \
+  -keyalg RSA -keysize 4096 -validity 10000
+```
+
+**Back the keystore up outside GitHub.** Android installs an update only if it
+is signed with the same key as the installed app; without the key, every phone
+has to uninstall (losing local settings) and install afresh. One key signs all
+Nexus apps.
+
+### Failure modes
+
+- Without `ANDROID_KEYSTORE_BASE64` the build still runs, debug-signed, warns,
+  and publishes nothing.
+- Without the Supabase variables the APK builds and its sign-in screen says the
+  build has no Supabase connection configured.
+- An installed APK outlives a schema change far longer than a website does: a
+  migration must not drop or rename anything an older app still reads.
 
 ---
 
@@ -360,7 +425,8 @@ Order matters:
 6. Create user accounts in the dashboard. **The apps have no sign-up screen** —
    sign-in only, by design.
 7. Set `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_ANON_KEY` as GitHub repository
-   variables, then run the Pages workflow.
+   variables, then run the Pages workflow. For the Android app, also add the
+   signing secrets (above) and run the Vibilia Android workflow.
 8. Optionally seed: `npm run db:seed:fuel-prices`, `npm run db:seed:products`,
    or `supabase/seed.sql` for feeds and stations.
 

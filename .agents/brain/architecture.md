@@ -31,8 +31,8 @@ covers how it is put together.
                             Tankerkoenig API · RSS feeds (outbound)
 ```
 
-There is **no application server**. The three apps are static HTML + JS; the
-only backend is Supabase. See
+There is **no application server**. The three apps are static HTML + JS — plus,
+for Vibilia, a native Android app — and the only backend is Supabase. See
 `decisions/2026-02-15-static-astro-svelte-on-github-pages.md` for why, and what
 that costs.
 
@@ -210,7 +210,7 @@ Annona namespaces everything with `annona_`. **New tables get a prefix.**
 | :--- | :--- |
 | shared | `profiles` |
 | Noctua | `feeds`, `articles`, `sections`, `sections_feeds`, `article_reads`, `article_stars` |
-| Vibilia | `cars`, `car_access`, `refuel_events`, `car_expenses`, `fuel_stations`, `fuel_prices`, `fuel_prices_daily` |
+| Vibilia | `cars`, `car_access`, `refuel_events`, `car_expenses`, `fuel_stations`, `fuel_prices`, `fuel_prices_daily`, `vibilia_car_bluetooth_devices`, `vibilia_drive_intervals` |
 | Annona | `annona_categories`, `annona_storage_locations`, `annona_products`, `annona_items`, `annona_item_log` |
 
 `profiles` is the one genuinely shared table: `id` matches `auth.users.id`, and
@@ -253,8 +253,13 @@ Anything aggregating, joining or crossing a permission boundary is a
 - Vibilia: `get_fuel_stations_current_prices`, `get_fuel_price_plot_history`,
   `get_fuel_price_weekly_minima`, `get_car_refuel_statistics`,
   `get_car_refuel_plot_events`, `get_car_refuel_year_bounds`,
-  `get_car_km_per_month`, `list_car_members`, `share_car_with_email`,
-  `user_can_access_car`
+  `get_car_km_per_month` (kept for old clients), `list_car_members`,
+  `share_car_with_email`, `user_can_access_car`, and drive tracking's
+  `get_car_drive_periods`, `get_car_refuel_legs`, `get_car_drive_model`,
+  `get_car_daily_distance`, `get_car_distance_per_month`,
+  `get_car_fuel_level_estimate` (`decisions/2026-10-19-bluetooth-drive-tracking.md`).
+  The drive-tracking functions run as the caller (not `SECURITY DEFINER`) and
+  check `user_can_access_car` themselves.
 - Annona: `annona_dashboard_summary`
 - Operational: `reassign_profile_user`, `invoke_fetch_rss`,
   `invoke_refresh_fuel_prices`, `nexus_time_zone`,
@@ -346,6 +351,72 @@ Function blocks and leaves everything else to CLI defaults. There is no
 `project_id`, so the CLI derives the local container names from the checkout
 directory (`supabase_db_nexus`) — renaming the directory starts a *different*
 local stack, with an empty database.
+
+---
+
+## Android
+
+Native apps live in `android/`, a Gradle build beside — not inside — the npm
+workspace (`decisions/2026-10-19-native-android-apps.md`). Kotlin, Jetpack
+Compose, Material 3 Expressive (pinned past the Compose BOM to 1.5 for the
+Expressive components), supabase-kt on Ktor/OkHttp.
+
+```
+android/
+  core/data   Supabase client, AuthRepository, error wording, NexusConfig, UpdateChecker
+  core/ui     NexusTheme (palette per app, wallpaper colours optional), formatting,
+              components, NexusChart, SignInScreen
+  vibilia/    the app: data/ (rows, repositories, preferences), tracking/,
+              location/, ui/ (one package per screen)
+```
+
+The layering mirrors the web apps. `vibilia/data/Repositories.kt` is the
+Android `lib/data.ts`: every query and RPC, and the only code that talks to
+Supabase. Row classes are hand-written there, like the web's interfaces — the
+same row shape now exists twice, in TypeScript and Kotlin. Preferences are
+device-local in DataStore, validated on read, like `lib/storage.ts`.
+`AppContainer` wires everything by hand; there is no DI framework.
+
+Build-time settings come from the sources the websites use: the root `.env` or
+CI variables for `PUBLIC_*`, and `config.yaml` (read with a regex in
+`vibilia/build.gradle.kts`) for the price bucket and the nearby radius.
+
+Things that differ from the web on purpose:
+
+- **One navigation for the whole app** (Prices, Logbook, Statistics, Settings)
+  with a bottom bar or rail; the refuel and expense forms are one bottom sheet
+  above every screen.
+- **Location from `LocationManager`**, not Google Play services, so the app
+  needs nothing from Google. The map is MapLibre with the web's tile choice
+  (CARTO with the public key, OpenStreetMap otherwise), price pills drawn in
+  Compose over the map's projection.
+- **Bluetooth drive tracking** (`tracking/`): a manifest receiver for
+  `ACL_CONNECTED`/`ACL_DISCONNECTED` feeds `DriveTracker`, a state machine
+  persisted in DataStore; WorkManager uploads finished drives and keeps a
+  15-minute heartbeat while one is open. The links (`address → car`) are
+  cached on the phone because the car is often a dead spot.
+
+The web shows what the phone records but cannot record it: the drive-based
+fuel estimate and day-accurate monthly chart come from Postgres for both, the
+statistics page shows the model, vehicle settings show the linked device.
+
+Navigation is Navigation 3: the back stack is a list of `NavKey`s owned by
+`MainScaffold`; a tab switch resets it to Prices plus that tab. View models are
+scoped to back-stack entries (`rememberViewModelStoreNavEntryDecorator`), the
+editor sheet's to the sheet.
+
+Checks: `./gradlew :vibilia:testDebugUnitTest` (JVM unit tests: tracker,
+consumption arithmetic, row decoding) and `:vibilia:recordRoborazziDebug`,
+which also runs `AppScreenshots` — the whole app in Robolectric against a fake
+Supabase (`FakeBackend`, a Ktor `MockEngine`), walked screen by screen and
+photographed. That is how the UI is reviewed without a device; CI publishes
+the images as the `vibilia-screenshots` artifact. Two seams exist for it and
+nothing else: `AppContainer` takes an HTTP engine, and
+`VibiliaApplication.mapsAvailable` swaps MapLibre for a schematic map.
+
+The Supabase session is stored in the app's own `SharedPreferences`, handed to
+supabase-kt explicitly — its default finds a context through App Startup,
+which is invisible and does not run in tests.
 
 ---
 

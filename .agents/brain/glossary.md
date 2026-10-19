@@ -46,7 +46,13 @@ Clearing seen history does not touch statistics.
 | `fuel_prices_daily` | — | min/max/avg per station, fuel type and **Europe/Berlin day**; the long-term history behind the "weekly market low" line once raw readings are pruned |
 | `fuel_type` | E5 / E10 / Diesel | stored capitalised; the Tankerkoenig API wants lowercase — mapped inside the Edge Function |
 | `opening_times`, `overrides`, `whole_day` | Open now | Tankerkoenig's opening-hours shape, stored raw as JSONB and interpreted in SQL |
-| fuel level estimate | Fuel Level | derived, never stored: last refuel plus `tank_capacity` and average consumption |
+| fuel level estimate | Fuel Level | derived, never stored (`get_car_fuel_level_estimate`): last refuel minus driving hours × litres per hour (`drive`), or minus days × litres per day (`time`) |
+| `vibilia_car_bluetooth_devices` | Bluetooth | the car's head-unit address; linked in the Android app, per car not per phone |
+| `vibilia_drive_intervals` | — | one phone's report of one connection: **interval**. Raw, overlapping between phones |
+| drive period | Drive | intervals merged across phones (`get_car_drive_periods`) — what the UI calls a drive |
+| leg | — | the stretch between two consecutive refuels; **tracked** when drive tracking was already running at its start |
+| drive model | Driving | per car: km and litres per driving hour, learned from tracked legs (`get_car_drive_model`) |
+| track drives | Record drives on this phone | device-local switch; without it the phone still remembers the connected car for the refuel form |
 
 ## Annona (food expiration)
 

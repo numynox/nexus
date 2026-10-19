@@ -26,6 +26,8 @@
     secondaryPoints?: Point[];
     secondaryLabel?: string;
     plotStyle?: "line" | "stepped-line" | "bar";
+    /** What one bar sums: a calendar month (default) or a single day. */
+    barGranularity?: "month" | "day";
     yDecimals?: number;
     yUnit?: string;
     showAverageLine?: boolean;
@@ -129,6 +131,7 @@
     secondaryPoints = [],
     secondaryLabel = "",
     plotStyle = "line",
+    barGranularity = "month",
     yDecimals = 2,
     yUnit = "",
     showAverageLine = false,
@@ -268,32 +271,28 @@
     let barLabels: string[] = [];
     let barValues: Array<number | null> = [];
     if (isBar && points.length > 0) {
-      const monthlyTotals = new Map<string, number>();
+      const unit = barGranularity;
+      const keyFormat = unit === "day" ? "YYYY-MM-DD" : "YYYY-MM";
+      const labelFormat = unit === "day" ? "ddd D MMM" : "MMM YYYY";
+      const totals = new Map<string, number>();
       for (const point of points) {
-        const monthKey = dayjs(point.x).startOf("month").format("YYYY-MM");
-        monthlyTotals.set(
-          monthKey,
-          (monthlyTotals.get(monthKey) || 0) + point.y,
-        );
+        const key = dayjs(point.x).startOf(unit).format(keyFormat);
+        totals.set(key, (totals.get(key) || 0) + point.y);
       }
 
-      const firstMonth = dayjs(
-        Math.min(...points.map((point) => point.x)),
-      ).startOf("month");
-      const lastMonth = dayjs(
-        Math.max(...points.map((point) => point.x)),
-      ).startOf("month");
+      const first = dayjs(Math.min(...points.map((point) => point.x))).startOf(
+        unit,
+      );
+      const last = dayjs(Math.max(...points.map((point) => point.x))).startOf(
+        unit,
+      );
 
-      let cursor = firstMonth;
-      while (cursor.isBefore(lastMonth) || cursor.isSame(lastMonth)) {
-        const monthKey = cursor.format("YYYY-MM");
-        barLabels.push(cursor.format("MMM YYYY"));
-        barValues.push(
-          monthlyTotals.has(monthKey)
-            ? (monthlyTotals.get(monthKey) ?? null)
-            : null,
-        );
-        cursor = cursor.add(1, "month");
+      let cursor = first;
+      while (cursor.isBefore(last) || cursor.isSame(last)) {
+        const key = cursor.format(keyFormat);
+        barLabels.push(cursor.format(labelFormat));
+        barValues.push(totals.has(key) ? (totals.get(key) ?? null) : null);
+        cursor = cursor.add(1, unit);
       }
     }
 
