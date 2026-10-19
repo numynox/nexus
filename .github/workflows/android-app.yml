@@ -1,0 +1,119 @@
+name: Android app
+
+# The one build of a Nexus Android app, called by android-<app>.yml, each of
+# which triggers only when that app's code or the shared Android code changes.
+# Pull requests get tests, screenshots and a release build; a push to main
+# also publishes the signed APK as a GitHub release, which is how the apps are
+# installed and updated (sideloaded, no Play Store — DEPLOYMENT.md).
+
+on:
+  workflow_call:
+    inputs:
+      app:
+        description: The Gradle module and app, e.g. vibilia
+        required: true
+        type: string
+      title:
+        description: The app's name in the release title, e.g. Vibilia
+        required: true
+        type: string
+    secrets:
+      ANDROID_KEYSTORE_BASE64:
+        required: false
+      ANDROID_KEYSTORE_PASSWORD:
+        required: false
+      ANDROID_KEY_ALIAS:
+        required: false
+      ANDROID_KEY_PASSWORD:
+        required: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: android
+    env:
+      APP: ${{ inputs.app }}
+      # The same public values the websites are built with.
+      PUBLIC_SUPABASE_URL: ${{ vars.PUBLIC_SUPABASE_URL }}
+      PUBLIC_SUPABASE_ANON_KEY: ${{ vars.PUBLIC_SUPABASE_ANON_KEY }}
+      PUBLIC_CARTO_API_KEY: ${{ vars.PUBLIC_CARTO_API_KEY }}
+      # Becomes versionCode and the last part of versionName (the prefix is
+      # set in build-logic). In a called workflow this is the caller's run
+      # number, so each app counts on its own. The in-app update check
+      # compares it with the newest release tag's.
+      NEXUS_VERSION_CODE: ${{ github.run_number }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          # Only main writes the cache; pull requests read it.
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Decode signing key
+        id: signing
+        if: github.event_name != 'pull_request'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::warning::ANDROID_KEYSTORE_BASE64 is not set: the APK is debug-signed and no release is published."
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+          echo "available=true" >> "$GITHUB_OUTPUT"
+
+      - name: Test, screenshot and build
+        # One Gradle run: the screenshot walk (AppScreenshots, the real app
+        # against a fake backend) also runs every other unit test, and the
+        # release build shares its configuration and compiled modules.
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          ./gradlew ":$APP:recordRoborazziDebug" ":$APP:assembleRelease"
+          version="$(./gradlew -q ":$APP:printVersionName")"
+          echo "APP_VERSION=${version}" >> "$GITHUB_ENV"
+          cp "$APP/build/outputs/apk/release/$APP-release.apk" "$RUNNER_TEMP/$APP-${version}.apk"
+
+      - name: Keep the screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.app }}-screenshots
+          path: android/${{ inputs.app }}/build/outputs/roborazzi/app/*.png
+          retention-days: 30
+
+      - name: Keep the APK as a build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.app }}-apk
+          path: ${{ runner.temp }}/${{ inputs.app }}-*.apk
+          retention-days: 14
+
+      - name: Publish release
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && steps.signing.outputs.available == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: ${{ inputs.title }}
+        run: |
+          version="${APP_VERSION}"
+          gh release create "$APP-android-v${version}" "$RUNNER_TEMP/$APP-${version}.apk" \
+            --title "$TITLE for Android ${version}" \
+            --notes "Built from ${GITHUB_SHA::7}. Open this page on the phone and install the APK; Android updates the installed app in place." \
+            --target "$GITHUB_SHA" \
+            --latest=false

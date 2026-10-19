@@ -1,0 +1,48 @@
+name: Annona Android
+
+# Builds the native Annona app (android-app.yml), only when its own code or the
+# shared Android code changes. Keep this file's name: its run number is the
+# app's version code, and a renamed workflow would start counting from one.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android/annona/**"
+      - "android/core/**"
+      - "android/build-logic/**"
+      - "android/gradle/**"
+      - "android/*.kts"
+      - "android/gradle.properties"
+      - "android/gradlew"
+      - "config.yaml"
+      - ".github/workflows/android-annona.yml"
+      - ".github/workflows/android-app.yml"
+  pull_request:
+    paths:
+      - "android/annona/**"
+      - "android/core/**"
+      - "android/build-logic/**"
+      - "android/gradle/**"
+      - "android/*.kts"
+      - "android/gradle.properties"
+      - "android/gradlew"
+      - "config.yaml"
+      - ".github/workflows/android-annona.yml"
+      - ".github/workflows/android-app.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-annona-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    uses: ./.github/workflows/android-app.yml
+    with:
+      app: annona
+      title: Annona
+    secrets: inherit
