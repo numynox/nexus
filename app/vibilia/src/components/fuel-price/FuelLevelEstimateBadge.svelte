@@ -91,5 +91,12 @@
     >
       {formatLiters(estimate.remainingLiters)}
     </span>
+    {#if estimate.rangeKm !== null}
+      <span
+        class="hidden text-xs font-semibold tabular-nums text-success sm:inline"
+      >
+        ≈ {Math.round(estimate.rangeKm)} km
+      </span>
+    {/if}
   </div>
 {/if}

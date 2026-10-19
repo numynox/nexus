@@ -76,6 +76,23 @@ export interface FuelLevelEstimate {
   fillRatio: number;
   drivingHours: number | null;
   estimatedKm: number | null;
+  /** How far the remaining fuel goes at the learned consumption; drive method only. */
+  rangeKm: number | null;
+}
+
+export interface CarDailyDistance {
+  day: string;
+  km: number;
+  /** Since the last refuel, estimated from driving time. */
+  estimated_km: number;
+  driving_seconds: number;
+}
+
+/** Driving time merged across every phone that reported it. */
+export interface CarDrivePeriod {
+  started_at: string;
+  ended_at: string;
+  reporter_count: number;
 }
 
 /** What a car does per hour of driving, learned from Bluetooth drives. */
@@ -439,6 +456,8 @@ export async function fetchFuelLevelEstimateForCar(
   const tankCapacity = finiteOrNull(row.tank_capacity);
   const remainingLiters = finiteOrNull(row.remaining_liters);
   if (!tankCapacity || remainingLiters === null) return null;
+  const kmPerHour = finiteOrNull(row.km_per_hour);
+  const litersPerHour = finiteOrNull(row.liters_per_hour);
 
   return {
     method: row.method === "drive" ? "drive" : "time",
@@ -454,6 +473,10 @@ export async function fetchFuelLevelEstimateForCar(
     fillRatio: finiteOrNull(row.fill_ratio) ?? 0,
     drivingHours: finiteOrNull(row.driving_hours),
     estimatedKm: finiteOrNull(row.estimated_km),
+    rangeKm:
+      row.method === "drive" && kmPerHour && litersPerHour
+        ? (remainingLiters / litersPerHour) * kmPerHour
+        : null,
   };
 }
 
@@ -577,7 +600,50 @@ async function computeFuelLevelEstimateInBrowser(
     fillRatio,
     drivingHours: null,
     estimatedKm: null,
+    rangeKm: null,
   };
+}
+
+/**
+ * Distance per day, spread over the days actually driven (Bluetooth drives
+ * recorded by the Android app). Empty without drive tracking or on a database
+ * that predates it.
+ */
+export async function fetchCarDailyDistance(
+  carId: string,
+  sinceIso: string,
+  untilIso: string,
+): Promise<CarDailyDistance[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc("get_car_daily_distance", {
+    p_car_id: carId,
+    p_since: sinceIso,
+    p_until: untilIso,
+  });
+
+  if (error) return [];
+  return (data || []).map((row: any) => ({
+    day: row.day,
+    km: Number(row.km) || 0,
+    estimated_km: Number(row.estimated_km) || 0,
+    driving_seconds: Number(row.driving_seconds) || 0,
+  }));
+}
+
+export async function fetchCarDrivePeriods(
+  carId: string,
+  sinceIso: string,
+  untilIso: string,
+): Promise<CarDrivePeriod[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc("get_car_drive_periods", {
+    p_car_id: carId,
+    p_since: sinceIso,
+    p_until: untilIso,
+  });
+
+  if (error) return [];
+  return data || [];
 }
 
 /** Null until the car has drives, or when the database predates tracking. */

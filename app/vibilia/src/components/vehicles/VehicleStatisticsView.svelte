@@ -3,15 +3,19 @@
   import { Car, ChevronDown } from "lucide-svelte";
   import { onMount } from "svelte";
   import {
+    fetchCarDailyDistance,
     fetchCarDriveModel,
+    fetchCarDrivePeriods,
     fetchCarKmPerMonth,
     fetchCarRefuelPlotEvents,
     fetchCarRefuelStatistics,
     fetchCarRefuelYearBounds,
     fetchCarsForUser,
     fetchFuelPriceWeeklyMinima,
+    type CarDailyDistance,
     type CarDistanceMonth,
     type CarDriveModel,
+    type CarDrivePeriod,
   } from "../../lib/data";
   import {
     clearLastSelectedCarId,
@@ -39,6 +43,8 @@
   let plotEvents = $state<any[]>([]);
   let kmPerMonth = $state<CarDistanceMonth[]>([]);
   let driveModel = $state<CarDriveModel | null>(null);
+  let recentDays = $state<CarDailyDistance[]>([]);
+  let recentDrives = $state<CarDrivePeriod[]>([]);
   let weeklyMarketMinPrices = $state<any[]>([]);
   let yearOptions = $state<number[]>([]);
   let selectedRange = $state<RangeValue>("1y");
@@ -151,16 +157,32 @@
     const token = ++statsLoadToken;
     loadingStats = true;
 
-    const [nextStats, bounds, nextDriveModel] = await Promise.all([
-      fetchCarRefuelStatistics(carId),
-      fetchCarRefuelYearBounds(carId),
-      fetchCarDriveModel(carId),
-    ]);
+    const now = dayjs();
+    const [nextStats, bounds, nextDriveModel, nextDays, nextDrives] =
+      await Promise.all([
+        fetchCarRefuelStatistics(carId),
+        fetchCarRefuelYearBounds(carId),
+        fetchCarDriveModel(carId),
+        fetchCarDailyDistance(
+          carId,
+          now.subtract(29, "day").startOf("day").toISOString(),
+          now.toISOString(),
+        ),
+        fetchCarDrivePeriods(
+          carId,
+          now.subtract(14, "day").toISOString(),
+          now.toISOString(),
+        ),
+      ]);
 
     if (token !== statsLoadToken) return;
 
     stats = nextStats;
     driveModel = nextDriveModel;
+    recentDays = nextDays;
+    recentDrives = [...nextDrives].sort(
+      (a, b) => dayjs(b.started_at).valueOf() - dayjs(a.started_at).valueOf(),
+    );
 
     const minYear = Number(bounds.min_year);
     const maxYear = Number(bounds.max_year);
@@ -312,6 +334,28 @@
       y: entry.km_driven + entry.estimated_km,
     })),
   );
+
+  // Every day of the last 30, zero where nothing was driven, so the bars line
+  // up with the calendar.
+  const recentDayPoints = $derived.by(() => {
+    if (!driveModel) return [];
+    const byDay = new Map(recentDays.map((d) => [d.day, d]));
+    const start = dayjs().subtract(29, "day").startOf("day");
+    return Array.from({ length: 30 }, (_, i) => {
+      const day = start.add(i, "day");
+      const entry = byDay.get(day.format("YYYY-MM-DD"));
+      return {
+        x: day.valueOf(),
+        y: entry ? entry.km + entry.estimated_km : 0,
+      };
+    });
+  });
+
+  function formatDuration(startIso: string, endIso: string): string {
+    const minutes = Math.round(dayjs(endIso).diff(dayjs(startIso), "minute"));
+    const hours = Math.floor(minutes / 60);
+    return hours > 0 ? `${hours} h ${minutes % 60} min` : `${minutes} min`;
+  }
 
   const kmPerMonthSubtitle = $derived(
     driveModel
@@ -678,6 +722,49 @@
             Show more
           </button>
         </div>
+      {/if}
+
+      {#if driveModel && recentDayPoints.some((p) => p.y > 0)}
+        <VehicleStatsChart
+          title="Driving, last 30 days"
+          subtitle="Kilometres on the days they were driven, from Bluetooth drives; since the last refuel estimated"
+          points={recentDayPoints}
+          plotStyle="bar"
+          barGranularity="day"
+          yDecimals={0}
+          yUnit="km"
+        />
+      {/if}
+
+      {#if recentDrives.length > 0}
+        <section class="rounded-2xl border border-info/20 bg-info/5 p-4">
+          <h2
+            class="text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/55"
+          >
+            Recent drives
+          </h2>
+          <div class="mt-2 divide-y divide-base-content/5 text-sm">
+            {#each recentDrives.slice(0, 8) as drive (drive.started_at)}
+              <div class="flex items-center justify-between gap-3 py-1.5">
+                <span class="text-base-content/75">
+                  {dayjs(drive.started_at).format("ddd D MMM, HH:mm")} – {dayjs(
+                    drive.ended_at,
+                  ).format("HH:mm")}
+                </span>
+                <span class="flex items-center gap-2">
+                  {#if drive.reporter_count > 1}
+                    <span class="badge badge-info badge-sm badge-outline"
+                      >{drive.reporter_count} phones</span
+                    >
+                  {/if}
+                  <span class="font-semibold tabular-nums"
+                    >{formatDuration(drive.started_at, drive.ended_at)}</span
+                  >
+                </span>
+              </div>
+            {/each}
+          </div>
+        </section>
       {/if}
 
       <div class="flex justify-end">
