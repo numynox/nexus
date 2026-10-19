@@ -9,7 +9,9 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
+import androidx.test.espresso.Espresso
 import com.github.takahirom.roborazzi.captureScreenRoboImage
 
 /**
@@ -37,7 +39,7 @@ class ScreenshotRobot(private val compose: AndroidComposeTestRule<*, out Compone
      * for, so give them a moment of wall-clock time before settling.
      */
     fun awaitPreferences() {
-        Thread.sleep(400)
+        Thread.sleep(1_000)
         settle()
     }
 
@@ -87,6 +89,18 @@ class ScreenshotRobot(private val compose: AndroidComposeTestRule<*, out Compone
 
     fun scrollTo(text: String) {
         compose.onAllNodes(hasScrollToNodeAction()).onFirst().performScrollToNode(hasText(text))
+        settle()
+    }
+
+    /** For a plain scrolling column (not a lazy list), where [scrollTo] cannot look ahead. */
+    fun scrollIntoView(text: String) {
+        compose.onAllNodes(hasText(text)).onFirst().performScrollTo()
+        settle()
+    }
+
+    /** Back as a key press, to the focused window — closes a bottom sheet or dialog. */
+    fun dismiss() {
+        Espresso.pressBack()
         settle()
     }
 
