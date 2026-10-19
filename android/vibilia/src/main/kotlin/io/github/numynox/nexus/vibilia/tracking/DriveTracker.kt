@@ -189,6 +189,18 @@ class DriveTracker(private val store: DataStore<Preferences>) {
 }
 
 /**
+ * This phone's latest finished drive of a car, which the server may not have
+ * yet: one in its reconnect grace, or one waiting for upload.
+ */
+fun TrackerState.latestLocalDrive(carId: String): Pair<Instant, Instant>? {
+    val closingDrive = closing
+        ?.takeIf { it.carId == carId && Duration.between(it.startedAt, it.lastSeenAt) >= DriveTracker.MinimumDrive }
+        ?.let { it.startedAt to it.lastSeenAt }
+    val queued = pending.filter { it.carId == carId }.map { it.startedAt to it.endedAt }
+    return (listOfNotNull(closingDrive) + queued).maxByOrNull { it.second }
+}
+
+/**
  * Driving time this phone knows about for a car after a moment, that the
  * server does not have yet: the drive in progress and the upload queue.
  */

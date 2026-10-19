@@ -118,6 +118,16 @@ export interface CarDistanceMonth {
   km_driven: number;
   /** Distance since the last refuel, estimated from driving time. */
   estimated_km: number;
+  /** Bluetooth driving time in the month; 0 without drive tracking. */
+  driving_hours: number;
+}
+
+/** A car's most recent drive, merged across phones. */
+export interface CarLastDrive {
+  startedAt: string;
+  endedAt: string;
+  /** Driving time times the model's km per hour; null until the model has one. */
+  estimatedKm: number | null;
 }
 
 export interface NearbyFuelStation {
@@ -809,6 +819,7 @@ export async function fetchCarKmPerMonth(
       month_key: row.month_key,
       km_driven: Number(row.km_driven) || 0,
       estimated_km: Number(row.estimated_km) || 0,
+      driving_hours: Number(row.driving_hours) || 0,
     }));
   }
 
@@ -818,5 +829,35 @@ export async function fetchCarKmPerMonth(
     month_key: row.month_key,
     km_driven: Number(row.km_driven) || 0,
     estimated_km: 0,
+    driving_hours: 0,
   }));
+}
+
+/**
+ * The period ending at the car's last reported moment, with its distance
+ * estimated from the drive model. Null without drive tracking.
+ */
+export async function fetchCarLastDrive(
+  carId: string,
+): Promise<CarLastDrive | null> {
+  const model = await fetchCarDriveModel(carId);
+  if (!model?.lastDriveAt) return null;
+
+  const since = new Date(new Date(model.lastDriveAt).getTime() - 1000);
+  const periods = await fetchCarDrivePeriods(
+    carId,
+    since.toISOString(),
+    new Date().toISOString(),
+  );
+  const last = periods.at(-1);
+  if (!last) return null;
+
+  const hours =
+    (new Date(last.ended_at).getTime() - new Date(last.started_at).getTime()) /
+    3_600_000;
+  return {
+    startedAt: last.started_at,
+    endedAt: last.ended_at,
+    estimatedKm: model.kmPerHour !== null ? model.kmPerHour * hours : null,
+  };
 }

@@ -24,7 +24,7 @@ class LogbookBuildTest {
                 refuel(4, "2026-02-15T10:00:00Z", 11_250, 25.0),
             ),
             emptyList(),
-            ZoneOffset.UTC,
+            zone = ZoneOffset.UTC,
         )
         val byId = logbook.months.flatMap { it.entries }.filterIsInstance<LogEntry.Refuel>().associateBy { it.event.id }
         assertNull("first refuel has no interval", byId.getValue(1).consumption)

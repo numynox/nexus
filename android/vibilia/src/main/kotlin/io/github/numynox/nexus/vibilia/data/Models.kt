@@ -354,6 +354,23 @@ data class DrivePeriod(
     val hours: Double get() = (endedAt.toEpochMilli() - startedAt.toEpochMilli()) / 3_600_000.0
 }
 
+/** A car's most recent drive, seen by any phone, with its distance estimated from the drive model. */
+data class LastDrive(val startedAt: Instant, val endedAt: Instant, val estimatedKm: Double?) {
+    val hours: Double get() = (endedAt.toEpochMilli() - startedAt.toEpochMilli()) / 3_600_000.0
+
+    companion object {
+        /**
+         * The later of the server's last merged period and this phone's own
+         * drive that is not uploaded yet, so a drive shows as soon as it ends.
+         */
+        fun of(server: DrivePeriod?, local: Pair<Instant, Instant>?, kmPerHour: Double?): LastDrive? {
+            val (start, end) = listOfNotNull(server?.let { it.startedAt to it.endedAt }, local).maxByOrNull { it.second } ?: return null
+            val hours = (end.toEpochMilli() - start.toEpochMilli()) / 3_600_000.0
+            return LastDrive(start, end, kmPerHour?.let { it * hours })
+        }
+    }
+}
+
 @Serializable
 data class FuelLevelRow(
     val method: String,

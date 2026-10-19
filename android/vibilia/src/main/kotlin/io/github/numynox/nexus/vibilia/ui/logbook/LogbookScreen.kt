@@ -62,6 +62,7 @@ import io.github.numynox.nexus.core.ui.components.LoadingState
 import io.github.numynox.nexus.core.ui.components.NexusCard
 import io.github.numynox.nexus.core.ui.theme.NexusThemeDefaults
 import io.github.numynox.nexus.core.ui.theme.tabular
+import io.github.numynox.nexus.vibilia.data.DistanceMonth
 import io.github.numynox.nexus.vibilia.ui.AppViewModel
 import io.github.numynox.nexus.vibilia.ui.common.CarSwitcher
 import io.github.numynox.nexus.vibilia.ui.common.Loadable
@@ -155,6 +156,15 @@ fun LogbookScreen(app: AppViewModel) {
     }
 }
 
+/** "≈ 612 km · 14 h 20 min driven"; ≈ while part of it is still the model's estimate. */
+private fun monthDistanceLabel(month: DistanceMonth): String? {
+    val km = month.kmDriven + month.estimatedKm
+    return listOfNotNull(
+        km.takeIf { it >= 1 }?.let { (if (month.estimatedKm > 0) "≈ " else "") + NexusFormat.km(it) },
+        month.drivingHours.takeIf { it * 60 >= 1 }?.let { "${NexusFormat.duration(it)} driven" },
+    ).joinToString(" · ").ifEmpty { null }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun LogbookList(
@@ -172,7 +182,12 @@ internal fun LogbookList(
             stickyHeader(key = month.month.toString()) {
                 Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {
                     Row(Modifier.padding(top = 12.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(monthFormat.format(month.month), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                        Column(Modifier.weight(1f)) {
+                            Text(monthFormat.format(month.month), style = MaterialTheme.typography.titleSmall)
+                            month.distance?.let(::monthDistanceLabel)?.let {
+                                Text(it, style = MaterialTheme.typography.bodySmall.tabular(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
                         Text(
                             NexusFormat.euro(month.spent),
                             style = MaterialTheme.typography.labelLarge.tabular(),

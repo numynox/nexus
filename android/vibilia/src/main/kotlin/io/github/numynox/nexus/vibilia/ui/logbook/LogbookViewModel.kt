@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.numynox.nexus.vibilia.AppContainer
 import io.github.numynox.nexus.vibilia.data.CarExpense
+import io.github.numynox.nexus.vibilia.data.DistanceMonth
 import io.github.numynox.nexus.vibilia.data.RefuelEvent
 import io.github.numynox.nexus.vibilia.ui.common.Loadable
 import io.github.numynox.nexus.vibilia.ui.common.loadable
@@ -31,7 +32,8 @@ sealed interface LogEntry {
     }
 }
 
-data class LogMonth(val month: YearMonth, val entries: List<LogEntry>, val spent: Double)
+/** [distance] is the month's share of the odometer and its driving time, when the server has it. */
+data class LogMonth(val month: YearMonth, val entries: List<LogEntry>, val spent: Double, val distance: DistanceMonth? = null)
 
 data class Logbook(val months: List<LogMonth>, val averageConsumption: Double?)
 
@@ -51,7 +53,11 @@ class LogbookViewModel(private val container: AppContainer) : ViewModel() {
             _state.value = loadable {
                 val refuels = async { container.logbook.refuels(carId) }
                 val expenses = async { container.logbook.expenses(carId) }
-                build(refuels.await(), expenses.await())
+                // Extra detail: the logbook still loads without it.
+                val distance = async {
+                    runCatching { container.statistics.distancePerMonth(carId, Instant.EPOCH, Instant.now()) }.getOrDefault(emptyList())
+                }
+                build(refuels.await(), expenses.await(), distance.await())
             }
         }
     }
@@ -62,7 +68,13 @@ class LogbookViewModel(private val container: AppContainer) : ViewModel() {
          * arithmetic as the web log: fuel used = litres + previous level −
          * level after, over the odometer gap; none across a missed refuel.
          */
-        fun build(refuels: List<RefuelEvent>, expenses: List<CarExpense>, zone: ZoneId = ZoneId.systemDefault()): Logbook {
+        fun build(
+            refuels: List<RefuelEvent>,
+            expenses: List<CarExpense>,
+            distance: List<DistanceMonth> = emptyList(),
+            zone: ZoneId = ZoneId.systemDefault(),
+        ): Logbook {
+            val distanceByMonth = distance.associateBy { YearMonth.from(it.month) }
             val newestFirst = refuels.sortedByDescending { it.fueledAt }
             val refuelEntries = newestFirst.mapIndexed { index, event ->
                 val previous = newestFirst.getOrNull(index + 1)
@@ -92,6 +104,7 @@ class LogbookViewModel(private val container: AppContainer) : ViewModel() {
                                 is LogEntry.Expense -> it.expense.amount
                             }
                         },
+                        distance = distanceByMonth[month],
                     )
                 }
                 .sortedByDescending { it.month }

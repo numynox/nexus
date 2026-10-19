@@ -77,6 +77,7 @@ import io.github.numynox.nexus.core.ui.theme.NexusThemeDefaults
 import io.github.numynox.nexus.core.ui.theme.tabular
 import io.github.numynox.nexus.vibilia.data.Car
 import io.github.numynox.nexus.vibilia.data.FuelLevel
+import io.github.numynox.nexus.vibilia.data.LastDrive
 import io.github.numynox.nexus.vibilia.data.StationPrice
 import java.time.Duration
 import java.time.Instant
@@ -172,6 +173,27 @@ fun CarSwitcher(cars: List<Car>, selected: Car?, onSelect: (Car) -> Unit, modifi
                 )
             }
         }
+    }
+}
+
+/** One quiet line under the gauge: when the car was last driven, for how long and roughly how far. */
+@Composable
+fun LastDriveLine(drive: LastDrive, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(Icons.Rounded.Schedule, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            listOfNotNull(
+                "Last drive ${NexusFormat.dateTime(drive.startedAt)}",
+                NexusFormat.duration(drive.hours),
+                drive.estimatedKm?.let { "≈ ${NexusFormat.km(it)}" },
+            ).joinToString(" · "),
+            style = MaterialTheme.typography.bodySmall.tabular(),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

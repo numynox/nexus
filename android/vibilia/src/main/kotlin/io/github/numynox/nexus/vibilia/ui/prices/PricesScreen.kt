@@ -66,11 +66,14 @@ import io.github.numynox.nexus.core.ui.components.NexusCard
 import io.github.numynox.nexus.core.ui.components.SectionHeader
 import io.github.numynox.nexus.core.ui.components.UpdateBanner
 import io.github.numynox.nexus.vibilia.data.FuelLevel
+import io.github.numynox.nexus.vibilia.data.LastDrive
 import io.github.numynox.nexus.vibilia.data.StationPrice
+import io.github.numynox.nexus.vibilia.tracking.latestLocalDrive
 import io.github.numynox.nexus.vibilia.tracking.localDrivingHoursAfter
 import io.github.numynox.nexus.vibilia.ui.AppViewModel
 import io.github.numynox.nexus.vibilia.ui.common.FuelGaugeCard
 import io.github.numynox.nexus.vibilia.ui.common.FuelLevelPill
+import io.github.numynox.nexus.vibilia.ui.common.LastDriveLine
 import io.github.numynox.nexus.vibilia.ui.common.LiveDriveBanner
 import io.github.numynox.nexus.vibilia.ui.common.Loadable
 import io.github.numynox.nexus.vibilia.ui.common.StationCard
@@ -101,6 +104,7 @@ fun PricesScreen(app: AppViewModel) {
     val level = historyState.fuelLevel?.let { level ->
         car?.let { level.plusLocalDriving(tracker.localDrivingHoursAfter(it.id, level.lastRefuelAt, now)) } ?: level
     }
+    val lastDrive = car?.let { LastDrive.of(historyState.lastDrive, tracker.latestLocalDrive(it.id), historyState.kmPerHour) }
 
     Scaffold(
         topBar = {
@@ -157,7 +161,7 @@ fun PricesScreen(app: AppViewModel) {
                 label = "prices tab",
             ) { current ->
                 when (current) {
-                    PricesTab.History -> HistoryTab(app, listState, level)
+                    PricesTab.History -> HistoryTab(app, listState, level, lastDrive)
                     PricesTab.Nearby -> NearbyTab(settings.fuelType)
                 }
             }
@@ -166,7 +170,12 @@ fun PricesScreen(app: AppViewModel) {
 }
 
 @Composable
-private fun HistoryTab(app: AppViewModel, listState: androidx.compose.foundation.lazy.LazyListState, level: FuelLevel?) {
+private fun HistoryTab(
+    app: AppViewModel,
+    listState: androidx.compose.foundation.lazy.LazyListState,
+    level: FuelLevel?,
+    lastDrive: LastDrive?,
+) {
     val viewModel = containerViewModel { PriceHistoryViewModel(it) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val settings by app.settings.collectAsStateWithLifecycle()
@@ -205,6 +214,9 @@ private fun HistoryTab(app: AppViewModel, listState: androidx.compose.foundation
             }
             if (level != null && car != null) {
                 item(key = "gauge") { FuelGaugeCard(level, car!!.name, Modifier.animateItem()) }
+            }
+            if (lastDrive != null) {
+                item(key = "last-drive") { LastDriveLine(lastDrive, Modifier.animateItem()) }
             }
             item(key = "chart") {
                 NexusCard(Modifier.animateItem()) {

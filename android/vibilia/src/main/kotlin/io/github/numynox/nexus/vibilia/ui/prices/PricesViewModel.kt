@@ -6,6 +6,7 @@ import io.github.numynox.nexus.core.data.describe
 import io.github.numynox.nexus.vibilia.AppContainer
 import io.github.numynox.nexus.vibilia.BuildConfig
 import io.github.numynox.nexus.vibilia.data.Car
+import io.github.numynox.nexus.vibilia.data.DrivePeriod
 import io.github.numynox.nexus.vibilia.data.FuelLevel
 import io.github.numynox.nexus.vibilia.data.LastRefuelPrice
 import io.github.numynox.nexus.vibilia.data.PriceBucket
@@ -13,6 +14,7 @@ import io.github.numynox.nexus.vibilia.data.StationPrice
 import io.github.numynox.nexus.vibilia.location.LatLng
 import io.github.numynox.nexus.vibilia.ui.common.Loadable
 import io.github.numynox.nexus.vibilia.ui.common.loadable
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.Job
@@ -33,6 +35,9 @@ data class HistoryState(
     val stations: Loadable<List<StationPrice>> = Loadable.Loading,
     val history: Loadable<PriceHistory> = Loadable.Loading,
     val fuelLevel: FuelLevel? = null,
+    /** The last merged drive on the server, and the model's km per hour to estimate its distance. */
+    val lastDrive: DrivePeriod? = null,
+    val kmPerHour: Double? = null,
 )
 
 /** Our stations' prices and the price history chart — the web app's Fuel Price page. */
@@ -70,17 +75,22 @@ class PriceHistoryViewModel(private val container: AppContainer) : ViewModel() {
 
     fun loadFuelLevel(car: Car?, version: Int) {
         if (car == null) {
-            _state.update { it.copy(fuelLevel = null) }
+            _state.update { it.copy(fuelLevel = null, lastDrive = null, kmPerHour = null) }
             return
         }
         val next = car.id to version
         if (next == levelKey) return
         levelKey = next
         viewModelScope.launch {
-            val level = runCatching {
-                container.statistics.fuelLevel(car.id, car) { container.logbook.refuels(car.id) }
-            }.getOrNull()
-            _state.update { it.copy(fuelLevel = level) }
+            val level = async {
+                runCatching { container.statistics.fuelLevel(car.id, car) { container.logbook.refuels(car.id) } }.getOrNull()
+            }
+            val model = container.statistics.driveModel(car.id)
+            // The period ending at the car's last reported moment is its last drive.
+            val lastDrive = model?.lastDriveAt?.let { last ->
+                container.statistics.drivePeriods(car.id, last.minusSeconds(1), Instant.now()).lastOrNull()
+            }
+            _state.update { it.copy(fuelLevel = level.await(), lastDrive = lastDrive, kmPerHour = model?.kmPerHour) }
         }
     }
 }
