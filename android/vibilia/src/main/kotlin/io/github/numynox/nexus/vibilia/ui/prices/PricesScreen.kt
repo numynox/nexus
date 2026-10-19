@@ -66,7 +66,6 @@ import io.github.numynox.nexus.core.ui.components.NexusCard
 import io.github.numynox.nexus.core.ui.components.SectionHeader
 import io.github.numynox.nexus.core.ui.components.UpdateBanner
 import io.github.numynox.nexus.vibilia.data.FuelLevel
-import io.github.numynox.nexus.vibilia.data.FuelTypes
 import io.github.numynox.nexus.vibilia.data.StationPrice
 import io.github.numynox.nexus.vibilia.tracking.localDrivingHoursAfter
 import io.github.numynox.nexus.vibilia.ui.AppViewModel
@@ -140,23 +139,14 @@ fun PricesScreen(app: AppViewModel) {
         },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                ConnectedChoiceRow(
-                    options = PricesTab.entries,
-                    selected = tab,
-                    onSelect = { tab = it },
-                    label = { it.label },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                ConnectedChoiceRow(
-                    options = FuelTypes,
-                    selected = settings.fuelType,
-                    onSelect = { app.setFuelType(it) },
-                    label = { it },
-                    modifier = Modifier.fillMaxWidth(),
-                    showCheck = false,
-                )
-            }
+            // The fuel type is the one chosen in Settings; the subtitle names it.
+            ConnectedChoiceRow(
+                options = PricesTab.entries,
+                selected = tab,
+                onSelect = { tab = it },
+                label = { it.label },
+                modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth(),
+            )
             AnimatedContent(
                 targetState = tab,
                 transitionSpec = {
