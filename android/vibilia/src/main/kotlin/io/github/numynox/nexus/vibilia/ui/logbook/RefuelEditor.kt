@@ -303,7 +303,10 @@ fun RefuelEditor(viewModel: RefuelEditorViewModel, onCancel: () -> Unit, onSaved
             suffix = "km",
             decimal = false,
             error = viewModel.mileageError,
-            supporting = viewModel.previousMileage?.let { "Previous: ${NexusFormat.km(it.toDouble())}" },
+            supporting = listOfNotNull(
+                viewModel.previousMileage?.let { "Previous: ${NexusFormat.km(it.toDouble())}" },
+                viewModel.nextMileage?.let { "Next: ${NexusFormat.km(it.toDouble())}" },
+            ).joinToString(" · ").ifEmpty { null },
         )
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             NumberField(

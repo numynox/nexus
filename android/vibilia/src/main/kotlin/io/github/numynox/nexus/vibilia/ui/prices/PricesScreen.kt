@@ -4,6 +4,7 @@ import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -49,6 +50,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.numynox.nexus.core.ui.NexusFormat
@@ -60,11 +65,13 @@ import io.github.numynox.nexus.core.ui.components.LoadingState
 import io.github.numynox.nexus.core.ui.components.NexusCard
 import io.github.numynox.nexus.core.ui.components.SectionHeader
 import io.github.numynox.nexus.core.ui.components.UpdateBanner
+import io.github.numynox.nexus.vibilia.data.FuelLevel
 import io.github.numynox.nexus.vibilia.data.FuelTypes
 import io.github.numynox.nexus.vibilia.data.StationPrice
 import io.github.numynox.nexus.vibilia.tracking.localDrivingHoursAfter
 import io.github.numynox.nexus.vibilia.ui.AppViewModel
 import io.github.numynox.nexus.vibilia.ui.common.FuelGaugeCard
+import io.github.numynox.nexus.vibilia.ui.common.FuelLevelPill
 import io.github.numynox.nexus.vibilia.ui.common.LiveDriveBanner
 import io.github.numynox.nexus.vibilia.ui.common.Loadable
 import io.github.numynox.nexus.vibilia.ui.common.StationCard
@@ -83,6 +90,19 @@ fun PricesScreen(app: AppViewModel) {
     val fabExpanded by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
     val hasCars = cars.valueOrNull.orEmpty().isNotEmpty()
 
+    // The fuel level is shown on both tabs: as the gauge card in History, as a
+    // pill in the top bar on Nearby — as the web shows its badge on both pages.
+    val history = containerViewModel { PriceHistoryViewModel(it) }
+    val historyState by history.state.collectAsStateWithLifecycle()
+    val car by app.selectedCar.collectAsStateWithLifecycle()
+    val version by app.dataVersion.collectAsStateWithLifecycle()
+    val tracker by app.tracker.collectAsStateWithLifecycle()
+    val now = rememberNow(30_000)
+    LaunchedEffect(car?.id, version) { history.loadFuelLevel(car, version) }
+    val level = historyState.fuelLevel?.let { level ->
+        car?.let { level.plusLocalDriving(tracker.localDrivingHoursAfter(it.id, level.lastRefuelAt, now)) } ?: level
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -96,6 +116,11 @@ fun PricesScreen(app: AppViewModel) {
                         )
                     }
                 },
+                actions = {
+                    AnimatedVisibility(visible = tab == PricesTab.Nearby && level != null, enter = fadeIn(), exit = fadeOut()) {
+                        level?.let { FuelLevelPill(it, Modifier.padding(end = 12.dp)) }
+                    }
+                },
             )
         },
         floatingActionButton = {
@@ -103,6 +128,11 @@ fun PricesScreen(app: AppViewModel) {
                 ExtendedFloatingActionButton(
                     onClick = { app.newRefuel() },
                     expanded = fabExpanded,
+                    // One label whether the text shows or the button has collapsed to its icon.
+                    modifier = Modifier.clearAndSetSemantics {
+                        contentDescription = "Log a refuel"
+                        role = Role.Button
+                    },
                     icon = { Icon(Icons.Rounded.LocalGasStation, contentDescription = null) },
                     text = { Text("Refuel") },
                 )
@@ -137,7 +167,7 @@ fun PricesScreen(app: AppViewModel) {
                 label = "prices tab",
             ) { current ->
                 when (current) {
-                    PricesTab.History -> HistoryTab(app, listState)
+                    PricesTab.History -> HistoryTab(app, listState, level)
                     PricesTab.Nearby -> NearbyTab(settings.fuelType)
                 }
             }
@@ -146,7 +176,7 @@ fun PricesScreen(app: AppViewModel) {
 }
 
 @Composable
-private fun HistoryTab(app: AppViewModel, listState: androidx.compose.foundation.lazy.LazyListState) {
+private fun HistoryTab(app: AppViewModel, listState: androidx.compose.foundation.lazy.LazyListState, level: FuelLevel?) {
     val viewModel = containerViewModel { PriceHistoryViewModel(it) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val settings by app.settings.collectAsStateWithLifecycle()
@@ -160,13 +190,8 @@ private fun HistoryTab(app: AppViewModel, listState: androidx.compose.foundation
     LaunchedEffect(settings.fuelType, settings.priceHistoryDays, version) {
         viewModel.load(settings.fuelType, settings.priceHistoryDays, version)
     }
-    LaunchedEffect(car?.id, version) { viewModel.loadFuelLevel(car, version) }
-
     val openDrive = tracker.open
     val drivingCar = cars.valueOrNull.orEmpty().firstOrNull { it.id == openDrive?.carId }
-    val level = state.fuelLevel?.let { level ->
-        car?.let { level.plusLocalDriving(tracker.localDrivingHoursAfter(it.id, level.lastRefuelAt, now)) } ?: level
-    }
     val refreshing = state.stations is Loadable.Loading && state.history is Loadable.Loading
 
     PullToRefreshBox(

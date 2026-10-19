@@ -293,6 +293,41 @@ fun FuelGaugeCard(level: FuelLevel, carName: String, modifier: Modifier = Modifi
 }
 
 /**
+ * The fuel gauge in miniature — E, a bar, F and the litres — like the web
+ * app's badge, for places without room for the full card.
+ */
+@Composable
+fun FuelLevelPill(level: FuelLevel, modifier: Modifier = Modifier) {
+    val extended = NexusThemeDefaults.extendedColors
+    val ratio = level.fillRatio.toFloat()
+    val color = when {
+        ratio < 0.15f -> MaterialTheme.colorScheme.error
+        ratio < 0.3f -> extended.warning
+        else -> extended.success
+    }
+    val fill by animateFloatAsState(ratio, spring(stiffness = Spring.StiffnessVeryLow), label = "pill gauge")
+    Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = CircleShape, modifier = modifier) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text("E", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Box(
+                Modifier
+                    .size(width = 48.dp, height = 8.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+            ) {
+                Box(Modifier.fillMaxHeight().fillMaxWidth(fill).background(color, CircleShape))
+            }
+            Text("F", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(NexusFormat.liters(level.remainingLiters, 0), style = MaterialTheme.typography.labelMedium.tabular())
+        }
+    }
+}
+
+/**
  * A station with its price as stations print it. The cheapest one is
  * highlighted; the others say what 50 litres would cost extra, as on the web.
  */
