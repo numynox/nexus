@@ -24,14 +24,13 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.navigation.NavDestination.Companion.hasRoute
-import androidx.navigation.NavDestination.Companion.hierarchy
-import androidx.navigation.NavGraph.Companion.findStartDestination
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
-import androidx.navigation.toRoute
+import androidx.compose.animation.togetherWith
+import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import androidx.navigation3.runtime.NavKey
+import androidx.navigation3.runtime.entryProvider
+import androidx.navigation3.runtime.rememberNavBackStack
+import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
+import androidx.navigation3.ui.NavDisplay
 import io.github.numynox.nexus.vibilia.ui.logbook.EditorSheetHost
 import io.github.numynox.nexus.vibilia.ui.logbook.LogbookScreen
 import io.github.numynox.nexus.vibilia.ui.prices.PricesScreen
@@ -40,15 +39,15 @@ import io.github.numynox.nexus.vibilia.ui.settings.VehicleEditorScreen
 import io.github.numynox.nexus.vibilia.ui.statistics.StatisticsScreen
 import kotlinx.serialization.Serializable
 
-@Serializable data object PricesRoute
-@Serializable data object LogbookRoute
-@Serializable data object StatisticsRoute
-@Serializable data object SettingsRoute
+@Serializable data object PricesRoute : NavKey
+@Serializable data object LogbookRoute : NavKey
+@Serializable data object StatisticsRoute : NavKey
+@Serializable data object SettingsRoute : NavKey
 
 /** A vehicle's details, members and Bluetooth; [carId] null adds a new one. */
-@Serializable data class VehicleRoute(val carId: String? = null)
+@Serializable data class VehicleRoute(val carId: String? = null) : NavKey
 
-private data class TopLevel(val route: Any, val label: String, val icon: ImageVector, val selectedIcon: ImageVector)
+private data class TopLevel(val route: NavKey, val label: String, val icon: ImageVector, val selectedIcon: ImageVector)
 
 // The web app's sidebar, regrouped: prices (history and nearby), the log of
 // refuels and expenses, statistics, settings.
@@ -59,26 +58,32 @@ private val TopLevels = listOf(
     TopLevel(SettingsRoute, "Settings", Icons.Outlined.Settings, Icons.Rounded.Settings),
 )
 
+/**
+ * Navigation 3: the back stack is a plain list of keys. A tab switch resets it
+ * to Prices plus that tab, so Back from any tab returns to Prices and then
+ * leaves the app — the usual Android pattern for a bottom bar.
+ */
 @Composable
 fun MainScaffold(app: AppViewModel) {
-    val navController = rememberNavController()
-    val backStack by navController.currentBackStackEntryAsState()
-    val destination = backStack?.destination
-    val onTopLevel = destination == null || TopLevels.any { destination.hasRoute(it.route::class) }
+    val backStack = rememberNavBackStack(PricesRoute)
+    val top = backStack.lastOrNull()
+    val currentTab = backStack.lastOrNull { key -> TopLevels.any { it.route == key } } ?: PricesRoute
+    val onTopLevel = TopLevels.any { it.route == top }
+
+    fun open(route: NavKey) {
+        if (top == route) return
+        backStack.clear()
+        backStack.add(PricesRoute)
+        if (route != PricesRoute) backStack.add(route)
+    }
 
     NavigationSuiteScaffold(
         navigationSuiteItems = {
             TopLevels.forEach { item ->
-                val selected = destination?.hierarchy?.any { it.hasRoute(item.route::class) } == true
+                val selected = item.route == currentTab
                 item(
                     selected = selected,
-                    onClick = {
-                        navController.navigate(item.route) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
+                    onClick = { open(item.route) },
                     icon = { Icon(if (selected) item.selectedIcon else item.icon, contentDescription = null) },
                     label = { Text(item.label) },
                 )
@@ -90,27 +95,34 @@ fun MainScaffold(app: AppViewModel) {
             NavigationSuiteType.None
         },
     ) {
-        NavHost(
-            navController = navController,
-            startDestination = PricesRoute,
-            enterTransition = { fadeIn(tween(260, delayMillis = 60)) + slideInVertically(tween(320)) { it / 20 } },
-            exitTransition = { fadeOut(tween(120)) },
-            popEnterTransition = { fadeIn(tween(260, delayMillis = 60)) },
-            popExitTransition = { fadeOut(tween(120)) },
-        ) {
-            composable<PricesRoute> { PricesScreen(app) }
-            composable<LogbookRoute> { LogbookScreen(app) }
-            composable<StatisticsRoute> { StatisticsScreen(app) }
-            composable<SettingsRoute> {
-                SettingsScreen(app, onOpenVehicle = { carId -> navController.navigate(VehicleRoute(carId)) })
-            }
-            composable<VehicleRoute>(
-                enterTransition = { slideInHorizontally(tween(380)) { it / 3 } + fadeIn(tween(260)) },
-                popExitTransition = { slideOutHorizontally(tween(300)) { it / 3 } + fadeOut(tween(200)) },
-            ) { entry ->
-                VehicleEditorScreen(app, carId = entry.toRoute<VehicleRoute>().carId, onBack = { navController.popBackStack() })
-            }
-        }
+        NavDisplay(
+            backStack = backStack,
+            onBack = { backStack.removeLastOrNull() },
+            entryDecorators = listOf(
+                rememberSaveableStateHolderNavEntryDecorator(),
+                rememberViewModelStoreNavEntryDecorator(),
+            ),
+            transitionSpec = {
+                (fadeIn(tween(260, delayMillis = 60)) + slideInVertically(tween(320)) { it / 20 }) togetherWith fadeOut(tween(120))
+            },
+            popTransitionSpec = { fadeIn(tween(260, delayMillis = 60)) togetherWith fadeOut(tween(120)) },
+            predictivePopTransitionSpec = { fadeIn(tween(260)) togetherWith fadeOut(tween(200)) },
+            entryProvider = entryProvider {
+                entry<PricesRoute> { PricesScreen(app) }
+                entry<LogbookRoute> { LogbookScreen(app) }
+                entry<StatisticsRoute> { StatisticsScreen(app) }
+                entry<SettingsRoute> { SettingsScreen(app, onOpenVehicle = { carId -> backStack.add(VehicleRoute(carId)) }) }
+                entry<VehicleRoute>(
+                    metadata = NavDisplay.transitionSpec {
+                        (slideInHorizontally(tween(380)) { it / 3 } + fadeIn(tween(260))) togetherWith fadeOut(tween(120))
+                    } + NavDisplay.popTransitionSpec {
+                        fadeIn(tween(200)) togetherWith (slideOutHorizontally(tween(300)) { it / 3 } + fadeOut(tween(200)))
+                    },
+                ) { key ->
+                    VehicleEditorScreen(app, carId = key.carId, onBack = { backStack.removeLastOrNull() })
+                }
+            },
+        )
     }
 
     EditorSheetHost(app)

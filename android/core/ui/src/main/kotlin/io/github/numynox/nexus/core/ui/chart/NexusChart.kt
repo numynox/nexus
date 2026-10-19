@@ -340,10 +340,12 @@ private fun DrawScope.drawLineSeries(s: ChartSeries, g: ChartGeometry, frame: Fr
     drawPath(
         path,
         s.color,
+        // A stepped line has a corner every bucket; round joins bulge there
+        // into a string of beads, square ones keep the steps crisp.
         style = Stroke(
             width = s.strokeWidth.toPx(),
-            cap = StrokeCap.Round,
-            join = StrokeJoin.Round,
+            cap = if (s.style == SeriesStyle.SteppedLine) StrokeCap.Butt else StrokeCap.Round,
+            join = if (s.style == SeriesStyle.SteppedLine) StrokeJoin.Miter else StrokeJoin.Round,
             pathEffect = if (s.dashed) PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 5.dp.toPx())) else null,
         ),
     )

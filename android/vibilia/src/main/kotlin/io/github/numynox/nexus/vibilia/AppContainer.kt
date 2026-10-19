@@ -14,6 +14,7 @@ import io.github.numynox.nexus.vibilia.data.VibiliaPreferences
 import io.github.numynox.nexus.vibilia.location.LocationProvider
 import io.github.numynox.nexus.vibilia.tracking.DriveTracker
 import io.github.numynox.nexus.vibilia.tracking.DriveTracking
+import io.ktor.client.engine.HttpClientEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -21,12 +22,16 @@ import kotlinx.coroutines.SupervisorJob
 /**
  * Every long-lived object, created once with the application. Plain
  * constructor wiring — the app is small enough that a DI framework would add
- * more than it saves.
+ * more than it saves. [httpEngine] replaces the network in screenshot tests.
  */
-class AppContainer(context: Context) {
+class AppContainer(
+    context: Context,
+    httpEngine: HttpClientEngine? = null,
+    configOverride: NexusConfig? = null,
+) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    val config = NexusConfig(
+    val config = configOverride ?: NexusConfig(
         appName = "Vibilia",
         supabaseUrl = BuildConfig.SUPABASE_URL,
         supabaseAnonKey = BuildConfig.SUPABASE_ANON_KEY,
@@ -36,7 +41,11 @@ class AppContainer(context: Context) {
         releaseTagPrefix = "vibilia-android-v",
     )
 
-    val supabase = createNexusSupabaseClient(config)
+    val supabase = createNexusSupabaseClient(
+        config,
+        sessionStore = context.getSharedPreferences("supabase_session", Context.MODE_PRIVATE),
+        engine = httpEngine,
+    )
     val auth = AuthRepository(supabase, scope)
     val preferences = VibiliaPreferences(context)
     val prices = FuelPriceRepository(supabase)
@@ -45,6 +54,6 @@ class AppContainer(context: Context) {
     val statistics = StatisticsRepository(supabase)
     val drives = DriveRepository(supabase)
     val locations = LocationProvider(context)
-    val updates = UpdateChecker(config)
+    val updates = UpdateChecker(config, httpEngine)
     val driveTracking = DriveTracking(context, DriveTracker(context), preferences, cars)
 }

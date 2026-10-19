@@ -1,6 +1,7 @@
 package io.github.numynox.nexus.core.data
 
 import io.ktor.client.HttpClient
+import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -21,7 +22,7 @@ data class AvailableUpdate(
  * this app's tag prefix and compares version codes, which CI writes into the
  * tag as `<prefix><major>.<minor>.<versionCode>`.
  */
-class UpdateChecker(private val config: NexusConfig) {
+class UpdateChecker(private val config: NexusConfig, private val engine: HttpClientEngine? = null) {
 
     @Serializable
     private data class Release(
@@ -40,7 +41,7 @@ class UpdateChecker(private val config: NexusConfig) {
 
     /** Null when up to date, offline, or the repository is not reachable. */
     suspend fun check(): AvailableUpdate? = runCatching {
-        HttpClient(OkHttp).use { client ->
+        (engine?.let { HttpClient(it) } ?: HttpClient(OkHttp)).use { client ->
             val body = client.get("https://api.github.com/repos/${config.releaseRepository}/releases?per_page=30") {
                 header("Accept", "application/vnd.github+json")
             }.bodyAsText()
