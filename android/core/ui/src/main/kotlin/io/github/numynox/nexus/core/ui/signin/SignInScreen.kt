@@ -36,6 +36,7 @@ import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
@@ -98,104 +99,107 @@ fun SignInScreen(
         }
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surface)
-            .systemBarsPadding()
-            .imePadding(),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
+    // A Surface, not a background: it also sets the content colour, so text
+    // without its own colour (the app name) is light in dark mode.
+    Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+        Box(
             modifier = Modifier
-                .widthIn(max = 420.dp)
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 28.dp, vertical = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .fillMaxSize()
+                .systemBarsPadding()
+                .imePadding(),
+            contentAlignment = Alignment.Center,
         ) {
-            Box(
+            Column(
                 modifier = Modifier
-                    .size(132.dp)
-                    .scale(logoScale.value)
-                    .background(MaterialTheme.colorScheme.secondaryContainer, MaterialShapes.Cookie12Sided.toShape()),
-                contentAlignment = Alignment.Center,
+                    .widthIn(max = 420.dp)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 28.dp, vertical = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Image(logo, contentDescription = null, modifier = Modifier.size(84.dp))
-            }
-            Spacer(Modifier.height(8.dp))
-            Text(appName, style = MaterialTheme.typography.displaySmall)
-            Text(
-                tagline,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.height(12.dp))
-            if (notice != null) {
-                Text(notice, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
-            }
-            OutlinedTextField(
-                value = email,
-                onValueChange = { email = it },
-                label = { Text("Email") },
-                singleLine = true,
-                enabled = !busy,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium,
-            )
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                label = { Text("Password") },
-                singleLine = true,
-                enabled = !busy,
-                visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Go),
-                keyboardActions = KeyboardActions(onGo = { submit() }),
-                trailingIcon = {
-                    IconButton(onClick = { showPassword = !showPassword }) {
-                        Icon(
-                            if (showPassword) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                            contentDescription = if (showPassword) "Hide password" else "Show password",
-                        )
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium,
-            )
-            AnimatedVisibility(
-                visible = error != null,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut(),
-            ) {
+                Box(
+                    modifier = Modifier
+                        .size(132.dp)
+                        .scale(logoScale.value)
+                        .background(MaterialTheme.colorScheme.secondaryContainer, MaterialShapes.Cookie12Sided.toShape()),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Image(logo, contentDescription = null, modifier = Modifier.size(84.dp))
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(appName, style = MaterialTheme.typography.displaySmall)
                 Text(
-                    error.orEmpty(),
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
+                    tagline,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(12.dp))
+                if (notice != null) {
+                    Text(notice, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
+                }
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text("Email") },
+                    singleLine = true,
+                    enabled = !busy,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
                     modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium,
+                )
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Password") },
+                    singleLine = true,
+                    enabled = !busy,
+                    visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Go),
+                    keyboardActions = KeyboardActions(onGo = { submit() }),
+                    trailingIcon = {
+                        IconButton(onClick = { showPassword = !showPassword }) {
+                            Icon(
+                                if (showPassword) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                                contentDescription = if (showPassword) "Hide password" else "Show password",
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium,
+                )
+                AnimatedVisibility(
+                    visible = error != null,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut(),
+                ) {
+                    Text(
+                        error.orEmpty(),
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                Button(
+                    onClick = { submit() },
+                    enabled = !busy && email.isNotBlank() && password.isNotEmpty(),
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                ) {
+                    if (busy) {
+                        LoadingIndicator(modifier = Modifier.size(28.dp), color = MaterialTheme.colorScheme.onPrimary)
+                    } else {
+                        Text("Sign in", style = MaterialTheme.typography.titleMedium)
+                    }
+                }
+                Text(
+                    "One Nexus account signs you in to every Nexus app.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
                 )
             }
-            Button(
-                onClick = { submit() },
-                enabled = !busy && email.isNotBlank() && password.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-            ) {
-                if (busy) {
-                    LoadingIndicator(modifier = Modifier.size(28.dp), color = MaterialTheme.colorScheme.onPrimary)
-                } else {
-                    Text("Sign in", style = MaterialTheme.typography.titleMedium)
-                }
-            }
-            Text(
-                "One Nexus account signs you in to every Nexus app.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
         }
     }
 }
