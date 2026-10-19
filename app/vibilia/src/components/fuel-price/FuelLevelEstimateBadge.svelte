@@ -25,7 +25,17 @@
   const titleText = $derived.by(() => {
     if (!estimate) return "";
 
-    return `Estimated ${formatLiters(estimate.remainingLiters)} remaining from ${formatLiters(estimate.tankCapacity)} tank capacity. Average consumption ${estimate.averageConsumptionLitersPerDay.toFixed(2)} L/day over the last year.`;
+    const remaining = `Estimated ${formatLiters(estimate.remainingLiters)} remaining from ${formatLiters(estimate.tankCapacity)} tank capacity.`;
+    if (estimate.method === "drive" && estimate.drivingHours !== null) {
+      const km =
+        estimate.estimatedKm !== null
+          ? ` (about ${Math.round(estimate.estimatedKm)} km)`
+          : "";
+      return `${remaining} Based on ${estimate.drivingHours.toFixed(1)} h of driving since the last refuel${km}, recorded over Bluetooth.`;
+    }
+    return estimate.averageConsumptionLitersPerDay !== null
+      ? `${remaining} Average consumption ${estimate.averageConsumptionLitersPerDay.toFixed(2)} L/day over the last year.`
+      : remaining;
   });
 
   $effect(() => {

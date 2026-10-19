@@ -1,10 +1,11 @@
 <script lang="ts">
   import { Fuel, PencilLine, Plus, Trash2, Users } from "lucide-svelte";
   import { onMount } from "svelte";
-  import type { CarMember } from "../../lib/data";
+  import type { CarBluetoothDevice, CarMember } from "../../lib/data";
   import {
     createCarForUser,
     deleteCarById,
+    fetchCarBluetoothDevices,
     fetchCarsForUser,
     listCarMembers,
     shareCarWithEmail,
@@ -45,6 +46,7 @@
   let shareEmail = $state("");
   let shareMessage = $state("");
   let carMembersByCarId = $state<Record<string, CarMember[]>>({});
+  let bluetoothDevices = $state<CarBluetoothDevice[]>([]);
 
   onMount(() => {
     fetchCars();
@@ -72,6 +74,7 @@
     }
 
     cars = await fetchCarsForUser($session.user.id);
+    bluetoothDevices = await fetchCarBluetoothDevices();
     const membersEntries = await Promise.all(
       cars.map(async (car) => [car.id, await listCarMembers(car.id)] as const),
     );
@@ -92,6 +95,13 @@
   function ownerDisplayNameForCar(carId: string): string {
     const owner = ownerForCar(carId);
     return owner ? displayName(owner) : "Unknown";
+  }
+
+  function bluetoothLabelForCar(carId: string): string | null {
+    const names = bluetoothDevices
+      .filter((device) => device.car_id === carId)
+      .map((device) => device.name?.trim() || device.address);
+    return names.length > 0 ? names.join(", ") : null;
   }
 
   function sharedMembersForCar(carId: string): CarMember[] {
@@ -395,6 +405,14 @@
                 {#if car.plate}
                   <div class="text-xs text-base-content/60">
                     {car.plate}
+                  </div>
+                {/if}
+                {#if bluetoothLabelForCar(car.id)}
+                  <div
+                    class="text-xs text-base-content/60"
+                    title="Linked in the Android app, which records drives while the phone is connected."
+                  >
+                    Bluetooth: {bluetoothLabelForCar(car.id)}
                   </div>
                 {/if}
               </div>
