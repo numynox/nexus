@@ -44,16 +44,33 @@ object FakeSupabase {
     }
 
     /**
-     * An engine answering through [route], which returns a JSON body or null
-     * for "not mine". GitHub (the update check) and auth are answered here.
+     * An engine answering through [route], which returns a JSON body, a
+     * [Reply] when headers matter, or null for "not mine". GitHub (the update
+     * check) and auth are answered here.
      */
-    fun engine(route: (request: HttpRequestData, path: String) -> String?) = MockEngine { request ->
+    fun engine(route: (request: HttpRequestData, path: String) -> Any?) = MockEngine { request ->
         val path = request.url.encodedPath
-        val body = when {
-            request.url.host == "api.github.com" -> "[]"
-            path.startsWith("/auth/") -> "{}"
-            else -> route(request, path) ?: "[]"
+        val reply = when {
+            request.url.host == "api.github.com" -> Reply("[]")
+            path.startsWith("/auth/") -> Reply("{}")
+            else -> when (val answer = route(request, path)) {
+                is Reply -> answer
+                null -> Reply("[]")
+                else -> Reply(answer.toString())
+            }
         }
-        respond(body, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+        val headers = headersOf(
+            *(reply.headers + (HttpHeaders.ContentType to "application/json")).map { (key, value) -> key to listOf(value) }.toTypedArray(),
+        )
+        respond(reply.body, HttpStatusCode.OK, headers)
     }
+
+    /** A response with headers — e.g. PostgREST's `Content-Range`, which carries a count. */
+    data class Reply(val body: String, val headers: Map<String, String> = emptyMap())
+
+    /** What PostgREST answers to a `head` request with `count=exact`. */
+    fun count(n: Int) = Reply("", mapOf("Content-Range" to "*/$n"))
+
+    /** The `select` a request asked for, to tell apart queries on the same table. */
+    fun HttpRequestData.select(): String = url.parameters["select"].orEmpty()
 }

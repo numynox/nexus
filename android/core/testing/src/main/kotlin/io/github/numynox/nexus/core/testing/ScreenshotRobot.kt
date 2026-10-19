@@ -41,6 +41,20 @@ class ScreenshotRobot(private val compose: AndroidComposeTestRule<*, out Compone
         settle()
     }
 
+    /**
+     * Runs [block] with the test clock stepped by hand. A focused text field
+     * blinks its cursor forever, which keeps an auto-advancing clock from
+     * ever going idle; dialogs focus their first field.
+     */
+    fun withFrozenClock(block: () -> Unit) {
+        compose.mainClock.autoAdvance = false
+        try {
+            block()
+        } finally {
+            compose.mainClock.autoAdvance = true
+        }
+    }
+
     fun waitFor(matcher: SemanticsMatcher, timeoutMillis: Long = 30_000) {
         try {
             compose.waitUntil(timeoutMillis) {

@@ -1,4 +1,4 @@
-package io.github.numynox.nexus.vibilia.data
+package io.github.numynox.nexus.core.data
 
 import java.time.Instant
 import java.time.LocalDate

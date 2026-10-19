@@ -10,7 +10,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import io.github.numynox.nexus.core.data.NexusJson
 import io.github.numynox.nexus.vibilia.data.BluetoothLink
-import io.github.numynox.nexus.vibilia.data.InstantSerializer
+import io.github.numynox.nexus.core.data.InstantSerializer
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID

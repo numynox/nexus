@@ -2,6 +2,8 @@
 
 package io.github.numynox.nexus.vibilia.data
 
+import io.github.numynox.nexus.core.data.InstantSerializer
+import io.github.numynox.nexus.core.data.LocalDateSerializer
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.serialization.SerialName
