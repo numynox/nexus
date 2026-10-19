@@ -27,3 +27,4 @@ include(":core:testing")
 // One application module per Nexus app, named after it.
 include(":noctua")
 include(":vibilia")
+include(":annona")

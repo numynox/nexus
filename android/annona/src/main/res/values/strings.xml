@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Annona</string>
+    <string name="shortcut_add">Add groceries</string>
+    <string name="shortcut_consume">Use something up</string>
+    <string name="reminder_channel">Expiry reminders</string>
+</resources>
