@@ -113,7 +113,19 @@ npm run db:reset     # recreate the local database from supabase/migrations + se
 ### 5. Create a user
 
 The apps only sign in. Create a user in the local Supabase Studio
-(Authentication → Users), or use one from a restored backup.
+(Authentication → Users → Add user, with **Auto Confirm User**).
+
+Backups hold the `public` schema only, so a restored database has your data
+but no logins. Create a local user with the same email, then attach the
+restored profile to it in Studio's SQL Editor:
+
+```sql
+select public.reassign_profile_user(
+  '<restored profile id>'::uuid,   -- select id, email from profiles;
+  (select id from auth.users where email = '<email>'),
+  true
+);
+```
 
 ## Development
 
@@ -224,9 +236,12 @@ Needs JDK 21 and the Android SDK (Android Studio brings both; otherwise set
 `sdk.dir` in `android/local.properties`). The build reads the same
 `PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY` and `PUBLIC_CARTO_API_KEY`
 from the root `.env` (or the environment) and Vibilia's bucket and radius from
-`config.yaml`, so nothing is configured twice. A phone cannot reach
-`127.0.0.1`; to run against the local stack, put the machine's LAN address in
-`PUBLIC_SUPABASE_URL`, or use `10.0.2.2` from the emulator.
+`config.yaml`, so nothing is configured twice. To run a phone against the
+local stack, keep `http://127.0.0.1:54321` and forward the port with
+`adb reverse tcp:54321 tcp:54321` (again after each reconnect); the emulator
+uses `10.0.2.2`. Debug builds allow plain HTTP to exactly those hosts
+(`src/debug/res/xml/network_security_config.xml`) — a LAN address would be
+refused.
 
 ```bash
 cd android
