@@ -248,7 +248,7 @@ private fun DrivingSection(overview: CarOverview, model: DriveModel) {
         }
         if (model.kmPerHour == null || assumed) {
             Text(
-                "The speed is assumed until one tank has been tracked from refuel to refuel. It learns this car from the tanks after that.",
+                "Speeds are assumed (30 km/h for short drives, rising to 100 km/h for long ones) until one tank has been tracked from refuel to refuel. It learns this car from the tanks after that.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

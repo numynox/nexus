@@ -36,8 +36,8 @@
           ? `Based on ${formatLiters(estimate.calendarLiters)} by the calendar until tracking began, then ${estimate.drivingHours.toFixed(1)} h of driving${km}, recorded over Bluetooth.`
           : `Based on ${estimate.drivingHours.toFixed(1)} h of driving since the last refuel${km}, recorded over Bluetooth.`;
       const assumed =
-        estimate.speedAssumed && estimate.kmPerHour !== null
-          ? ` Rough until the first tracked tank: assumes ${Math.round(estimate.kmPerHour)} km/h.`
+        estimate.speedAssumed
+          ? " Rough until the first tracked tank: assumes 30 km/h for short drives, rising to 100 km/h for 100 km and more."
           : "";
       return `${remaining} ${driving}${assumed}`;
     }

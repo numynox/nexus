@@ -103,7 +103,7 @@ fun PricesScreen(app: AppViewModel) {
     val level = historyState.fuelLevel?.let { level ->
         car?.let { level.plusLocalDriving(tracker.localDrivingHoursAfter(it.id, level.lastRefuelAt, now)) } ?: level
     }
-    val lastDrive = car?.let { LastDrive.of(historyState.lastDrive, tracker.latestLocalDrive(it.id), historyState.kmPerHour) }
+    val lastDrive = car?.let { LastDrive.of(historyState.lastDrive, tracker.latestLocalDrive(it.id), historyState.driveModel) }
 
     Scaffold(
         topBar = {

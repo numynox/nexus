@@ -705,7 +705,8 @@
             <p class="mt-3 text-[11px] text-base-content/45">
               Recorded by the Android app over the car's Bluetooth.
               {#if driveModel.sampleCount === 0}
-                The speed is assumed until one tank has been tracked from
+                Speeds are assumed (30 km/h for short drives, rising to 100
+                km/h for long ones) until one tank has been tracked from
                 refuel to refuel.
               {/if}
             </p>

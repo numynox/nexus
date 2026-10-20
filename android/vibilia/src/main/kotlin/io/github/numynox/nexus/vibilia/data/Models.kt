@@ -334,7 +334,11 @@ data class DailyDistance(
     @SerialName("driving_seconds") val drivingSeconds: Double = 0.0,
 )
 
-/** What a car does per hour of driving, learned from Bluetooth drives. */
+/**
+ * What a car does per hour of driving, learned from Bluetooth drives: a drive
+ * is [speedFactor] × [DriveCurve.km]. Until a tracked tank is complete
+ * ([sampleCount] 0) the factor is 1, the assumed curve as given.
+ */
 @Serializable
 data class DriveModel(
     @SerialName("tracking_since") val trackingSince: Instant? = null,
@@ -345,7 +349,13 @@ data class DriveModel(
     @SerialName("km_per_hour") val kmPerHour: Double? = null,
     @SerialName("liters_per_hour") val litersPerHour: Double? = null,
     @SerialName("liters_per_100km") val litersPer100Km: Double? = null,
-)
+    /** Null from a database before the speed curve. */
+    @SerialName("speed_factor") val speedFactor: Double? = null,
+) {
+    /** Kilometres of one drive of this length. */
+    fun kmFor(hours: Double): Double? =
+        speedFactor?.let { it * DriveCurve.km(hours) } ?: kmPerHour?.let { it * hours }
+}
 
 @Serializable
 data class DrivePeriod(
@@ -365,10 +375,10 @@ data class LastDrive(val startedAt: Instant, val endedAt: Instant, val estimated
          * The later of the server's last merged period and this phone's own
          * drive that is not uploaded yet, so a drive shows as soon as it ends.
          */
-        fun of(server: DrivePeriod?, local: Pair<Instant, Instant>?, kmPerHour: Double?): LastDrive? {
+        fun of(server: DrivePeriod?, local: Pair<Instant, Instant>?, model: DriveModel?): LastDrive? {
             val (start, end) = listOfNotNull(server?.let { it.startedAt to it.endedAt }, local).maxByOrNull { it.second } ?: return null
             val hours = (end.toEpochMilli() - start.toEpochMilli()) / 3_600_000.0
-            return LastDrive(start, end, kmPerHour?.let { it * hours })
+            return LastDrive(start, end, model?.kmFor(hours))
         }
     }
 }
