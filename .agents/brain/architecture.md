@@ -417,8 +417,13 @@ Things that differ from the web on purpose:
   section's feeds are a filter in the top bar. Swipe right stars, swipe left
   toggles read, a long press shares; articles open in a Custom Tab. Seen is
   marked as items scroll up past the top of the list and kept in DataStore,
-  capped at 5,000 ids. Statistics are computed on the phone from the same
-  queries as the web dashboard (`ReadingStats`).
+  capped at 5,000 ids. The progress bar and the "N new" count follow the web:
+  articles (every member of a cluster) shown and unseen, against the count
+  taken at load. Refresh is a pull up past the end of the feed, not down at
+  the top (`decisions/2026-09-06-refresh-at-the-end-of-the-feed.md`): a
+  refresh retakes the seen snapshot, and scrolling back up must not trigger
+  it. Statistics are computed on the phone from the same queries as the web
+  dashboard (`ReadingStats`).
 - **Annona** — Pantry (the dashboard, then stock grouped by how soon it
   expires), Products, Places, Settings (reminders, places, categories). Adding
   and using up start from a FAB menu on every tab, or from launcher shortcuts.

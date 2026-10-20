@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -25,7 +26,6 @@ import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.SpaceDashboard
-import androidx.compose.material.icons.rounded.TaskAlt
 import androidx.compose.material.icons.rounded.ViewAgenda
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.AlertDialog
@@ -37,7 +37,6 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
@@ -51,7 +50,6 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -62,10 +60,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -74,7 +73,6 @@ import io.github.numynox.nexus.core.ui.components.EmptyState
 import io.github.numynox.nexus.core.ui.components.ErrorState
 import io.github.numynox.nexus.core.ui.components.LoadingState
 import io.github.numynox.nexus.core.ui.components.UpdateBanner
-import io.github.numynox.nexus.noctua.data.Article
 import io.github.numynox.nexus.noctua.data.Density
 import io.github.numynox.nexus.noctua.data.Section
 import io.github.numynox.nexus.noctua.data.SortOrder
@@ -146,6 +144,8 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
     )
 
     val listState = rememberLazyListState()
+    val pullThreshold = with(LocalDensity.current) { 96.dp.toPx() }
+    val endPull = remember(pullThreshold) { EndPull(pullThreshold) { viewModel.load(settings.selectedSectionId, refresh = true) } }
     val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
     // Seen on scroll: a story is seen once it has gone up past the top of the
     // list, and only while scrolling down — the web's rule, on the list's
@@ -198,7 +198,7 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
                             actions = {
                                 IconButton(onClick = { searching = true }) { Icon(Icons.Rounded.Search, contentDescription = "Search") }
                                 if (section != null && section.feeds.size > 1) {
-                                    FeedFilterButton(section, feedFilter) { viewModel.feedFilter.value = it }
+                                    FeedFilterButton(section, feedFilter, viewModel::setFeedFilter)
                                 }
                                 OverflowMenu(
                                     density = settings.density,
@@ -216,10 +216,7 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
                             scope.launch { listState.scrollToItem(0) }
                             app.selectSection(id)
                         })
-                        LinearWavyProgressIndicator(
-                            progress = { view.progress },
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-                        )
+                        ReadingProgress(view.progress, Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                     }
                 }
             }
@@ -232,10 +229,8 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
         when (val state = load) {
             Loadable.Loading -> LoadingState(Modifier.fillMaxSize().padding(padding))
             is Loadable.Failed -> ErrorState(state.message, onRetry = { viewModel.load(settings.selectedSectionId) }, modifier = Modifier.padding(padding))
-            is Loadable.Ready -> PullToRefreshBox(
-                isRefreshing = refreshing,
-                onRefresh = { viewModel.load(settings.selectedSectionId, refresh = true) },
-                modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()),
+            is Loadable.Ready -> Box(
+                Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()).nestedScroll(endPull),
             ) {
                 LazyColumn(
                     state = listState,
@@ -275,21 +270,16 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
                         }
                     }
                     if (state.value.content.sections.isNotEmpty()) {
+                        // Takes over from the last day's heading, which would
+                        // otherwise stay pinned above the end panel.
+                        stickyHeader(key = "end-heading") { Spacer(Modifier.fillMaxWidth()) }
                         item(key = "end") {
-                            EmptyState(
-                                icon = Icons.Rounded.TaskAlt,
-                                title = if (rows.isEmpty()) "Nothing new" else "That's everything",
-                                message = if (rows.isEmpty()) {
-                                    "Every article here has been seen. New ones arrive every hour."
-                                } else {
-                                    "Pull down or refresh to fetch what came in since, and to clear what you've seen."
-                                },
-                                action = {
-                                    FilledTonalButton(onClick = { viewModel.load(settings.selectedSectionId, refresh = true) }) {
-                                        Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                                        Text("Refresh", modifier = Modifier.padding(start = 8.dp))
-                                    }
-                                },
+                            EndOfFeed(
+                                empty = rows.isEmpty(),
+                                pull = endPull,
+                                refreshing = refreshing,
+                                onRefresh = { viewModel.load(settings.selectedSectionId, refresh = true) },
+                                modifier = Modifier.fillParentMaxHeight(),
                             )
                         }
                     }

@@ -99,6 +99,8 @@ class AppScreenshots {
         shot("17-feed-dark")
         scrollTo("How birds navigate by sensing Earth's magnetic field")
         shot("17b-feed-scrolled-dark")
+        scrollTo("That's everything")
+        shot("17c-feed-end-dark")
         tap("Statistics")
         waitForText("STREAK")
         shot("18-statistics-dark")

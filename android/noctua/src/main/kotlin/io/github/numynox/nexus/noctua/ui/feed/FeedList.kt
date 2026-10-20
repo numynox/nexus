@@ -93,3 +93,23 @@ fun relativeAge(time: Instant?, now: Instant = Instant.now()): String {
         else -> "${(minutes + 12 * 60) / (60 * 24)}d"
     }
 }
+
+/**
+ * Articles shown and not seen yet — the web's `displayedUnreadAndUnseenCount`.
+ * Every member of a cluster counts, as on the web, though only its leader is
+ * drawn: a cluster is seen as a whole, so the count drops by all of them at once.
+ */
+fun unseenCount(days: List<DayGroup>, seen: Set<Long>): Int =
+    days.sumOf { day -> day.items.sumOf { item -> item.members.count { it.id !in seen } } }
+
+/**
+ * How far through the feed the reader is, 0–1 — the web's progress bar
+ * (ArticleFeedView.svelte): of the [baseline] unseen when the list loaded,
+ * the share seen since. A list that loaded with nothing unseen is complete.
+ */
+fun seenProgress(baseline: Int, unseen: Int): Float =
+    if (baseline == 0) {
+        if (unseen == 0) 1f else 0f
+    } else {
+        ((baseline - unseen).toFloat() / baseline).coerceIn(0f, 1f)
+    }

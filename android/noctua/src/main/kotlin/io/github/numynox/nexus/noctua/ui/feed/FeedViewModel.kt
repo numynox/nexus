@@ -73,16 +73,32 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
 
     private val settings = preferences.settings.stateIn(viewModelScope, SharingStarted.Eagerly, NoctuaSettings())
 
-    private var initialUnseen: Set<Long> = emptySet()
+    /**
+     * Unseen articles shown when the list was loaded, or a feed chosen — the
+     * web's `initialUnseen`, taken when the page loads. A search does not
+     * retake it: searching narrows the list, it does not start a new one.
+     */
+    private val baseline = MutableStateFlow(0)
 
-    val view: StateFlow<FeedView> = combine(_load, settings, query, feedFilter, seen) { load, settings, query, feed, seen ->
-        val value = load.valueOrNull ?: return@combine FeedView(emptyList(), 0, 0f)
-        val days = buildFeed(value.content.articles, value.hiddenAtLoad, query, feed, settings.sortOrder, value.groups)
-        val leaders = days.flatMap { it.items }
-        val unseen = leaders.count { item -> item.members.any { it.id !in seen } }
-        val progress = if (initialUnseen.isEmpty()) 1f else (initialUnseen.count { it in seen }.toFloat() / initialUnseen.size)
-        FeedView(days, unseen, progress)
+    private val days = combine(_load, settings, query, feedFilter) { load, settings, query, feed ->
+        load.valueOrNull?.let { buildFeed(it.content.articles, it.hiddenAtLoad, query, feed, settings.sortOrder, it.groups) }.orEmpty()
+    }
+
+    val view: StateFlow<FeedView> = combine(days, seen, baseline) { days, seen, baseline ->
+        val unseen = unseenCount(days, seen)
+        FeedView(days, unseen, seenProgress(baseline, unseen))
     }.stateIn(viewModelScope, SharingStarted.Eagerly, FeedView(emptyList(), 0, 0f))
+
+    private suspend fun takeBaseline() {
+        // The stored set, not [seen], which may not have loaded yet on the first call.
+        baseline.value = unseenCount(days.first(), preferences.seen.first())
+    }
+
+    /** Shows one feed of the section, or all of them; like a new page on the web, the progress starts over. */
+    fun setFeedFilter(feedId: Long?) {
+        feedFilter.value = feedId
+        viewModelScope.launch { takeBaseline() }
+    }
 
     /** (Re)loads the given section, or all of them; [sectionId] may be stale and falls back. */
     fun load(sectionId: Long?, refresh: Boolean = false) {
@@ -90,6 +106,7 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
             if (refresh) _refreshing.value = true else if (_load.value !is Loadable.Ready) _load.value = Loadable.Loading
             val result = loadable { fetch(sectionId) }
             if (result is Loadable.Ready || !refresh) _load.value = result
+            if (result is Loadable.Ready) takeBaseline()
             if (result is Loadable.Failed && refresh) _messages.tryEmit(result.message)
             _refreshing.value = false
         }
@@ -109,7 +126,6 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
         }.getOrDefault(emptyMap())
         _reads.value = content.reads
         _starred.value = content.starred
-        initialUnseen = content.articles.mapNotNullTo(HashSet()) { a -> a.id.takeIf { it !in seenNow } }
         feedFilter.value = feedFilter.value?.takeIf { id -> feeds.any { it.id == id } }
         _expanded.value = emptySet()
         return FeedLoad(content, section?.id, hidden, groups)

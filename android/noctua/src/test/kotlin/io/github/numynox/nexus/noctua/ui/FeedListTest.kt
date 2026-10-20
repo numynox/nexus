@@ -6,6 +6,8 @@ import io.github.numynox.nexus.noctua.data.plainText
 import io.github.numynox.nexus.noctua.ui.feed.buildFeed
 import io.github.numynox.nexus.noctua.ui.feed.dayLabel
 import io.github.numynox.nexus.noctua.ui.feed.relativeAge
+import io.github.numynox.nexus.noctua.ui.feed.seenProgress
+import io.github.numynox.nexus.noctua.ui.feed.unseenCount
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -80,5 +82,26 @@ class FeedListTest {
     @Test
     fun summariesLoseTheirMarkup() {
         assertEquals("Fish & chips — \"tonight\"", plainText("<p>Fish &amp; chips &#8212; &quot;tonight&quot;</p>"))
+    }
+
+    @Test
+    fun unseenCountsEveryMemberOfACluster() {
+        val days = build(listOf(article(1, at(19, 8)), article(2, at(19, 9)), article(3, at(19, 10))), groups = mapOf(1L to 1L, 3L to 1L))
+        assertEquals(3, unseenCount(days, emptySet()))
+        assertEquals(1, unseenCount(days, setOf(1, 3)))
+        assertEquals(0, unseenCount(days, setOf(1, 2, 3)))
+    }
+
+    @Test
+    fun progressIsTheShareOfTheLoadsUnseenSeenSince() {
+        assertEquals(0f, seenProgress(baseline = 10, unseen = 10), 0f)
+        assertEquals(0.3f, seenProgress(baseline = 10, unseen = 7), 1e-6f)
+        assertEquals(1f, seenProgress(baseline = 10, unseen = 0), 0f)
+        // A search can show fewer than were new; it never runs past either end.
+        assertEquals(1f, seenProgress(baseline = 4, unseen = 0), 0f)
+        assertEquals(0f, seenProgress(baseline = 4, unseen = 9), 0f)
+        // Loaded with nothing new: done, unless something new is shown later.
+        assertEquals(1f, seenProgress(baseline = 0, unseen = 0), 0f)
+        assertEquals(0f, seenProgress(baseline = 0, unseen = 2), 0f)
     }
 }
