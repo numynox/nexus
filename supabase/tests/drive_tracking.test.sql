@@ -3,9 +3,11 @@
 -- What must hold: two phones in one car count each minute once; a leg's exact
 -- distance and fuel are spread over the days that were driven (cut at
 -- Europe/Berlin midnight), and only for legs tracking fully covered; the open
--- leg is estimated with the learned model; untracked cars keep the old
--- refuel-day attribution; and nothing is visible to someone the car is not
--- shared with.
+-- leg is estimated with the learned model, which starts from an assumed
+-- 50 km/h worth 3 hours of driving; a tank in which tracking began is
+-- estimated by the calendar up to the first drive and by driving time after,
+-- and teaches the model nothing; untracked cars keep the old refuel-day
+-- attribution; and nothing is visible to someone the car is not shared with.
 --
 -- Run with: npm run test:db
 
@@ -13,7 +15,7 @@ begin;
 
 create extension if not exists pgtap;
 
-select plan(32);
+select plan(43);
 
 -- ── Fixtures ───────────────────────────────────────────────────────────────
 -- Owner, a member the car is shared with, and a stranger.
@@ -42,8 +44,10 @@ insert into public.car_access (car_id, user_id) values
 --     30 Jan 08:00–10:00Z (2 h; a second phone overlaps 08:30–09:30Z)
 --     1 Feb 21:00Z – 2 Feb 01:00Z (4 h; Berlin midnight is 23:00Z, so 2 h on
 --       each side)
---   → 100 km/h, 8 L/h; 200 km on each of 30 Jan, 1 Feb and 2 Feb.
---   open leg after e2: 5 Feb 10:00–11:30Z, 1.5 h → 150 km, 12 L estimated.
+--   → 100 km/h learned; with the assumed 50 km/h × 3 h,
+--     (100 × 6 + 50 × 3) / 9 = 83.333 km/h, and at 8 L/100km 6.667 L/h.
+--     200 km on each of 30 Jan, 1 Feb and 2 Feb.
+--   open leg after e2: 5 Feb 10:00–11:30Z, 1.5 h → 125 km, 10 L estimated.
 insert into public.refuel_events
   (car_id, user_id, fueled_at, mileage, liters, total_price, price_per_liter_calculated, fuel_level_after, is_full_refuel, missed_previous_refuel)
 values
@@ -64,6 +68,37 @@ insert into public.refuel_events
 values
   ('eeee0000-0000-4000-8000-000000000002', 'dddd0000-0000-4000-8000-000000000001', '2026-01-01 10:00+00', 1000, 40, 60.00, 1.500, 50, true, false),
   ('eeee0000-0000-4000-8000-000000000002', 'dddd0000-0000-4000-8000-000000000001', '2026-01-11 10:00+00', 1500, 30, 45.00, 1.500, 50, true, false);
+
+-- Half Tank Car: refuelled on 1 and 11 January, 500 km and 30 L apart
+-- (6 L/100km, 3 L a day). Tracking starts on 14 January, three days into the
+-- tank: 2 h of driving on 14 January.
+--   model: no tracked leg → 50 km/h × 6 L/100km = 3 L/h
+--   on 15 January: 3 days × 3 L = 9 L by the calendar, 2 h × 3 L/h = 6 L by
+--   driving → 35 L left; 9 L is 150 km and 2 h is 100 km → 1750 km.
+insert into public.cars (id, name, owner_id, tank_capacity) values
+  ('eeee0000-0000-4000-8000-000000000004', 'Half Tank Car', 'dddd0000-0000-4000-8000-000000000001', 50),
+  ('eeee0000-0000-4000-8000-000000000005', 'Half Tracked Leg Car', 'dddd0000-0000-4000-8000-000000000001', 50);
+
+insert into public.refuel_events
+  (car_id, user_id, fueled_at, mileage, liters, total_price, price_per_liter_calculated, fuel_level_after, is_full_refuel, missed_previous_refuel)
+values
+  ('eeee0000-0000-4000-8000-000000000004', 'dddd0000-0000-4000-8000-000000000001', '2026-01-01 10:00+00', 1000, 40, 60.00, 1.500, 50, true, false),
+  ('eeee0000-0000-4000-8000-000000000004', 'dddd0000-0000-4000-8000-000000000001', '2026-01-11 10:00+00', 1500, 30, 45.00, 1.500, 50, true, false);
+
+insert into public.vibilia_drive_intervals (id, car_id, user_id, device_id, started_at, ended_at) values
+  ('ffff0000-0000-4000-8000-000000000041', 'eeee0000-0000-4000-8000-000000000004', 'dddd0000-0000-4000-8000-000000000001', 'phone-a', '2026-01-14 10:00+00', '2026-01-14 12:00+00');
+
+-- Half Tracked Leg Car: the same, but the tank in which tracking began has
+-- been closed by a refuel. The leg must not teach the model, because nobody
+-- timed its first days (500 km over 2 tracked hours is no speed at all).
+insert into public.refuel_events
+  (car_id, user_id, fueled_at, mileage, liters, total_price, price_per_liter_calculated, fuel_level_after, is_full_refuel, missed_previous_refuel)
+values
+  ('eeee0000-0000-4000-8000-000000000005', 'dddd0000-0000-4000-8000-000000000001', '2026-01-01 10:00+00', 1000, 40, 60.00, 1.500, 50, true, false),
+  ('eeee0000-0000-4000-8000-000000000005', 'dddd0000-0000-4000-8000-000000000001', '2026-01-11 10:00+00', 1500, 30, 45.00, 1.500, 50, true, false);
+
+insert into public.vibilia_drive_intervals (id, car_id, user_id, device_id, started_at, ended_at) values
+  ('ffff0000-0000-4000-8000-000000000051', 'eeee0000-0000-4000-8000-000000000005', 'dddd0000-0000-4000-8000-000000000001', 'phone-a', '2026-01-05 10:00+00', '2026-01-05 12:00+00');
 
 -- New Year Car: one leg across New Year. 200 km driven in December, 300 km in
 -- January, refuelled on 10 January. The statistics must split it by year.
@@ -118,14 +153,14 @@ select ok(
 -- Model
 select is(
   (select round(km_per_hour, 3) from public.get_car_drive_model('eeee0000-0000-4000-8000-000000000001', '2026-02-06 00:00+00')),
-  100.000,
-  'the model learns 600 km / 6 h = 100 km/h'
+  83.333,
+  'the model blends 600 km / 6 h with the assumed 50 km/h × 3 h: 750 / 9'
 );
 
 select is(
   (select round(liters_per_hour, 3) from public.get_car_drive_model('eeee0000-0000-4000-8000-000000000001', '2026-02-06 00:00+00')),
-  8.000,
-  'the model learns 48 L / 6 h = 8 L/h'
+  6.667,
+  'litres per hour follow at 8 L/100km'
 );
 
 select is(
@@ -179,8 +214,8 @@ select is(
 
 select is(
   (select estimated_km from public.get_car_daily_distance('eeee0000-0000-4000-8000-000000000001') where day = '2026-02-05'),
-  150.000,
-  'the open leg is estimated: 1.5 h × 100 km/h'
+  125.000,
+  'the open leg is estimated: 1.5 h × 83.333 km/h'
 );
 
 select is(
@@ -211,14 +246,81 @@ select is(
 
 select is(
   (select round(remaining_liters, 3) from public.get_car_fuel_level_estimate('eeee0000-0000-4000-8000-000000000001', '2026-02-06 00:00+00')),
-  38.000,
-  'full tank minus 1.5 h × 8 L/h = 38 L'
+  40.000,
+  'full tank minus 1.5 h × 6.667 L/h = 40 L'
 );
 
 select is(
   (select round(estimated_mileage, 1) from public.get_car_fuel_level_estimate('eeee0000-0000-4000-8000-000000000001', '2026-02-06 00:00+00')),
-  10750.0,
-  'and the odometer is estimated at 10600 + 150 km'
+  10725.0,
+  'and the odometer is estimated at 10600 + 125 km'
+);
+
+select is(
+  (select calendar_liters from public.get_car_fuel_level_estimate('eeee0000-0000-4000-8000-000000000001', '2026-02-06 00:00+00')),
+  0::numeric,
+  'a fully tracked tank needs no calendar part'
+);
+
+-- Tracking started mid-tank
+select results_eq(
+  $$ select sample_count, km_per_hour, liters_per_hour from public.get_car_drive_model('eeee0000-0000-4000-8000-000000000004', '2026-01-15 10:00+00') $$,
+  $$ values (0, 50::numeric, 3::numeric) $$,
+  'without a tracked leg the model assumes 50 km/h at the car''s 6 L/100km'
+);
+
+select is(
+  (select method from public.get_car_fuel_level_estimate('eeee0000-0000-4000-8000-000000000004', '2026-01-15 10:00+00')),
+  'drive',
+  'the tank in which tracking began is already estimated from driving'
+);
+
+select results_eq(
+  $$ select round(calendar_liters, 3), round(remaining_liters, 3), round(driving_hours, 3), driving_since
+     from public.get_car_fuel_level_estimate('eeee0000-0000-4000-8000-000000000004', '2026-01-15 10:00+00') $$,
+  $$ values (9.000, 35.000, 2.000, '2026-01-14 10:00+00'::timestamptz) $$,
+  '3 days × 3 L by the calendar, then 2 h × 3 L/h: 50 − 9 − 6 = 35 L'
+);
+
+select is(
+  (select round(estimated_mileage, 1) from public.get_car_fuel_level_estimate('eeee0000-0000-4000-8000-000000000004', '2026-01-15 10:00+00')),
+  1750.0,
+  'the odometer adds 9 L at 6 L/100km and 2 h at 50 km/h: 1500 + 150 + 100'
+);
+
+select is(
+  (select model_sample_count from public.get_car_fuel_level_estimate('eeee0000-0000-4000-8000-000000000004', '2026-01-15 10:00+00')),
+  0,
+  'and says the speed is assumed'
+);
+
+select is(
+  (select estimated_km from public.get_car_daily_distance('eeee0000-0000-4000-8000-000000000004') where day = '2026-01-14'),
+  100.000,
+  'the first drive already shows on its day as an estimate'
+);
+
+select ok(
+  not (select tracked from public.get_car_refuel_legs('eeee0000-0000-4000-8000-000000000005')),
+  'a leg that began before tracking is not tracked, even with drives in it'
+);
+
+select results_eq(
+  $$ select sample_count, km_per_hour from public.get_car_drive_model('eeee0000-0000-4000-8000-000000000005', '2026-01-15 10:00+00') $$,
+  $$ values (0, 50::numeric) $$,
+  '... and teaches the model nothing'
+);
+
+select is(
+  (select km from public.get_car_daily_distance('eeee0000-0000-4000-8000-000000000005') where day = '2026-01-11'),
+  500.000,
+  '... and stays on its refuel day'
+);
+
+select is(
+  (select km_per_hour from public.get_car_drive_model('eeee0000-0000-4000-8000-000000000002')),
+  null::numeric,
+  'a car without drives has no model at all'
 );
 
 select is(
