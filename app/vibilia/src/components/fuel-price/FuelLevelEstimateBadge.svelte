@@ -31,7 +31,15 @@
         estimate.estimatedKm !== null
           ? ` (about ${Math.round(estimate.estimatedKm)} km)`
           : "";
-      return `${remaining} Based on ${estimate.drivingHours.toFixed(1)} h of driving since the last refuel${km}, recorded over Bluetooth.`;
+      const driving =
+        estimate.calendarLiters > 0
+          ? `Based on ${formatLiters(estimate.calendarLiters)} by the calendar until tracking began, then ${estimate.drivingHours.toFixed(1)} h of driving${km}, recorded over Bluetooth.`
+          : `Based on ${estimate.drivingHours.toFixed(1)} h of driving since the last refuel${km}, recorded over Bluetooth.`;
+      const assumed =
+        estimate.speedAssumed && estimate.kmPerHour !== null
+          ? ` Rough until the first tracked tank: assumes ${Math.round(estimate.kmPerHour)} km/h.`
+          : "";
+      return `${remaining} ${driving}${assumed}`;
     }
     return estimate.averageConsumptionLitersPerDay !== null
       ? `${remaining} Average consumption ${estimate.averageConsumptionLitersPerDay.toFixed(2)} L/day over the last year.`

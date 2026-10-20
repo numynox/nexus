@@ -670,7 +670,7 @@
             </h2>
             <div class="mt-1 text-3xl font-black tracking-tight text-info">
               {driveModel.kmPerHour !== null
-                ? `${fmt(driveModel.kmPerHour, 0)} km/h`
+                ? `${driveModel.sampleCount === 0 ? "≈ " : ""}${fmt(driveModel.kmPerHour, 0)} km/h`
                 : "Learning…"}
             </div>
             <div class="mt-3 space-y-1 text-sm text-base-content/75">
@@ -687,10 +687,9 @@
                 <span>Learned from</span>
                 <span
                   class="font-semibold text-base-content whitespace-nowrap tabular-nums"
-                  >{driveModel.sampleCount} refuels · {fmt(
-                    driveModel.sampleHours,
-                    0,
-                  )} h</span
+                  >{driveModel.sampleCount === 0
+                    ? "Assumed for now"
+                    : `${driveModel.sampleCount} refuels · ${fmt(driveModel.sampleHours, 0)} h`}</span
                 >
               </div>
               <div class="flex items-baseline justify-between gap-3">
@@ -705,6 +704,10 @@
             </div>
             <p class="mt-3 text-[11px] text-base-content/45">
               Recorded by the Android app over the car's Bluetooth.
+              {#if driveModel.sampleCount === 0}
+                The speed is assumed until one tank has been tracked from
+                refuel to refuel.
+              {/if}
             </p>
           </section>
         {/if}

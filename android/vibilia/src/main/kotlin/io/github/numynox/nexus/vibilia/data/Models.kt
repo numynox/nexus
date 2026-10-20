@@ -389,6 +389,9 @@ data class FuelLevelRow(
     @SerialName("km_per_hour") val kmPerHour: Double? = null,
     @SerialName("liters_per_hour") val litersPerHour: Double? = null,
     @SerialName("liters_per_day") val litersPerDay: Double? = null,
+    @SerialName("driving_since") val drivingSince: Instant? = null,
+    @SerialName("calendar_liters") val calendarLiters: Double = 0.0,
+    @SerialName("model_sample_count") val modelSampleCount: Int? = null,
 )
 
 @Serializable

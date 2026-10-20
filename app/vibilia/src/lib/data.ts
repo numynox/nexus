@@ -40,7 +40,6 @@ interface CarExpenseUpdate {
   notes: string | null;
 }
 
-
 /**
  * Re-exported so every call site can keep importing it from the data layer,
  * while the shell components in @nexus/ui use the same implementation — the
@@ -65,6 +64,8 @@ export interface FuelLevelEstimate {
    * `drive`: driving time since the last refuel × the car's learned litres per
    * hour (Bluetooth drive tracking, recorded by the Android app).
    * `time`: calendar days × average litres per day.
+   * In the tank in which tracking began, `drive` counts calendar days up to
+   * the first recorded drive (`calendarLiters`) and driving time after it.
    */
   method: "drive" | "time";
   lastRefuelAt: string;
@@ -75,7 +76,13 @@ export interface FuelLevelEstimate {
   tankCapacity: number;
   fillRatio: number;
   drivingHours: number | null;
+  /** Where `drivingHours` start counting: the last refuel or the first drive. */
+  drivingSince: string | null;
+  calendarLiters: number;
   estimatedKm: number | null;
+  kmPerHour: number | null;
+  /** No tracked tank yet: the drive model assumes its speed. */
+  speedAssumed: boolean;
   /** How far the remaining fuel goes at the learned consumption; drive method only. */
   rangeKm: number | null;
 }
@@ -95,7 +102,10 @@ export interface CarDrivePeriod {
   reporter_count: number;
 }
 
-/** What a car does per hour of driving, learned from Bluetooth drives. */
+/**
+ * What a car does per hour of driving, learned from Bluetooth drives. Until a
+ * tracked tank is complete (`sampleCount` 0) the speed is assumed.
+ */
 export interface CarDriveModel {
   trackingSince: string | null;
   lastDriveAt: string | null;
@@ -482,7 +492,11 @@ export async function fetchFuelLevelEstimateForCar(
     tankCapacity,
     fillRatio: finiteOrNull(row.fill_ratio) ?? 0,
     drivingHours: finiteOrNull(row.driving_hours),
+    drivingSince: row.driving_since ?? null,
+    calendarLiters: finiteOrNull(row.calendar_liters) ?? 0,
     estimatedKm: finiteOrNull(row.estimated_km),
+    kmPerHour,
+    speedAssumed: row.method === "drive" && row.model_sample_count === 0,
     rangeKm:
       row.method === "drive" && kmPerHour && litersPerHour
         ? (remainingLiters / litersPerHour) * kmPerHour
@@ -609,7 +623,11 @@ async function computeFuelLevelEstimateInBrowser(
     tankCapacity,
     fillRatio,
     drivingHours: null,
+    drivingSince: null,
+    calendarLiters: 0,
     estimatedKm: null,
+    kmPerHour: null,
+    speedAssumed: false,
     rangeKm: null,
   };
 }
@@ -685,7 +703,9 @@ export async function fetchCarDriveModel(
  * Bluetooth links are made in the Android app; the web only shows them. An
  * empty list also covers a database that predates the table.
  */
-export async function fetchCarBluetoothDevices(): Promise<CarBluetoothDevice[]> {
+export async function fetchCarBluetoothDevices(): Promise<
+  CarBluetoothDevice[]
+> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from("vibilia_car_bluetooth_devices")

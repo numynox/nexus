@@ -241,13 +241,14 @@ private fun DrivingSection(overview: CarOverview, model: DriveModel) {
             }
         }
         Row(Modifier.padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ModelFigure("Speed", model.kmPerHour?.let { "${NexusFormat.number(it, 0)} km/h" } ?: "Learning", Modifier.weight(1f))
+            val assumed = model.sampleCount == 0
+            ModelFigure("Speed", model.kmPerHour?.let { "${if (assumed) "≈ " else ""}${NexusFormat.number(it, 0)} km/h" } ?: "Learning", Modifier.weight(1f))
             ModelFigure("Fuel", model.litersPerHour?.let { "${NexusFormat.number(it, 1)} L/h" } ?: "—", Modifier.weight(1f))
-            ModelFigure("Learned from", "${model.sampleCount} tanks", Modifier.weight(1f))
+            ModelFigure("Learned from", if (assumed) "Assumed" else "${model.sampleCount} tanks", Modifier.weight(1f))
         }
-        if (model.kmPerHour == null) {
+        if (model.kmPerHour == null || assumed) {
             Text(
-                "The model learns from refuels made after tracking started. Log the next two refuels and it knows this car.",
+                "The speed is assumed until one tank has been tracked from refuel to refuel. It learns this car from the tanks after that.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
