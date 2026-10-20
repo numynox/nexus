@@ -6,6 +6,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.numynox.nexus.core.data.describe
+import kotlin.coroutines.cancellation.CancellationException
 
 /** What a screen shows while its data is on the way. */
 sealed interface Loadable<out T> {
@@ -16,8 +17,15 @@ sealed interface Loadable<out T> {
 
 val <T> Loadable<T>.valueOrNull: T? get() = (this as? Loadable.Ready)?.value
 
+/** Runs [block]; a cancelled load stays cancelled instead of turning into an error to show. */
 suspend fun <T> loadable(block: suspend () -> T): Loadable<T> =
-    runCatching { Loadable.Ready(block()) }.getOrElse { Loadable.Failed(it.describe()) }
+    try {
+        Loadable.Ready(block())
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Loadable.Failed(e.describe())
+    }
 
 /**
  * A ViewModel built by [create], scoped to the current back-stack entry; [key]
