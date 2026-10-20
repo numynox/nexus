@@ -151,7 +151,10 @@ Nexus apps.
 ### Failure modes
 
 - Without `ANDROID_KEYSTORE_BASE64` the build still runs, debug-signed, warns,
-  and publishes nothing.
+  and publishes nothing. A debug-signed APK cannot update an installed app:
+  each runner makes its own debug key. So pull requests from this repository
+  are release-signed as well, and their `<app>-apk` artifact installs over the
+  released app; a fork's pull request gets no secrets and stays debug-signed.
 - Without the Supabase variables the APK builds and its sign-in screen says the
   build has no Supabase connection configured.
 - An installed APK outlives a schema change far longer than a website does: a
