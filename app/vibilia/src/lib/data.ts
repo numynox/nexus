@@ -79,6 +79,9 @@ export interface FuelLevelEstimate {
   /** Where `drivingHours` start counting: the last refuel or the first drive. */
   drivingSince: string | null;
   calendarLiters: number;
+  /** `estimatedKm` split into the calendar part and the driving part. */
+  calendarKm: number | null;
+  drivingKm: number | null;
   estimatedKm: number | null;
   /** No tracked tank yet: the drive model assumes its speed. */
   speedAssumed: boolean;
@@ -480,6 +483,14 @@ export async function fetchFuelLevelEstimateForCar(
   if (!tankCapacity || remainingLiters === null) return null;
   const kmPerHour = finiteOrNull(row.km_per_hour);
   const litersPerHour = finiteOrNull(row.liters_per_hour);
+  const calendarLiters = finiteOrNull(row.calendar_liters) ?? 0;
+  const estimatedKm = finiteOrNull(row.estimated_km);
+  // The calendar litres convert at the model's litres per 100 km, which is
+  // litres per hour over km per hour.
+  const calendarKm =
+    calendarLiters > 0 && kmPerHour && litersPerHour
+      ? (calendarLiters / litersPerHour) * kmPerHour
+      : null;
 
   return {
     method: row.method === "drive" ? "drive" : "time",
@@ -495,8 +506,13 @@ export async function fetchFuelLevelEstimateForCar(
     fillRatio: finiteOrNull(row.fill_ratio) ?? 0,
     drivingHours: finiteOrNull(row.driving_hours),
     drivingSince: row.driving_since ?? null,
-    calendarLiters: finiteOrNull(row.calendar_liters) ?? 0,
-    estimatedKm: finiteOrNull(row.estimated_km),
+    calendarLiters,
+    calendarKm,
+    drivingKm:
+      estimatedKm !== null
+        ? Math.max(0, estimatedKm - (calendarKm ?? 0))
+        : null,
+    estimatedKm,
     speedAssumed: row.method === "drive" && row.model_sample_count === 0,
     rangeKm:
       row.method === "drive" && kmPerHour && litersPerHour
@@ -626,6 +642,8 @@ async function computeFuelLevelEstimateInBrowser(
     drivingHours: null,
     drivingSince: null,
     calendarLiters: 0,
+    calendarKm: null,
+    drivingKm: null,
     estimatedKm: null,
     speedAssumed: false,
     rangeKm: null,

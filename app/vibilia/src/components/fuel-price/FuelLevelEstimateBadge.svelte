@@ -1,4 +1,5 @@
 <script lang="ts">
+  import dayjs from "dayjs";
   import { Gauge } from "lucide-svelte";
   import {
     fetchFuelLevelEstimateForCar,
@@ -14,6 +15,10 @@
     return `${value.toFixed(value >= 10 ? 0 : 1)} L`;
   }
 
+  function formatKm(value: number | null): string {
+    return value !== null ? ` (≈ ${Math.round(value)} km)` : "";
+  }
+
   function formatPercent(value: number): string {
     return `${Math.round(value * 100)}%`;
   }
@@ -25,21 +30,17 @@
   const titleText = $derived.by(() => {
     if (!estimate) return "";
 
-    const remaining = `Estimated ${formatLiters(estimate.remainingLiters)} remaining from ${formatLiters(estimate.tankCapacity)} tank capacity.`;
+    const remaining = `About ${formatLiters(estimate.remainingLiters)} of ${formatLiters(estimate.tankCapacity)} left.`;
     if (estimate.method === "drive" && estimate.drivingHours !== null) {
-      const km =
-        estimate.estimatedKm !== null
-          ? ` (about ${Math.round(estimate.estimatedKm)} km)`
-          : "";
-      const driving =
+      const driving = `${estimate.drivingHours.toFixed(1)} h of driving${formatKm(estimate.drivingKm)} recorded over Bluetooth`;
+      const since =
         estimate.calendarLiters > 0
-          ? `Based on ${formatLiters(estimate.calendarLiters)} by the calendar until tracking began, then ${estimate.drivingHours.toFixed(1)} h of driving${km}, recorded over Bluetooth.`
-          : `Based on ${estimate.drivingHours.toFixed(1)} h of driving since the last refuel${km}, recorded over Bluetooth.`;
-      const assumed =
-        estimate.speedAssumed
-          ? " Rough until the first tracked tank: assumes 30 km/h for short drives, rising to 100 km/h for 100 km and more."
-          : "";
-      return `${remaining} ${driving}${assumed}`;
+          ? `Since the last refuel: about ${formatLiters(estimate.calendarLiters)}${formatKm(estimate.calendarKm)} from your average daily use until tracking began${estimate.drivingSince ? ` on ${dayjs(estimate.drivingSince).format("D MMM")}` : ""}, then ${driving}.`
+          : `Since the last refuel: ${driving}.`;
+      const assumed = estimate.speedAssumed
+        ? " The driving distance is a rough estimate until one tank has been tracked from refuel to refuel."
+        : "";
+      return `${remaining} ${since}${assumed}`;
     }
     return estimate.averageConsumptionLitersPerDay !== null
       ? `${remaining} Average consumption ${estimate.averageConsumptionLitersPerDay.toFixed(2)} L/day over the last year.`
