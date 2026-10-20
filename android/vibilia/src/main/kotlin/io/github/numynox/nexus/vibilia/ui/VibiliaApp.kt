@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.numynox.nexus.core.ui.app.NexusApp
 import io.github.numynox.nexus.vibilia.AppContainer
@@ -16,6 +17,10 @@ fun VibiliaApp(container: AppContainer) {
     val app = containerViewModel { AppViewModel(it, application) }
     val settings by app.settings.collectAsStateWithLifecycle()
     val auth by app.auth.collectAsStateWithLifecycle()
+    LifecycleStartEffect(app) {
+        app.onForeground()
+        onStopOrDispose { app.onBackground() }
+    }
 
     NexusApp(
         core = container.core,

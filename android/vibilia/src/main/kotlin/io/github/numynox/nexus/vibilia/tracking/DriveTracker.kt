@@ -214,3 +214,13 @@ fun TrackerState.localDrivingHoursAfter(carId: String, after: Instant, now: Inst
     val queued = pending.filter { it.carId == carId }.sumOf { overlap(it.startedAt, it.endedAt) }
     return live + queued
 }
+
+/**
+ * Whether a drive left the upload queue between two states — uploaded, since
+ * nothing else removes one. Until the server is asked again, it is then known
+ * to neither the phone's queue nor the screen's last answer from the server.
+ */
+fun uploadedBetween(before: TrackerState, after: TrackerState): Boolean {
+    val remaining = after.pending.mapTo(HashSet()) { it.id }
+    return before.pending.any { it.id !in remaining }
+}
