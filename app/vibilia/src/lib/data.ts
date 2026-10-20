@@ -907,14 +907,21 @@ export async function fetchCarLastDrive(
 }
 
 /**
- * Kilometres of one drive on the assumed speed curve: 30 km/h up to 10 km,
- * rising to 50 km/h at 20 km and 100 km/h from 100 km. A copy of
+ * Kilometres of one drive on the assumed speed curve, an average speed for
+ * the whole drive by its duration: 30 km/h up to 10 min, rising linearly to
+ * 50 km/h at 20 min and 100 km/h at 100 min. A copy of
  * vibilia_assumed_drive_km, which is the original.
  */
 export function assumedDriveKm(hours: number): number {
   if (!(hours > 0)) return 0;
-  if (hours * 30 <= 10) return 30 * hours;
-  if (hours * 50 <= 20) return (10 * hours) / (1 - 2 * hours);
-  if (hours <= 1) return (37.5 * hours) / (1 - 0.625 * hours);
-  return 100 * hours;
+  const minutes = hours * 60;
+  const speed =
+    minutes <= 10
+      ? 30
+      : minutes <= 20
+        ? 30 + 2 * (minutes - 10)
+        : minutes <= 100
+          ? 50 + 0.625 * (minutes - 20)
+          : 100;
+  return speed * hours;
 }

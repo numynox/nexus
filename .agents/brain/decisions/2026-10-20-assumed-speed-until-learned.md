@@ -1,4 +1,4 @@
-# ADR: Convert drives with an assumed speed curve that tracked tanks scale
+# ADR: Convert drives with an assumed speed by duration that tracked tanks scale
 
 **Date:** 2026-10-20
 **Status:** Accepted
@@ -17,12 +17,15 @@ time is not. A single speed also fits badly: a 10-minute errand and a
 motorway hour differ by a factor of three.
 
 ## Decision
-- **An assumed speed curve over drive distance**, set by the owner: 30 km/h up
-  to 10 km, rising linearly to 50 km/h at 20 km and to 100 km/h at 100 km,
-  100 km/h beyond. A drive records time, so `vibilia_assumed_drive_km`
-  solves d = speed(d) × hours. The breakpoints fall at 20, 24 and 60 minutes.
+- **An assumed average speed by drive duration**, set by the owner: 30 km/h
+  for drives up to 10 minutes, rising linearly to 50 km/h at 20 minutes and
+  to 100 km/h at 100 minutes, 100 km/h beyond. It applies to the whole
+  drive: 20 minutes is 16.7 km, an hour 75 km (`vibilia_assumed_drive_km`).
   A drive is a merged period (`get_car_drive_periods`). The phone already
   joins reconnects within two minutes into one drive.
+  The first version (`20261020120000`) read the owner's breakpoints as
+  distances (10, 20, 100 km). That made a 20-minute drive 10 km, against
+  what was meant; `20261020200000` replaced it.
 - **Tracked tanks scale the curve rather than replace it.** Each tracked leg
   compares its odometer km with the curve's km for its drives.
   `speed_factor` is the age-weighted ratio of sums, blended with 1 (the curve
