@@ -2,7 +2,9 @@ package io.github.numynox.nexus.vibilia.data
 
 import java.time.Instant
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class FuelLevelTest {
@@ -46,5 +48,19 @@ class FuelLevelTest {
 
         val calendar = drive.copy(method = FuelLevel.Method.Time)
         assertEquals(calendar, calendar.plusLocalDriving(2.0))
+    }
+
+    @Test
+    fun `a drive estimate without a tracked tank says its speed is assumed`() {
+        val row = FuelLevelRow(
+            method = "drive", lastRefuelAt = Instant.EPOCH, tankCapacity = 50.0, startingLiters = 50.0,
+            remainingLiters = 35.0, fillRatio = 0.7, drivingHours = 2.0, kmPerHour = 50.0, litersPerHour = 3.0,
+            calendarLiters = 9.0, modelSampleCount = 0,
+        )
+        val level = FuelLevel.from(row)
+        assertTrue(level.speedAssumed)
+        assertEquals(9.0, level.calendarLiters, 1e-9)
+        assertFalse(FuelLevel.from(row.copy(modelSampleCount = 3)).speedAssumed)
+        assertFalse("a database before the prior sends no count", FuelLevel.from(row.copy(modelSampleCount = null)).speedAssumed)
     }
 }

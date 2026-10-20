@@ -310,7 +310,11 @@ fun FuelGaugeCard(level: FuelLevel, carName: String, modifier: Modifier = Modifi
                     )
                     Text(
                         when (level.method) {
-                            FuelLevel.Method.Drive -> "${NexusFormat.duration(level.drivingHours ?: 0.0)} driven since refuel"
+                            FuelLevel.Method.Drive -> buildString {
+                                append("${NexusFormat.duration(level.drivingHours ?: 0.0)} driven since ")
+                                append(if (level.calendarLiters > 0) "tracking began" else "refuel")
+                                if (level.speedAssumed) append(" · speed assumed")
+                            }
                             FuelLevel.Method.Time -> "Estimated from ${NexusFormat.number(level.litersPerDay ?: 0.0, 1)} L a day"
                         },
                         style = MaterialTheme.typography.bodySmall,

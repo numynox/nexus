@@ -6,6 +6,7 @@ import io.github.numynox.nexus.core.data.describe
 import io.github.numynox.nexus.vibilia.AppContainer
 import io.github.numynox.nexus.vibilia.BuildConfig
 import io.github.numynox.nexus.vibilia.data.Car
+import io.github.numynox.nexus.vibilia.data.DriveModel
 import io.github.numynox.nexus.vibilia.data.DrivePeriod
 import io.github.numynox.nexus.vibilia.data.FuelLevel
 import io.github.numynox.nexus.vibilia.data.LastRefuelPrice
@@ -35,9 +36,9 @@ data class HistoryState(
     val stations: Loadable<List<StationPrice>> = Loadable.Loading,
     val history: Loadable<PriceHistory> = Loadable.Loading,
     val fuelLevel: FuelLevel? = null,
-    /** The last merged drive on the server, and the model's km per hour to estimate its distance. */
+    /** The last merged drive on the server, and the drive model to estimate its distance. */
     val lastDrive: DrivePeriod? = null,
-    val kmPerHour: Double? = null,
+    val driveModel: DriveModel? = null,
 )
 
 /** Our stations' prices and the price history chart — the web app's Fuel Price page. */
@@ -75,7 +76,7 @@ class PriceHistoryViewModel(private val container: AppContainer) : ViewModel() {
 
     fun loadFuelLevel(car: Car?, version: Int) {
         if (car == null) {
-            _state.update { it.copy(fuelLevel = null, lastDrive = null, kmPerHour = null) }
+            _state.update { it.copy(fuelLevel = null, lastDrive = null, driveModel = null) }
             return
         }
         val next = car.id to version
@@ -90,7 +91,7 @@ class PriceHistoryViewModel(private val container: AppContainer) : ViewModel() {
             val lastDrive = model?.lastDriveAt?.let { last ->
                 container.statistics.drivePeriods(car.id, last.minusSeconds(1), Instant.now()).lastOrNull()
             }
-            _state.update { it.copy(fuelLevel = level.await(), lastDrive = lastDrive, kmPerHour = model?.kmPerHour) }
+            _state.update { it.copy(fuelLevel = level.await(), lastDrive = lastDrive, driveModel = model) }
         }
     }
 }

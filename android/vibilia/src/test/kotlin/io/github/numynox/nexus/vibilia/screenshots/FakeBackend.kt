@@ -184,7 +184,7 @@ object FakeBackend {
     private fun driveModel() = buildJsonArray {
         addJsonObject {
             put("tracking_since", daysAgo(80)); put("last_drive_at", now.minusSeconds(3_600).toString()); put("sample_count", 4)
-            put("sample_hours", 41.5); put("sample_km", 2_830); put("km_per_hour", 68.2); put("liters_per_hour", 4.4); put("liters_per_100km", 6.45)
+            put("sample_hours", 41.5); put("sample_km", 2_830); put("km_per_hour", 68.2); put("liters_per_hour", 4.4); put("liters_per_100km", 6.45); put("speed_factor", 1.08)
         }
     }
 

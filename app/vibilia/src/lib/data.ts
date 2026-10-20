@@ -40,7 +40,6 @@ interface CarExpenseUpdate {
   notes: string | null;
 }
 
-
 /**
  * Re-exported so every call site can keep importing it from the data layer,
  * while the shell components in @nexus/ui use the same implementation — the
@@ -65,6 +64,8 @@ export interface FuelLevelEstimate {
    * `drive`: driving time since the last refuel × the car's learned litres per
    * hour (Bluetooth drive tracking, recorded by the Android app).
    * `time`: calendar days × average litres per day.
+   * In the tank in which tracking began, `drive` counts calendar days up to
+   * the first recorded drive (`calendarLiters`) and driving time after it.
    */
   method: "drive" | "time";
   lastRefuelAt: string;
@@ -75,7 +76,12 @@ export interface FuelLevelEstimate {
   tankCapacity: number;
   fillRatio: number;
   drivingHours: number | null;
+  /** Where `drivingHours` start counting: the last refuel or the first drive. */
+  drivingSince: string | null;
+  calendarLiters: number;
   estimatedKm: number | null;
+  /** No tracked tank yet: the drive model assumes its speed. */
+  speedAssumed: boolean;
   /** How far the remaining fuel goes at the learned consumption; drive method only. */
   rangeKm: number | null;
 }
@@ -95,7 +101,11 @@ export interface CarDrivePeriod {
   reporter_count: number;
 }
 
-/** What a car does per hour of driving, learned from Bluetooth drives. */
+/**
+ * What a car does per hour of driving, learned from Bluetooth drives: a drive
+ * is `speedFactor` × assumedDriveKm(hours). Until a tracked tank is complete
+ * (`sampleCount` 0) the factor is 1, the assumed curve as given.
+ */
 export interface CarDriveModel {
   trackingSince: string | null;
   lastDriveAt: string | null;
@@ -105,6 +115,8 @@ export interface CarDriveModel {
   kmPerHour: number | null;
   litersPerHour: number | null;
   litersPer100Km: number | null;
+  /** Null from a database before the speed curve. */
+  speedFactor: number | null;
 }
 
 export interface CarBluetoothDevice {
@@ -482,7 +494,10 @@ export async function fetchFuelLevelEstimateForCar(
     tankCapacity,
     fillRatio: finiteOrNull(row.fill_ratio) ?? 0,
     drivingHours: finiteOrNull(row.driving_hours),
+    drivingSince: row.driving_since ?? null,
+    calendarLiters: finiteOrNull(row.calendar_liters) ?? 0,
     estimatedKm: finiteOrNull(row.estimated_km),
+    speedAssumed: row.method === "drive" && row.model_sample_count === 0,
     rangeKm:
       row.method === "drive" && kmPerHour && litersPerHour
         ? (remainingLiters / litersPerHour) * kmPerHour
@@ -609,7 +624,10 @@ async function computeFuelLevelEstimateInBrowser(
     tankCapacity,
     fillRatio,
     drivingHours: null,
+    drivingSince: null,
+    calendarLiters: 0,
     estimatedKm: null,
+    speedAssumed: false,
     rangeKm: null,
   };
 }
@@ -678,6 +696,7 @@ export async function fetchCarDriveModel(
     kmPerHour: finiteOrNull(row.km_per_hour),
     litersPerHour: finiteOrNull(row.liters_per_hour),
     litersPer100Km: finiteOrNull(row.liters_per_100km),
+    speedFactor: finiteOrNull(row.speed_factor),
   };
 }
 
@@ -685,7 +704,9 @@ export async function fetchCarDriveModel(
  * Bluetooth links are made in the Android app; the web only shows them. An
  * empty list also covers a database that predates the table.
  */
-export async function fetchCarBluetoothDevices(): Promise<CarBluetoothDevice[]> {
+export async function fetchCarBluetoothDevices(): Promise<
+  CarBluetoothDevice[]
+> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from("vibilia_car_bluetooth_devices")
@@ -858,6 +879,24 @@ export async function fetchCarLastDrive(
   return {
     startedAt: last.started_at,
     endedAt: last.ended_at,
-    estimatedKm: model.kmPerHour !== null ? model.kmPerHour * hours : null,
+    estimatedKm:
+      model.speedFactor !== null
+        ? model.speedFactor * assumedDriveKm(hours)
+        : model.kmPerHour !== null
+          ? model.kmPerHour * hours
+          : null,
   };
+}
+
+/**
+ * Kilometres of one drive on the assumed speed curve: 30 km/h up to 10 km,
+ * rising to 50 km/h at 20 km and 100 km/h from 100 km. A copy of
+ * vibilia_assumed_drive_km, which is the original.
+ */
+export function assumedDriveKm(hours: number): number {
+  if (!(hours > 0)) return 0;
+  if (hours * 30 <= 10) return 30 * hours;
+  if (hours * 50 <= 20) return (10 * hours) / (1 - 2 * hours);
+  if (hours <= 1) return (37.5 * hours) / (1 - 0.625 * hours);
+  return 100 * hours;
 }

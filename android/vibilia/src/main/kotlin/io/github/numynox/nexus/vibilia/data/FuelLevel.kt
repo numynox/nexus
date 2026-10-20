@@ -19,6 +19,10 @@ data class FuelLevel(
     val kmPerHour: Double?,
     val litersPerHour: Double?,
     val litersPerDay: Double?,
+    /** In the tank in which tracking began: litres counted by the calendar up to the first drive. */
+    val calendarLiters: Double = 0.0,
+    /** No tracked tank yet, so the drive model assumes its speed. */
+    val speedAssumed: Boolean = false,
 ) {
     enum class Method { Drive, Time }
 
@@ -59,6 +63,8 @@ data class FuelLevel(
             kmPerHour = row.kmPerHour,
             litersPerHour = row.litersPerHour,
             litersPerDay = row.litersPerDay,
+            calendarLiters = row.calendarLiters,
+            speedAssumed = row.method == "drive" && row.modelSampleCount == 0,
         )
 
         /**

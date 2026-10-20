@@ -53,7 +53,7 @@ the app's DataStore instead of `localStorage` — still per device.
 | `vibilia_drive_intervals` | — | one phone's report of one connection: **interval**. Raw, overlapping between phones |
 | drive period | Drive | intervals merged across phones (`get_car_drive_periods`) — what the UI calls a drive |
 | leg | — | the stretch between two consecutive refuels; **tracked** when drive tracking was already running at its start |
-| drive model | Driving | per car: km and litres per driving hour, learned from tracked legs (`get_car_drive_model`) |
+| drive model | Driving | per car: km per drive from an assumed speed curve over drive length, scaled by tracked legs; litres at the car's L/100 km (`get_car_drive_model`) |
 | track drives | Record drives on this phone | device-local switch; without it the phone still remembers the connected car for the refuel form |
 
 ## Annona (food expiration)
