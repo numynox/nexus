@@ -1,11 +1,14 @@
 package io.github.numynox.nexus.noctua.screenshots
 
+import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasScrollToKeyAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToKey
 import androidx.compose.ui.test.performTouchInput
 import io.github.numynox.nexus.core.testing.ScreenshotRobot
 import io.github.numynox.nexus.noctua.MainActivity
@@ -99,8 +102,15 @@ class AppScreenshots {
         shot("17-feed-dark")
         scrollTo("How birds navigate by sensing Earth's magnetic field")
         shot("17b-feed-scrolled-dark")
-        scrollTo("That's everything")
+        // All the way down, so the last article has gone past the top too.
+        compose.onNode(hasScrollToKeyAction() and hasAnyDescendant(hasText("How birds navigate by sensing Earth's magnetic field"))).performScrollToKey("end")
+        settle()
         shot("17c-feed-end-dark")
+        // Everything was scrolled past, so the refresh hides it all: the
+        // panel left behind must rest where it did below the articles.
+        tap("Refresh")
+        waitForText("Nothing new")
+        shot("17d-feed-nothing-new-dark")
         tap("Statistics")
         waitForText("STREAK")
         shot("18-statistics-dark")

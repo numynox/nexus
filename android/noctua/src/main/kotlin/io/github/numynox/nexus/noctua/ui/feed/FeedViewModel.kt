@@ -72,6 +72,10 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val messages: SharedFlow<String> = _messages.asSharedFlow()
 
+    /** A refresh landed: the list starts over at its top, as the web's reload does. */
+    private val _refreshed = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val refreshed: SharedFlow<Unit> = _refreshed.asSharedFlow()
+
     private val settings = preferences.settings.stateIn(viewModelScope, SharingStarted.Eagerly, NoctuaSettings())
 
     /**
@@ -130,6 +134,7 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
             val result = loadable { fetch(sectionId) }
             if (result is Loadable.Ready || !refresh) _load.value = result
             if (result is Loadable.Ready) takeBaseline()
+            if (result is Loadable.Ready && refresh) _refreshed.tryEmit(Unit)
             if (result is Loadable.Failed && refresh) _messages.tryEmit(result.message)
             _refreshing.value = false
         }

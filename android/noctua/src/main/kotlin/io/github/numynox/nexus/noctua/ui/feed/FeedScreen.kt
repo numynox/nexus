@@ -144,20 +144,27 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
     )
 
     val listState = rememberLazyListState()
+    LaunchedEffect(viewModel) {
+        viewModel.refreshed.collect { listState.scrollToItem(0) }
+    }
+    // The update banner leads the list only while there is one: an empty item
+    // would still take a gap, and push the end panel off where it rests below
+    // the articles (see [EndOfFeed]).
+    val lead = if (update != null) 1 else 0
     val pullThreshold = with(LocalDensity.current) { 96.dp.toPx() }
     val endPull = remember(pullThreshold) { EndPull(pullThreshold) { viewModel.load(settings.selectedSectionId, refresh = true) } }
     val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
     // Seen on scroll: a story is seen once it has gone up past the top of the
     // list, and only while scrolling down — the web's rule, on the list's
     // own scroll position instead of the window's.
-    LaunchedEffect(listState, rows, settings.autoMarkSeen) {
+    LaunchedEffect(listState, rows, lead, settings.autoMarkSeen) {
         if (!settings.autoMarkSeen) return@LaunchedEffect
         var previous = listState.firstVisibleItemIndex
         snapshotFlow { listState.firstVisibleItemIndex }.distinctUntilChanged().collect { first ->
             if (first > previous) {
-                // The update banner leads the list, so row i is list item i + 1.
-                val from = (previous - 1).coerceIn(0, rows.size)
-                val to = (first - 1).coerceIn(0, rows.size)
+                // Row i is list item i + lead.
+                val from = (previous - lead).coerceIn(0, rows.size)
+                val to = (first - lead).coerceIn(0, rows.size)
                 viewModel.markSeen(rows.subList(from, to).mapNotNull { (it as? Row.Story)?.item })
             }
             previous = first
@@ -238,7 +245,7 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    item(key = "update") { UpdateBanner(update) }
+                    if (update != null) item(key = "update") { UpdateBanner(update) }
                     if (state.value.content.sections.isEmpty()) {
                         item(key = "no-sections") {
                             EmptyState(
@@ -271,8 +278,10 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
                     }
                     if (state.value.content.sections.isNotEmpty()) {
                         // Takes over from the last day's heading, which would
-                        // otherwise stay pinned above the end panel.
-                        stickyHeader(key = "end-heading") { Spacer(Modifier.fillMaxWidth()) }
+                        // otherwise stay pinned above the end panel. Without
+                        // articles there is none, and the panel alone fills the
+                        // list exactly where it rests when scrolled to.
+                        if (rows.isNotEmpty()) stickyHeader(key = "end-heading") { Spacer(Modifier.fillMaxWidth()) }
                         item(key = "end") {
                             EndOfFeed(
                                 empty = rows.isEmpty(),
