@@ -65,7 +65,7 @@ class AppScreenshots {
         tapIcon("More")
         tap("Cards with images")
         awaitPreferences()
-        tap("All")
+        tap("Home")
 
         tap("Library")
         waitForText("A new proof settles a 90-year-old question about prime gaps")

@@ -413,7 +413,8 @@ Things that differ from the web on purpose:
   state machine persisted in DataStore; WorkManager uploads finished drives and
   keeps a 15-minute heartbeat while one is open.
 - **Noctua** — Feed, Library (the web's /starred and /read as two shelves),
-  Statistics, Settings. Sections are chips above the feed, with an "All"; a
+  Statistics, Settings. Sections are chips above the feed, one shown at a
+  time as on the web — no built-in "All", a mix is a section the reader makes; a
   section's feeds are a filter in the top bar. Swipe right stars, swipe left
   toggles read, a long press shares; articles open in a Custom Tab. Seen is
   marked as items scroll up past the top of the list and kept in DataStore,

@@ -11,7 +11,6 @@ import io.github.numynox.nexus.noctua.BuildConfig
 import io.github.numynox.nexus.noctua.data.Article
 import io.github.numynox.nexus.noctua.data.FeedContent
 import io.github.numynox.nexus.noctua.data.NoctuaSettings
-import io.github.numynox.nexus.noctua.data.Section
 import java.time.Instant
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -122,7 +121,7 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
         load(sectionId)
     }
 
-    /** (Re)loads the given section, or all of them; [sectionId] may be stale and falls back. */
+    /** (Re)loads the given section; [sectionId] may be stale or unset and falls back to the first. */
     fun load(sectionId: Long?, refresh: Boolean = false) {
         // Only the latest request may land: an older one finishing late would
         // replace the list the reader is already scrolling.
@@ -142,8 +141,10 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
 
     private suspend fun fetch(requested: Long?): FeedLoad {
         val sections = repository.sections()
-        val section = requested?.let { id -> sections.firstOrNull { it.id == id } }
-        val feeds = (section?.let(::listOf) ?: sections).flatMap(Section::feeds).distinctBy { it.id }
+        // Always one section, as on the web: a mix of all of them is a section
+        // the reader can make. None set up shows nothing but the hint to.
+        val section = sections.firstOrNull { it.id == requested } ?: sections.firstOrNull()
+        val feeds = section?.feeds.orEmpty()
         val content = repository.feedContent(sections, feeds, BuildConfig.ARTICLE_FETCH_LIMIT)
         val current = preferences.current()
         val seenNow = preferences.seen.first()

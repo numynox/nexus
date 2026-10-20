@@ -25,7 +25,6 @@ import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.SpaceDashboard
 import androidx.compose.material.icons.rounded.ViewAgenda
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.AlertDialog
@@ -192,8 +191,8 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
                             colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                             title = {
                                 Column {
-                                    Text(feedFilter?.let { id -> section?.feeds?.firstOrNull { it.id == id }?.name } ?: section?.name ?: "All sections")
-                                    if (loaded != null) {
+                                    Text(feedFilter?.let { id -> section?.feeds?.firstOrNull { it.id == id }?.name } ?: section?.name ?: "No sections")
+                                    if (loaded != null && sections.isNotEmpty()) {
                                         Text(
                                             if (view.unseen == 0) "All caught up" else "${view.unseen} new",
                                             style = MaterialTheme.typography.bodyMedium,
@@ -332,19 +331,11 @@ private fun DayHeader(label: String) {
 }
 
 @Composable
-private fun SectionChips(sections: List<Section>, selected: Long?, onSelect: (Long?) -> Unit) {
+private fun SectionChips(sections: List<Section>, selected: Long?, onSelect: (Long) -> Unit) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        item(key = "all") {
-            FilterChip(
-                selected = selected == null,
-                onClick = { onSelect(null) },
-                label = { Text("All") },
-                leadingIcon = { Icon(Icons.Rounded.SpaceDashboard, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) },
-            )
-        }
         items(sections, key = { it.id }) { section ->
             FilterChip(
                 selected = selected == section.id,

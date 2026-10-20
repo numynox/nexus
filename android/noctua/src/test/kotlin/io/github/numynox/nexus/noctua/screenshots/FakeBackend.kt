@@ -14,8 +14,8 @@ import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 
 /**
- * A Supabase that answers every query Noctua makes with plausible data: three
- * sections over seven feeds, two days of articles, one story told by three
+ * A Supabase that answers every query Noctua makes with plausible data: four
+ * sections over eight feeds, two days of articles, one story told by three
  * feeds, a reading history for the statistics. Times are relative to now.
  */
 object FakeBackend {
@@ -39,6 +39,8 @@ object FakeBackend {
     private data class Sec(val id: Long, val title: String, val icon: String, val feeds: List<Long>)
 
     private val sections = listOf(
+        // The reader's own mix of everything: there is no built-in "All".
+        Sec(9, "Home", "globe", listOf(1, 2, 3, 4, 5, 6, 7, 8)),
         Sec(10, "News", "newspaper", listOf(1, 2, 3)),
         Sec(11, "Tech", "cpu", listOf(4, 5, 6)),
         Sec(12, "Science", "atom", listOf(7, 8)),
@@ -70,13 +72,16 @@ object FakeBackend {
     private val reads = mapOf(504L to 50L, 509L to 200L, 512L to 1_400L)
     private val starred = listOf(506L, 511L, 508L)
 
+    /** A reader who has not set up a section yet. */
+    @Volatile var withoutSections = false
+
     fun engine() = FakeSupabase.engine { request, path ->
         val select = request.select()
         when {
             path.endsWith("/rpc/get_similar_article_groups") -> buildJsonArray {
                 groups.forEach { (article, key) -> addJsonObject { put("article_id", article); put("group_key", key) } }
             }
-            path.endsWith("/rest/v1/sections") -> sectionsJson()
+            path.endsWith("/rest/v1/sections") -> if (withoutSections) buildJsonArray {} else sectionsJson()
             path.endsWith("/rest/v1/feeds") -> buildJsonArray { feeds.forEach { add(feedJson(it)) } }
             path.endsWith("/rest/v1/articles") && request.method.value == "HEAD" -> FakeSupabase.count(1_284)
             path.endsWith("/rest/v1/articles") && select.contains("feeds(") -> publishedJson()
