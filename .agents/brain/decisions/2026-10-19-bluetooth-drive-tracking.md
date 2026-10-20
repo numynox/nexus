@@ -1,8 +1,8 @@
 # ADR: Learn driving from Bluetooth connections, and attribute distance to the days driven
 
 **Date:** 2026-10-19
-**Status:** Accepted — the model's starting point and the fuel level for a
-tank in which tracking began amended by `2026-10-20-assumed-speed-until-learned.md`
+**Status:** Accepted — the drive model, and the fuel level for a tank in which
+tracking began, amended by `2026-10-20-assumed-speed-until-learned.md`
 
 ## Context
 Vibilia only knew the odometer at refuels. Two things followed from that.
