@@ -41,12 +41,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleFloatingActionButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -65,10 +65,10 @@ import io.github.numynox.nexus.core.ui.theme.tabular
 import io.github.numynox.nexus.vibilia.data.DistanceMonth
 import io.github.numynox.nexus.vibilia.ui.AppViewModel
 import io.github.numynox.nexus.vibilia.ui.common.CarSwitcher
-import io.github.numynox.nexus.vibilia.ui.common.Loadable
+import io.github.numynox.nexus.core.ui.Loadable
 import io.github.numynox.nexus.vibilia.ui.common.Tag
 import io.github.numynox.nexus.vibilia.ui.common.containerViewModel
-import io.github.numynox.nexus.vibilia.ui.common.valueOrNull
+import io.github.numynox.nexus.core.ui.valueOrNull
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 

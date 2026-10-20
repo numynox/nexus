@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The wheat gold of the Annona logo, the seed of the app's palette. -->
+    <color name="annona_wheat">#D0962C</color>
+    <color name="splash_background">#FFF8F3</color>
+</resources>

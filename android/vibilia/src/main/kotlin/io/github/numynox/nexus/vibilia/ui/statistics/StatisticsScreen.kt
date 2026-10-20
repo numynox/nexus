@@ -31,9 +31,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,10 +58,10 @@ import io.github.numynox.nexus.vibilia.data.CarStatistics
 import io.github.numynox.nexus.vibilia.data.DriveModel
 import io.github.numynox.nexus.vibilia.ui.AppViewModel
 import io.github.numynox.nexus.vibilia.ui.common.CarSwitcher
-import io.github.numynox.nexus.vibilia.ui.common.Loadable
+import io.github.numynox.nexus.core.ui.Loadable
 import io.github.numynox.nexus.vibilia.ui.common.Tag
 import io.github.numynox.nexus.vibilia.ui.common.containerViewModel
-import io.github.numynox.nexus.vibilia.ui.common.valueOrNull
+import io.github.numynox.nexus.core.ui.valueOrNull
 import java.time.LocalDate
 import java.time.ZoneId
 

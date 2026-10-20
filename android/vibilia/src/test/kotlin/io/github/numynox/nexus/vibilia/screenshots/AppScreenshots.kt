@@ -14,7 +14,7 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.core.app.ApplicationProvider
-import com.github.takahirom.roborazzi.captureScreenRoboImage
+import io.github.numynox.nexus.core.testing.ScreenshotRobot
 import io.github.numynox.nexus.vibilia.MainActivity
 import org.junit.Before
 import org.junit.Rule
@@ -67,47 +67,15 @@ class AppScreenshots {
         }
     }
 
-    /**
-     * Lets entrance animations — charts drawing in, counters settling, sheets
-     * sliding up — finish. The test clock auto-advances; Compose's test policy
-     * pauses the infinite ones (the pulsing drive dot, loading indicators), so
-     * waiting for idle terminates.
-     */
-    private fun settle() {
-        compose.waitForIdle()
-        compose.mainClock.advanceTimeBy(2_500)
-        compose.waitForIdle()
-    }
+    private val robot = ScreenshotRobot(compose)
 
-    private fun waitFor(matcher: SemanticsMatcher, timeoutMillis: Long = 30_000) {
-        try {
-            compose.waitUntil(timeoutMillis) {
-                compose.onAllNodes(matcher, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
-            }
-        } catch (timeout: Throwable) {
-            // What the screen showed instead is usually the explanation.
-            shot("failed-waiting")
-            throw timeout
-        }
-        settle()
-    }
-
-    private fun shot(name: String) {
-        captureScreenRoboImage("build/outputs/roborazzi/app/$name.png")
-    }
-
+    private fun waitFor(matcher: SemanticsMatcher) = robot.waitFor(matcher)
+    private fun settle() = robot.settle()
+    private fun shot(name: String) = robot.shot(name)
+    private fun scrollTo(text: String) = robot.scrollTo(text)
+    private fun back() = robot.back()
     private fun tab(label: String) {
         compose.onAllNodes(hasText(label) and hasClickAction()).onFirst().performClick()
-    }
-
-    private fun scrollTo(text: String) {
-        compose.onAllNodes(hasScrollToNodeAction()).onFirst().performScrollToNode(hasText(text))
-        settle()
-    }
-
-    private fun back() {
-        compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
-        settle()
     }
 
     @Test
@@ -159,7 +127,7 @@ class AppScreenshots {
 
         scrollTo("Wallpaper colours")
         compose.onAllNodes(hasText("Dark") and hasClickAction()).onFirst().performClick()
-        settle()
+        robot.awaitPreferences()
         tab("Prices")
         waitFor(hasText("My stations"))
         shot("13-prices-dark")

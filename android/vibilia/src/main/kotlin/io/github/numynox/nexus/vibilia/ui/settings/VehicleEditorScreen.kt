@@ -39,11 +39,11 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -54,7 +54,7 @@ import io.github.numynox.nexus.core.ui.components.NexusCard
 import io.github.numynox.nexus.core.ui.components.SectionHeader
 import io.github.numynox.nexus.vibilia.tracking.PairedDevice
 import io.github.numynox.nexus.vibilia.ui.AppViewModel
-import io.github.numynox.nexus.vibilia.ui.common.Loadable
+import io.github.numynox.nexus.core.ui.Loadable
 import io.github.numynox.nexus.vibilia.ui.common.containerViewModel
 import io.github.numynox.nexus.vibilia.ui.logbook.FormError
 

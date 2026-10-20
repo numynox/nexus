@@ -29,9 +29,11 @@ mean something narrower than they look.
 | `article_reads` | — | **read**: durable, per-user, in the database; drives statistics |
 | `noctua_seen_articles` (localStorage) | — | **seen**: device-local, disposable; drives "hide what I've already looked at" |
 | `article_stars` | Starred | **intent**, not history: what you meant to come back to. `/read` is where you have been, `/starred` is what you saved |
+| — | Library | Android only: the starred and read lists as one tab with two shelves; the web keeps `/starred` and `/read` |
 
 "Read" and "seen" are two different things tracked in two different places.
-Clearing seen history does not touch statistics.
+Clearing seen history does not touch statistics. On Android "seen" lives in
+the app's DataStore instead of `localStorage` — still per device.
 
 ## Vibilia (fuel and vehicle costs)
 
@@ -67,6 +69,9 @@ Clearing seen history does not touch statistics.
 | `ean` | Barcode | scanned with the camera; the scan path is Product-first: find by EAN, else look it up in Open Food Facts, then create the product and add an item |
 | `energy_kcal_100g` … `salt_100g` | Nutrition | the EU nutrition declaration per 100 g/ml, as printed on the packet |
 | `nutrition_source` | — | `openfoodfacts` when the values came from a lookup; NULL when typed by hand |
+| — | Pantry | Android's home tab: the dashboard figures, then everything in stock grouped Expired / This week / This month / Later / No date |
+| `annona_storage_locations` (Android) | Places | the Android tab and settings group for locations; the rows are the same "Location" |
+| reminders | Remind me before things expire | Android only, device-local: a daily notification of items expiring within 1–14 days |
 
 Products, categories and locations in Annona are **shared by every user**, not
 owned. There is no "my products".

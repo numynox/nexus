@@ -3,9 +3,7 @@ package io.github.numynox.nexus.vibilia.screenshots
 import androidx.work.Configuration
 import androidx.work.testing.SynchronousExecutor
 import androidx.work.testing.WorkManagerTestInitHelper
-import io.github.jan.supabase.auth.auth
-import io.github.jan.supabase.auth.user.UserSession
-import io.github.numynox.nexus.core.data.NexusJson
+import io.github.numynox.nexus.core.testing.FakeSupabase
 import io.github.numynox.nexus.vibilia.AppContainer
 import io.github.numynox.nexus.vibilia.VibiliaApplication
 import java.time.Instant
@@ -25,7 +23,7 @@ class ScreenshotApplication : VibiliaApplication() {
         )
         super.onCreate()
         runBlocking {
-            container.supabase.auth.importSession(NexusJson.decodeFromString<UserSession>(FakeBackend.sessionJson), autoRefresh = false)
+            FakeSupabase.signIn(container.supabase)
             container.preferences.setTrackDrives(true)
             container.preferences.setSelectedCar(FakeBackend.GOLF)
             container.preferences.setCachedLinks(FakeBackend.links)

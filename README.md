@@ -12,8 +12,8 @@ one GitHub Pages site:
 One Supabase account signs you in to all three. There is no sign-up screen —
 accounts are created in the Supabase dashboard.
 
-Vibilia also has a native Android app (`android/`), on the same backend and
-installed from GitHub Releases; Noctua and Annona will follow.
+Each app also has a native Android app (`android/`), on the same backend and
+installed from GitHub Releases.
 
 - **How it is put together:** `.agents/brain/architecture.md`
 - **How it is hosted and released:** `DEPLOYMENT.md`
@@ -33,9 +33,13 @@ nexus/
 │   ├── config.toml
 │   └── seed.sql
 ├── android/             # native apps: Gradle build, Kotlin + Jetpack Compose
+│   ├── build-logic/     # Gradle conventions: SDKs, version, signing, build config
 │   ├── core/data/       # Supabase client, session, update check — shared
-│   ├── core/ui/         # theme, components, charts, sign-in — shared
-│   └── vibilia/         # the Vibilia app
+│   ├── core/ui/         # theme, app shell, components, charts, sign-in — shared
+│   ├── core/testing/    # fake Supabase and screenshot robot — shared by the tests
+│   ├── noctua/          # the Noctua app
+│   ├── vibilia/         # the Vibilia app
+│   └── annona/          # the Annona app
 ├── packages/
 │   └── config/          # the one reader for config.yaml, used by all three apps
 ├── scripts/             # backup, restore, seed, import
@@ -230,12 +234,12 @@ the script block of a `.svelte` component. `output/` is generated and git-ignore
 and publishes `output/pages`; this is the only automated check that exists, so
 build all three before pushing.
 
-## Android app
+## Android apps
 
 Needs JDK 21 and the Android SDK (Android Studio brings both; otherwise set
 `sdk.dir` in `android/local.properties`). The build reads the same
 `PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY` and `PUBLIC_CARTO_API_KEY`
-from the root `.env` (or the environment) and Vibilia's bucket and radius from
+from the root `.env` (or the environment) and each app's block of
 `config.yaml`, so nothing is configured twice. To run a phone against the
 local stack, keep `http://127.0.0.1:54321` and forward the port with
 `adb reverse tcp:54321 tcp:54321` (again after each reconnect); the emulator
@@ -243,32 +247,38 @@ uses `10.0.2.2`. Debug builds allow plain HTTP to exactly those hosts
 (`src/debug/res/xml/network_security_config.xml`) — a LAN address would be
 refused.
 
+Every task exists for each app module — `:noctua`, `:vibilia`, `:annona`:
+
 ```bash
 cd android
-./gradlew :vibilia:installDebug           # onto a connected phone or emulator
-./gradlew :vibilia:testDebugUnitTest      # tracker, arithmetic, row decoding
-./gradlew :vibilia:recordRoborazziDebug   # unit tests + screenshots of every screen
-./gradlew :vibilia:assembleRelease        # what CI publishes
+./gradlew :annona:installDebug            # onto a connected phone or emulator
+./gradlew :annona:testDebugUnitTest       # the JVM unit tests
+./gradlew :annona:recordRoborazziDebug    # unit tests + screenshots of every screen
+./gradlew :annona:assembleRelease         # what CI publishes
+./gradlew recordRoborazziDebug assembleRelease   # all three, as before a push
 ```
 
 ### Screenshots
 
-`recordRoborazziDebug` runs `AppScreenshots`: the real app — `MainActivity`,
-its view models and repositories — in Robolectric, against `FakeBackend`, a
-fake Supabase serving plausible data. It signs in, taps through every screen
-like a person would (prices, nearby, the refuel form, logbook, statistics,
-settings, a vehicle, dark mode, sign-out) and saves each as a PNG in
-`android/vibilia/build/outputs/roborazzi/app/`. No device, emulator or
-network needed; about a minute.
+`recordRoborazziDebug` runs the app's `AppScreenshots`: the real app —
+`MainActivity`, its view models and repositories — in Robolectric, against
+its `FakeBackend`, a fake Supabase serving plausible data. It signs in, taps
+through every screen like a person would, switches to dark mode, signs out,
+and saves each screen as a PNG in `android/<app>/build/outputs/roborazzi/app/`.
+No device, emulator or network needed; about a minute per app. The steps
+(`ScreenshotRobot`) and the fake Supabase plumbing (`FakeSupabase`) are shared
+in `android/core/testing`.
 
-CI does the same on every pull request and push and attaches the PNGs as the
-**`vibilia-screenshots`** artifact of the run (Actions → the run → Artifacts),
-so a UI change can be reviewed from the PR. The map is drawn schematically in
-screenshots, because MapLibre's native library cannot load on the JVM. A
-screen that needs new data needs it in `FakeBackend` too.
+CI does the same for every app it builds and attaches the PNGs as the
+**`<app>-screenshots`** artifact of the run (Actions → the run → Artifacts),
+so a UI change can be reviewed from the PR. What the JVM cannot do is faked or
+left out: Vibilia's map is drawn schematically (MapLibre's native library
+cannot load), images are flat colours, Annona's scanner shows its camera
+prompt. A screen that needs new data needs it in `FakeBackend` too.
 
 Debug builds install beside a release build (`.debug` suffix). Drive tracking
-needs a real phone paired with a car; everything else works in the emulator.
+needs a real phone paired with a car and Annona's scanner a camera; everything
+else works in the emulator.
 
 ## Scripts reference
 

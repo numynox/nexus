@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The navy of the Noctua owl, the seed of the app's palette. -->
+    <color name="noctua_navy">#262C78</color>
+    <color name="splash_background">#FBF8FF</color>
+</resources>

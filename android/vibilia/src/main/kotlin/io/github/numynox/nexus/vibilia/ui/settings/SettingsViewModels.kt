@@ -1,5 +1,6 @@
 package io.github.numynox.nexus.vibilia.ui.settings
 
+import io.github.numynox.nexus.core.data.NexusConfig
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.numynox.nexus.core.data.describe
@@ -9,15 +10,15 @@ import io.github.numynox.nexus.vibilia.data.Car
 import io.github.numynox.nexus.vibilia.data.CarDraft
 import io.github.numynox.nexus.vibilia.data.CarMember
 import io.github.numynox.nexus.vibilia.tracking.PairedDevice
-import io.github.numynox.nexus.vibilia.ui.common.Loadable
-import io.github.numynox.nexus.vibilia.ui.common.loadable
+import io.github.numynox.nexus.core.ui.Loadable
+import io.github.numynox.nexus.core.ui.loadable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 
 class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     private val _links = MutableStateFlow<List<BluetoothLink>>(emptyList())
@@ -25,7 +26,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
 
     val hasBluetoothPermission: Boolean get() = container.driveTracking.hasPermission()
     val bluetoothPermission: String? get() = container.driveTracking.permission
-    val versionName: String get() = container.config.versionName
+    val config: NexusConfig get() = container.config
 
     init {
         viewModelScope.launch {

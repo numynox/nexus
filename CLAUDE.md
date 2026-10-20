@@ -7,9 +7,10 @@ Supabase project:
 - Noctua: Read RSS feeds (`app/noctua`)
 - Vibilia: Track fuel prices and car expenses (`app/vibilia`)
 
-Vibilia also has a native Android app in `android/` (Kotlin, Jetpack Compose),
-on the same Supabase project, released to GitHub Releases and sideloaded. Noctua
-and Annona get theirs later, on the shared `android/core` modules.
+Each app also has a native Android app in `android/<app>` (Kotlin, Jetpack
+Compose), on the same Supabase project, released to GitHub Releases and
+sideloaded. They share `android/core` (data, UI, testing) and the Gradle
+conventions in `android/build-logic`.
 
 ## Project knowledge
 
@@ -85,9 +86,10 @@ The conventions that carry the most weight here — reasoning in
   `public` schema.
 - **Device-local preference → `lib/storage.ts`; anything shared → Postgres.**
 - **Build all three apps before pushing** (`npm run build:websites`). For
-  changes under `android/`, also run `./gradlew :vibilia:recordRoborazziDebug
-  :vibilia:assembleRelease` there, and look at the screenshots it writes to
-  `android/vibilia/build/outputs/roborazzi/app/` (README.md, "Screenshots").
+  changes under `android/`, also run `./gradlew :<app>:recordRoborazziDebug
+  :<app>:assembleRelease` there for each app touched — all three after a change
+  to `core/` or `build-logic/` — and look at the screenshots it writes to
+  `android/<app>/build/outputs/roborazzi/app/` (README.md, "Screenshots").
 - **New features reach both clients.** Build an Android feature on the web too
   where the browser allows it, otherwise show its result read-only or hide it
   gracefully — and put shared logic in Postgres RPCs so both get it

@@ -140,4 +140,16 @@ class DriveTrackerTest {
         // 30 minutes of the queued drive after the cut-off, plus 30 minutes live.
         assertEquals(1.0, hours, 1e-9)
     }
+
+    @Test
+    fun anUploadIsADriveLeavingTheQueue() {
+        val morning = FinishedDrive("a", car, t0, t0.plus(Duration.ofMinutes(20)))
+        val evening = FinishedDrive("b", car, t0.plus(Duration.ofHours(9)), t0.plus(Duration.ofHours(9).plusMinutes(25)))
+        val queued = TrackerState(pending = listOf(morning))
+        // A drive joining the queue is not an upload; one leaving it is.
+        assertFalse(uploadedBetween(TrackerState(), queued))
+        assertFalse(uploadedBetween(queued, queued.copy(pending = listOf(morning, evening))))
+        assertTrue(uploadedBetween(queued, TrackerState()))
+        assertTrue(uploadedBetween(TrackerState(pending = listOf(morning, evening)), TrackerState(pending = listOf(evening))))
+    }
 }

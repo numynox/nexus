@@ -6,8 +6,8 @@ import io.github.numynox.nexus.vibilia.AppContainer
 import io.github.numynox.nexus.vibilia.data.CarExpense
 import io.github.numynox.nexus.vibilia.data.DistanceMonth
 import io.github.numynox.nexus.vibilia.data.RefuelEvent
-import io.github.numynox.nexus.vibilia.ui.common.Loadable
-import io.github.numynox.nexus.vibilia.ui.common.loadable
+import io.github.numynox.nexus.core.ui.Loadable
+import io.github.numynox.nexus.core.ui.loadable
 import java.time.Instant
 import java.time.YearMonth
 import java.time.ZoneId

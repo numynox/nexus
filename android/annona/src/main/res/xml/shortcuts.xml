@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long-press the launcher icon: straight to the scanner, to add or to use up.
+     targetPackage is the release id, so the shortcuts work in release builds
+     only; a debug build (".debug") shows them but cannot open them. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="scan_add"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_add"
+        android:shortcutShortLabel="@string/shortcut_add">
+        <intent
+            android:action="io.github.numynox.nexus.annona.SCAN_ADD"
+            android:targetClass="io.github.numynox.nexus.annona.MainActivity"
+            android:targetPackage="io.github.numynox.nexus.annona" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="scan_consume"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_consume"
+        android:shortcutShortLabel="@string/shortcut_consume">
+        <intent
+            android:action="io.github.numynox.nexus.annona.SCAN_CONSUME"
+            android:targetClass="io.github.numynox.nexus.annona.MainActivity"
+            android:targetPackage="io.github.numynox.nexus.annona" />
+    </shortcut>
+</shortcuts>

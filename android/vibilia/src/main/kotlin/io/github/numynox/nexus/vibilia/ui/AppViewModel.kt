@@ -5,7 +5,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.numynox.nexus.core.data.AuthState
 import io.github.numynox.nexus.core.data.AvailableUpdate
+import io.github.numynox.nexus.core.ui.Loadable
+import io.github.numynox.nexus.core.ui.loadable
 import io.github.numynox.nexus.core.ui.theme.ThemeMode
+import io.github.numynox.nexus.core.ui.valueOrNull
 import io.github.numynox.nexus.vibilia.AppContainer
 import io.github.numynox.nexus.vibilia.data.Car
 import io.github.numynox.nexus.vibilia.data.CarExpense
@@ -13,9 +16,9 @@ import io.github.numynox.nexus.vibilia.data.RefuelEvent
 import io.github.numynox.nexus.vibilia.data.VibiliaSettings
 import io.github.numynox.nexus.vibilia.tracking.DriveSync
 import io.github.numynox.nexus.vibilia.tracking.TrackerState
-import io.github.numynox.nexus.vibilia.ui.common.Loadable
-import io.github.numynox.nexus.vibilia.ui.common.loadable
-import io.github.numynox.nexus.vibilia.ui.common.valueOrNull
+import io.github.numynox.nexus.vibilia.tracking.uploadedBetween
+import java.time.Duration
+import java.time.Instant
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -64,7 +67,11 @@ class AppViewModel(private val container: AppContainer, private val application:
     private val _editor = MutableStateFlow<EditorRequest?>(null)
     val editor: StateFlow<EditorRequest?> = _editor.asStateFlow()
 
-    /** Bumped after every save, so screens showing logbook data reload. */
+    /**
+     * Bumped after every save, when this phone has uploaded drives, and on
+     * return from the background — whenever what the server says may have
+     * moved on — so screens showing server data reload.
+     */
     private val _dataVersion = MutableStateFlow(0)
     val dataVersion: StateFlow<Int> = _dataVersion.asStateFlow()
 
@@ -75,6 +82,36 @@ class AppViewModel(private val container: AppContainer, private val application:
             }
         }
         viewModelScope.launch { _update.value = container.updates.check() }
+        // An uploaded drive leaves the phone's queue, so the screens stop
+        // adding it themselves; reload so the server's copy takes its place.
+        viewModelScope.launch {
+            var previous: TrackerState? = null
+            container.driveTracking.tracker.state.collect { next ->
+                if (previous?.let { uploadedBetween(it, next) } == true) _dataVersion.update { it + 1 }
+                previous = next
+            }
+        }
+    }
+
+    private var backgroundedAt: Instant? = null
+
+    fun onBackground(now: Instant = Instant.now()) {
+        backgroundedAt = now
+    }
+
+    /** Another phone may have uploaded a drive, or someone logged a refuel on the web, meanwhile. */
+    fun onForeground(now: Instant = Instant.now()) {
+        val since = backgroundedAt ?: return
+        backgroundedAt = null
+        if (Duration.between(since, now) >= ForegroundRefresh) {
+            refreshCars()
+            _dataVersion.update { it + 1 }
+        }
+    }
+
+    private companion object {
+        /** A glance away and back is not worth a reload. */
+        val ForegroundRefresh: Duration = Duration.ofMinutes(1)
     }
 
     private fun onSignedIn() {
