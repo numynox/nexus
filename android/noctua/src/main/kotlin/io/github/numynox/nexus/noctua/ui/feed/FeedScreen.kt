@@ -1,6 +1,6 @@
 package io.github.numynox.nexus.noctua.ui.feed
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,9 +50,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -144,6 +146,7 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
     )
 
     val listState = rememberLazyListState()
+    val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
     // Seen on scroll: a story is seen once it has gone up past the top of the
     // list, and only while scrolling down — the web's rule, on the list's
     // own scroll position instead of the window's.
@@ -163,64 +166,76 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
 
     Scaffold(
         topBar = {
-            Column {
-                if (searching) {
-                    SearchBar(query, onQuery = { viewModel.query.value = it }, onClose = {
-                        searching = false
-                        viewModel.query.value = ""
-                    })
-                } else {
-                    TopAppBar(
-                        title = {
-                            Column {
-                                Text(feedFilter?.let { id -> section?.feeds?.firstOrNull { it.id == id }?.name } ?: section?.name ?: "All sections")
-                                if (loaded != null) {
-                                    Text(
-                                        if (view.unseen == 0) "All caught up" else "${view.unseen} new",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
+            // One surface behind the whole header — title, section chips and
+            // progress — so cards never scroll through it. It tints once the
+            // list is scrolled, as Material's top bars do.
+            val headerColor by animateColorAsState(
+                if (scrolled) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surface,
+                label = "header",
+            )
+            Surface(color = headerColor) {
+                Column(Modifier.padding(bottom = 2.dp)) {
+                    if (searching) {
+                        SearchBar(query, onQuery = { viewModel.query.value = it }, onClose = {
+                            searching = false
+                            viewModel.query.value = ""
+                        })
+                    } else {
+                        TopAppBar(
+                            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                            title = {
+                                Column {
+                                    Text(feedFilter?.let { id -> section?.feeds?.firstOrNull { it.id == id }?.name } ?: section?.name ?: "All sections")
+                                    if (loaded != null) {
+                                        Text(
+                                            if (view.unseen == 0) "All caught up" else "${view.unseen} new",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
                                 }
-                            }
-                        },
-                        actions = {
-                            IconButton(onClick = { searching = true }) { Icon(Icons.Rounded.Search, contentDescription = "Search") }
-                            if (section != null && section.feeds.size > 1) {
-                                FeedFilterButton(section, feedFilter) { viewModel.feedFilter.value = it }
-                            }
-                            OverflowMenu(
-                                density = settings.density,
-                                sortOrder = settings.sortOrder,
-                                onDensity = app::setDensity,
-                                onSortOrder = app::setSortOrder,
-                                onMarkAllRead = { confirmMarkAll = viewModel.unreadShown() },
-                                onRefresh = { viewModel.load(settings.selectedSectionId, refresh = true) },
-                            )
-                        },
-                    )
-                }
-                if (loaded != null && sections.isNotEmpty()) {
-                    SectionChips(sections, loaded.sectionId, onSelect = { id ->
-                        scope.launch { listState.scrollToItem(0) }
-                        app.selectSection(id)
-                    })
-                    LinearWavyProgressIndicator(
-                        progress = { view.progress },
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-                    )
+                            },
+                            actions = {
+                                IconButton(onClick = { searching = true }) { Icon(Icons.Rounded.Search, contentDescription = "Search") }
+                                if (section != null && section.feeds.size > 1) {
+                                    FeedFilterButton(section, feedFilter) { viewModel.feedFilter.value = it }
+                                }
+                                OverflowMenu(
+                                    density = settings.density,
+                                    sortOrder = settings.sortOrder,
+                                    onDensity = app::setDensity,
+                                    onSortOrder = app::setSortOrder,
+                                    onMarkAllRead = { confirmMarkAll = viewModel.unreadShown() },
+                                    onRefresh = { viewModel.load(settings.selectedSectionId, refresh = true) },
+                                )
+                            },
+                        )
+                    }
+                    if (loaded != null && sections.isNotEmpty()) {
+                        SectionChips(sections, loaded.sectionId, onSelect = { id ->
+                            scope.launch { listState.scrollToItem(0) }
+                            app.selectSection(id)
+                        })
+                        LinearWavyProgressIndicator(
+                            progress = { view.progress },
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                        )
+                    }
                 }
             }
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
-        val contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 4.dp, bottom = 24.dp)
+        // The list starts below the header, not behind it, so its sticky day
+        // headings stick under the header rather than out of sight beneath it.
+        val contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp)
         when (val state = load) {
             Loadable.Loading -> LoadingState(Modifier.fillMaxSize().padding(padding))
             is Loadable.Failed -> ErrorState(state.message, onRetry = { viewModel.load(settings.selectedSectionId) }, modifier = Modifier.padding(padding))
             is Loadable.Ready -> PullToRefreshBox(
                 isRefreshing = refreshing,
                 onRefresh = { viewModel.load(settings.selectedSectionId, refresh = true) },
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()),
             ) {
                 LazyColumn(
                     state = listState,
@@ -410,6 +425,7 @@ private fun OverflowMenu(
 @Composable
 private fun SearchBar(query: String, onQuery: (String) -> Unit, onClose: () -> Unit) {
     TopAppBar(
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
         title = {
             TextField(
                 value = query,

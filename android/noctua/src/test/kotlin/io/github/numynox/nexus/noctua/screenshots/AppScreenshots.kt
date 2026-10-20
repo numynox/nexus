@@ -97,6 +97,8 @@ class AppScreenshots {
         tap("Feed")
         waitForText("EU agrees on the first binding rules for general-purpose AI models")
         shot("17-feed-dark")
+        scrollTo("How birds navigate by sensing Earth's magnetic field")
+        shot("17b-feed-scrolled-dark")
         tap("Statistics")
         waitForText("STREAK")
         shot("18-statistics-dark")
