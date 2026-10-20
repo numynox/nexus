@@ -13,6 +13,7 @@ import io.github.numynox.nexus.noctua.data.FeedContent
 import io.github.numynox.nexus.noctua.data.NoctuaSettings
 import io.github.numynox.nexus.noctua.data.Section
 import java.time.Instant
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -100,10 +101,32 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch { takeBaseline() }
     }
 
+    /** What the shown load was asked for: the section and the version of the sections. */
+    private var shownFor: Pair<Long?, Int>? = null
+    private var loading: Job? = null
+
+    /**
+     * Shows the given section, loading it unless it is already shown. Coming
+     * back to the feed from another tab must not swap the list under the
+     * reader: a reload re-hides what was seen and restarts the progress, so
+     * only the reader's own refresh, a section switch or edited sections do.
+     */
+    fun show(sectionId: Long?, sectionsVersion: Int) {
+        val key = sectionId to sectionsVersion
+        if (key == shownFor && (_load.value is Loadable.Ready || loading?.isActive == true)) return
+        shownFor = key
+        load(sectionId)
+    }
+
     /** (Re)loads the given section, or all of them; [sectionId] may be stale and falls back. */
     fun load(sectionId: Long?, refresh: Boolean = false) {
-        viewModelScope.launch {
-            if (refresh) _refreshing.value = true else if (_load.value !is Loadable.Ready) _load.value = Loadable.Loading
+        // Only the latest request may land: an older one finishing late would
+        // replace the list the reader is already scrolling.
+        loading?.cancel()
+        loading = viewModelScope.launch {
+            // A superseded refresh never finishes, so the newest load owns the indicator.
+            _refreshing.value = refresh
+            if (!refresh && _load.value !is Loadable.Ready) _load.value = Loadable.Loading
             val result = loadable { fetch(sectionId) }
             if (result is Loadable.Ready || !refresh) _load.value = result
             if (result is Loadable.Ready) takeBaseline()

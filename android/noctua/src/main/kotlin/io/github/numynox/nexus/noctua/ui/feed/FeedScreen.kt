@@ -119,7 +119,7 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
     var confirmMarkAll by remember { mutableStateOf<List<Long>>(emptyList()) }
 
     LaunchedEffect(settings.selectedSectionId, sectionsVersion) {
-        viewModel.load(settings.selectedSectionId)
+        viewModel.show(settings.selectedSectionId, sectionsVersion)
     }
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { snackbar.showSnackbar(it) }
