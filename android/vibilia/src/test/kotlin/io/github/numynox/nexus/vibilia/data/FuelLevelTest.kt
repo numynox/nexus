@@ -65,7 +65,7 @@ class FuelLevelTest {
     }
 
     @Test
-    fun `the panel tells fill-up, consumption and when it runs dry`() {
+    fun `the panel tells the fill-up and when it runs dry`() {
         val refuelled = Instant.parse("2026-01-01T10:00:00Z")
         val drive = FuelLevel(
             method = FuelLevel.Method.Drive, lastRefuelAt = refuelled, lastMileage = 10_000, tankCapacity = 50.0,
@@ -73,7 +73,6 @@ class FuelLevelTest {
             kmPerHour = 100.0, litersPerHour = 8.0, litersPerDay = null,
         )
         assertEquals(20.0, drive.litersToFull, 1e-9)
-        assertEquals(8.0, drive.litersPer100Km!!, 1e-9)
         // 20 L in 10 days → 2 L a day → 15 more days.
         val now = refuelled.plusSeconds(10 * 86_400)
         assertEquals(2.0, drive.litersPerCalendarDay(now)!!, 1e-9)
@@ -84,6 +83,5 @@ class FuelLevelTest {
         val calendar = drive.copy(method = FuelLevel.Method.Time, litersPerDay = 3.0, kmPerHour = null, litersPerHour = null)
         assertEquals(3.0, calendar.litersPerCalendarDay(now)!!, 1e-9)
         assertEquals(now.plusSeconds(10 * 86_400), calendar.emptyAt(now))
-        assertNull(calendar.litersPer100Km)
     }
 }

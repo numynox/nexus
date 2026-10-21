@@ -40,10 +40,6 @@ data class FuelLevel(
     /** What a full tank takes now. */
     val litersToFull: Double get() = (tankCapacity - remainingLiters).coerceAtLeast(0.0)
 
-    /** Litres per 100 km at the learned consumption — drive method only. */
-    val litersPer100Km: Double?
-        get() = if (kmPerHour != null && kmPerHour > 0 && litersPerHour != null) litersPerHour / kmPerHour * 100 else null
-
     /**
      * Litres used per calendar day: the calendar method's own rate, or for
      * the drive method what this tank has used per day so far — so a car
