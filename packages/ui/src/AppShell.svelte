@@ -35,10 +35,15 @@
 
   let session = $state(null);
   let loading = $state(true);
+  // getSession() failing is not "signed out": an expired token whose refresh
+  // could not reach Supabase — offline, or a network still waking up. The
+  // sign-in form would be a lie; the stored session is still there.
+  let unreachable = $state(false);
+  let active = true;
 
-  onMount(() => {
-    let active = true;
-
+  function resolve() {
+    loading = true;
+    unreachable = false;
     getSession()
       .then(async (resolved) => {
         if (!active) return;
@@ -49,13 +54,22 @@
         loading = false;
       })
       .catch(() => {
-        if (active) loading = false;
+        if (!active) return;
+        unreachable = true;
+        loading = false;
       });
+  }
+
+  onMount(() => {
+    active = true;
+    resolve();
 
     const {
       data: { subscription },
     } = onAuthStateChange((_event, next) => {
       session = next;
+      // The client's own retry got through.
+      if (next?.user) unreachable = false;
     });
 
     return () => {
@@ -68,6 +82,11 @@
 {#if loading}
   <div class="flex min-h-screen items-center justify-center bg-base-100">
     <span class="loading loading-infinity loading-lg text-primary"></span>
+  </div>
+{:else if unreachable && !session}
+  <div class="flex min-h-screen flex-col items-center justify-center gap-4 bg-base-100 p-6 text-center">
+    <p class="text-base-content/70">Could not reach the server to renew your session.</p>
+    <button class="btn btn-primary btn-sm rounded-full" onclick={resolve}>Try again</button>
   </div>
 {:else if !session}
   <LoginPanel {siteTitle} {logoSrc} {signIn} />

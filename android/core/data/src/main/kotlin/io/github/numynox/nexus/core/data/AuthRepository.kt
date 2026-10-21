@@ -24,15 +24,23 @@ class AuthRepository(
     private val supabase: SupabaseClient,
     scope: CoroutineScope,
 ) {
+    /** Who was signed in last, so a failed refresh does not forget them. */
+    private var lastSignedIn: AuthState.SignedIn? = null
+
     val state: StateFlow<AuthState> = supabase.auth.sessionStatus
         .map { status ->
             when (status) {
                 is SessionStatus.Initializing -> AuthState.Loading
-                is SessionStatus.Authenticated -> signedIn() ?: AuthState.SignedOut
-                // A refresh that failed because the phone is offline must not
-                // sign anybody out: the stored session is still theirs.
-                is SessionStatus.RefreshFailure -> signedIn() ?: AuthState.SignedOut
-                is SessionStatus.NotAuthenticated -> AuthState.SignedOut
+                is SessionStatus.Authenticated ->
+                    (status.session.user?.let { AuthState.SignedIn(it.id, it.email) } ?: signedIn())
+                        ?.also { lastSignedIn = it } ?: AuthState.SignedOut
+                // An expired token whose refresh did not get through — the
+                // phone is offline, or still waking its network after a while
+                // in the background. supabase-kt drops the session from memory
+                // and retries, but the stored session is still theirs: showing
+                // the sign-in screen until the retry lands would be a lie.
+                is SessionStatus.RefreshFailure -> lastSignedIn ?: storedUser() ?: AuthState.SignedOut
+                is SessionStatus.NotAuthenticated -> AuthState.SignedOut.also { lastSignedIn = null }
             }
         }
         .stateIn(scope, SharingStarted.Eagerly, AuthState.Loading)
@@ -56,6 +64,9 @@ class AuthRepository(
     suspend fun signOut() {
         supabase.auth.signOut()
     }
+
+    private suspend fun storedUser(): AuthState.SignedIn? =
+        supabase.auth.sessionManager.loadSessionOrNull()?.user?.let { AuthState.SignedIn(it.id, it.email) }
 
     private fun signedIn(): AuthState.SignedIn? =
         supabase.auth.currentUserOrNull()?.let { AuthState.SignedIn(it.id, it.email) }
