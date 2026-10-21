@@ -102,7 +102,8 @@ fun AppearanceCard(
 /** Who is signed in, and the way out. */
 @Composable
 fun AccountCard(appName: String, email: String?, onSignOut: () -> Unit, modifier: Modifier = Modifier) {
-    NexusCard(modifier) {
+    // Full width like the cards around it; a card sizes to its content otherwise.
+    NexusCard(modifier.fillMaxWidth()) {
         Text(email ?: "Signed in", style = MaterialTheme.typography.titleSmall)
         Text(
             "The same account signs you in to ${NexusApps.filter { it != appName }.joinToString(" and ")}.",
