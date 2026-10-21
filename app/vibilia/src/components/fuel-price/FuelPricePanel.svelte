@@ -12,7 +12,7 @@
     getLastSelectedCarId,
   } from "../../lib/storage";
   import { preferredFuelType } from "../../lib/stores";
-  import FuelLevelEstimateBadge from "./FuelLevelEstimateBadge.svelte";
+  import FuelLevelCard from "./FuelLevelCard.svelte";
   import LastDriveNote from "./LastDriveNote.svelte";
   import PriceChart from "./PriceChart.svelte";
   import StationList from "./StationList.svelte";
@@ -79,21 +79,17 @@
         <LastDriveNote carId={selectedCarId} />
       </div>
     </div>
-    <div
-      class="flex flex-col items-end gap-2 self-start lg:flex-row lg:items-center lg:gap-4"
+    <button
+      class="btn btn-primary btn-sm rounded-full gap-2 self-start"
+      onclick={onRefuel}
     >
-      <button
-        class="order-1 btn btn-primary btn-sm rounded-full gap-2 lg:order-2"
-        onclick={onRefuel}
-      >
-        <Plus class="w-4 h-4" />
-        <span class="hidden sm:inline">Refuel</span>
-      </button>
-      <div class="order-2 lg:order-1">
-        <FuelLevelEstimateBadge carId={selectedCarId} />
-      </div>
-    </div>
+      <Plus class="w-4 h-4" />
+      <span class="hidden sm:inline">Refuel</span>
+    </button>
   </div>
+
+  <!-- The full card here; the Nearby page keeps the badge. -->
+  <FuelLevelCard carId={selectedCarId} {stations} />
 
   {#if loading}
     <div class="h-64 flex items-center justify-center">

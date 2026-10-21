@@ -87,6 +87,11 @@ export interface FuelLevelEstimate {
   speedAssumed: boolean;
   /** How far the remaining fuel goes at the learned consumption; drive method only. */
   rangeKm: number | null;
+  /** The odometer at the last refuel, and now by the drive model. */
+  lastMileage: number | null;
+  estimatedMileage: number | null;
+  /** The learned consumption; drive method only. */
+  litersPer100Km: number | null;
 }
 
 export interface CarDailyDistance {
@@ -518,6 +523,12 @@ export async function fetchFuelLevelEstimateForCar(
       row.method === "drive" && kmPerHour && litersPerHour
         ? (remainingLiters / litersPerHour) * kmPerHour
         : null,
+    lastMileage: finiteOrNull(row.last_mileage),
+    estimatedMileage: finiteOrNull(row.estimated_mileage),
+    litersPer100Km:
+      row.method === "drive" && kmPerHour && litersPerHour
+        ? (litersPerHour / kmPerHour) * 100
+        : null,
   };
 }
 
@@ -647,6 +658,9 @@ async function computeFuelLevelEstimateInBrowser(
     estimatedKm: null,
     speedAssumed: false,
     rangeKm: null,
+    lastMileage: null,
+    estimatedMileage: null,
+    litersPer100Km: null,
   };
 }
 

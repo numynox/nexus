@@ -80,7 +80,7 @@ class AppScreenshots {
 
     @Test
     fun walkThroughTheApp() {
-        waitFor(hasText("My stations"))
+        waitFor(hasText("Fill up"))
         shot("01-prices")
         scrollTo("Esso")
         shot("02-prices-stations")

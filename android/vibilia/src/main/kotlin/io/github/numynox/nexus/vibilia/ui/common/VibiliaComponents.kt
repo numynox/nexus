@@ -39,6 +39,7 @@ import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
@@ -66,6 +67,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -80,6 +82,7 @@ import io.github.numynox.nexus.vibilia.data.FuelLevel
 import io.github.numynox.nexus.vibilia.data.LastDrive
 import io.github.numynox.nexus.vibilia.data.StationPrice
 import java.time.Duration
+import java.time.ZoneId
 import java.time.Instant
 import kotlinx.coroutines.delay
 
@@ -245,12 +248,14 @@ fun LiveDriveBanner(visible: Boolean, carName: String, startedAt: Instant?, modi
 }
 
 /**
- * How full the tank is: an arc from E to F that sweeps to its level, the
- * litres left, the range at the learned consumption, and which method the
- * estimate came from.
+ * How full the tank is, and what follows from it — the questions asked at a
+ * glance: how far it goes, what filling up costs today, when it runs dry, the
+ * odometer to note at the pump. An arc from E to F sweeps to the level; below
+ * it, facts only. [cheapest] is the cheapest of our stations right now, after
+ * discounts, for the fill-up price.
  */
 @Composable
-fun FuelGaugeCard(level: FuelLevel, carName: String, modifier: Modifier = Modifier) {
+fun FuelGaugeCard(level: FuelLevel, carName: String, cheapest: StationPrice?, modifier: Modifier = Modifier) {
     val extended = NexusThemeDefaults.extendedColors
     val ratio = level.fillRatio
     val targetColor = when {
@@ -265,6 +270,8 @@ fun FuelGaugeCard(level: FuelLevel, carName: String, modifier: Modifier = Modifi
         label = "gauge",
     )
     val track = MaterialTheme.colorScheme.surfaceContainerHighest
+    val now = rememberNow(60_000)
+    val zone = ZoneId.systemDefault()
 
     NexusCard(modifier = modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
@@ -295,31 +302,90 @@ fun FuelGaugeCard(level: FuelLevel, carName: String, modifier: Modifier = Modifi
                 Text(carName, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
                     "${NexusFormat.liters(level.remainingLiters, 0)} of ${NexusFormat.liters(level.tankCapacity, 0)}",
-                    style = MaterialTheme.typography.titleMedium.tabular(),
+                    style = MaterialTheme.typography.titleLarge.tabular(),
                 )
                 level.rangeKm?.let {
-                    Text("≈ ${NexusFormat.km(it)} range", style = MaterialTheme.typography.bodyMedium.tabular(), color = color)
+                    Text("≈ ${NexusFormat.km(it)} range", style = MaterialTheme.typography.titleSmall.tabular(), color = color)
                 }
-                Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(
-                        if (level.method == FuelLevel.Method.Drive) Icons.Rounded.Bluetooth else Icons.Rounded.CalendarMonth,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        when (level.method) {
-                            FuelLevel.Method.Drive -> "${NexusFormat.duration(level.drivingHours ?: 0.0)} driven"
-                            FuelLevel.Method.Time -> "${NexusFormat.number(level.litersPerDay ?: 0.0, 1)} L a day"
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+            }
+        }
+
+        val days = Duration.between(level.lastRefuelAt, now).toHours() / 24.0
+        val emptyAt = level.emptyAt(now)
+        val facts = listOfNotNull(
+            Fact(
+                "Fill up",
+                NexusFormat.liters(level.litersToFull, 0) + (cheapest?.effectivePrice?.let { " · ${NexusFormat.euro(level.litersToFull * it)}" } ?: ""),
+                cheapest?.effectivePrice?.let { "${cheapest.displayName} · ${NexusFormat.number(it, 3)} €/L" },
+            ),
+            emptyAt?.let { at ->
+                val date = at.atZone(zone).toLocalDate()
+                val left = Duration.between(now, at).toHours() / 24.0
+                Fact("Empty around", NexusFormat.weekdayDay(date), if (left < 1) "today" else "in ${dayCount(left)}")
+            },
+            Fact(
+                "Since refuel",
+                dayCount(days),
+                listOfNotNull(
+                    level.estimatedKm?.let { "≈ ${NexusFormat.km(it)}" },
+                    NexusFormat.liters(level.startingLiters - level.remainingLiters, 0) + " used",
+                ).joinToString(" · "),
+            ),
+            level.estimatedMileage?.let { Fact("Odometer", "≈ ${NexusFormat.km(it)}", "last logged ${NexusFormat.km(level.lastMileage!!.toDouble())}") },
+            when (level.method) {
+                FuelLevel.Method.Drive -> Fact(
+                    "Consumption",
+                    level.litersPer100Km?.let { "${NexusFormat.number(it, 1)} L/100 km" } ?: "—",
+                    "${NexusFormat.duration(level.drivingHours ?: 0.0)} driven" + if (level.speedAssumed) " · speed assumed" else "",
+                    Icons.Rounded.Bluetooth,
+                )
+                FuelLevel.Method.Time -> Fact(
+                    "Consumption",
+                    "${NexusFormat.liters(level.litersPerDay ?: 0.0, 1)} a day",
+                    "by the calendar",
+                    Icons.Rounded.CalendarMonth,
+                )
+            },
+        )
+        HorizontalDivider(Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant)
+        // Two facts a row, so the card's whole width is used.
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            facts.chunked(2).forEach { pair ->
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    pair.forEach { FactCell(it, Modifier.weight(1f)) }
+                    if (pair.size == 1) Spacer(Modifier.weight(1f))
                 }
             }
         }
     }
+}
+
+private data class Fact(val label: String, val value: String, val detail: String? = null, val icon: ImageVector? = null)
+
+@Composable
+private fun FactCell(fact: Fact, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(fact.label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(fact.value, style = MaterialTheme.typography.titleMedium.tabular(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (fact.detail != null) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (fact.icon != null) Icon(fact.icon, contentDescription = null, modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    fact.detail,
+                    style = MaterialTheme.typography.bodySmall.tabular(),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+/** "1 day", "6 days" — whole days, at least one. */
+private fun dayCount(days: Double): String {
+    val whole = days.toInt().coerceAtLeast(if (days > 0) 1 else 0)
+    return if (whole == 1) "1 day" else "$whole days"
 }
 
 /**
