@@ -247,8 +247,10 @@ Anything aggregating, joining or crossing a permission boundary is a
 
 - Noctua: `get_similar_article_groups` (clusters same-story titles by trigram
   similarity within a time window — see
-  `decisions/2026-09-05-duplicate-story-collapsing.md`). Everything else queries
-  tables directly. `get_user_home_feeds` exists in the database but nothing
+  `decisions/2026-09-05-duplicate-story-collapsing.md`) and
+  `noctua_reading_statistics` (the statistics page's counts, so nothing stops
+  at PostgREST's 1,000 rows — `decisions/2026-10-21-noctua-statistics-in-postgres.md`).
+  Everything else queries tables directly. `get_user_home_feeds` exists in the database but nothing
   calls it any more.
 - Vibilia: `get_fuel_stations_current_prices`, `get_fuel_price_plot_history`,
   `get_fuel_price_weekly_minima`, `get_car_refuel_statistics`,

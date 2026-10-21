@@ -1,73 +1,82 @@
 package io.github.numynox.nexus.noctua.ui
 
-import io.github.numynox.nexus.noctua.data.PublishedArticle
-import io.github.numynox.nexus.noctua.data.ReadRecord
+import io.github.numynox.nexus.noctua.data.FeedStatisticsRow
+import io.github.numynox.nexus.noctua.data.ReadingStatisticsRow
 import io.github.numynox.nexus.noctua.ui.statistics.ReadingStats
 import java.time.LocalDate
-import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
+/** The counting is the database's (supabase/tests/noctua_reading_statistics.test.sql); this pins the shaping. */
 class ReadingStatsTest {
-    private val zone = ZoneOffset.UTC
     // A Wednesday, so "this week" began on Monday the 19th.
     private val today = LocalDate.of(2026, 10, 21)
-    private fun read(day: LocalDate, hour: Int, feed: String = "Heise") = ReadRecord(0, day.atTime(hour, 30).toInstant(zone), feed)
 
-    @Test
-    fun windowIsShorterWhileReadingIsNew() {
-        assertEquals(8, ReadingStats.windowWeeks(null, 8, today, zone))
-        assertEquals(1, ReadingStats.windowWeeks(today.atStartOfDay(zone).toInstant(), 8, today, zone))
-        // Read first on the Sunday before: that week and this one.
-        assertEquals(2, ReadingStats.windowWeeks(LocalDate.of(2026, 10, 18).atStartOfDay(zone).toInstant(), 8, today, zone))
-        assertEquals(8, ReadingStats.windowWeeks(LocalDate.of(2025, 1, 1).atStartOfDay(zone).toInstant(), 8, today, zone))
-    }
+    private fun row(
+        readDays: List<LocalDate> = emptyList(),
+        weeks: Int = 2,
+        readHours: List<List<Int>> = emptyList(),
+        feeds: List<FeedStatisticsRow> = emptyList(),
+    ) = ReadingStatisticsRow(
+        weeks = weeks,
+        today = today.toString(),
+        windowStart = today.minusDays(2).minusWeeks((weeks - 1).toLong()).toString(),
+        windowDays = (weeks - 1) * 7 + 3,
+        totalRead = 1_797,
+        totalArticles = 14_235,
+        thisWeekRead = 24,
+        thisWeekPublished = 471,
+        windowRead = 40,
+        windowPublished = 1_000,
+        readDays = readDays.map { it.toString() },
+        feeds = feeds,
+        readHours = readHours,
+    )
 
     @Test
     fun streaksCountCalendarDays() {
-        val reads = listOf(
-            read(today.minusDays(1), 8), read(today.minusDays(2), 22), read(today.minusDays(3), 7),
-            read(today.minusDays(10), 9), read(today.minusDays(11), 9),
-        )
-        val stats = ReadingStats.compute(reads, emptyList(), 10, 2, today, zone)
+        val days = listOf(today.minusDays(1), today.minusDays(2), today.minusDays(3), today.minusDays(10), today.minusDays(11))
+        val stats = ReadingStats.from(row(days))
         // Nothing read yet today: the streak still stands from yesterday.
         assertEquals(3, stats.currentStreak)
         assertEquals(3, stats.longestStreak)
-        assertEquals(0, ReadingStats.compute(listOf(read(today.minusDays(2), 8)), emptyList(), 1, 1, today, zone).currentStreak)
+        assertEquals(0, ReadingStats.from(row(listOf(today.minusDays(2)))).currentStreak)
+        // Only days in the window are active ones.
+        assertEquals(3, stats.activeDays)
+        assertEquals(10, stats.windowDays)
     }
 
     @Test
-    fun weeklyFiguresAndFeeds() {
-        val reads = listOf(
-            read(today, 8, "Heise"), read(today, 8, "Heise"), read(today.minusDays(1), 20, "Ars"),
-            read(today.minusDays(8), 20, "Heise"),
-            // Before the two-week window: counts in total only.
-            read(today.minusDays(30), 20, "Ars"),
-        )
-        val published = listOf(
-            PublishedArticle(today.atTime(6, 0).toInstant(zone), "Heise"),
-            PublishedArticle(today.atTime(7, 0).toInstant(zone), "Heise"),
-            PublishedArticle(today.minusDays(9).atTime(7, 0).toInstant(zone), "Heise"),
-            PublishedArticle(today.minusDays(9).atTime(7, 0).toInstant(zone), "Ars"),
-        )
-        val stats = ReadingStats.compute(reads, published, 99, 2, today, zone)
-        assertEquals(5, stats.totalRead)
-        assertEquals(3, stats.thisWeekRead)
-        assertEquals(2, stats.thisWeekPublished)
-        assertEquals(2.0, stats.averageReadPerWeek, 1e-9)
-        assertEquals(2.0, stats.averagePublishedPerWeek, 1e-9)
-        assertEquals(listOf("Heise", "Ars"), stats.feeds.map { it.feed })
-        assertEquals(1.0, stats.feeds[0].share, 1e-9)
+    fun totalsComeStraightFromTheDatabase() {
+        val stats = ReadingStats.from(row())
+        // More than one PostgREST page: these used to stop at 1,000.
+        assertEquals(1_797, stats.totalRead)
+        assertEquals(20.0, stats.averageReadPerWeek, 1e-9)
+        assertEquals(500.0, stats.averagePublishedPerWeek, 1e-9)
+        assertEquals(471, stats.thisWeekPublished)
+    }
+
+    @Test
+    fun hoursMakeTheHeatmapWeekdaysAndBusiestHour() {
+        val stats = ReadingStats.from(row(readHours = listOf(listOf(2, 8, 6), listOf(0, 8, 2), listOf(4, 21, 5))))
+        assertEquals(6, stats.readHeatmap[2][8])
         assertEquals(8, stats.busiestHour?.hour)
-        assertEquals(2, stats.readHeatmap[2][8])
-        assertEquals(1.0, stats.weekdayAverages[2], 1e-9)
-        assertEquals(3, stats.activeDays)
-        assertEquals(14, stats.windowDays)
+        assertEquals(8, stats.busiestHour?.count)
+        assertEquals(3.0, stats.weekdayAverages[2], 1e-9)
+        assertEquals(2.5, stats.weekdayAverages[4], 1e-9)
+    }
+
+    @Test
+    fun feedShareComparesTheSameArticles() {
+        val stats = ReadingStats.from(row(feeds = listOf(FeedStatisticsRow("Heise", read = 30, readPublished = 20, published = 40), FeedStatisticsRow(null, 3, 0, 0))))
+        assertEquals(0.5, stats.feeds[0].share, 1e-9)
+        assertEquals("Unknown feed", stats.feeds[1].feed)
+        assertEquals("Heise", stats.mostReadFeed?.feed)
     }
 
     @Test
     fun nothingReadHasNoBusiestHour() {
-        assertNull(ReadingStats.compute(emptyList(), emptyList(), 0, 8, today, zone).busiestHour)
+        assertNull(ReadingStats.from(row()).busiestHour)
     }
 }

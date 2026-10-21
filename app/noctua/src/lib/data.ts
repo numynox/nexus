@@ -18,18 +18,6 @@ export interface ReadArticleStatuses {
   };
 }
 
-export interface ReadStatisticsRecord {
-  articleId: string;
-  readAt: string;
-  feedId: string | null;
-  feedName: string;
-}
-
-export interface FeedArticleTotalRecord {
-  feedName: string;
-  count: number;
-}
-
 function toDbId(id: string): number {
   const parsed = Number(id);
   if (!Number.isInteger(parsed)) {
@@ -829,155 +817,79 @@ export async function clearReadArticlesForUser(userId: string): Promise<void> {
   }
 }
 
-export async function fetchReadStatisticsForUser(
+/** One feed's reads in the statistics window, and what it published there. */
+export interface FeedReadStatistics {
+  feed: string | null;
+  read: number;
+  /** Reads of articles that were also published in the window. */
+  readPublished: number;
+  published: number;
+}
+
+/**
+ * Noctua's statistics, aggregated by `noctua_reading_statistics` — counted in
+ * Postgres, so nothing is cut off at PostgREST's 1,000 rows. Days, weeks and
+ * hours are in the backend's reporting time zone.
+ */
+export interface ReadingStatistics {
+  /** The window in whole weeks, Monday first: the configured number, or fewer while reading is newer. */
+  weeks: number;
+  /** Today and the window's first day, as YYYY-MM-DD. */
+  today: string;
+  windowStart: string;
+  /** Days of the window so far, today included. */
+  windowDays: number;
+  totalRead: number;
+  totalArticles: number;
+  thisWeekRead: number;
+  thisWeekPublished: number;
+  windowRead: number;
+  windowPublished: number;
+  /** Every day with a read, ever, ascending, as YYYY-MM-DD. */
+  readDays: string[];
+  feeds: FeedReadStatistics[];
+  /** [weekday (0 = Monday), hour, count] for the window's non-empty cells. */
+  readHours: [number, number, number][];
+  publishedHours: [number, number, number][];
+}
+
+export async function fetchReadingStatisticsForUser(
   userId: string,
-): Promise<ReadStatisticsRecord[]> {
+  weeks: number,
+): Promise<ReadingStatistics> {
   await ensureProfile(userId);
 
   const supabase = getSupabaseClient();
   const db = supabase as any;
 
-  const { data, error } = await db
-    .from("article_reads")
-    .select(
-      `
-      article_id,
-      read_at,
-      articles (
-        feed_id,
-        feeds (
-          name
-        )
-      )
-    `,
-    )
-    .eq("user_id", userId)
-    .order("read_at", { ascending: false });
+  const { data, error } = await db.rpc("noctua_reading_statistics", {
+    p_weeks: weeks,
+  });
 
   if (error) {
     throw error;
   }
 
-  return (data || []).map((row: any) => ({
-    articleId: String(row.article_id),
-    readAt: row.read_at,
-    feedId:
-      row.articles && row.articles.feed_id !== null
-        ? String(row.articles.feed_id)
-        : null,
-    feedName: row.articles?.feeds?.name || "Unknown feed",
-  }));
-}
-
-export async function fetchOldestReadAtForUser(
-  userId: string,
-): Promise<string | null> {
-  await ensureProfile(userId);
-
-  const supabase = getSupabaseClient();
-
-  const { data, error } = await supabase
-    .from("article_reads")
-    .select("read_at")
-    .eq("user_id", userId)
-    .order("read_at", { ascending: true })
-    .limit(1);
-
-  if (error) {
-    throw error;
-  }
-
-  return (data as { read_at: string }[] | null) &&
-    (data as { read_at: string }[]).length > 0
-    ? (data as { read_at: string }[])[0].read_at
-    : null;
-}
-
-export async function fetchArticleCountForUser(
-  userId: string,
-  publishedSinceIso?: string,
-): Promise<number> {
-  await ensureProfile(userId);
-
-  const supabase = getSupabaseClient();
-
-  let query = supabase
-    .from("articles")
-    .select("id", { count: "exact", head: true });
-
-  if (publishedSinceIso) {
-    query = query.gte("published_at", publishedSinceIso);
-  }
-
-  const { count, error } = await query;
-
-  if (error) {
-    throw error;
-  }
-
-  return count || 0;
-}
-
-export async function fetchArticleTotalsByFeedForUser(
-  userId: string,
-  publishedSinceIso: string,
-): Promise<FeedArticleTotalRecord[]> {
-  await ensureProfile(userId);
-
-  const supabase = getSupabaseClient();
-  const db = supabase as any;
-
-  const { data, error } = await db
-    .from("articles")
-    .select(
-      `
-      feed_id,
-      feeds (
-        name
-      )
-    `,
-    )
-    .gte("published_at", publishedSinceIso);
-
-  if (error) {
-    throw error;
-  }
-
-  const counts = new Map<string, number>();
-  for (const row of data || []) {
-    const feedName = row.feeds?.name || "Unknown feed";
-    counts.set(feedName, (counts.get(feedName) || 0) + 1);
-  }
-
-  return Array.from(counts.entries()).map(([feedName, count]) => ({
-    feedName,
-    count,
-  }));
-}
-
-export interface PublishedArticleStatisticsRecord {
-  publishedAt: string;
-}
-
-export async function fetchPublishedArticleStatisticsForUser(
-  userId: string,
-  publishedSinceIso: string,
-): Promise<PublishedArticleStatisticsRecord[]> {
-  await ensureProfile(userId);
-
-  const supabase = getSupabaseClient();
-
-  const { data, error } = await supabase
-    .from("articles")
-    .select("published_at")
-    .gte("published_at", publishedSinceIso)
-    .order("published_at", { ascending: false });
-
-  if (error) {
-    throw error;
-  }
-
-  return (data || []).map((row: any) => ({
-    publishedAt: row.published_at,
-  }));
+  const row = data || {};
+  return {
+    weeks: Number(row.weeks) || 1,
+    today: String(row.today ?? ""),
+    windowStart: String(row.window_start ?? ""),
+    windowDays: Number(row.window_days) || 0,
+    totalRead: Number(row.total_read) || 0,
+    totalArticles: Number(row.total_articles) || 0,
+    thisWeekRead: Number(row.this_week_read) || 0,
+    thisWeekPublished: Number(row.this_week_published) || 0,
+    windowRead: Number(row.window_read) || 0,
+    windowPublished: Number(row.window_published) || 0,
+    readDays: (row.read_days || []).map(String),
+    feeds: (row.feeds || []).map((feed: any) => ({
+      feed: feed.feed ?? null,
+      read: Number(feed.read) || 0,
+      readPublished: Number(feed.read_published) || 0,
+      published: Number(feed.published) || 0,
+    })),
+    readHours: row.read_hours || [],
+    publishedHours: row.published_hours || [],
+  };
 }
