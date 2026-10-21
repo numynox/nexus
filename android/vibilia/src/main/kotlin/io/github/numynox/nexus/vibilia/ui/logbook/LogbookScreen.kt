@@ -58,7 +58,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.numynox.nexus.core.ui.NexusFormat
 import io.github.numynox.nexus.core.ui.components.EmptyState
 import io.github.numynox.nexus.core.ui.components.ErrorState
-import io.github.numynox.nexus.core.ui.components.LoadingState
+import io.github.numynox.nexus.core.ui.components.PlaceholderList
 import io.github.numynox.nexus.core.ui.components.NexusCard
 import io.github.numynox.nexus.core.ui.theme.NexusThemeDefaults
 import io.github.numynox.nexus.core.ui.theme.tabular
@@ -132,9 +132,9 @@ fun LogbookScreen(app: AppViewModel) {
                     "No vehicles yet",
                     "Add one under Settings to start your logbook.",
                 )
-                car == null -> LoadingState()
+                car == null -> PlaceholderList(count = 4, modifier = Modifier.padding(horizontal = 16.dp))
                 else -> when (val logbook = state) {
-                    Loadable.Loading -> LoadingState()
+                    Loadable.Loading -> PlaceholderList(count = 4, modifier = Modifier.padding(horizontal = 16.dp))
                     is Loadable.Failed -> ErrorState(logbook.message, onRetry = { viewModel.load(car!!.id, version, force = true) })
                     is Loadable.Ready -> PullToRefreshBox(
                         isRefreshing = false,

@@ -53,7 +53,7 @@ import io.github.numynox.nexus.core.ui.Loadable
 import io.github.numynox.nexus.core.ui.NexusFormat
 import io.github.numynox.nexus.core.ui.components.EmptyState
 import io.github.numynox.nexus.core.ui.components.ErrorState
-import io.github.numynox.nexus.core.ui.components.LoadingState
+import io.github.numynox.nexus.core.ui.components.PlaceholderList
 import io.github.numynox.nexus.core.ui.components.MetricCard
 import io.github.numynox.nexus.core.ui.components.MetricRow
 import io.github.numynox.nexus.core.ui.components.NexusCard
@@ -107,7 +107,7 @@ fun PantryScreen(app: AppViewModel, navigator: Navigator) {
             modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()),
         ) {
             when (val state = pantry) {
-                Loadable.Loading -> LoadingState()
+                Loadable.Loading -> PlaceholderList(count = 5, modifier = Modifier.padding(horizontal = 16.dp), lines = 1)
                 is Loadable.Failed -> ErrorState(state.message, onRetry = viewModel::load)
                 is Loadable.Ready -> {
                     val groups = state.value.items.groupBy { shelfLifeOf(it.expirationDate) }

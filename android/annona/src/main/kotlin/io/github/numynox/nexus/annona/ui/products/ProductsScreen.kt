@@ -55,7 +55,7 @@ import io.github.numynox.nexus.annona.ui.common.containerViewModel
 import io.github.numynox.nexus.core.ui.Loadable
 import io.github.numynox.nexus.core.ui.components.EmptyState
 import io.github.numynox.nexus.core.ui.components.ErrorState
-import io.github.numynox.nexus.core.ui.components.LoadingState
+import io.github.numynox.nexus.core.ui.components.PlaceholderList
 import io.github.numynox.nexus.core.ui.components.SectionHeader
 import io.github.numynox.nexus.core.ui.loadable
 import kotlinx.coroutines.async
@@ -115,7 +115,7 @@ fun ProductsScreen(app: AppViewModel, navigator: Navigator) {
             modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()),
         ) {
             when (val state = catalogue) {
-                Loadable.Loading -> LoadingState()
+                Loadable.Loading -> PlaceholderList(count = 5, modifier = Modifier.padding(horizontal = 16.dp), lines = 1)
                 is Loadable.Failed -> ErrorState(state.message, onRetry = viewModel::load)
                 is Loadable.Ready -> {
                     val needle = query.trim().lowercase()
