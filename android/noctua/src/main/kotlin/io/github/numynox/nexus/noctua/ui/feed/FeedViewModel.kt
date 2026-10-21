@@ -11,8 +11,12 @@ import io.github.numynox.nexus.noctua.BuildConfig
 import io.github.numynox.nexus.noctua.data.Article
 import io.github.numynox.nexus.noctua.data.FeedContent
 import io.github.numynox.nexus.noctua.data.NoctuaSettings
+import io.github.numynox.nexus.noctua.data.Section
 import java.time.Instant
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -54,6 +58,23 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
     private val _refreshing = MutableStateFlow(false)
     val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
 
+    /** Any load under way — first, section switch or refresh — for the header's indicator. */
+    private val _busy = MutableStateFlow(false)
+    val busy: StateFlow<Boolean> = _busy.asStateFlow()
+
+    /**
+     * The sections as last known: from the last load, or until there is one
+     * from the cache of the previous start. Null while neither has answered,
+     * which is not the same as none — only a load can say "no sections".
+     */
+    private val _sections = MutableStateFlow<List<Section>?>(null)
+    val sections: StateFlow<List<Section>?> = _sections.asStateFlow()
+
+    /** The section asked for, which the chips show at once, before its articles arrive. */
+    private val requested = MutableStateFlow<Long?>(null)
+    val section: StateFlow<Section?> = combine(_sections, requested) { sections, id -> sections?.let { resolve(it, id) } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
     /** Optimistic read marks and stars over what the load returned. */
     private val _reads = MutableStateFlow<Map<Long, Instant>>(emptyMap())
     val reads: StateFlow<Map<Long, Instant>> = _reads.asStateFlow()
@@ -93,6 +114,13 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
         FeedView(days, unseen, seenProgress(baseline, unseen))
     }.stateIn(viewModelScope, SharingStarted.Eagerly, FeedView(emptyList(), 0, 0f))
 
+    init {
+        viewModelScope.launch {
+            val cached = container.core.auth.awaitUserId()?.let { preferences.cachedSections(it) }
+            if (_sections.value == null) _sections.value = cached
+        }
+    }
+
     private suspend fun takeBaseline() {
         // The stored set, not [seen], which may not have loaded yet on the first call.
         baseline.value = unseenCount(days.first(), preferences.seen.first())
@@ -123,42 +151,70 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
 
     /** (Re)loads the given section; [sectionId] may be stale or unset and falls back to the first. */
     fun load(sectionId: Long?, refresh: Boolean = false) {
+        requested.value = sectionId
         // Only the latest request may land: an older one finishing late would
         // replace the list the reader is already scrolling.
         loading?.cancel()
         loading = viewModelScope.launch {
             // A superseded refresh never finishes, so the newest load owns the indicator.
             _refreshing.value = refresh
-            if (!refresh && _load.value !is Loadable.Ready) _load.value = Loadable.Loading
-            val result = loadable { fetch(sectionId) }
-            if (result is Loadable.Ready || !refresh) _load.value = result
-            if (result is Loadable.Ready) takeBaseline()
-            if (result is Loadable.Ready && refresh) _refreshed.tryEmit(Unit)
-            if (result is Loadable.Failed && refresh) _messages.tryEmit(result.message)
-            _refreshing.value = false
+            _busy.value = true
+            // Another section's articles under this section's name would be
+            // wrong, so a switch shows placeholders until its own arrive. A
+            // refresh, or a reload after editing sections, keeps the list.
+            val target = _sections.value?.let { resolve(it, sectionId)?.id }
+            val shown = _load.value.valueOrNull?.sectionId
+            if (!refresh && (_load.value !is Loadable.Ready || (target != null && target != shown))) _load.value = Loadable.Loading
+            try {
+                val result = loadable { fetch(sectionId) }
+                if (result is Loadable.Ready || !refresh) _load.value = result
+                if (result is Loadable.Ready) takeBaseline()
+                if (result is Loadable.Ready && refresh) _refreshed.tryEmit(Unit)
+                if (result is Loadable.Failed && refresh) _messages.tryEmit(result.message)
+            } finally {
+                if (loading == coroutineContext[Job]) {
+                    _refreshing.value = false
+                    _busy.value = false
+                }
+            }
         }
     }
 
-    private suspend fun fetch(requested: Long?): FeedLoad {
+    private suspend fun fetch(requested: Long?): FeedLoad = coroutineScope {
+        // Stars do not depend on the section, so they are asked for at once;
+        // the articles need the sections, and the rest needs the articles.
+        val starred = async { repository.starredIds() }
         val sections = repository.sections()
+        _sections.value = sections
+        container.core.auth.currentUserId?.let { preferences.cacheSections(it, sections) }
         // Always one section, as on the web: a mix of all of them is a section
         // the reader can make. None set up shows nothing but the hint to.
-        val section = sections.firstOrNull { it.id == requested } ?: sections.firstOrNull()
+        val section = resolve(sections, requested)
         val feeds = section?.feeds.orEmpty()
-        val content = repository.feedContent(sections, feeds, BuildConfig.ARTICLE_FETCH_LIMIT)
+        val articles = repository.articles(feeds, BuildConfig.ARTICLE_FETCH_LIMIT)
+        val reads = async { repository.reads(articles.map { it.id }) }
         val current = preferences.current()
         val seenNow = preferences.seen.first()
-        val hidden = if (current.hideSeen) content.articles.mapNotNullTo(HashSet()) { a -> a.id.takeIf { it in seenNow } } else emptySet()
+        val hidden = if (current.hideSeen) articles.mapNotNullTo(HashSet()) { a -> a.id.takeIf { it in seenNow } } else emptySet()
         // Grouping is a nicety: without it every story simply stands alone.
-        val groups = runCatching {
-            repository.similarGroups(content.articles.filter { it.id !in hidden }.map { it.id })
-        }.getOrDefault(emptyMap())
+        val groups = async {
+            try {
+                repository.similarGroups(articles.filter { it.id !in hidden }.map { it.id })
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                emptyMap()
+            }
+        }
+        val content = FeedContent(sections, articles, reads.await(), starred.await())
         _reads.value = content.reads
         _starred.value = content.starred
         feedFilter.value = feedFilter.value?.takeIf { id -> feeds.any { it.id == id } }
         _expanded.value = emptySet()
-        return FeedLoad(content, section?.id, hidden, groups)
+        FeedLoad(content, section?.id, hidden, groups.await())
     }
+
+    private fun resolve(sections: List<Section>, id: Long?): Section? = sections.firstOrNull { it.id == id } ?: sections.firstOrNull()
 
     fun toggleExpanded(articleId: Long) = _expanded.update { if (articleId in it) it - articleId else it + articleId }
 

@@ -58,6 +58,7 @@ import io.github.numynox.nexus.core.ui.settings.AppearanceCard
 import io.github.numynox.nexus.core.ui.settings.SettingSwitch
 import io.github.numynox.nexus.noctua.data.DEFAULT_SECTION_ICON
 import io.github.numynox.nexus.noctua.data.Density
+import io.github.numynox.nexus.noctua.ui.common.label
 import io.github.numynox.nexus.noctua.data.Section
 import io.github.numynox.nexus.noctua.data.SortOrder
 import io.github.numynox.nexus.noctua.ui.AppViewModel
@@ -150,7 +151,7 @@ fun SettingsScreen(app: AppViewModel, onOpenSection: (Long) -> Unit) {
                         options = Density.entries,
                         selected = settings.density,
                         onSelect = app::setDensity,
-                        label = { if (it == Density.Comfortable) "Cards" else "Compact" },
+                        label = { it.label },
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                     )
                     Text("Order", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp))
