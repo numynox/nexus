@@ -132,25 +132,37 @@ internal data class GroupRow(
     @SerialName("group_key") val groupKey: Long,
 )
 
-/** One read, with its feed — what the statistics are computed from. */
-data class ReadRecord(val articleId: Long, val readAt: Instant, val feedName: String)
-
+/**
+ * What `noctua_reading_statistics` returns: Noctua's statistics counted in
+ * Postgres, like the web's `ReadingStatistics`. Days are YYYY-MM-DD in the
+ * backend's reporting time zone; hour cells are [weekday (0 = Monday), hour, count].
+ */
 @Serializable
-internal data class ReadStatisticsRow(
-    @SerialName("article_id") val articleId: Long,
-    @SerialName("read_at") val readAt: Instant,
-    val articles: ArticleFeedRow? = null,
+data class ReadingStatisticsRow(
+    val weeks: Int = 1,
+    val today: String,
+    @SerialName("window_start") val windowStart: String,
+    @SerialName("window_days") val windowDays: Int = 0,
+    @SerialName("total_read") val totalRead: Int = 0,
+    @SerialName("total_articles") val totalArticles: Long = 0,
+    @SerialName("this_week_read") val thisWeekRead: Int = 0,
+    @SerialName("this_week_published") val thisWeekPublished: Int = 0,
+    @SerialName("window_read") val windowRead: Int = 0,
+    @SerialName("window_published") val windowPublished: Int = 0,
+    @SerialName("read_days") val readDays: List<String> = emptyList(),
+    val feeds: List<FeedStatisticsRow> = emptyList(),
+    @SerialName("read_hours") val readHours: List<List<Int>> = emptyList(),
+    @SerialName("published_hours") val publishedHours: List<List<Int>> = emptyList(),
 )
 
+/** A feed read in the window; [readPublished] counts reads of articles also published in it. */
 @Serializable
-internal data class ArticleFeedRow(
-    @SerialName("feed_id") val feedId: Long? = null,
-    @SerialName("published_at") val publishedAt: Instant? = null,
-    val feeds: FeedName? = null,
+data class FeedStatisticsRow(
+    val feed: String? = null,
+    val read: Int = 0,
+    @SerialName("read_published") val readPublished: Int = 0,
+    val published: Int = 0,
 )
-
-@Serializable
-internal data class FeedName(val name: String? = null)
 
 /** Feed descriptions often carry markup; the list shows text. */
 internal fun plainText(html: String): String =

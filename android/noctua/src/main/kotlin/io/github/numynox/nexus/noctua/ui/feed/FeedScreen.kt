@@ -25,7 +25,9 @@ import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.ViewAgenda
+import androidx.compose.material.icons.rounded.ViewHeadline
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -36,6 +38,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
@@ -70,7 +73,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.numynox.nexus.core.ui.Loadable
 import io.github.numynox.nexus.core.ui.components.EmptyState
 import io.github.numynox.nexus.core.ui.components.ErrorState
-import io.github.numynox.nexus.core.ui.components.LoadingState
+import io.github.numynox.nexus.core.ui.components.PlaceholderBlock
 import io.github.numynox.nexus.core.ui.components.UpdateBanner
 import io.github.numynox.nexus.noctua.data.Density
 import io.github.numynox.nexus.noctua.data.Section
@@ -80,6 +83,7 @@ import io.github.numynox.nexus.noctua.ui.common.ArticleActions
 import io.github.numynox.nexus.noctua.ui.common.ArticleCard
 import io.github.numynox.nexus.noctua.ui.common.FeedIcon
 import io.github.numynox.nexus.noctua.ui.common.containerViewModel
+import io.github.numynox.nexus.noctua.ui.common.label
 import io.github.numynox.nexus.noctua.ui.common.openArticle
 import io.github.numynox.nexus.noctua.ui.common.sectionIcon
 import io.github.numynox.nexus.noctua.ui.common.shareArticle
@@ -107,6 +111,9 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
     val seen by viewModel.seen.collectAsStateWithLifecycle()
     val expanded by viewModel.expanded.collectAsStateWithLifecycle()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
+    val busy by viewModel.busy.collectAsStateWithLifecycle()
+    val knownSections by viewModel.sections.collectAsStateWithLifecycle()
+    val section by viewModel.section.collectAsStateWithLifecycle()
     val query by viewModel.query.collectAsStateWithLifecycle()
     val feedFilter by viewModel.feedFilter.collectAsStateWithLifecycle()
 
@@ -125,8 +132,9 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
     }
 
     val loaded = (load as? Loadable.Ready)?.value
-    val sections = loaded?.content?.sections.orEmpty()
-    val section = sections.firstOrNull { it.id == loaded?.sectionId }
+    // Known before the first load lands when cached from the last start, so
+    // the header is complete at once; only a load can say there are none.
+    val sections = knownSections.orEmpty()
     val rows = remember(view.days) {
         view.days.flatMap { day -> listOf<Row>(Row.Header(day.label)) + day.items.map { Row.Story(it) } }
     }
@@ -191,10 +199,19 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
                             colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                             title = {
                                 Column {
-                                    Text(feedFilter?.let { id -> section?.feeds?.firstOrNull { it.id == id }?.name } ?: section?.name ?: "No sections")
+                                    val title = feedFilter?.let { id -> section?.feeds?.firstOrNull { it.id == id }?.name }
+                                        ?: section?.name
+                                        ?: if (loaded != null) "No sections" else null
+                                    if (title != null) Text(title) else PlaceholderBlock(width = 140.dp, height = 20.dp)
                                     if (loaded != null && sections.isNotEmpty()) {
                                         Text(
                                             if (view.unseen == 0) "All caught up" else "${view.unseen} new",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    } else if (load is Loadable.Loading) {
+                                        Text(
+                                            "Loading…",
                                             style = MaterialTheme.typography.bodyMedium,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
@@ -203,8 +220,8 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
                             },
                             actions = {
                                 IconButton(onClick = { searching = true }) { Icon(Icons.Rounded.Search, contentDescription = "Search") }
-                                if (section != null && section.feeds.size > 1) {
-                                    FeedFilterButton(section, feedFilter, viewModel::setFeedFilter)
+                                section?.takeIf { it.feeds.size > 1 }?.let { shown ->
+                                    FeedFilterButton(shown, feedFilter, viewModel::setFeedFilter)
                                 }
                                 OverflowMenu(
                                     density = settings.density,
@@ -217,12 +234,20 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
                             },
                         )
                     }
-                    if (loaded != null && sections.isNotEmpty()) {
-                        SectionChips(sections, loaded.sectionId, onSelect = { id ->
+                    if (sections.isNotEmpty()) {
+                        SectionChips(sections, section?.id, onSelect = { id ->
                             scope.launch { listState.scrollToItem(0) }
                             app.selectSection(id)
                         })
-                        ReadingProgress(view.progress, Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                    }
+                    // While anything loads the bar moves, so a switch or a
+                    // refresh is never silent; otherwise it is the reading progress.
+                    Box(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        if (busy) {
+                            LinearWavyProgressIndicator(Modifier.fillMaxWidth())
+                        } else if (loaded != null && sections.isNotEmpty()) {
+                            ReadingProgress(view.progress)
+                        }
                     }
                 }
             }
@@ -233,7 +258,7 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
         // headings stick under the header rather than out of sight beneath it.
         val contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp)
         when (val state = load) {
-            Loadable.Loading -> LoadingState(Modifier.fillMaxSize().padding(padding))
+            Loadable.Loading -> FeedPlaceholders(settings.density, Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()).padding(contentPadding))
             is Loadable.Failed -> ErrorState(state.message, onRetry = { viewModel.load(settings.selectedSectionId) }, modifier = Modifier.padding(padding))
             is Loadable.Ready -> Box(
                 Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()).nestedScroll(endPull),
@@ -403,14 +428,25 @@ private fun OverflowMenu(
                 leadingIcon = { Icon(Icons.AutoMirrored.Rounded.Sort, contentDescription = null) },
                 onClick = { open = false; onSortOrder(if (sortOrder == SortOrder.Newest) SortOrder.Oldest else SortOrder.Newest) },
             )
-            DropdownMenuItem(
-                text = { Text(if (density == Density.Comfortable) "Compact list" else "Cards with images") },
-                leadingIcon = { Icon(Icons.Rounded.ViewAgenda, contentDescription = null) },
-                onClick = { open = false; onDensity(if (density == Density.Comfortable) Density.Compact else Density.Comfortable) },
-            )
+            HorizontalDivider()
+            Density.entries.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option.label) },
+                    leadingIcon = { Icon(option.icon, contentDescription = null) },
+                    trailingIcon = { if (option == density) Icon(Icons.Rounded.Check, contentDescription = "Selected") },
+                    onClick = { open = false; onDensity(option) },
+                )
+            }
         }
     }
 }
+
+private val Density.icon
+    get() = when (this) {
+        Density.Stories -> Icons.Rounded.Image
+        Density.Comfortable -> Icons.Rounded.ViewAgenda
+        Density.Compact -> Icons.Rounded.ViewHeadline
+    }
 
 @Composable
 private fun SearchBar(query: String, onQuery: (String) -> Unit, onClose: () -> Unit) {

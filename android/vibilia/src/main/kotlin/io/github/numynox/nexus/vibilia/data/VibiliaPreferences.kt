@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import io.github.numynox.nexus.core.data.NexusJson
 import io.github.numynox.nexus.core.ui.theme.ThemeMode
+import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -25,6 +26,10 @@ data class VibiliaSettings(
     val dynamicColor: Boolean = false,
     /** Whether this phone records drives over Bluetooth. Per phone, never synced. */
     val trackDrives: Boolean = false,
+    /** A daily notification when a car's tank runs low. Per phone, off by default. */
+    val refuelRemindersOn: Boolean = false,
+    /** Below this fill level, in percent (10–40), a car counts as low. */
+    val refuelReminderPercent: Int = 20,
 )
 
 /**
@@ -45,6 +50,9 @@ class VibiliaPreferences(private val context: Context) {
         val TrackDrives = booleanPreferencesKey("track_drives")
         val DeviceId = stringPreferencesKey("device_id")
         val BluetoothLinks = stringPreferencesKey("bluetooth_links")
+        val RefuelRemindersOn = booleanPreferencesKey("refuel_reminders_on")
+        val RefuelReminderPercent = intPreferencesKey("refuel_reminder_percent")
+        val RefuelReminderSentOn = stringPreferencesKey("refuel_reminder_sent_on")
     }
 
     val settings: Flow<VibiliaSettings> = context.vibiliaStore.data.map { it.toSettings() }
@@ -56,6 +64,8 @@ class VibiliaPreferences(private val context: Context) {
         themeMode = ThemeMode.entries.firstOrNull { it.name == this[Keys.ThemeMode] } ?: ThemeMode.System,
         dynamicColor = this[Keys.DynamicColor] ?: false,
         trackDrives = this[Keys.TrackDrives] ?: false,
+        refuelRemindersOn = this[Keys.RefuelRemindersOn] ?: false,
+        refuelReminderPercent = (this[Keys.RefuelReminderPercent] ?: 20).coerceIn(10, 40),
     )
 
     suspend fun current(): VibiliaSettings = settings.first()
@@ -66,6 +76,14 @@ class VibiliaPreferences(private val context: Context) {
     suspend fun setThemeMode(value: ThemeMode) = edit { it[Keys.ThemeMode] = value.name }
     suspend fun setDynamicColor(value: Boolean) = edit { it[Keys.DynamicColor] = value }
     suspend fun setTrackDrives(value: Boolean) = edit { it[Keys.TrackDrives] = value }
+    suspend fun setRefuelRemindersOn(value: Boolean) = edit { it[Keys.RefuelRemindersOn] = value }
+    suspend fun setRefuelReminderPercent(value: Int) = edit { it[Keys.RefuelReminderPercent] = value.coerceIn(10, 40) }
+
+    /** The day the last refuel reminder went out, so one day gets one. */
+    suspend fun refuelReminderSentOn(): LocalDate? =
+        context.vibiliaStore.data.first()[Keys.RefuelReminderSentOn]?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+
+    suspend fun setRefuelReminderSentOn(day: LocalDate) = edit { it[Keys.RefuelReminderSentOn] = day.toString() }
 
     /** A random id per installation, so the server can tell this phone's reports apart. */
     suspend fun deviceId(): String {

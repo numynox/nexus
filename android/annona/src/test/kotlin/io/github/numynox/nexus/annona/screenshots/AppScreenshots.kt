@@ -130,6 +130,7 @@ class AppScreenshots {
 
         tap("Settings")
         scrollTo("Sign out")
+        shot("16b-settings-account-dark")
         tap("Sign out")
         waitForText("Sign in")
         shot("17-sign-in-dark")

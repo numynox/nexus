@@ -37,6 +37,30 @@ data class FuelLevel(
             null
         }
 
+    /** What a full tank takes now. */
+    val litersToFull: Double get() = (tankCapacity - remainingLiters).coerceAtLeast(0.0)
+
+    /**
+     * Litres used per calendar day: the calendar method's own rate, or for
+     * the drive method what this tank has used per day so far — so a car
+     * driven daily empties sooner than one left standing. Null for a tank
+     * younger than a day, which says too little.
+     */
+    fun litersPerCalendarDay(now: Instant = Instant.now()): Double? {
+        if (method == Method.Time) return litersPerDay?.takeIf { it > 0 }
+        val days = Duration.between(lastRefuelAt, now).toMillis() / 86_400_000.0
+        val used = startingLiters - remainingLiters
+        return if (days >= 1 && used > 0) used / days else null
+    }
+
+    /** When the tank runs dry at [litersPerCalendarDay], or null when that is unknown. */
+    fun emptyAt(now: Instant = Instant.now()): Instant? {
+        val perDay = litersPerCalendarDay(now) ?: return null
+        val days = remainingLiters / perDay
+        if (days > 365) return null
+        return now.plusSeconds((days * 86_400).toLong())
+    }
+
     /**
      * Adds driving this phone has seen but not uploaded yet — above all the
      * drive in progress — so the gauge moves while you drive.

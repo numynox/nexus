@@ -1,26 +1,27 @@
 package io.github.numynox.nexus.noctua.ui.statistics
 
-import io.github.numynox.nexus.noctua.data.PublishedArticle
-import io.github.numynox.nexus.noctua.data.ReadRecord
-import java.time.DayOfWeek
-import java.time.Instant
+import io.github.numynox.nexus.noctua.data.ReadingStatisticsRow
 import java.time.LocalDate
-import java.time.ZoneId
-import java.time.temporal.ChronoUnit
-import java.time.temporal.TemporalAdjusters
 
-data class FeedReads(val feed: String, val read: Int, val published: Int) {
-    /** Share of the feed's articles in the window that were read, 0–1. */
-    val share: Double get() = if (published > 0) read.toDouble() / published else 0.0
+data class FeedReads(
+    val feed: String,
+    val read: Int,
+    val published: Int,
+    /** Reads of articles that were also published in the window. */
+    val readPublished: Int = read,
+) {
+    /** Share of the feed's articles in the window that were read, 0–1: the same articles on both sides. */
+    val share: Double get() = if (published > 0) readPublished.toDouble() / published else 0.0
 }
 
 data class BusiestHour(val hour: Int, val count: Int)
 
 /**
- * The web statistics dashboard's numbers (StatisticsDashboard.svelte), worked
- * out the same way: weeks start on Monday, the window is the configured number
- * of weeks or fewer if reading started more recently, days are local
- * calendar days.
+ * The web statistics dashboard's numbers (StatisticsDashboard.svelte), from
+ * the same counts: `noctua_reading_statistics` does the counting, both clients
+ * only shape the result. Weeks start on Monday, the window is the configured
+ * number of weeks or fewer if reading started more recently, days are calendar
+ * days in the backend's reporting time zone.
  */
 data class ReadingStats(
     val weeks: Int,
@@ -33,6 +34,7 @@ data class ReadingStats(
     val currentStreak: Int,
     val longestStreak: Int,
     val activeDays: Int,
+    /** Days of the window so far, today included — not the rest of this week. */
     val windowDays: Int,
     val busiestHour: BusiestHour?,
     val feeds: List<FeedReads>,
@@ -46,34 +48,11 @@ data class ReadingStats(
     val mostReadFeed: FeedReads? get() = feeds.firstOrNull()
 
     companion object {
-        fun startOfWeek(date: LocalDate): LocalDate = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-
-        /** How many weeks the window spans, given the oldest read. */
-        fun windowWeeks(oldestRead: Instant?, configuredWeeks: Int, today: LocalDate, zone: ZoneId): Int {
-            if (oldestRead == null) return configuredWeeks.coerceAtLeast(1)
-            val weeks = ChronoUnit.WEEKS.between(startOfWeek(oldestRead.atZone(zone).toLocalDate()), startOfWeek(today)).toInt() + 1
-            return weeks.coerceAtMost(configuredWeeks).coerceAtLeast(1)
-        }
-
-        fun windowStart(weeks: Int, today: LocalDate): LocalDate = startOfWeek(today).minusWeeks((weeks - 1).toLong())
-
-        fun compute(
-            reads: List<ReadRecord>,
-            published: List<PublishedArticle>,
-            totalArticles: Long,
-            weeks: Int,
-            today: LocalDate,
-            zone: ZoneId,
-        ): ReadingStats {
-            val windowStart = windowStart(weeks, today)
-            val weekStart = startOfWeek(today)
-            fun Instant.date() = atZone(zone).toLocalDate()
-            fun Instant.hour() = atZone(zone).hour
-            fun Instant.weekday() = date().dayOfWeek.value - 1
-
-            val inWindow = reads.filter { !it.readAt.date().isBefore(windowStart) }
-            val publishedInWindow = published.filter { !it.publishedAt.date().isBefore(windowStart) }
-            val readDays = reads.mapTo(HashSet()) { it.readAt.date() }
+        fun from(row: ReadingStatisticsRow): ReadingStats {
+            val weeks = row.weeks.coerceAtLeast(1)
+            val today = LocalDate.parse(row.today)
+            val windowStart = LocalDate.parse(row.windowStart)
+            val readDays = row.readDays.mapNotNullTo(HashSet()) { runCatching { LocalDate.parse(it) }.getOrNull() }
 
             var current = 0
             var cursor = today
@@ -92,35 +71,38 @@ data class ReadingStats(
                 previous = day
             }
 
-            val hours = IntArray(24).also { counts -> inWindow.forEach { counts[it.readAt.hour()]++ } }
+            val readHeatmap = heatmap(row.readHours)
+            val hours = IntArray(24) { hour -> readHeatmap.sumOf { it[hour] } }
             val busiest = hours.indices.maxByOrNull { hours[it] }?.takeIf { hours[it] > 0 }?.let { BusiestHour(it, hours[it]) }
-
-            val publishedByFeed = publishedInWindow.groupingBy { it.feedName }.eachCount()
-            val feeds = inWindow.groupingBy { it.feedName }.eachCount()
-                .map { (feed, count) -> FeedReads(feed, count, publishedByFeed[feed] ?: 0) }
-                .sortedWith(compareByDescending<FeedReads> { it.read }.thenBy { it.feed })
-
-            fun heatmap(times: List<Instant>) = List(7) { day -> List(24) { hour -> times.count { it.weekday() == day && it.hour() == hour } } }
-            val weekdays = IntArray(7).also { counts -> inWindow.forEach { counts[it.readAt.weekday()]++ } }
 
             return ReadingStats(
                 weeks = weeks,
-                totalRead = reads.size,
-                totalArticles = totalArticles,
-                thisWeekRead = reads.count { !it.readAt.date().isBefore(weekStart) },
-                thisWeekPublished = publishedInWindow.count { !it.publishedAt.date().isBefore(weekStart) },
-                averageReadPerWeek = inWindow.size.toDouble() / weeks,
-                averagePublishedPerWeek = publishedInWindow.size.toDouble() / weeks,
+                totalRead = row.totalRead,
+                totalArticles = row.totalArticles,
+                thisWeekRead = row.thisWeekRead,
+                thisWeekPublished = row.thisWeekPublished,
+                averageReadPerWeek = row.windowRead.toDouble() / weeks,
+                averagePublishedPerWeek = row.windowPublished.toDouble() / weeks,
                 currentStreak = current,
                 longestStreak = longest,
-                activeDays = inWindow.mapTo(HashSet()) { it.readAt.date() }.size,
-                windowDays = weeks * 7,
+                activeDays = readDays.count { !it.isBefore(windowStart) },
+                windowDays = row.windowDays,
                 busiestHour = busiest,
-                feeds = feeds,
-                weekdayAverages = weekdays.map { it.toDouble() / weeks },
-                readHeatmap = heatmap(inWindow.map { it.readAt }),
-                publishedHeatmap = heatmap(publishedInWindow.map { it.publishedAt }),
+                feeds = row.feeds.map { FeedReads(it.feed ?: "Unknown feed", it.read, it.published, it.readPublished) },
+                weekdayAverages = readHeatmap.map { day -> day.sum().toDouble() / weeks },
+                readHeatmap = readHeatmap,
+                publishedHeatmap = heatmap(row.publishedHours),
             )
+        }
+
+        /** Seven rows of 24 hours from the non-empty [weekday, hour, count] cells. */
+        private fun heatmap(cells: List<List<Int>>): List<List<Int>> {
+            val grid = List(7) { IntArray(24) }
+            cells.forEach { cell ->
+                val (day, hour, count) = cell.takeIf { it.size == 3 } ?: return@forEach
+                if (day in 0..6 && hour in 0..23) grid[day][hour] = count
+            }
+            return grid.map { it.toList() }
         }
     }
 }

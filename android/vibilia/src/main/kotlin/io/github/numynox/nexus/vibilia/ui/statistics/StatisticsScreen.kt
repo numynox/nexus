@@ -49,6 +49,7 @@ import io.github.numynox.nexus.core.ui.chart.SeriesStyle
 import io.github.numynox.nexus.core.ui.components.EmptyState
 import io.github.numynox.nexus.core.ui.components.ErrorState
 import io.github.numynox.nexus.core.ui.components.LoadingState
+import io.github.numynox.nexus.core.ui.components.PlaceholderList
 import io.github.numynox.nexus.core.ui.components.MetricCard
 import io.github.numynox.nexus.core.ui.components.MetricRow
 import io.github.numynox.nexus.core.ui.components.NexusCard
@@ -87,9 +88,9 @@ fun StatisticsScreen(app: AppViewModel) {
             when {
                 cars is Loadable.Ready && car == null ->
                     EmptyState(Icons.Rounded.DirectionsCar, "No vehicles yet", "Add one under Settings to see its statistics.")
-                car == null -> LoadingState()
+                car == null -> PlaceholderList(count = 4, modifier = Modifier.padding(horizontal = 16.dp))
                 else -> when (val overview = state.overview) {
-                    Loadable.Loading -> LoadingState()
+                    Loadable.Loading -> PlaceholderList(count = 4, modifier = Modifier.padding(horizontal = 16.dp))
                     is Loadable.Failed -> ErrorState(overview.message, onRetry = { viewModel.load(car!!.id, version, settings.fuelType, force = true) })
                     is Loadable.Ready -> StatisticsContent(overview.value, state, settings.fuelType, viewModel::setRange)
                 }
@@ -242,7 +243,7 @@ private fun DrivingSection(overview: CarOverview, model: DriveModel) {
         }
         val assumed = model.sampleCount == 0
         Row(Modifier.padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ModelFigure("Speed", model.kmPerHour?.let { "${if (assumed) "≈ " else ""}${NexusFormat.number(it, 0)} km/h" } ?: "Learning", Modifier.weight(1f))
+            ModelFigure("Speed", model.kmPerHour?.let { "${NexusFormat.number(it, 0)} km/h" } ?: "Learning", Modifier.weight(1f))
             ModelFigure("Fuel", model.litersPerHour?.let { "${NexusFormat.number(it, 1)} L/h" } ?: "—", Modifier.weight(1f))
             ModelFigure("Learned from", if (assumed) "Assumed" else "${model.sampleCount} tanks", Modifier.weight(1f))
         }

@@ -51,6 +51,7 @@ class AppScreenshots {
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION,
             Manifest.permission.BLUETOOTH_CONNECT,
+            Manifest.permission.POST_NOTIFICATIONS,
         )
         val manager = app.getSystemService(LocationManager::class.java)
         val shadow = shadowOf(manager)
@@ -80,7 +81,7 @@ class AppScreenshots {
 
     @Test
     fun walkThroughTheApp() {
-        waitFor(hasText("My stations"))
+        waitFor(hasText("Fill up"))
         shot("01-prices")
         scrollTo("Esso")
         shot("02-prices-stations")
@@ -124,6 +125,12 @@ class AppScreenshots {
         settle()
         shot("12-vehicle-sharing")
         back()
+
+        scrollTo("Remind me to refuel")
+        compose.onAllNodes(hasText("Remind me to refuel")).onFirst().performClick()
+        robot.awaitPreferences()
+        scrollTo("Low below")
+        shot("12b-settings-refuel-reminder")
 
         scrollTo("Wallpaper colours")
         compose.onAllNodes(hasText("Dark") and hasClickAction()).onFirst().performClick()

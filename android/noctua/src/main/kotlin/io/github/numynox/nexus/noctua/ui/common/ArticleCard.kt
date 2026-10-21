@@ -53,6 +53,16 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.ProvideTextStyle
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import io.github.numynox.nexus.noctua.R
 import coil3.compose.AsyncImage
 import coil3.compose.SubcomposeAsyncImage
 import io.github.numynox.nexus.core.ui.theme.NexusThemeDefaults
@@ -60,6 +70,14 @@ import io.github.numynox.nexus.noctua.data.Article
 import io.github.numynox.nexus.noctua.data.Density
 import io.github.numynox.nexus.noctua.ui.feed.relativeAge
 import kotlinx.coroutines.launch
+
+/** What the layout is called in settings and the feed's menu. */
+val Density.label: String
+    get() = when (this) {
+        Density.Stories -> "Stories"
+        Density.Comfortable -> "Cards"
+        Density.Compact -> "Compact"
+    }
 
 /** What can be done to an article from its card. */
 data class ArticleActions(
@@ -115,7 +133,11 @@ fun ArticleCard(
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column {
-                ArticleBody(article, read, starred, density, actions, caption, Modifier.alpha(alpha))
+                if (density == Density.Stories) {
+                    StoryBody(article, read, starred, actions, caption, faded ?: (read || seen), Modifier.alpha(alpha))
+                } else {
+                    ArticleBody(article, read, starred, density, actions, caption, Modifier.alpha(alpha))
+                }
                 if (similar.isNotEmpty()) {
                     SimilarStories(similar, similarExpanded, onToggleSimilar, actions, Modifier.alpha(alpha))
                 }
@@ -197,27 +219,158 @@ private fun ArticleBody(
                 )
             }
         }
-        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-            DropdownMenuItem(
-                text = { Text("Open") },
-                leadingIcon = { Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null) },
-                onClick = { menu = false; actions.open(article) },
+        ArticleMenu(menu, onDismiss = { menu = false }, article, read, starred, actions)
+    }
+}
+
+/** The long press: open, star, read and share — the same in every layout. */
+@Composable
+private fun ArticleMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    article: Article,
+    read: Boolean,
+    starred: Boolean,
+    actions: ArticleActions,
+) {
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        DropdownMenuItem(
+            text = { Text("Open") },
+            leadingIcon = { Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null) },
+            onClick = { onDismiss(); actions.open(article) },
+        )
+        DropdownMenuItem(
+            text = { Text(if (starred) "Remove star" else "Star") },
+            leadingIcon = { Icon(if (starred) Icons.Rounded.StarOutline else Icons.Rounded.Star, contentDescription = null) },
+            onClick = { onDismiss(); actions.toggleStar(article) },
+        )
+        DropdownMenuItem(
+            text = { Text(if (read) "Mark unread" else "Mark read") },
+            leadingIcon = { Icon(if (read) Icons.Rounded.MarkEmailUnread else Icons.Rounded.CheckCircle, contentDescription = null) },
+            onClick = { onDismiss(); actions.toggleRead(article) },
+        )
+        DropdownMenuItem(
+            text = { Text("Share") },
+            leadingIcon = { Icon(Icons.Rounded.Share, contentDescription = null) },
+            onClick = { onDismiss(); actions.share(article) },
+        )
+    }
+}
+
+private val StoryImageHeight = 176.dp
+
+/** How far the text reaches up into the image, over its fade — the web card's `-mt-18`. */
+private val StoryOverlap = 72.dp
+
+/**
+ * The web app's default card: the image across the full width, fading into
+ * the card, and over its foot the feed, age and author, then the headline, the
+ * summary and the article's tags. Without an image, the web's placeholder
+ * takes its place, so every story has the same shape.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun StoryBody(
+    article: Article,
+    read: Boolean,
+    starred: Boolean,
+    actions: ArticleActions,
+    caption: String?,
+    faded: Boolean,
+    modifier: Modifier,
+) {
+    var menu by remember { mutableStateOf(false) }
+    val haptics = LocalHapticFeedback.current
+    val card = MaterialTheme.colorScheme.surfaceContainerLow
+    val placeholder = painterResource(R.drawable.article_placeholder)
+    // The web's grayscale-25 on read and seen stories.
+    val filter = remember(faded) { if (faded) ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0.75f) }) else null }
+    Box(
+        modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = { actions.open(article) },
+                onLongClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    menu = true
+                },
+            ),
+    ) {
+        Box(Modifier.fillMaxWidth().height(StoryImageHeight).background(MaterialTheme.colorScheme.surfaceContainerHighest)) {
+            AsyncImage(
+                model = article.imageUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                placeholder = placeholder,
+                error = placeholder,
+                fallback = placeholder,
+                colorFilter = filter,
+                modifier = Modifier.fillMaxSize(),
             )
-            DropdownMenuItem(
-                text = { Text(if (starred) "Remove star" else "Star") },
-                leadingIcon = { Icon(if (starred) Icons.Rounded.StarOutline else Icons.Rounded.Star, contentDescription = null) },
-                onClick = { menu = false; actions.toggleStar(article) },
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(88.dp)
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, card))),
             )
-            DropdownMenuItem(
-                text = { Text(if (read) "Mark unread" else "Mark read") },
-                leadingIcon = { Icon(if (read) Icons.Rounded.MarkEmailUnread else Icons.Rounded.CheckCircle, contentDescription = null) },
-                onClick = { menu = false; actions.toggleRead(article) },
+        }
+        Column(
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = StoryImageHeight - StoryOverlap, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                StoryBadge { FeedIcon(article.feedIcon, Modifier.size(14.dp)); Text(article.feedName, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                relativeAge(article.time).takeIf { it.isNotBlank() }?.let { age -> StoryBadge { Text(age) } }
+                article.author?.let { author -> StoryBadge { Text(author, maxLines = 1, overflow = TextOverflow.Ellipsis) } }
+                if (starred) StoryBadge { Icon(Icons.Rounded.Star, contentDescription = "Starred", tint = NexusThemeDefaults.extendedColors.warning, modifier = Modifier.size(14.dp)) }
+            }
+            Text(
+                article.title,
+                style = MaterialTheme.typography.titleLarge.copy(fontSize = 18.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold),
             )
-            DropdownMenuItem(
-                text = { Text("Share") },
-                leadingIcon = { Icon(Icons.Rounded.Share, contentDescription = null) },
-                onClick = { menu = false; actions.share(article) },
-            )
+            if (article.summary != null) {
+                Text(
+                    article.summary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (read || article.tags.isNotEmpty()) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (read) {
+                        StoryBadge(small = true, color = NexusThemeDefaults.extendedColors.successContainer, contentColor = NexusThemeDefaults.extendedColors.onSuccessContainer) {
+                            Text("Read")
+                        }
+                    }
+                    article.tags.take(3).forEach { tag -> StoryBadge(small = true) { Text(tag, maxLines = 1, overflow = TextOverflow.Ellipsis) } }
+                }
+            }
+            if (caption != null) {
+                Text(caption, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+            }
+        }
+        ArticleMenu(menu, onDismiss = { menu = false }, article, read, starred, actions)
+    }
+}
+
+/** The web's `badge-neutral`: a small opaque pill, readable over the image's fade. */
+@Composable
+private fun StoryBadge(
+    small: Boolean = false,
+    color: Color = MaterialTheme.colorScheme.surfaceContainerHighest,
+    contentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    content: @Composable () -> Unit,
+) {
+    Surface(color = color, contentColor = contentColor, shape = CircleShape) {
+        ProvideTextStyle(if (small) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium) {
+            Row(
+                Modifier.padding(horizontal = if (small) 8.dp else 10.dp, vertical = if (small) 2.dp else 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) { content() }
         }
     }
 }

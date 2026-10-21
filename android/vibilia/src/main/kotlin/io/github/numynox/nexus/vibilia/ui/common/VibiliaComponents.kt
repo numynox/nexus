@@ -34,7 +34,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bluetooth
-import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.DropdownMenu
@@ -81,6 +80,7 @@ import io.github.numynox.nexus.vibilia.data.LastDrive
 import io.github.numynox.nexus.vibilia.data.StationPrice
 import java.time.Duration
 import java.time.Instant
+import java.time.ZoneId
 import kotlinx.coroutines.delay
 
 /** A German number plate in miniature: white, black rim, the blue EU strip. */
@@ -189,7 +189,7 @@ fun LastDriveLine(drive: LastDrive, modifier: Modifier = Modifier) {
             listOfNotNull(
                 "Last drive ${NexusFormat.dateTime(drive.startedAt)}",
                 NexusFormat.duration(drive.hours),
-                drive.estimatedKm?.let { "≈ ${NexusFormat.km(it)}" },
+                drive.estimatedKm?.let { NexusFormat.km(it) },
             ).joinToString(" · "),
             style = MaterialTheme.typography.bodySmall.tabular(),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -245,12 +245,12 @@ fun LiveDriveBanner(visible: Boolean, carName: String, startedAt: Instant?, modi
 }
 
 /**
- * How full the tank is: an arc from E to F that sweeps to its level, the
- * litres left, the range at the learned consumption, and which method the
- * estimate came from.
+ * How full the tank is: an arc from E to F that sweeps to its level, and
+ * beside it what follows — litres left, range, the cost of filling up at
+ * [cheapest] (our cheapest station now, after discounts), and when it runs dry.
  */
 @Composable
-fun FuelGaugeCard(level: FuelLevel, carName: String, modifier: Modifier = Modifier) {
+fun FuelGaugeCard(level: FuelLevel, carName: String, cheapest: StationPrice?, modifier: Modifier = Modifier) {
     val extended = NexusThemeDefaults.extendedColors
     val ratio = level.fillRatio
     val targetColor = when {
@@ -265,6 +265,8 @@ fun FuelGaugeCard(level: FuelLevel, carName: String, modifier: Modifier = Modifi
         label = "gauge",
     )
     val track = MaterialTheme.colorScheme.surfaceContainerHighest
+    val now = rememberNow(60_000)
+    val zone = ZoneId.systemDefault()
 
     NexusCard(modifier = modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
@@ -291,34 +293,34 @@ fun FuelGaugeCard(level: FuelLevel, carName: String, modifier: Modifier = Modifi
                     }
                 }
             }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(carName, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(
-                    "${NexusFormat.liters(level.remainingLiters, 0)} of ${NexusFormat.liters(level.tankCapacity, 0)}",
-                    style = MaterialTheme.typography.titleMedium.tabular(),
-                )
-                level.rangeKm?.let {
-                    Text("≈ ${NexusFormat.km(it)} range", style = MaterialTheme.typography.bodyMedium.tabular(), color = color)
-                }
-                Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(
-                        if (level.method == FuelLevel.Method.Drive) Icons.Rounded.Bluetooth else Icons.Rounded.CalendarMonth,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        when (level.method) {
-                            FuelLevel.Method.Drive -> "${NexusFormat.duration(level.drivingHours ?: 0.0)} driven"
-                            FuelLevel.Method.Time -> "${NexusFormat.number(level.litersPerDay ?: 0.0, 1)} L a day"
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+            // Four facts beside the gauge, in the height it takes anyway: what
+            // is left, how far it goes, what filling up costs, when it runs dry.
+            val price = cheapest?.effectivePrice
+            val facts = listOfNotNull(
+                Fact(carName, "${NexusFormat.number(level.remainingLiters)} of ${NexusFormat.liters(level.tankCapacity, 0)}"),
+                level.rangeKm?.let { Fact("Range", NexusFormat.km(it), color) },
+                Fact("Fill up", price?.let { NexusFormat.euro(level.litersToFull * it) } ?: NexusFormat.liters(level.litersToFull, 0)),
+                level.emptyAt(now)?.let { Fact("Empty", NexusFormat.weekdayDay(it.atZone(zone).toLocalDate())) },
+            ).take(4)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                facts.chunked(2).forEach { pair ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        pair.forEach { FactCell(it, Modifier.weight(1f)) }
+                        if (pair.size == 1) Spacer(Modifier.weight(1f))
+                    }
                 }
             }
         }
+    }
+}
+
+private data class Fact(val label: String, val value: String, val color: Color = Color.Unspecified)
+
+@Composable
+private fun FactCell(fact: Fact, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(fact.label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(fact.value, style = MaterialTheme.typography.titleMedium.tabular(), color = fact.color, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

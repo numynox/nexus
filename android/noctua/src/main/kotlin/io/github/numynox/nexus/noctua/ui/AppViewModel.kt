@@ -48,6 +48,9 @@ class AppViewModel(val container: AppContainer) : ViewModel() {
     fun selectSection(id: Long?) = viewModelScope.launch { container.preferences.setSelectedSection(id) }
 
     fun signOut() {
-        viewModelScope.launch { runCatching { container.core.auth.signOut() } }
+        viewModelScope.launch {
+            runCatching { container.core.auth.signOut() }
+            container.preferences.clearCachedSections()
+        }
     }
 }

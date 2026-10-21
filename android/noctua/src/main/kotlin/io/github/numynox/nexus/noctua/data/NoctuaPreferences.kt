@@ -9,15 +9,21 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import io.github.numynox.nexus.core.data.NexusJson
 import io.github.numynox.nexus.core.ui.theme.ThemeMode
+import kotlinx.serialization.Serializable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.noctuaStore by preferencesDataStore(name = "noctua")
 
-/** Cards with images, or a title-and-time list for scanning a few hundred. */
-enum class Density { Comfortable, Compact }
+/**
+ * How the feed draws an article: the web's full-width image cards (Stories),
+ * cards with a thumbnail (Comfortable), or a title-and-time list for scanning a
+ * few hundred (Compact). The stored names are the enum's, so never rename one.
+ */
+enum class Density { Stories, Comfortable, Compact }
 
 /** Newest first for triage, oldest first for reading through a backlog. */
 enum class SortOrder { Newest, Oldest }
@@ -29,7 +35,7 @@ data class NoctuaSettings(
     val hideSeen: Boolean = true,
     /** Articles scrolled past count as seen. */
     val autoMarkSeen: Boolean = true,
-    val density: Density = Density.Comfortable,
+    val density: Density = Density.Stories,
     val sortOrder: SortOrder = SortOrder.Newest,
     /** Articles open in a Custom Tab rather than switching to the browser app. */
     val openInApp: Boolean = true,
@@ -55,6 +61,7 @@ class NoctuaPreferences(private val context: Context) {
         val OpenInApp = booleanPreferencesKey("open_in_app")
         val SelectedSection = longPreferencesKey("selected_section_id")
         val Seen = stringSetPreferencesKey("seen_articles")
+        val CachedSections = stringPreferencesKey("cached_sections")
     }
 
     val settings: Flow<NoctuaSettings> = context.noctuaStore.data.map { it.toSettings() }
@@ -69,7 +76,7 @@ class NoctuaPreferences(private val context: Context) {
         dynamicColor = this[Keys.DynamicColor] ?: false,
         hideSeen = this[Keys.HideSeen] ?: true,
         autoMarkSeen = this[Keys.AutoMarkSeen] ?: true,
-        density = Density.entries.firstOrNull { it.name == this[Keys.Density] } ?: Density.Comfortable,
+        density = Density.entries.firstOrNull { it.name == this[Keys.Density] } ?: Density.Stories,
         sortOrder = SortOrder.entries.firstOrNull { it.name == this[Keys.SortOrder] } ?: SortOrder.Newest,
         openInApp = this[Keys.OpenInApp] ?: true,
         selectedSectionId = this[Keys.SelectedSection]?.takeIf { it > 0 },
@@ -103,11 +110,42 @@ class NoctuaPreferences(private val context: Context) {
 
     suspend fun clearSeen() = edit { it.remove(Keys.Seen) }
 
+    /**
+     * The sections as last loaded, for [userId] only — so the feed's header and
+     * chips are there at once on the next start, before the network answers.
+     * A cache, not a source: the next load always replaces it, and a damaged
+     * or another user's entry reads as nothing.
+     */
+    suspend fun cachedSections(userId: String): List<Section>? {
+        val raw = context.noctuaStore.data.first()[Keys.CachedSections] ?: return null
+        return runCatching { NexusJson.decodeFromString<CachedSections>(raw) }.getOrNull()
+            ?.takeIf { it.userId == userId }
+            ?.sections?.map { it.toSection() }
+    }
+
+    suspend fun cacheSections(userId: String, sections: List<Section>) = edit { prefs ->
+        prefs[Keys.CachedSections] = NexusJson.encodeToString(CachedSections(userId, sections.map(CachedSection::of)))
+    }
+
+    suspend fun clearCachedSections() = edit { it.remove(Keys.CachedSections) }
+
     private suspend fun edit(block: (MutablePreferences) -> Unit) {
         context.noctuaStore.edit(block)
     }
 
     private companion object {
         const val MAX_SEEN = 5_000
+    }
+}
+
+@Serializable
+private data class CachedSections(val userId: String, val sections: List<CachedSection>)
+
+@Serializable
+private data class CachedSection(val id: Long, val name: String, val icon: String, val sortOrder: Int, val feeds: List<Feed>) {
+    fun toSection() = Section(id, name, icon, sortOrder, feeds)
+
+    companion object {
+        fun of(section: Section) = CachedSection(section.id, section.name, section.icon, section.sortOrder, section.feeds)
     }
 }

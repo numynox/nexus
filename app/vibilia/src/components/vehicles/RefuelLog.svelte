@@ -154,7 +154,7 @@
     return dayjs(getEventTimestamp(event)).format("YYYY-MM");
   }
 
-  /** "≈ 628 km · 9 h driven"; ≈ while part of it is still estimated. */
+  /** "628 km · 9 h driven". */
   function formatMonthDistance(key: string): string {
     const month = distanceByMonth[key];
     if (!month) return "";
@@ -167,7 +167,7 @@
         : `${minutes} min`;
     return [
       km >= 1
-        ? `${month.estimated_km > 0 ? "≈ " : ""}${Math.round(km).toLocaleString("de-DE")} km`
+        ? `${Math.round(km).toLocaleString("de-DE")} km`
         : null,
       minutes >= 1 ? `${duration} driven` : null,
     ]

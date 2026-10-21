@@ -44,7 +44,7 @@ import io.github.numynox.nexus.annona.ui.common.containerViewModel
 import io.github.numynox.nexus.core.ui.Loadable
 import io.github.numynox.nexus.core.ui.components.EmptyState
 import io.github.numynox.nexus.core.ui.components.ErrorState
-import io.github.numynox.nexus.core.ui.components.LoadingState
+import io.github.numynox.nexus.core.ui.components.PlaceholderList
 import io.github.numynox.nexus.core.ui.components.NexusCard
 import io.github.numynox.nexus.core.ui.components.SectionHeader
 import io.github.numynox.nexus.core.ui.loadable
@@ -92,7 +92,7 @@ fun PlacesScreen(app: AppViewModel, navigator: Navigator) {
             modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()),
         ) {
             when (val state = places) {
-                Loadable.Loading -> LoadingState()
+                Loadable.Loading -> PlaceholderList(count = 4, modifier = Modifier.padding(horizontal = 16.dp), lines = 1)
                 is Loadable.Failed -> ErrorState(state.message, onRetry = viewModel::load)
                 is Loadable.Ready -> LazyColumn(
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 96.dp),

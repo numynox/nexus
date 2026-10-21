@@ -670,7 +670,7 @@
             </h2>
             <div class="mt-1 text-3xl font-black tracking-tight text-info">
               {driveModel.kmPerHour !== null
-                ? `${driveModel.sampleCount === 0 ? "≈ " : ""}${fmt(driveModel.kmPerHour, 0)} km/h`
+                ? `${fmt(driveModel.kmPerHour, 0)} km/h`
                 : "Learning…"}
             </div>
             <div class="mt-3 space-y-1 text-sm text-base-content/75">

@@ -47,7 +47,7 @@ import io.github.numynox.nexus.core.ui.chart.NexusChart
 import io.github.numynox.nexus.core.ui.chart.SeriesStyle
 import io.github.numynox.nexus.core.ui.components.EmptyState
 import io.github.numynox.nexus.core.ui.components.ErrorState
-import io.github.numynox.nexus.core.ui.components.LoadingState
+import io.github.numynox.nexus.core.ui.components.PlaceholderList
 import io.github.numynox.nexus.core.ui.components.MetricCard
 import io.github.numynox.nexus.core.ui.components.MetricRow
 import io.github.numynox.nexus.core.ui.components.NexusCard
@@ -72,7 +72,7 @@ fun StatisticsScreen() {
             modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()),
         ) {
             when (val state = stats) {
-                Loadable.Loading -> LoadingState()
+                Loadable.Loading -> PlaceholderList(count = 4, modifier = Modifier.padding(horizontal = 16.dp))
                 is Loadable.Failed -> ErrorState(state.message, onRetry = viewModel::load)
                 is Loadable.Ready -> if (state.value.totalRead == 0) {
                     EmptyState(Icons.Rounded.AutoStories, "No reading yet", "Open a few articles and your reading habits show up here.")

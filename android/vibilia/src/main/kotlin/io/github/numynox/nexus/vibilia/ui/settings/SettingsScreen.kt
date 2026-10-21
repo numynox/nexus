@@ -1,5 +1,7 @@
 package io.github.numynox.nexus.vibilia.ui.settings
 
+import android.Manifest
+import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -32,8 +34,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.numynox.nexus.core.data.AuthState
 import io.github.numynox.nexus.core.ui.NexusFormat
@@ -44,6 +48,7 @@ import io.github.numynox.nexus.core.ui.components.UpdateBanner
 import io.github.numynox.nexus.core.ui.settings.AboutItem
 import io.github.numynox.nexus.core.ui.settings.AccountCard
 import io.github.numynox.nexus.core.ui.settings.AppearanceCard
+import io.github.numynox.nexus.core.ui.settings.SettingSwitch
 import io.github.numynox.nexus.vibilia.data.FuelTypes
 import io.github.numynox.nexus.vibilia.ui.AppViewModel
 import io.github.numynox.nexus.vibilia.ui.common.PlateBadge
@@ -62,6 +67,10 @@ fun SettingsScreen(app: AppViewModel, onOpenVehicle: (String?) -> Unit) {
 
     val bluetoothLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) viewModel.setRecording(true)
+    }
+    val context = LocalContext.current
+    val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) app.setRefuelRemindersOn(true)
     }
 
     Scaffold(topBar = { TopAppBar(title = { Text("Settings") }) }) { padding ->
@@ -177,6 +186,31 @@ fun SettingsScreen(app: AppViewModel, onOpenVehicle: (String?) -> Unit) {
                 }
             }
 
+            item { SectionHeader("Reminders") }
+            item {
+                NexusCard {
+                    SettingSwitch(
+                        title = "Remind me to refuel",
+                        description = "When a tank runs low, this phone tells you where and when to refuel: as prices reach their daily low, or shortly before. Only this phone.",
+                        checked = settings.refuelRemindersOn,
+                        onCheckedChange = { on ->
+                            val allowed = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+                            if (on && !allowed) notifications.launch(Manifest.permission.POST_NOTIFICATIONS) else app.setRefuelRemindersOn(on)
+                        },
+                    )
+                    if (settings.refuelRemindersOn) {
+                        SliderRow(
+                            label = "Low below",
+                            value = "${settings.refuelReminderPercent} %",
+                            current = settings.refuelReminderPercent,
+                            range = 10..40,
+                            step = 5,
+                            onChange = app::setRefuelReminderPercent,
+                        )
+                    }
+                }
+            }
+
             item { SectionHeader("Appearance") }
             item {
                 AppearanceCard(
@@ -193,5 +227,21 @@ fun SettingsScreen(app: AppViewModel, onOpenVehicle: (String?) -> Unit) {
 
             item { AboutItem(viewModel.config) }
         }
+    }
+}
+
+@Composable
+private fun SliderRow(label: String, value: String, current: Int, range: IntRange, onChange: (Int) -> Unit, step: Int = 1) {
+    Column(Modifier.padding(top = 12.dp)) {
+        Row {
+            Text(label, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+            Text(value, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        }
+        Slider(
+            value = current.toFloat(),
+            onValueChange = { onChange(it.toInt()) },
+            valueRange = range.first.toFloat()..range.last.toFloat(),
+            steps = (range.last - range.first) / step - 1,
+        )
     }
 }

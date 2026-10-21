@@ -212,7 +212,8 @@ private fun HistoryTab(
                 )
             }
             if (level != null && car != null) {
-                item(key = "gauge") { FuelGaugeCard(level, car!!.name, Modifier.animateItem()) }
+                val cheapest = state.stations.valueOrNull.orEmpty().filter { it.effectivePrice != null }.minByOrNull { it.effectivePrice!! }
+                item(key = "gauge") { FuelGaugeCard(level, car!!.name, cheapest, Modifier.animateItem()) }
             }
             if (lastDrive != null) {
                 item(key = "last-drive") { LastDriveLine(lastDrive, Modifier.animateItem()) }

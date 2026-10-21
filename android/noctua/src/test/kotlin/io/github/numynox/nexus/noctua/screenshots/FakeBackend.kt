@@ -2,10 +2,16 @@ package io.github.numynox.nexus.noctua.screenshots
 
 import io.github.numynox.nexus.core.testing.FakeSupabase
 import io.github.numynox.nexus.core.testing.FakeSupabase.select
+import java.time.DayOfWeek
 import java.time.Instant
+import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
+import java.time.temporal.TemporalAdjusters
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -72,25 +78,27 @@ object FakeBackend {
     private val reads = mapOf(504L to 50L, 509L to 200L, 512L to 1_400L)
     private val starred = listOf(506L, 511L, 508L)
 
+    /** While set, article queries wait for it — to catch the feed mid-load. */
+    @Volatile var holdArticles: CountDownLatch? = null
+
     /** A reader who has not set up a section yet. */
     @Volatile var withoutSections = false
 
     fun engine() = FakeSupabase.engine { request, path ->
         val select = request.select()
         when {
+            path.endsWith("/rpc/noctua_reading_statistics") -> statisticsJson()
             path.endsWith("/rpc/get_similar_article_groups") -> buildJsonArray {
                 groups.forEach { (article, key) -> addJsonObject { put("article_id", article); put("group_key", key) } }
             }
             path.endsWith("/rest/v1/sections") -> if (withoutSections) buildJsonArray {} else sectionsJson()
             path.endsWith("/rest/v1/feeds") -> buildJsonArray { feeds.forEach { add(feedJson(it)) } }
-            path.endsWith("/rest/v1/articles") && request.method.value == "HEAD" -> FakeSupabase.count(1_284)
-            path.endsWith("/rest/v1/articles") && select.contains("feeds(") -> publishedJson()
             path.endsWith("/rest/v1/articles") -> {
+                holdArticles?.await(20, TimeUnit.SECONDS)
                 // PostgREST's `feed_id=in.(1,2,3)`, the feeds of the chosen section.
                 val wanted = request.url.parameters["feed_id"]?.removePrefix("in.(")?.removeSuffix(")")?.split(",")?.mapNotNull { it.toLongOrNull() }
                 buildJsonArray { stories.filter { wanted == null || it.feed in wanted }.forEach { add(articleJson(it, embedFeed = false)) } }
             }
-            path.endsWith("/rest/v1/article_reads") && select.contains("articles(feed_id") -> readHistoryJson()
             path.endsWith("/rest/v1/article_reads") && select.contains("articles(") -> buildJsonArray {
                 reads.entries.sortedBy { it.value }.forEach { (id, minutes) ->
                     addJsonObject {
@@ -142,9 +150,10 @@ object FakeBackend {
         if (embedFeed) putJsonObject("feeds") { put("id", feed.id); put("name", feed.name); put("icon", "https://${feed.host}/favicon.ico") }
     }
 
+    private data class Event(val at: Instant, val feed: String)
+
     /** Eight weeks of reading: mornings and evenings, more on weekdays, a streak up to today. */
-    private fun readHistoryJson() = buildJsonArray {
-        var id = 10_000L
+    private val readHistory: List<Event> = buildList {
         for (day in 0L until 56L) {
             val date = now.minus(day, ChronoUnit.DAYS)
             if (day > 9 && day % 6 == 0L) continue
@@ -153,26 +162,56 @@ object FakeBackend {
                 val hour = listOf(7, 8, 12, 19, 21, 22)[(n + day.toInt()) % 6]
                 val at = date.truncatedTo(ChronoUnit.DAYS).plus(hour.toLong(), ChronoUnit.HOURS).plus((n * 7).toLong(), ChronoUnit.MINUTES)
                 if (at.isAfter(now)) return@repeat
-                addJsonObject {
-                    put("article_id", id++); put("read_at", at.toString())
-                    putJsonObject("articles") {
-                        val feed = feeds[abs((day * 3 + n * 5).toInt()) % if (n % 3 == 0) 3 else feeds.size]
-                        put("feed_id", feed.id); putJsonObject("feeds") { put("name", feed.name) }
-                    }
-                }
+                add(Event(at, feeds[abs((day * 3 + n * 5).toInt()) % if (n % 3 == 0) 3 else feeds.size].name))
             }
         }
     }
 
-    private fun publishedJson() = buildJsonArray {
+    private val published: List<Event> = buildList {
         for (hourAgo in 0L until 56L * 24L) {
             val count = when ((hourAgo + 2) % 24) { in 6..9 -> 3; in 10..18 -> 2; in 19..22 -> 1; else -> 0 }
             repeat(count) { n ->
-                addJsonObject {
-                    put("published_at", now.minus(hourAgo, ChronoUnit.HOURS).minus((n * 11).toLong(), ChronoUnit.MINUTES).toString())
-                    putJsonObject("feeds") { put("name", feeds[((hourAgo + n) % feeds.size).toInt()].name) }
-                }
+                add(Event(now.minus(hourAgo, ChronoUnit.HOURS).minus((n * 11).toLong(), ChronoUnit.MINUTES), feeds[((hourAgo + n) % feeds.size).toInt()].name))
             }
+        }
+    }
+
+    /** What noctua_reading_statistics would say about the history above, counted the same way, in UTC. */
+    private fun statisticsJson(): JsonObject {
+        val zone = ZoneOffset.UTC
+        fun Instant.local() = atZone(zone)
+        val today = now.local().toLocalDate()
+        val weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        val windowStart = weekStart.minusWeeks(7)
+        val windowReads = readHistory.filter { !it.at.local().toLocalDate().isBefore(windowStart) }
+        val windowPublished = published.filter { !it.at.local().toLocalDate().isBefore(windowStart) }
+        fun hours(events: List<Event>) = buildJsonArray {
+            events.groupingBy { (it.at.local().dayOfWeek.value - 1) to it.at.local().hour }.eachCount().toSortedMap(compareBy({ it.first }, { it.second }))
+                .forEach { (cell, count) -> add(buildJsonArray { add(cell.first); add(cell.second); add(count) }) }
+        }
+        val publishedByFeed = windowPublished.groupingBy { it.feed }.eachCount()
+        return buildJsonObject {
+            put("weeks", 8)
+            put("today", today.toString())
+            put("window_start", windowStart.toString())
+            put("window_days", ChronoUnit.DAYS.between(windowStart, today).toInt() + 1)
+            put("total_read", readHistory.size)
+            put("total_articles", 1_284)
+            put("this_week_read", readHistory.count { !it.at.local().toLocalDate().isBefore(weekStart) })
+            put("this_week_published", published.count { !it.at.local().toLocalDate().isBefore(weekStart) })
+            put("window_read", windowReads.size)
+            put("window_published", windowPublished.size)
+            putJsonArray("read_days") { readHistory.map { it.at.local().toLocalDate() }.distinct().sorted().forEach { add(it.toString()) } }
+            putJsonArray("feeds") {
+                windowReads.groupingBy { it.feed }.eachCount().entries.sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+                    .forEach { (feed, count) ->
+                        addJsonObject {
+                            put("feed", feed); put("read", count); put("read_published", count); put("published", publishedByFeed[feed] ?: 0)
+                        }
+                    }
+            }
+            put("read_hours", hours(windowReads))
+            put("published_hours", hours(windowPublished))
         }
     }
 }

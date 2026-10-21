@@ -1,7 +1,7 @@
 # ADR: Noctua and Annona on Android — what changed from the web, and why
 
 **Date:** 2026-10-19
-**Status:** Accepted
+**Status:** Accepted — statistics amended by `2026-10-21-noctua-statistics-in-postgres.md`
 
 ## Context
 `2026-10-19-native-android-apps.md` committed Noctua and Annona to native apps

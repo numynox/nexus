@@ -14,6 +14,7 @@ import io.github.numynox.nexus.vibilia.data.Car
 import io.github.numynox.nexus.vibilia.data.CarExpense
 import io.github.numynox.nexus.vibilia.data.RefuelEvent
 import io.github.numynox.nexus.vibilia.data.VibiliaSettings
+import io.github.numynox.nexus.vibilia.reminders.RefuelReminders
 import io.github.numynox.nexus.vibilia.tracking.DriveSync
 import io.github.numynox.nexus.vibilia.tracking.TrackerState
 import io.github.numynox.nexus.vibilia.tracking.uploadedBetween
@@ -25,6 +26,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -91,6 +93,14 @@ class AppViewModel(private val container: AppContainer, private val application:
                 previous = next
             }
         }
+        // Keep the reminder schedule in step with its settings (not on the
+        // first, stored value: the schedule already exists then).
+        viewModelScope.launch {
+            container.preferences.settings
+                .distinctUntilChanged { a, b -> a.refuelRemindersOn == b.refuelRemindersOn }
+                .drop(1)
+                .collect { RefuelReminders.apply(application, it) }
+        }
     }
 
     private var backgroundedAt: Instant? = null
@@ -133,6 +143,8 @@ class AppViewModel(private val container: AppContainer, private val application:
     fun setPriceHistoryDays(value: Int) = viewModelScope.launch { container.preferences.setPriceHistoryDays(value) }
     fun setThemeMode(value: ThemeMode) = viewModelScope.launch { container.preferences.setThemeMode(value) }
     fun setDynamicColor(value: Boolean) = viewModelScope.launch { container.preferences.setDynamicColor(value) }
+    fun setRefuelRemindersOn(value: Boolean) = viewModelScope.launch { container.preferences.setRefuelRemindersOn(value) }
+    fun setRefuelReminderPercent(value: Int) = viewModelScope.launch { container.preferences.setRefuelReminderPercent(value) }
 
     fun selectCar(carId: String) {
         viewModelScope.launch { container.preferences.setSelectedCar(carId) }

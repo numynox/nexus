@@ -63,4 +63,25 @@ class FuelLevelTest {
         assertFalse(FuelLevel.from(row.copy(modelSampleCount = 3)).speedAssumed)
         assertFalse("a database before the prior sends no count", FuelLevel.from(row.copy(modelSampleCount = null)).speedAssumed)
     }
+
+    @Test
+    fun `the panel tells the fill-up and when it runs dry`() {
+        val refuelled = Instant.parse("2026-01-01T10:00:00Z")
+        val drive = FuelLevel(
+            method = FuelLevel.Method.Drive, lastRefuelAt = refuelled, lastMileage = 10_000, tankCapacity = 50.0,
+            startingLiters = 50.0, remainingLiters = 30.0, drivingHours = 2.5, estimatedKm = 250.0,
+            kmPerHour = 100.0, litersPerHour = 8.0, litersPerDay = null,
+        )
+        assertEquals(20.0, drive.litersToFull, 1e-9)
+        // 20 L in 10 days → 2 L a day → 15 more days.
+        val now = refuelled.plusSeconds(10 * 86_400)
+        assertEquals(2.0, drive.litersPerCalendarDay(now)!!, 1e-9)
+        assertEquals(now.plusSeconds(15 * 86_400), drive.emptyAt(now))
+        // A tank younger than a day says too little.
+        assertNull(drive.emptyAt(refuelled.plusSeconds(3_600)))
+
+        val calendar = drive.copy(method = FuelLevel.Method.Time, litersPerDay = 3.0, kmPerHour = null, litersPerHour = null)
+        assertEquals(3.0, calendar.litersPerCalendarDay(now)!!, 1e-9)
+        assertEquals(now.plusSeconds(10 * 86_400), calendar.emptyAt(now))
+    }
 }

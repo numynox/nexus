@@ -5,9 +5,11 @@ import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
-import io.github.jan.supabase.postgrest.query.Count
 import io.github.jan.supabase.postgrest.query.Order
 import java.time.Instant
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
@@ -130,13 +132,14 @@ class NoctuaRepository(private val supabase: SupabaseClient) {
     // ── Articles ────────────────────────────────────────────────────────────
 
     /**
-     * The newest [limit] articles of the given feeds, with the user's read
-     * marks and stars for them — one feed screen's worth.
+     * The newest [limit] articles of the given feeds — one feed screen's
+     * worth. The user's read marks and stars for them are separate calls, so
+     * the feed can ask for them side by side.
      */
-    suspend fun feedContent(sections: List<Section>, feeds: List<Feed>, limit: Int): FeedContent {
+    suspend fun articles(feeds: List<Feed>, limit: Int): List<Article> {
         val byId = feeds.associateBy { it.id }
-        if (byId.isEmpty()) return FeedContent(sections, emptyList(), emptyMap(), emptySet())
-        val articles = supabase.from("articles")
+        if (byId.isEmpty()) return emptyList()
+        return supabase.from("articles")
             .select(Columns.list("id", "feed_id", "title", "url", "published_at", "updated_at", "author", "summary", "image_url", "tags")) {
                 filter { isIn("feed_id", byId.keys.toList()) }
                 order("published_at", Order.DESCENDING, nullsFirst = false)
@@ -147,21 +150,25 @@ class NoctuaRepository(private val supabase: SupabaseClient) {
             }
             .decodeList<ArticleRow>()
             .map { it.toArticle(byId[it.feedId]) }
-        return FeedContent(sections, articles, reads(articles.map { it.id }), starredIds())
     }
 
-    private suspend fun reads(articleIds: List<Long>): Map<Long, Instant> {
+    /** When each of these articles was read, in chunks short enough for a URL, fetched together. */
+    suspend fun reads(articleIds: List<Long>): Map<Long, Instant> {
         if (articleIds.isEmpty()) return emptyMap()
-        return articleIds.chunked(200).flatMap { chunk ->
-            supabase.from("article_reads")
-                .select(Columns.list("article_id", "read_at")) {
-                    filter { eq("user_id", userId); isIn("article_id", chunk) }
+        return coroutineScope {
+            articleIds.chunked(200).map { chunk ->
+                async {
+                    supabase.from("article_reads")
+                        .select(Columns.list("article_id", "read_at")) {
+                            filter { eq("user_id", userId); isIn("article_id", chunk) }
+                        }
+                        .decodeList<ReadRow>()
                 }
-                .decodeList<ReadRow>()
+            }.awaitAll().flatten()
         }.associate { it.articleId to it.readAt }
     }
 
-    private suspend fun starredIds(): Set<Long> =
+    suspend fun starredIds(): Set<Long> =
         supabase.from("article_stars")
             .select(Columns.list("article_id")) { filter { eq("user_id", userId) } }
             .decodeList<StarRow>()
@@ -252,40 +259,15 @@ class NoctuaRepository(private val supabase: SupabaseClient) {
 
     // ── Statistics ──────────────────────────────────────────────────────────
 
-    suspend fun readRecords(): List<ReadRecord> =
-        supabase.from("article_reads")
-            .select(Columns.raw("article_id,read_at,articles(feed_id,feeds(name))")) {
-                filter { eq("user_id", userId) }
-                order("read_at", Order.DESCENDING)
-            }
-            .decodeList<ReadStatisticsRow>()
-            .map { ReadRecord(it.articleId, it.readAt, it.articles?.feeds?.name ?: "Unknown feed") }
-
-    /** Articles visible to the user, optionally only those published since [since]. */
-    suspend fun articleCount(since: Instant? = null): Long =
-        supabase.from("articles")
-            .select(Columns.list("id")) {
-                head = true
-                count(Count.EXACT)
-                if (since != null) filter { gte("published_at", since.toString()) }
-            }
-            .countOrNull() ?: 0
-
-    /** Publication time and feed of every article since [since], for the per-feed totals and the heatmap. */
-    suspend fun publishedSince(since: Instant): List<PublishedArticle> =
-        supabase.from("articles")
-            .select(Columns.raw("published_at,feeds(name)")) {
-                filter { gte("published_at", since.toString()) }
-            }
-            .decodeList<ArticleFeedRow>()
-            .mapNotNull { row -> row.publishedAt?.let { PublishedArticle(it, row.feeds?.name ?: "Unknown feed") } }
+    /** The statistics over the last [weeks] weeks, counted by the database. */
+    suspend fun readingStatistics(weeks: Int): ReadingStatisticsRow =
+        supabase.postgrest.rpc("noctua_reading_statistics", buildJsonObject { put("p_weeks", weeks) })
+            .decodeAs<ReadingStatisticsRow>()
 
     private companion object {
         const val ArticleColumns = "id,feed_id,title,url,published_at,updated_at,author,summary,image_url,tags"
     }
 }
-
-data class PublishedArticle(val publishedAt: Instant, val feedName: String)
 
 @kotlinx.serialization.Serializable
 internal data class SortRow(
