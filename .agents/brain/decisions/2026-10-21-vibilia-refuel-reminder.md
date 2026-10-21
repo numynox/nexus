@@ -18,8 +18,8 @@ that reliably.
   `PriceOutlook` learns it on the phone from the last seven days of
   `get_fuel_price_plot_history` (hourly lowest price of our stations, as a
   premium over each day's low, median per hour). The reminder speaks up when
-  the current hour is at the low ("Refuel now: JET Tennenlohe, 1.939 €/L"),
-  when the low is due within three hours ("from 19:00, 1.969 €/L expected"),
+  the current hour is at the low ("Fill up for 1.939 €/L at JET Tennenlohe"),
+  when the low is due within three hours ("from 19:00", with the expected price),
   or, whatever the price, when the tank runs dry within twelve hours.
 - At most once a day, only between 07:00 and 21:59. Without three full days
   of history it falls back to the cheapest station now.

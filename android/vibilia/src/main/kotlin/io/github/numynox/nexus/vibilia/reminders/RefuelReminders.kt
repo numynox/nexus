@@ -33,7 +33,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 
 /**
- * "Refuel now, at JET, 1.889 €" — told when it pays off. While a tank is low,
+ * "Fill up for 1.889 €/L at JET" — told when it pays off. While a tank is low,
  * an hourly check compares the hour with the day's usual price shape
  * ([PriceOutlook]) and speaks up once a day: when prices sit at their daily
  * low, when the low is due within three hours, or — whatever the prices —
@@ -134,18 +134,17 @@ object RefuelReminders {
         }
         val where = "${advice.station.displayName} ${advice.station.displayPlace}".trim()
         val price = "${NexusFormat.number(advice.price, 3)} €/L"
-        val first = when (advice) {
-            is Advice.Now -> "$where, $price — today's low"
-            is Advice.At -> "$where, $price expected, down from ${NexusFormat.number(cheapest.effectivePrice!!, 3)}"
-            is Advice.Today -> "$where, $price — no lower price due soon"
+        val first = "Fill up for $price at $where" + when (advice) {
+            is Advice.Now -> " — today's low"
+            is Advice.At -> " — expected, now ${NexusFormat.number(cheapest.effectivePrice!!, 3)} €/L"
+            is Advice.Today -> " — no lower price due soon"
         }
-        return title to listOf(first) + low.map { (car, level) -> line(car, level, advice.price, named = low.size > 1) }
+        return title to listOf(first) + low.map { (car, level) -> line(car, level, named = low.size > 1) }
     }
 
-    private fun line(car: Car, level: FuelLevel, price: Double, named: Boolean): String = listOfNotNull(
+    private fun line(car: Car, level: FuelLevel, named: Boolean): String = listOfNotNull(
         "${NexusFormat.liters(level.remainingLiters, 0)} left".let { if (named) "${car.name}: $it" else it },
         level.rangeKm?.let { "${NexusFormat.km(it)} range" },
-        "fill up ${NexusFormat.euro(level.litersToFull * price)}",
     ).joinToString(" · ")
 
     internal fun notify(context: Context, title: String, lines: List<String>) {

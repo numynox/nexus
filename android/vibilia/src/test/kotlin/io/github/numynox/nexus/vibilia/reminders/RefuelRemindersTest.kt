@@ -71,15 +71,15 @@ class RefuelRemindersTest {
     fun atTheLowItSaysRefuelNowWhereAndForHowMuch() {
         val (title, lines) = RefuelReminders.message(listOf(golf to level(8.0), polo to level(40.0)), 20, jet(1.939), outlook, at(9), zone)!!
         assertEquals("Refuel the Golf now", title)
-        assertEquals("JET Tennenlohe, 1.939 €/L — today's low", lines[0])
-        assertEquals("8 L left · 100 km range · fill up 81.44 €", lines[1])
+        assertEquals("Fill up for 1.939 €/L at JET Tennenlohe — today's low", lines[0])
+        assertEquals("8 L left · 100 km range", lines[1])
     }
 
     @Test
     fun aLowWithinThreeHoursIsWorthWaitingFor() {
         val (title, lines) = RefuelReminders.message(listOf(golf to level(8.0)), 20, jet(2.039), outlook, at(16), zone)!!
         assertEquals("Refuel the Golf from 19:00", title)
-        assertEquals("JET Tennenlohe, 1.969 €/L expected, down from 2.039", lines[0])
+        assertEquals("Fill up for 1.969 €/L at JET Tennenlohe — expected, now 2.039 €/L", lines[0])
     }
 
     @Test
@@ -92,7 +92,7 @@ class RefuelRemindersTest {
         // 49 L used in 10 days: the last litre lasts hours.
         val (title, lines) = RefuelReminders.message(listOf(golf to level(1.0)), 20, jet(2.139), outlook, at(12), zone)!!
         assertEquals("Refuel the Golf today", title)
-        assertEquals("JET Tennenlohe, 2.139 €/L — no lower price due soon", lines[0])
+        assertEquals("Fill up for 2.139 €/L at JET Tennenlohe — no lower price due soon", lines[0])
     }
 
     @Test
@@ -104,7 +104,7 @@ class RefuelRemindersTest {
     fun severalCarsAreNamedLowestFirst() {
         val (title, lines) = RefuelReminders.message(listOf(golf to level(8.0), polo to level(4.0)), 20, jet(1.939), outlook, at(9), zone)!!
         assertEquals("Refuel 2 cars now", title)
-        assertEquals("Polo: 4 L left · 50 km range · fill up 89.19 €", lines[1])
+        assertEquals("Polo: 4 L left · 50 km range", lines[1])
     }
 
     @Test
