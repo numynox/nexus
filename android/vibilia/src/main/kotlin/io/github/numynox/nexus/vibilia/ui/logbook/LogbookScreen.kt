@@ -156,11 +156,11 @@ fun LogbookScreen(app: AppViewModel) {
     }
 }
 
-/** "≈ 612 km · 14 h 20 min driven"; ≈ while part of it is still the model's estimate. */
+/** "612 km · 14 h 20 min driven". */
 private fun monthDistanceLabel(month: DistanceMonth): String? {
     val km = month.kmDriven + month.estimatedKm
     return listOfNotNull(
-        km.takeIf { it >= 1 }?.let { (if (month.estimatedKm > 0) "≈ " else "") + NexusFormat.km(it) },
+        km.takeIf { it >= 1 }?.let { NexusFormat.km(it) },
         month.drivingHours.takeIf { it * 60 >= 1 }?.let { "${NexusFormat.duration(it)} driven" },
     ).joinToString(" · ").ifEmpty { null }
 }

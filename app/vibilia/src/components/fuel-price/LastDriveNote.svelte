@@ -19,7 +19,7 @@
     return [
       `Last drive ${dayjs(drive.startedAt).format("DD MMM YYYY, HH:mm")}`,
       formatDuration(drive.startedAt, drive.endedAt),
-      drive.estimatedKm !== null ? `≈ ${Math.round(drive.estimatedKm)} km` : null,
+      drive.estimatedKm !== null ? `${Math.round(drive.estimatedKm)} km` : null,
     ]
       .filter(Boolean)
       .join(" · ");

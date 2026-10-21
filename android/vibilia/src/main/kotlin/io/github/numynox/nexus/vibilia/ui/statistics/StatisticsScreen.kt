@@ -243,7 +243,7 @@ private fun DrivingSection(overview: CarOverview, model: DriveModel) {
         }
         val assumed = model.sampleCount == 0
         Row(Modifier.padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ModelFigure("Speed", model.kmPerHour?.let { "${if (assumed) "≈ " else ""}${NexusFormat.number(it, 0)} km/h" } ?: "Learning", Modifier.weight(1f))
+            ModelFigure("Speed", model.kmPerHour?.let { "${NexusFormat.number(it, 0)} km/h" } ?: "Learning", Modifier.weight(1f))
             ModelFigure("Fuel", model.litersPerHour?.let { "${NexusFormat.number(it, 1)} L/h" } ?: "—", Modifier.weight(1f))
             ModelFigure("Learned from", if (assumed) "Assumed" else "${model.sampleCount} tanks", Modifier.weight(1f))
         }

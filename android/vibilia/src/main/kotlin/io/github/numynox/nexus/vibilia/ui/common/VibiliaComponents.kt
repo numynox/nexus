@@ -189,7 +189,7 @@ fun LastDriveLine(drive: LastDrive, modifier: Modifier = Modifier) {
             listOfNotNull(
                 "Last drive ${NexusFormat.dateTime(drive.startedAt)}",
                 NexusFormat.duration(drive.hours),
-                drive.estimatedKm?.let { "≈ ${NexusFormat.km(it)}" },
+                drive.estimatedKm?.let { NexusFormat.km(it) },
             ).joinToString(" · "),
             style = MaterialTheme.typography.bodySmall.tabular(),
             color = MaterialTheme.colorScheme.onSurfaceVariant,

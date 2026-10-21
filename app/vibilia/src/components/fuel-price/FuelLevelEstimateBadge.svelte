@@ -16,7 +16,7 @@
   }
 
   function formatKm(value: number | null): string {
-    return value !== null ? ` (≈ ${Math.round(value)} km)` : "";
+    return value !== null ? ` (${Math.round(value)} km)` : "";
   }
 
   function formatPercent(value: number): string {
@@ -104,7 +104,7 @@
       <span
         class="hidden text-xs font-semibold tabular-nums text-success sm:inline"
       >
-        ≈ {Math.round(estimate.rangeKm)} km
+        {Math.round(estimate.rangeKm)} km
       </span>
     {/if}
   </div>
