@@ -191,7 +191,7 @@ fun SettingsScreen(app: AppViewModel, onOpenVehicle: (String?) -> Unit) {
                 NexusCard {
                     SettingSwitch(
                         title = "Remind me to refuel",
-                        description = "Once a day this phone checks every car's tank and speaks up when one runs low. Only this phone.",
+                        description = "When a tank runs low, this phone tells you where and when to refuel: as prices reach their daily low, or shortly before. Only this phone.",
                         checked = settings.refuelRemindersOn,
                         onCheckedChange = { on ->
                             val allowed = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
@@ -206,13 +206,6 @@ fun SettingsScreen(app: AppViewModel, onOpenVehicle: (String?) -> Unit) {
                             range = 10..40,
                             step = 5,
                             onChange = app::setRefuelReminderPercent,
-                        )
-                        SliderRow(
-                            label = "Check at",
-                            value = "%02d:00".format(settings.refuelReminderHour),
-                            current = settings.refuelReminderHour,
-                            range = 6..21,
-                            onChange = app::setRefuelReminderHour,
                         )
                     }
                 }

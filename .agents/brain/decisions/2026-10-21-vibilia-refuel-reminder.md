@@ -9,20 +9,30 @@ opens the app. A phone can tell its owner unprompted; a browser tab cannot do
 that reliably.
 
 ## Decision
-- A daily WorkManager job (`reminders/RefuelReminders.kt`) at a chosen hour
-  asks `get_car_fuel_level_estimate` for every car the user can see and
-  notifies when one is under a threshold (10–40 %, default 20 %) or runs dry
-  within a day. It says what is left, the range, and what filling up costs at
-  the cheapest of our stations.
+- An hourly WorkManager job (`reminders/RefuelReminders.kt`), just after the
+  price refresh, asks `get_car_fuel_level_estimate` for every car the user can
+  see. It does nothing unless one is under a threshold (10–40 %, default 20 %)
+  or runs dry within a day.
+- **It picks the moment.** German prices repeat a daily shape — a jump at
+  noon, a slide through the afternoon, the low from evening to late morning.
+  `PriceOutlook` learns it on the phone from the last seven days of
+  `get_fuel_price_plot_history` (hourly lowest price of our stations, as a
+  premium over each day's low, median per hour). The reminder speaks up when
+  the current hour is at the low ("Refuel now: JET Tennenlohe, 1.939 €/L"),
+  when the low is due within three hours ("from 19:00, 1.969 €/L expected"),
+  or, whatever the price, when the tank runs dry within twelve hours.
+- At most once a day, only between 07:00 and 21:59. Without three full days
+  of history it falls back to the cheapest station now.
 - Per phone and off by default, as in Annona
   (`2026-10-19-noctua-and-annona-on-android.md`): a car is shared, nagging is
-  personal. The web has no counterpart and hides nothing, because it never had
-  the setting.
-- No schema change: it reads what the fuel card reads.
+  personal. The web has no counterpart: a browser cannot notify reliably.
+- No schema change. The shape is computed on the phone because only the
+  phone notifies; if the web ever shows "best time to refuel", move it into
+  an RPC so both agree.
 
 ## Consequences
-- Once a day, at most: a tank that drops below the threshold mid-afternoon is
-  reported the next morning.
+- The station is the cheapest one now; the expected price assumes the
+  market-wide shape, not that station's own.
 - Driving this phone has not uploaded yet is not counted; the server's
   estimate is.
 - A signed-out phone, or one without the notification permission, stays

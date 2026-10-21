@@ -97,7 +97,7 @@ class AppViewModel(private val container: AppContainer, private val application:
         // first, stored value: the schedule already exists then).
         viewModelScope.launch {
             container.preferences.settings
-                .distinctUntilChanged { a, b -> a.refuelRemindersOn == b.refuelRemindersOn && a.refuelReminderHour == b.refuelReminderHour }
+                .distinctUntilChanged { a, b -> a.refuelRemindersOn == b.refuelRemindersOn }
                 .drop(1)
                 .collect { RefuelReminders.apply(application, it) }
         }
@@ -145,7 +145,6 @@ class AppViewModel(private val container: AppContainer, private val application:
     fun setDynamicColor(value: Boolean) = viewModelScope.launch { container.preferences.setDynamicColor(value) }
     fun setRefuelRemindersOn(value: Boolean) = viewModelScope.launch { container.preferences.setRefuelRemindersOn(value) }
     fun setRefuelReminderPercent(value: Int) = viewModelScope.launch { container.preferences.setRefuelReminderPercent(value) }
-    fun setRefuelReminderHour(value: Int) = viewModelScope.launch { container.preferences.setRefuelReminderHour(value) }
 
     fun selectCar(carId: String) {
         viewModelScope.launch { container.preferences.setSelectedCar(carId) }

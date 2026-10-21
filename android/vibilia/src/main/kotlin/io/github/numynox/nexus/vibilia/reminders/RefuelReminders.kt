@@ -24,27 +24,38 @@ import io.github.numynox.nexus.vibilia.R
 import io.github.numynox.nexus.vibilia.VibiliaApplication
 import io.github.numynox.nexus.vibilia.data.Car
 import io.github.numynox.nexus.vibilia.data.FuelLevel
+import io.github.numynox.nexus.vibilia.data.PriceOutlook
 import io.github.numynox.nexus.vibilia.data.StationPrice
 import io.github.numynox.nexus.vibilia.data.VibiliaSettings
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
-import java.time.LocalTime
+import java.time.ZoneId
 
 /**
- * The daily "time to refuel" notification — Annona's expiry reminder, for the
- * tank. Device-local and off by default: a car is shared, but each phone
- * decides whether it nags. WorkManager keeps one periodic job; near the chosen
- * hour it asks Postgres for every car's fuel estimate and speaks up only for
- * the low ones.
+ * "Refuel now, at JET, 1.889 €" — told when it pays off. While a tank is low,
+ * an hourly check compares the hour with the day's usual price shape
+ * ([PriceOutlook]) and speaks up once a day: when prices sit at their daily
+ * low, when the low is due within three hours, or — whatever the prices —
+ * when the tank runs dry within half a day. Device-local and off by default,
+ * like Annona's expiry reminder: a car is shared, nagging is personal.
  */
 object RefuelReminders {
     private const val WORK = "vibilia-refuel-reminder"
     private const val CHANNEL = "refuel"
     private const val NOTIFICATION = 2
 
-    /** A car runs dry within this, whatever its level: worth a word too. */
+    /** Nobody wants a fuel tip at night. */
+    val Awake = 7..21
+
+    /** A low due this far ahead is worth waiting for. */
+    const val LookAheadHours = 3
+
+    /** A car low on fuel: under the threshold, or dry within a day. */
     private val EmptySoon: Duration = Duration.ofDays(1)
+
+    /** Dry this soon, and the reminder does not wait for a good price. */
+    private val Urgent: Duration = Duration.ofHours(12)
 
     fun apply(context: Context, settings: VibiliaSettings, now: LocalDateTime = LocalDateTime.now()) {
         val work = WorkManager.getInstance(context)
@@ -52,17 +63,17 @@ object RefuelReminders {
             work.cancelUniqueWork(WORK)
             return
         }
-        val request = PeriodicWorkRequestBuilder<RefuelReminderWorker>(Duration.ofDays(1))
-            .setInitialDelay(delayUntil(settings.refuelReminderHour, now))
+        val request = PeriodicWorkRequestBuilder<RefuelReminderWorker>(Duration.ofHours(1))
+            .setInitialDelay(delayUntilNextCheck(now))
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
             .build()
         work.enqueueUniquePeriodicWork(WORK, ExistingPeriodicWorkPolicy.UPDATE, request)
     }
 
-    /** Until the next [hour] o'clock — today if it is still ahead, else tomorrow. */
-    fun delayUntil(hour: Int, now: LocalDateTime): Duration {
-        var next = now.toLocalDate().atTime(LocalTime.of(hour, 0))
-        if (!next.isAfter(now)) next = next.plusDays(1)
+    /** Until ten past the next hour: just after the price refresh at :07. */
+    fun delayUntilNextCheck(now: LocalDateTime): Duration {
+        var next = now.withMinute(10).withSecond(0).withNano(0)
+        if (!next.isAfter(now)) next = next.plusHours(1)
         return Duration.between(now, next)
     }
 
@@ -70,27 +81,71 @@ object RefuelReminders {
     fun isLow(level: FuelLevel, percent: Int, now: Instant = Instant.now()): Boolean =
         level.fillRatio * 100 < percent || level.emptyAt(now)?.isBefore(now.plus(EmptySoon)) == true
 
+    /** When to fuel, and at what price per litre at [Advice.station]. */
+    sealed interface Advice {
+        val station: StationPrice
+        val price: Double
+
+        /** Prices are at their daily low now. */
+        data class Now(override val station: StationPrice, override val price: Double) : Advice
+
+        /** The low is due at [hour] o'clock, at about [price]. */
+        data class At(val hour: Int, override val station: StationPrice, override val price: Double) : Advice
+
+        /** No good price in sight, but the tank will not wait. */
+        data class Today(override val station: StationPrice, override val price: Double) : Advice
+    }
+
     /**
-     * What a reminder says about [levels] — each car with its estimate — or
-     * null when none is low. The fill-up cost is at [cheapest], our cheapest
-     * station right now.
+     * When to fuel, given the cheapest station now and the day's usual
+     * shape. Without a shape — too little history — any hour is as good.
+     * Null when it pays to wait longer than [LookAheadHours] and the tank
+     * allows it.
      */
+    fun advice(cheapest: StationPrice, outlook: PriceOutlook?, hour: Int, urgent: Boolean): Advice? {
+        val price = cheapest.effectivePrice ?: return null
+        if (outlook == null || outlook.isLow(hour)) return Advice.Now(cheapest, price)
+        outlook.nextLow(hour, LookAheadHours)?.let { target ->
+            val expected = outlook.expected(price, hour, target) ?: price
+            if (expected < price - PriceOutlook.Tolerance) return Advice.At(target, cheapest, expected)
+            return Advice.Now(cheapest, price)
+        }
+        return if (urgent) Advice.Today(cheapest, price) else null
+    }
+
+    /** The notification's title and lines, or null when no car is low or it is not the time. */
     fun message(
         levels: List<Pair<Car, FuelLevel>>,
         percent: Int,
         cheapest: StationPrice?,
+        outlook: PriceOutlook?,
         now: Instant = Instant.now(),
+        zone: ZoneId = ZoneId.systemDefault(),
     ): Pair<String, List<String>>? {
         val low = levels.filter { (_, level) -> isLow(level, percent, now) }.sortedBy { (_, level) -> level.fillRatio }
-        if (low.isEmpty()) return null
-        val title = if (low.size == 1) "Time to refuel the ${low.single().first.name}" else "${low.size} cars need fuel"
-        return title to low.map { (car, level) -> line(car, level, cheapest, named = low.size > 1) }
+        if (low.isEmpty() || cheapest == null) return null
+        val urgent = low.any { (_, level) -> level.emptyAt(now)?.isBefore(now.plus(Urgent)) == true }
+        val advice = advice(cheapest, outlook, now.atZone(zone).hour, urgent) ?: return null
+        val cars = if (low.size == 1) "the ${low.single().first.name}" else "${low.size} cars"
+        val title = when (advice) {
+            is Advice.Now -> "Refuel $cars now"
+            is Advice.At -> "Refuel $cars from %02d:00".format(advice.hour)
+            is Advice.Today -> "Refuel $cars today"
+        }
+        val where = "${advice.station.displayName} ${advice.station.displayPlace}".trim()
+        val price = "${NexusFormat.number(advice.price, 3)} €/L"
+        val first = when (advice) {
+            is Advice.Now -> "$where, $price — today's low"
+            is Advice.At -> "$where, $price expected, down from ${NexusFormat.number(cheapest.effectivePrice!!, 3)}"
+            is Advice.Today -> "$where, $price — no lower price due soon"
+        }
+        return title to listOf(first) + low.map { (car, level) -> line(car, level, advice.price, named = low.size > 1) }
     }
 
-    private fun line(car: Car, level: FuelLevel, cheapest: StationPrice?, named: Boolean): String = listOfNotNull(
+    private fun line(car: Car, level: FuelLevel, price: Double, named: Boolean): String = listOfNotNull(
         "${NexusFormat.liters(level.remainingLiters, 0)} left".let { if (named) "${car.name}: $it" else it },
         level.rangeKm?.let { "${NexusFormat.km(it)} range" },
-        cheapest?.effectivePrice?.let { "fill up ${NexusFormat.euro(level.litersToFull * it)} at ${cheapest.displayName}" },
+        "fill up ${NexusFormat.euro(level.litersToFull * price)}",
     ).joinToString(" · ")
 
     internal fun notify(context: Context, title: String, lines: List<String>) {
@@ -111,7 +166,7 @@ object RefuelReminders {
             .setColor(ContextCompat.getColor(context, R.color.vibilia_red))
             .setContentTitle(title)
             .setContentText(lines.first())
-            .setStyle(if (lines.size > 1) style else NotificationCompat.BigTextStyle().bigText(lines.first()))
+            .setStyle(style)
             .setContentIntent(open)
             .setAutoCancel(true)
             .build()
@@ -124,16 +179,26 @@ class RefuelReminderWorker(context: Context, params: WorkerParameters) : Corouti
         val container = (applicationContext as VibiliaApplication).container
         val settings = container.preferences.current()
         if (!settings.refuelRemindersOn) return Result.success()
+        val zone = ZoneId.systemDefault()
+        val now = LocalDateTime.now(zone)
+        if (now.hour !in RefuelReminders.Awake || container.preferences.refuelReminderSentOn() == now.toLocalDate()) return Result.success()
         container.auth.awaitUserId() ?: return Result.success()
         return try {
             val levels = container.cars.cars().filter { (it.tankCapacity ?: 0.0) > 0 }.mapNotNull { car ->
                 container.statistics.fuelLevel(car.id, car) { container.logbook.refuels(car.id) }?.let { car to it }
             }
-            // The price is a nicety: without it the reminder still says what is left.
-            val cheapest = runCatching { container.prices.currentPrices(settings.fuelType) }.getOrDefault(emptyList())
+            if (levels.none { (_, level) -> RefuelReminders.isLow(level, settings.refuelReminderPercent) }) return Result.success()
+            val cheapest = container.prices.currentPrices(settings.fuelType)
                 .filter { it.effectivePrice != null }.minByOrNull { it.effectivePrice!! }
-            RefuelReminders.message(levels, settings.refuelReminderPercent, cheapest)
-                ?.let { (title, lines) -> RefuelReminders.notify(applicationContext, title, lines) }
+            // The shape is a nicety: without it the reminder just says where it is cheapest now.
+            val outlook = runCatching {
+                val since = now.toLocalDate().minusDays(7).atStartOfDay(zone).toInstant()
+                PriceOutlook.from(container.prices.priceHistory(settings.fuelType, since, 60, zone.id), now.toLocalDate())
+            }.getOrNull()
+            RefuelReminders.message(levels, settings.refuelReminderPercent, cheapest, outlook, zone = zone)?.let { (title, lines) ->
+                RefuelReminders.notify(applicationContext, title, lines)
+                container.preferences.setRefuelReminderSentOn(now.toLocalDate())
+            }
             Result.success()
         } catch (failure: Exception) {
             if (failure.isNetworkFailure()) Result.retry() else Result.failure()

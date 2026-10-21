@@ -129,7 +129,7 @@ class AppScreenshots {
         scrollTo("Remind me to refuel")
         compose.onAllNodes(hasText("Remind me to refuel")).onFirst().performClick()
         robot.awaitPreferences()
-        scrollTo("Check at")
+        scrollTo("Low below")
         shot("12b-settings-refuel-reminder")
 
         scrollTo("Wallpaper colours")

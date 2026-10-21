@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import io.github.numynox.nexus.core.data.NexusJson
 import io.github.numynox.nexus.core.ui.theme.ThemeMode
+import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -29,8 +30,6 @@ data class VibiliaSettings(
     val refuelRemindersOn: Boolean = false,
     /** Below this fill level, in percent (10–40), a car counts as low. */
     val refuelReminderPercent: Int = 20,
-    /** The hour of day the check runs, 6–21. */
-    val refuelReminderHour: Int = 7,
 )
 
 /**
@@ -53,7 +52,7 @@ class VibiliaPreferences(private val context: Context) {
         val BluetoothLinks = stringPreferencesKey("bluetooth_links")
         val RefuelRemindersOn = booleanPreferencesKey("refuel_reminders_on")
         val RefuelReminderPercent = intPreferencesKey("refuel_reminder_percent")
-        val RefuelReminderHour = intPreferencesKey("refuel_reminder_hour")
+        val RefuelReminderSentOn = stringPreferencesKey("refuel_reminder_sent_on")
     }
 
     val settings: Flow<VibiliaSettings> = context.vibiliaStore.data.map { it.toSettings() }
@@ -67,7 +66,6 @@ class VibiliaPreferences(private val context: Context) {
         trackDrives = this[Keys.TrackDrives] ?: false,
         refuelRemindersOn = this[Keys.RefuelRemindersOn] ?: false,
         refuelReminderPercent = (this[Keys.RefuelReminderPercent] ?: 20).coerceIn(10, 40),
-        refuelReminderHour = (this[Keys.RefuelReminderHour] ?: 7).coerceIn(6, 21),
     )
 
     suspend fun current(): VibiliaSettings = settings.first()
@@ -80,7 +78,12 @@ class VibiliaPreferences(private val context: Context) {
     suspend fun setTrackDrives(value: Boolean) = edit { it[Keys.TrackDrives] = value }
     suspend fun setRefuelRemindersOn(value: Boolean) = edit { it[Keys.RefuelRemindersOn] = value }
     suspend fun setRefuelReminderPercent(value: Int) = edit { it[Keys.RefuelReminderPercent] = value.coerceIn(10, 40) }
-    suspend fun setRefuelReminderHour(value: Int) = edit { it[Keys.RefuelReminderHour] = value.coerceIn(6, 21) }
+
+    /** The day the last refuel reminder went out, so one day gets one. */
+    suspend fun refuelReminderSentOn(): LocalDate? =
+        context.vibiliaStore.data.first()[Keys.RefuelReminderSentOn]?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+
+    suspend fun setRefuelReminderSentOn(day: LocalDate) = edit { it[Keys.RefuelReminderSentOn] = day.toString() }
 
     /** A random id per installation, so the server can tell this phone's reports apart. */
     suspend fun deviceId(): String {
