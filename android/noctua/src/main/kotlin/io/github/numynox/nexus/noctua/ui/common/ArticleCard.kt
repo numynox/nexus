@@ -48,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -70,6 +71,14 @@ import io.github.numynox.nexus.noctua.data.Article
 import io.github.numynox.nexus.noctua.data.Density
 import io.github.numynox.nexus.noctua.ui.feed.relativeAge
 import kotlinx.coroutines.launch
+
+/**
+ * A card's corners: tighter for Stories, whose image runs edge to edge and
+ * reads as a picture rather than a pill; the theme's large shape otherwise.
+ */
+@Composable
+fun cardShape(density: Density): Shape =
+    if (density == Density.Stories) MaterialTheme.shapes.small else MaterialTheme.shapes.large
 
 /** What the layout is called in settings and the feed's menu. */
 val Density.label: String
@@ -111,11 +120,12 @@ fun ArticleCard(
     val scope = rememberCoroutineScope()
     val state = rememberSwipeToDismissBoxState()
     val alpha by animateFloatAsState(if (faded ?: (read || seen)) 0.62f else 1f, label = "faded")
+    val shape = cardShape(density)
 
     SwipeToDismissBox(
         state = state,
         modifier = modifier,
-        backgroundContent = { SwipeBackground(state.dismissDirection, starred, read) },
+        backgroundContent = { SwipeBackground(state.dismissDirection, starred, read, shape) },
         onDismiss = { direction ->
             haptics.performHapticFeedback(HapticFeedbackType.Confirm)
             when (direction) {
@@ -129,7 +139,7 @@ fun ArticleCard(
     ) {
         Surface(
             color = MaterialTheme.colorScheme.surfaceContainerLow,
-            shape = MaterialTheme.shapes.large,
+            shape = shape,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column {
@@ -451,7 +461,7 @@ fun FeedIcon(url: String?, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun SwipeBackground(direction: SwipeToDismissBoxValue, starred: Boolean, read: Boolean) {
+private fun SwipeBackground(direction: SwipeToDismissBoxValue, starred: Boolean, read: Boolean, shape: Shape) {
     val (color, icon, label) = when (direction) {
         SwipeToDismissBoxValue.StartToEnd -> Triple(
             NexusThemeDefaults.extendedColors.warningContainer,
@@ -470,7 +480,7 @@ private fun SwipeBackground(direction: SwipeToDismissBoxValue, starred: Boolean,
     Row(
         Modifier
             .fillMaxSize()
-            .clip(MaterialTheme.shapes.large)
+            .clip(shape)
             .background(background)
             .padding(horizontal = 24.dp),
         verticalAlignment = Alignment.CenterVertically,
