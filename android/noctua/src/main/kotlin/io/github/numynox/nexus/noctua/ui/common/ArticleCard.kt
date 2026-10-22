@@ -324,6 +324,14 @@ private fun StoryBody(
                 relativeAge(article.time).takeIf { it.isNotBlank() }?.let { age -> StoryBadge { Text(age) } }
                 article.author?.let { author -> StoryBadge { Text(author, maxLines = 1, overflow = TextOverflow.Ellipsis) } }
                 if (starred) StoryBadge { Icon(Icons.Rounded.Star, contentDescription = "Starred", tint = NexusThemeDefaults.extendedColors.warning, modifier = Modifier.size(14.dp)) }
+                // Up here, not in a row of its own under the summary: opening
+                // an article would otherwise make its card grow and the list jump.
+                if (read) {
+                    StoryBadge(color = NexusThemeDefaults.extendedColors.successContainer, contentColor = NexusThemeDefaults.extendedColors.onSuccessContainer) {
+                        Icon(Icons.Rounded.CheckCircle, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Text("Read")
+                    }
+                }
             }
             Text(
                 article.title,
@@ -338,13 +346,8 @@ private fun StoryBody(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (read || article.tags.isNotEmpty()) {
+            if (article.tags.isNotEmpty()) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    if (read) {
-                        StoryBadge(small = true, color = NexusThemeDefaults.extendedColors.successContainer, contentColor = NexusThemeDefaults.extendedColors.onSuccessContainer) {
-                            Text("Read")
-                        }
-                    }
                     article.tags.take(3).forEach { tag -> StoryBadge(small = true) { Text(tag, maxLines = 1, overflow = TextOverflow.Ellipsis) } }
                 }
             }

@@ -33,13 +33,13 @@ import io.github.numynox.nexus.core.ui.NexusFormat
 import io.github.numynox.nexus.core.ui.components.ConnectedChoiceRow
 import io.github.numynox.nexus.core.ui.components.EmptyState
 import io.github.numynox.nexus.core.ui.components.ErrorState
-import io.github.numynox.nexus.core.ui.components.LoadingState
 import io.github.numynox.nexus.noctua.ui.AppViewModel
 import io.github.numynox.nexus.noctua.ui.common.ArticleActions
 import io.github.numynox.nexus.noctua.ui.common.ArticleCard
 import io.github.numynox.nexus.noctua.ui.common.containerViewModel
 import io.github.numynox.nexus.noctua.ui.common.openArticle
 import io.github.numynox.nexus.noctua.ui.common.shareArticle
+import io.github.numynox.nexus.noctua.ui.feed.FeedPlaceholders
 
 /** The web's /starred and /read pages as one screen with two shelves. */
 @Composable
@@ -90,7 +90,7 @@ fun LibraryScreen(app: AppViewModel) {
                     )
                 }
                 when (val state = library) {
-                    Loadable.Loading -> item(key = "loading") { LoadingState() }
+                    Loadable.Loading -> item(key = "loading") { FeedPlaceholders(settings.density) }
                     is Loadable.Failed -> item(key = "error") { ErrorState(state.message, onRetry = viewModel::load) }
                     is Loadable.Ready -> {
                         val entries = if (shelf == Shelf.Starred) state.value.starred else state.value.read
