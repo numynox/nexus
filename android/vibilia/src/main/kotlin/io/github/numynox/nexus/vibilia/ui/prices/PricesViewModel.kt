@@ -39,6 +39,10 @@ data class HistoryState(
     /** The last merged drive on the server, and the drive model to estimate its distance. */
     val lastDrive: DrivePeriod? = null,
     val driveModel: DriveModel? = null,
+    /** The fuel level is on its way for the selected car: the gauge's place is held. */
+    val fuelLevelLoading: Boolean = false,
+    /** A pull-to-refresh is running; what is shown stays until it lands. */
+    val refreshing: Boolean = false,
 )
 
 /** Our stations' prices and the price history chart — the web app's Fuel Price page. */
@@ -55,7 +59,13 @@ class PriceHistoryViewModel(private val container: AppContainer) : ViewModel() {
         key = next
         job?.cancel()
         job = viewModelScope.launch {
-            if (force) _state.update { it.copy(stations = Loadable.Loading, history = Loadable.Loading) }
+            // A refresh keeps what is shown and lets the pull indicator speak;
+            // only a first load, or new settings, start from placeholders.
+            if (force) {
+                _state.update { it.copy(refreshing = true) }
+            } else {
+                _state.update { it.copy(stations = Loadable.Loading, history = Loadable.Loading, refreshing = false) }
+            }
             val stations = async { loadable { container.prices.currentPrices(fuelType) } }
             val history = async {
                 loadable {
@@ -68,7 +78,12 @@ class PriceHistoryViewModel(private val container: AppContainer) : ViewModel() {
                     )
                 }
             }
-            _state.update { it.copy(stations = stations.await(), history = history.await()) }
+            val (newStations, newHistory) = stations.await() to history.await()
+            _state.update { state ->
+                // A refresh that failed leaves the last good data in place.
+                fun <T> pick(old: Loadable<T>, new: Loadable<T>) = if (force && new is Loadable.Failed && old is Loadable.Ready) old else new
+                state.copy(stations = pick(state.stations, newStations), history = pick(state.history, newHistory), refreshing = false)
+            }
         }
     }
 
@@ -76,22 +91,30 @@ class PriceHistoryViewModel(private val container: AppContainer) : ViewModel() {
 
     fun loadFuelLevel(car: Car?, version: Int) {
         if (car == null) {
-            _state.update { it.copy(fuelLevel = null, lastDrive = null, driveModel = null) }
+            _state.update { it.copy(fuelLevel = null, lastDrive = null, driveModel = null, fuelLevelLoading = false) }
             return
         }
         val next = car.id to version
         if (next == levelKey) return
+        // Another car's level would be wrong under this car's name.
+        val switching = levelKey?.first != car.id
         levelKey = next
+        if (switching) _state.update { it.copy(fuelLevel = null, lastDrive = null, fuelLevelLoading = true) }
         viewModelScope.launch {
-            val level = async {
-                runCatching { container.statistics.fuelLevel(car.id, car) { container.logbook.refuels(car.id) } }.getOrNull()
+            try {
+                val level = async {
+                    runCatching { container.statistics.fuelLevel(car.id, car) { container.logbook.refuels(car.id) } }.getOrNull()
+                }
+                val model = container.statistics.driveModel(car.id)
+                // The period ending at the car's last reported moment is its last drive.
+                val lastDrive = model?.lastDriveAt?.let { last ->
+                    container.statistics.drivePeriods(car.id, last.minusSeconds(1), Instant.now()).lastOrNull()
+                }
+                _state.update { it.copy(fuelLevel = level.await(), lastDrive = lastDrive, driveModel = model) }
+            } finally {
+                // Never left holding a place for a gauge that is not coming.
+                _state.update { it.copy(fuelLevelLoading = false) }
             }
-            val model = container.statistics.driveModel(car.id)
-            // The period ending at the car's last reported moment is its last drive.
-            val lastDrive = model?.lastDriveAt?.let { last ->
-                container.statistics.drivePeriods(car.id, last.minusSeconds(1), Instant.now()).lastOrNull()
-            }
-            _state.update { it.copy(fuelLevel = level.await(), lastDrive = lastDrive, driveModel = model) }
         }
     }
 }

@@ -38,6 +38,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.numynox.nexus.core.ui.NexusFormat
@@ -48,11 +49,11 @@ import io.github.numynox.nexus.core.ui.chart.ReferenceLine
 import io.github.numynox.nexus.core.ui.chart.SeriesStyle
 import io.github.numynox.nexus.core.ui.components.EmptyState
 import io.github.numynox.nexus.core.ui.components.ErrorState
-import io.github.numynox.nexus.core.ui.components.LoadingState
-import io.github.numynox.nexus.core.ui.components.PlaceholderList
 import io.github.numynox.nexus.core.ui.components.MetricCard
 import io.github.numynox.nexus.core.ui.components.MetricRow
 import io.github.numynox.nexus.core.ui.components.NexusCard
+import io.github.numynox.nexus.core.ui.components.PlaceholderBlock
+import io.github.numynox.nexus.core.ui.components.PlaceholderList
 import io.github.numynox.nexus.core.ui.components.SectionHeader
 import io.github.numynox.nexus.core.ui.theme.tabular
 import io.github.numynox.nexus.vibilia.data.CarStatistics
@@ -123,7 +124,14 @@ internal fun StatisticsContent(overview: CarOverview, state: StatisticsState, fu
             }
         }
         when (val plots = state.plots) {
-            Loadable.Loading -> item(key = "plots-loading") { LoadingState() }
+            // The four charts' cards, titled, with a dim shape where each
+            // chart will be — at its own height, so nothing moves when they land.
+            Loadable.Loading -> {
+                item(key = "consumption") { ChartCardPlaceholder("Consumption", "Litres per 100 km between refuels", 220.dp) }
+                item(key = "prices") { ChartCardPlaceholder("Fuel prices", "What you paid per litre, and the weekly $fuelType market low", 220.dp) }
+                item(key = "months") { ChartCardPlaceholder("Kilometres per month", monthsSubtitle(estimated = overview.model != null), 220.dp) }
+                item(key = "mileage") { ChartCardPlaceholder("Odometer", "Mileage at each refuel", 200.dp) }
+            }
             is Loadable.Failed -> item(key = "plots-error") { Text(plots.message, color = MaterialTheme.colorScheme.error) }
             is Loadable.Ready -> {
                 item(key = "consumption") { ConsumptionChart(plots.value) }
@@ -322,6 +330,16 @@ private fun ChartCard(title: String, subtitle: String, empty: Boolean, content: 
     }
 }
 
+private fun monthsSubtitle(estimated: Boolean) =
+    if (estimated) "Spread over the days driven; the current month estimated from driving time" else "Distance between refuels, by month"
+
+@Composable
+private fun ChartCardPlaceholder(title: String, subtitle: String, height: Dp) {
+    ChartCard(title, subtitle, empty = false) {
+        PlaceholderBlock(height = height, shape = MaterialTheme.shapes.medium)
+    }
+}
+
 private fun average(points: List<ChartPoint>, label: String, color: Color): List<ReferenceLine> =
     points.takeIf { it.isNotEmpty() }?.let { listOf(ReferenceLine(it.map { p -> p.y }.average(), label, color)) }.orEmpty()
 
@@ -372,7 +390,7 @@ private fun MonthsChart(plots: Plots, estimated: Boolean) {
     val totals = plots.months.map { ChartPoint(it.month.toEpochDay().toDouble(), it.kmDriven + it.estimatedKm) }
     ChartCard(
         "Kilometres per month",
-        if (estimated) "Spread over the days driven; the current month estimated from driving time" else "Distance between refuels, by month",
+        monthsSubtitle(estimated),
         measured.isEmpty(),
     ) {
         NexusChart(

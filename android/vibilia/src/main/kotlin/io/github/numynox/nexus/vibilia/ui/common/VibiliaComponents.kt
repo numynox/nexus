@@ -71,6 +71,7 @@ import androidx.compose.ui.unit.sp
 import io.github.numynox.nexus.core.ui.NexusFormat
 import io.github.numynox.nexus.core.ui.components.AnimatedNumberText
 import io.github.numynox.nexus.core.ui.components.NexusCard
+import io.github.numynox.nexus.core.ui.components.PlaceholderBlock
 import io.github.numynox.nexus.core.ui.components.PriceText
 import io.github.numynox.nexus.core.ui.theme.NexusThemeDefaults
 import io.github.numynox.nexus.core.ui.theme.tabular
@@ -321,6 +322,32 @@ private fun FactCell(fact: Fact, modifier: Modifier = Modifier) {
     Column(modifier) {
         Text(fact.label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(fact.value, style = MaterialTheme.typography.titleMedium.tabular(), color = fact.color, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/**
+ * The fuel card's place while its level loads: the gauge and its four facts
+ * as dim shapes, the same size as the card that replaces them, so the chart
+ * below does not jump when it arrives.
+ */
+@Composable
+fun FuelGaugePlaceholder(modifier: Modifier = Modifier) {
+    NexusCard(modifier = modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+            PlaceholderBlock(width = 120.dp, height = 76.dp, shape = MaterialTheme.shapes.large)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                repeat(2) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        repeat(2) {
+                            Column(Modifier.weight(1f).height(40.dp), verticalArrangement = Arrangement.SpaceEvenly) {
+                                PlaceholderBlock(width = 48.dp, height = 10.dp)
+                                PlaceholderBlock(Modifier.fillMaxWidth(0.8f), height = 16.dp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

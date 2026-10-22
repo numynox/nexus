@@ -49,8 +49,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import io.github.numynox.nexus.core.ui.components.LoadingState
 import io.github.numynox.nexus.core.ui.components.NexusCard
+import io.github.numynox.nexus.core.ui.components.PlaceholderBlock
+import io.github.numynox.nexus.core.ui.components.PlaceholderList
 import io.github.numynox.nexus.core.ui.components.SectionHeader
 import io.github.numynox.nexus.vibilia.tracking.PairedDevice
 import io.github.numynox.nexus.vibilia.ui.AppViewModel
@@ -88,7 +89,7 @@ fun VehicleEditorScreen(app: AppViewModel, carId: String?, onBack: () -> Unit) {
         },
     ) { padding ->
         if (viewModel.loading) {
-            LoadingState(Modifier.padding(padding))
+            PlaceholderList(count = 3, modifier = Modifier.padding(padding).padding(horizontal = 16.dp), lines = 3)
             return@Scaffold
         }
         LazyColumn(
@@ -261,7 +262,9 @@ private fun MembersCard(viewModel: VehicleEditorViewModel) {
     NexusCard {
         SectionHeader("Shared with", supporting = "Everyone listed can see and edit this vehicle and its log.")
         when (val members = viewModel.members) {
-            Loadable.Loading -> LoadingIndicator()
+            Loadable.Loading -> Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                repeat(2) { PlaceholderBlock(Modifier.fillMaxWidth(0.6f), height = 18.dp) }
+            }
             is Loadable.Failed -> Text(members.message, color = MaterialTheme.colorScheme.error)
             is Loadable.Ready -> members.value.forEach { member ->
                 ListItem(
