@@ -16,6 +16,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.numynox.nexus.core.ui.components.PlaceholderBlock
 import io.github.numynox.nexus.noctua.data.Density
+import io.github.numynox.nexus.noctua.ui.common.cardShape
 
 /**
  * Article-shaped placeholders in the chosen layout while the feed loads: the
@@ -35,10 +36,10 @@ fun FeedPlaceholders(density: Density, modifier: Modifier = Modifier) {
 
 @Composable
 private fun ArticlePlaceholder(density: Density) {
-    Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
+    Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, shape = cardShape(density), modifier = Modifier.fillMaxWidth()) {
         when (density) {
             Density.Stories -> Column {
-                PlaceholderBlock(height = 150.dp, shape = MaterialTheme.shapes.large)
+                PlaceholderBlock(height = 150.dp, shape = cardShape(density))
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     PlaceholderBlock(width = 120.dp, height = 18.dp)
                     PlaceholderBlock(Modifier.fillMaxWidth(0.9f), height = 20.dp)

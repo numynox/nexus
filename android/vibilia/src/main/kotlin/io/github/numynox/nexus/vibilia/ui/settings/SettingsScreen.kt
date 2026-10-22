@@ -40,9 +40,11 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.numynox.nexus.core.data.AuthState
+import io.github.numynox.nexus.core.ui.Loadable
 import io.github.numynox.nexus.core.ui.NexusFormat
 import io.github.numynox.nexus.core.ui.components.ConnectedChoiceRow
 import io.github.numynox.nexus.core.ui.components.NexusCard
+import io.github.numynox.nexus.core.ui.components.PlaceholderCard
 import io.github.numynox.nexus.core.ui.components.SectionHeader
 import io.github.numynox.nexus.core.ui.components.UpdateBanner
 import io.github.numynox.nexus.core.ui.settings.AboutItem
@@ -88,6 +90,11 @@ fun SettingsScreen(app: AppViewModel, onOpenVehicle: (String?) -> Unit) {
                         Text("Add", modifier = Modifier.padding(start = 6.dp))
                     }
                 })
+            }
+            // Until the cars arrive, their place is held, so the sections
+            // below do not jump down when they do.
+            if (cars is Loadable.Loading) {
+                items(2, key = { "car-placeholder-$it" }) { PlaceholderCard(lines = 1) }
             }
             items(cars.valueOrNull.orEmpty(), key = { it.id }) { car ->
                 val linked = links.filter { it.carId == car.id }

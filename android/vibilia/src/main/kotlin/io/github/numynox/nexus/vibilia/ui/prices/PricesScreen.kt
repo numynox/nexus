@@ -60,8 +60,9 @@ import io.github.numynox.nexus.vibilia.BuildConfig
 import io.github.numynox.nexus.core.ui.components.ConnectedChoiceRow
 import io.github.numynox.nexus.core.ui.components.EmptyState
 import io.github.numynox.nexus.core.ui.components.ErrorState
-import io.github.numynox.nexus.core.ui.components.LoadingState
 import io.github.numynox.nexus.core.ui.components.NexusCard
+import io.github.numynox.nexus.core.ui.components.PlaceholderBlock
+import io.github.numynox.nexus.core.ui.components.PlaceholderCard
 import io.github.numynox.nexus.core.ui.components.SectionHeader
 import io.github.numynox.nexus.core.ui.components.UpdateBanner
 import io.github.numynox.nexus.vibilia.data.FuelLevel
@@ -71,6 +72,7 @@ import io.github.numynox.nexus.vibilia.tracking.latestLocalDrive
 import io.github.numynox.nexus.vibilia.tracking.localDrivingHoursAfter
 import io.github.numynox.nexus.vibilia.ui.AppViewModel
 import io.github.numynox.nexus.vibilia.ui.common.FuelGaugeCard
+import io.github.numynox.nexus.vibilia.ui.common.FuelGaugePlaceholder
 import io.github.numynox.nexus.vibilia.ui.common.FuelLevelPill
 import io.github.numynox.nexus.vibilia.ui.common.LastDriveLine
 import io.github.numynox.nexus.vibilia.ui.common.LiveDriveBanner
@@ -190,10 +192,8 @@ private fun HistoryTab(
     }
     val openDrive = tracker.open
     val drivingCar = cars.valueOrNull.orEmpty().firstOrNull { it.id == openDrive?.carId }
-    val refreshing = state.stations is Loadable.Loading && state.history is Loadable.Loading
-
     PullToRefreshBox(
-        isRefreshing = false,
+        isRefreshing = state.refreshing,
         onRefresh = { viewModel.load(settings.fuelType, settings.priceHistoryDays, version, force = true) },
         modifier = Modifier.fillMaxSize(),
     ) {
@@ -211,7 +211,11 @@ private fun HistoryTab(
                     startedAt = openDrive?.startedAt,
                 )
             }
-            if (level != null && car != null) {
+            // The gauge's place is held while it loads — for the car, or for
+            // the cars themselves — so the chart below does not jump.
+            if (level == null && (state.fuelLevelLoading || (car == null && cars is Loadable.Loading))) {
+                item(key = "gauge") { FuelGaugePlaceholder(Modifier.animateItem()) }
+            } else if (level != null && car != null) {
                 val cheapest = state.stations.valueOrNull.orEmpty().filter { it.effectivePrice != null }.minByOrNull { it.effectivePrice!! }
                 item(key = "gauge") { FuelGaugeCard(level, car!!.name, cheapest, Modifier.animateItem()) }
             }
@@ -221,7 +225,11 @@ private fun HistoryTab(
             item(key = "chart") {
                 NexusCard(Modifier.animateItem()) {
                     when (val history = state.history) {
-                        Loadable.Loading -> LoadingState(Modifier.fillMaxWidth().height(260.dp))
+                        // The chart's own size, dim: one quiet shape, no spinner.
+                        Loadable.Loading -> {
+                            PlaceholderBlock(height = 260.dp, shape = MaterialTheme.shapes.medium)
+                            PriceHistoryLegend(settings.fuelType)
+                        }
                         is Loadable.Failed -> ErrorState(history.message, onRetry = {
                             viewModel.load(settings.fuelType, settings.priceHistoryDays, version, force = true)
                         })
@@ -234,7 +242,7 @@ private fun HistoryTab(
             }
             item(key = "stations-header") { SectionHeader("My stations", supporting = "Cheapest first, after discounts") }
             when (val stations = state.stations) {
-                Loadable.Loading -> if (!refreshing) item(key = "stations-loading") { LoadingState() }
+                Loadable.Loading -> items(4, key = { "station-placeholder-$it" }) { PlaceholderCard(lines = 1) }
                 is Loadable.Failed -> item(key = "stations-error") {
                     ErrorState(stations.message, onRetry = {
                         viewModel.load(settings.fuelType, settings.priceHistoryDays, version, force = true)
@@ -254,7 +262,6 @@ private fun HistoryTab(
                 }
             }
         }
-        if (refreshing) LoadingState(Modifier.fillMaxSize())
     }
 }
 
@@ -334,6 +341,9 @@ private fun NearbyTab(fuelType: String) {
             verticalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
+            if (stations.isEmpty() && (state.locating || state.stations is Loadable.Loading)) {
+                items(4, key = { "nearby-placeholder-$it" }) { PlaceholderCard(lines = 1) }
+            }
             if (stations.isEmpty() && state.stations is Loadable.Ready && state.location != null) {
                 item { Text("No stations found nearby.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }

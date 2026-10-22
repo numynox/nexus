@@ -6,6 +6,8 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.math.sin
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -37,8 +39,14 @@ object FakeBackend {
     private fun daysAgo(days: Long, hour: Int = 17) =
         LocalDate.now(zone).minusDays(days).atTime(hour, 12).atZone(zone).toInstant().toString()
 
+    /** While set, the price and fuel level queries wait for it — to catch the prices screen mid-load. */
+    @Volatile var holdPrices: CountDownLatch? = null
+
+    private val heldPaths = listOf("get_fuel_stations_current_prices", "get_fuel_price_plot_history", "get_car_fuel_level_estimate")
+
     fun engine() = FakeSupabase.engine { request, path ->
         val params = request.url.parameters
+        if (heldPaths.any { path.endsWith("/rpc/$it") }) holdPrices?.await(20, TimeUnit.SECONDS)
         when {
             path.endsWith("/functions/v1/fetch-nearby-fuel-prices") -> nearby().toString()
             path.endsWith("/rpc/get_fuel_stations_current_prices") -> currentPrices().toString()

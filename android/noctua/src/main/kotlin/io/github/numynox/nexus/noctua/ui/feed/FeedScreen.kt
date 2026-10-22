@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -52,6 +53,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.WavyProgressIndicatorDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -62,7 +64,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -202,20 +206,25 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
                                     val title = feedFilter?.let { id -> section?.feeds?.firstOrNull { it.id == id }?.name }
                                         ?: section?.name
                                         ?: if (loaded != null) "No sections" else null
-                                    if (title != null) Text(title) else PlaceholderBlock(width = 140.dp, height = 20.dp)
-                                    if (loaded != null && sections.isNotEmpty()) {
-                                        Text(
-                                            if (view.unseen == 0) "All caught up" else "${view.unseen} new",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    } else if (load is Loadable.Loading) {
-                                        Text(
-                                            "Loading…",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
+                                    // Every line keeps its height in every state, so
+                                    // nothing below the header moves while it fills in.
+                                    if (title != null) {
+                                        Text(title)
+                                    } else {
+                                        Box {
+                                            Text("Noctua", modifier = Modifier.alpha(0f))
+                                            PlaceholderBlock(Modifier.matchParentSize().padding(vertical = 4.dp), width = 140.dp)
+                                        }
                                     }
+                                    Text(
+                                        when {
+                                            loaded != null && sections.isNotEmpty() -> if (view.unseen == 0) "All caught up" else "${view.unseen} new"
+                                            load is Loadable.Loading -> "Loading…"
+                                            else -> ""
+                                        },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
                                 }
                             },
                             actions = {
@@ -239,10 +248,19 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
                             scope.launch { listState.scrollToItem(0) }
                             app.selectSection(id)
                         })
+                    } else if (knownSections == null) {
+                        // Not known yet (the first start, nothing cached): the
+                        // chips' row is held, so they do not push the list down.
+                        SectionChipPlaceholders()
                     }
-                    // While anything loads the bar moves, so a switch or a
-                    // refresh is never silent; otherwise it is the reading progress.
-                    Box(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    // One slot, as tall as the wavy bar: while anything loads the
+                    // bar waves, so a switch or a refresh is never silent;
+                    // otherwise the thin reading progress sits in its middle.
+                    // Either way the slot keeps its height, and nothing below moves.
+                    Box(
+                        Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth().height(WavyProgressIndicatorDefaults.LinearContainerHeight),
+                        contentAlignment = Alignment.Center,
+                    ) {
                         if (busy) {
                             LinearWavyProgressIndicator(Modifier.fillMaxWidth())
                         } else if (loaded != null && sections.isNotEmpty()) {
@@ -352,6 +370,16 @@ private fun DayHeader(label: String) {
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(start = 4.dp, top = 10.dp, bottom = 4.dp),
         )
+    }
+}
+
+/** Three chip-shaped placeholders, as tall as the chips that will replace them. */
+@Composable
+private fun SectionChipPlaceholders() {
+    androidx.compose.foundation.layout.Row(Modifier.padding(horizontal = 16.dp).height(FilterChipDefaults.Height), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        listOf(88.dp, 72.dp, 96.dp).forEach { width ->
+            PlaceholderBlock(width = width, height = FilterChipDefaults.Height, shape = MaterialTheme.shapes.small)
+        }
     }
 }
 
