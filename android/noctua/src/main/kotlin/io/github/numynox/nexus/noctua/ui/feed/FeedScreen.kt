@@ -39,7 +39,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
@@ -53,6 +53,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.WavyProgressIndicatorDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -67,7 +68,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -253,16 +253,16 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
                         // chips' row is held, so they do not push the list down.
                         SectionChipPlaceholders()
                     }
-                    // One slot, one height: while anything loads the bar moves,
-                    // so a switch or a refresh is never silent; otherwise it is
-                    // the reading progress. Both are as thin as each other.
-                    Box(Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth().height(ProgressHeight)) {
+                    // One slot, as tall as the wavy bar: while anything loads the
+                    // bar waves, so a switch or a refresh is never silent;
+                    // otherwise the thin reading progress sits in its middle.
+                    // Either way the slot keeps its height, and nothing below moves.
+                    Box(
+                        Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth().height(WavyProgressIndicatorDefaults.LinearContainerHeight),
+                        contentAlignment = Alignment.Center,
+                    ) {
                         if (busy) {
-                            LinearProgressIndicator(
-                                modifier = Modifier.fillMaxWidth().height(ProgressHeight),
-                                strokeCap = StrokeCap.Round,
-                                gapSize = 0.dp,
-                            )
+                            LinearWavyProgressIndicator(Modifier.fillMaxWidth())
                         } else if (loaded != null && sections.isNotEmpty()) {
                             ReadingProgress(view.progress)
                         }
@@ -372,9 +372,6 @@ private fun DayHeader(label: String) {
         )
     }
 }
-
-/** The thickness of the bar under the header, loading or not ([ReadingProgress] is drawn as thin). */
-private val ProgressHeight = 3.dp
 
 /** Three chip-shaped placeholders, as tall as the chips that will replace them. */
 @Composable
