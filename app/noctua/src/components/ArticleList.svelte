@@ -384,6 +384,9 @@
   function toggleSortOrder() {
     sortOrder = sortOrder === "newest" ? "oldest" : "newest";
     setSortOrder(sortOrder);
+    // The other order is a new list: start it at its top, as a search does,
+    // instead of leaving the window at the same depth over other articles.
+    window.scrollTo(0, 0);
   }
 
   function relativeTime(article: Article): string {

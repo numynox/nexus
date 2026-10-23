@@ -12,6 +12,7 @@ import io.github.numynox.nexus.noctua.data.Article
 import io.github.numynox.nexus.noctua.data.FeedContent
 import io.github.numynox.nexus.noctua.data.NoctuaSettings
 import io.github.numynox.nexus.noctua.data.Section
+import io.github.numynox.nexus.noctua.data.SortOrder
 import java.time.Instant
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Job
@@ -48,11 +49,26 @@ data class FeedView(
     /** Share of this load's unseen stories seen since, for the progress bar. */
     val progress: Float,
     /**
-     * Counts the refreshes behind [days]. It changes in the same value as the
-     * rows a refresh brought, so the list can start over at its top once
-     * they are drawn — however the refresh was asked for.
+     * Which list [days] is. It changes in the same value as the rows, so the
+     * list can start over at its top once they are drawn — whatever made it
+     * a different list.
      */
+    val start: ListStart = ListStart(),
+)
+
+/**
+ * What makes the feed a new list rather than the same one moving: a refresh
+ * that landed, another section, a search, a feed picked, the order flipped.
+ * When any of it changes, the list starts at its top — otherwise it would
+ * keep its old position over new content, mid-list or on the end panel with
+ * the matches out of sight above.
+ */
+data class ListStart(
     val refreshes: Int = 0,
+    val sectionId: Long? = null,
+    val query: String = "",
+    val feedId: Long? = null,
+    val sortOrder: SortOrder = SortOrder.Newest,
 )
 
 class FeedViewModel(private val container: AppContainer) : ViewModel() {
@@ -109,15 +125,16 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
      */
     private val baseline = MutableStateFlow(0)
 
-    /** The days to draw, and the refreshes behind them — one value, so they never part. */
+    /** The days to draw, and which list they are — one value, so they never part. */
     private val days = combine(_load, settings, query, feedFilter) { load, settings, query, feed ->
         val loaded = load.valueOrNull
-        loaded?.let { buildFeed(it.content.articles, it.hiddenAtLoad, query, feed, settings.sortOrder, it.groups) }.orEmpty() to (loaded?.refreshes ?: 0)
+        val days = loaded?.let { buildFeed(it.content.articles, it.hiddenAtLoad, query, feed, settings.sortOrder, it.groups) }.orEmpty()
+        days to ListStart(loaded?.refreshes ?: 0, loaded?.sectionId, query.trim(), feed, settings.sortOrder)
     }
 
-    val view: StateFlow<FeedView> = combine(days, seen, baseline) { (days, refreshes), seen, baseline ->
+    val view: StateFlow<FeedView> = combine(days, seen, baseline) { (days, start), seen, baseline ->
         val unseen = unseenCount(days, seen)
-        FeedView(days, unseen, seenProgress(baseline, unseen), refreshes)
+        FeedView(days, unseen, seenProgress(baseline, unseen), start)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, FeedView(emptyList(), 0, 0f))
 
     /** Refreshes landed so far; a section switch or a plain reload keeps the count. */
@@ -161,7 +178,7 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
     /**
      * The reader's own refresh — the pull past the end, the end panel's button
      * and the menu's are all this one call. Once it lands, the list starts
-     * over at its top, as the web's reload does ([FeedView.refreshes]).
+     * over at its top, as the web's reload does ([ListStart.refreshes]).
      */
     fun refresh(sectionId: Long?) = load(sectionId, refresh = true)
 

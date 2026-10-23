@@ -159,16 +159,18 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
     // Every way to refresh — the pull past the end, the end panel's button,
     // the menu — is this one, and all of them end the same way: at the top.
     val refresh = { viewModel.refresh(settings.selectedSectionId) }
-    // Keyed on the count that arrives together with the refreshed rows, so it
-    // runs once they are in the list. requestScrollToItem, not scrollToItem:
-    // the list otherwise keeps the end panel in view by its key while the new
-    // articles land above it, and the reader would stay at "all caught up".
-    // Only a refresh newer than the screen has seen: coming back from another
-    // tab composes this again, and must not move the list.
-    var handledRefreshes by rememberSaveable { mutableIntStateOf(view.refreshes) }
-    LaunchedEffect(view.refreshes) {
-        if (view.refreshes > handledRefreshes) listState.requestScrollToItem(0)
-        handledRefreshes = view.refreshes
+    // A new list — refreshed, another section, searched, filtered, reordered
+    // (ListStart) — starts at its top, whichever control made it. Keyed on
+    // what arrives together with the rows, so it runs once they are in the
+    // list; requestScrollToItem, not scrollToItem, because the list otherwise
+    // keeps its old first item in view by its key and the reader stays where
+    // the old list was — at "all caught up", with the new articles above.
+    // Only a list the screen has not started yet: coming back from another
+    // tab composes this again, and must not move it.
+    var startedList by rememberSaveable { mutableIntStateOf(view.start.hashCode()) }
+    LaunchedEffect(view.start) {
+        if (view.start.hashCode() != startedList) listState.requestScrollToItem(0)
+        startedList = view.start.hashCode()
     }
     // The update banner leads the list only while there is one: an empty item
     // would still take a gap, and push the end panel off where it rests below
@@ -256,10 +258,8 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
                         )
                     }
                     if (sections.isNotEmpty()) {
-                        SectionChips(sections, section?.id, onSelect = { id ->
-                            scope.launch { listState.scrollToItem(0) }
-                            app.selectSection(id)
-                        })
+                        // The new section's list starts at its top (ListStart).
+                        SectionChips(sections, section?.id, onSelect = { app.selectSection(it) })
                     } else if (knownSections == null) {
                         // Not known yet (the first start, nothing cached): the
                         // chips' row is held, so they do not push the list down.

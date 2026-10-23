@@ -3,10 +3,12 @@ package io.github.numynox.nexus.noctua.screenshots
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasScrollToKeyAction
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performScrollToKey
+import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
 import io.github.numynox.nexus.core.testing.ScreenshotRobot
 import io.github.numynox.nexus.noctua.MainActivity
@@ -32,7 +34,11 @@ import org.robolectric.annotation.GraphicsMode
 class RefreshScreenshot {
     @get:Rule(order = 0)
     val news = object : ExternalResource() {
-        override fun before() { FakeBackend.breakingNews = false }
+        override fun before() {
+            FakeBackend.breakingNews = false
+            // Each test starts with nothing seen, whatever ran before it.
+            runBlocking { ApplicationProvider.getApplicationContext<NoctuaApplication>().container.preferences.clearSeen() }
+        }
         override fun after() {
             FakeBackend.breakingNews = false
             // This test sees everything; the next one should not start there.
@@ -47,10 +53,9 @@ class RefreshScreenshot {
 
     @Test
     fun refreshFromAllCaughtUpGoesToTheNewArticles() = with(robot) {
-        waitFor(hasText("Nothing new") or hasText("EU agrees on the first binding rules for general-purpose AI models"))
+        waitForText("EU agrees on the first binding rules for general-purpose AI models")
         // Scroll everything past the top, so the refresh hides it all.
-        // (Earlier tests in this run may have left it all seen already.)
-        compose.onAllNodes(hasScrollToKeyAction() and hasAnyDescendant(hasText("Today") or hasText("Nothing new"))).onFirst().performScrollToKey("end")
+        compose.onAllNodes(hasScrollToKeyAction() and hasAnyDescendant(hasText("Today"))).onFirst().performScrollToKey("end")
         settle()
         tap("Refresh")
         waitForText("Nothing new")
@@ -60,5 +65,19 @@ class RefreshScreenshot {
         waitForText(FakeBackend.BREAKING)
         compose.onAllNodes(hasText(FakeBackend.BREAKING)).onFirst().assertIsDisplayed()
         shot("22-feed-refreshed-from-caught-up")
+    }
+
+    @Test
+    fun aSearchFromTheEndShowsItsMatches() = with(robot) {
+        waitForText("EU agrees on the first binding rules for general-purpose AI models")
+        compose.onAllNodes(hasScrollToKeyAction() and hasAnyDescendant(hasText("Today"))).onFirst().performScrollToKey("end")
+        settle()
+        // Searching from down here narrows the list above: it must show the
+        // match, not stay on the end panel with the match out of sight.
+        tapIcon("Search")
+        compose.onNode(hasSetTextAction()).performTextInput("Linux")
+        settle()
+        compose.onAllNodes(hasText("Linux 7.2 released with a new scheduler for hybrid CPUs")).onFirst().assertIsDisplayed()
+        shot("23-feed-search-from-the-end")
     }
 }
