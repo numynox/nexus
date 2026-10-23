@@ -56,8 +56,10 @@ import io.github.numynox.nexus.core.ui.Loadable
 import io.github.numynox.nexus.core.ui.components.EmptyState
 import io.github.numynox.nexus.core.ui.components.ErrorState
 import io.github.numynox.nexus.core.ui.components.PlaceholderList
+import io.github.numynox.nexus.core.ui.components.rememberPullRefresh
 import io.github.numynox.nexus.core.ui.components.SectionHeader
 import io.github.numynox.nexus.core.ui.loadable
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -72,15 +74,13 @@ class ProductsViewModel(container: AppContainer) : ViewModel() {
     private val _catalogue = MutableStateFlow<Loadable<Catalogue>>(Loadable.Loading)
     val catalogue: StateFlow<Loadable<Catalogue>> = _catalogue.asStateFlow()
 
-    fun load() {
-        viewModelScope.launch {
-            if (_catalogue.value !is Loadable.Ready) _catalogue.value = Loadable.Loading
-            _catalogue.value = loadable {
-                coroutineScope {
-                    val products = async { repository.products() }
-                    val categories = async { repository.categories() }
-                    Catalogue(products.await(), categories.await())
-                }
+    fun load(): Job = viewModelScope.launch {
+        if (_catalogue.value !is Loadable.Ready) _catalogue.value = Loadable.Loading
+        _catalogue.value = loadable {
+            coroutineScope {
+                val products = async { repository.products() }
+                val categories = async { repository.categories() }
+                Catalogue(products.await(), categories.await())
             }
         }
     }
@@ -94,10 +94,9 @@ fun ProductsScreen(app: AppViewModel, navigator: Navigator) {
     val version by app.dataVersion.collectAsStateWithLifecycle()
     var query by rememberSaveable { mutableStateOf("") }
     var category by rememberSaveable { mutableStateOf<Long?>(null) }
-    var refreshing by remember { mutableStateOf(false) }
+    val pull = rememberPullRefresh(viewModel::load)
 
     LaunchedEffect(version) { viewModel.load() }
-    LaunchedEffect(catalogue) { if (catalogue !is Loadable.Loading) refreshing = false }
 
     Scaffold(
         topBar = { TopAppBar(title = { Text("Products") }) },
@@ -110,8 +109,8 @@ fun ProductsScreen(app: AppViewModel, navigator: Navigator) {
         },
     ) { padding ->
         PullToRefreshBox(
-            isRefreshing = refreshing,
-            onRefresh = { refreshing = true; viewModel.load() },
+            isRefreshing = pull.refreshing,
+            onRefresh = pull.onRefresh,
             modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()),
         ) {
             when (val state = catalogue) {

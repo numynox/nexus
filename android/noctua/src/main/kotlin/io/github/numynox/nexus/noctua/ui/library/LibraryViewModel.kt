@@ -8,6 +8,7 @@ import io.github.numynox.nexus.core.ui.loadable
 import io.github.numynox.nexus.noctua.AppContainer
 import io.github.numynox.nexus.noctua.data.Article
 import io.github.numynox.nexus.noctua.data.DatedArticle
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -41,13 +42,11 @@ class LibraryViewModel(container: AppContainer) : ViewModel() {
         load()
     }
 
-    fun load() {
-        viewModelScope.launch {
-            if (_library.value !is Loadable.Ready) _library.value = Loadable.Loading
-            _library.value = loadable { Library(repository.starredArticles(), repository.readArticles(READ_LIMIT)) }
-            _starOverrides.value = emptyMap()
-            _readOverrides.value = emptyMap()
-        }
+    fun load(): Job = viewModelScope.launch {
+        if (_library.value !is Loadable.Ready) _library.value = Loadable.Loading
+        _library.value = loadable { Library(repository.starredArticles(), repository.readArticles(READ_LIMIT)) }
+        _starOverrides.value = emptyMap()
+        _readOverrides.value = emptyMap()
     }
 
     private val loaded: Library? get() = (_library.value as? Loadable.Ready)?.value

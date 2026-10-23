@@ -9,6 +9,7 @@ import io.github.numynox.nexus.core.data.describe
 import io.github.numynox.nexus.core.ui.Loadable
 import io.github.numynox.nexus.core.ui.loadable
 import io.github.numynox.nexus.core.ui.valueOrNull
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,15 +25,13 @@ class PantryViewModel(container: AppContainer) : ViewModel() {
     private val _pantry = MutableStateFlow<Loadable<Pantry>>(Loadable.Loading)
     val pantry: StateFlow<Loadable<Pantry>> = _pantry.asStateFlow()
 
-    fun load() {
-        viewModelScope.launch {
-            if (_pantry.value !is Loadable.Ready) _pantry.value = Loadable.Loading
-            _pantry.value = loadable {
-                coroutineScope {
-                    val summary = async { repository.summary() }
-                    val items = async { repository.activeItems() }
-                    Pantry(summary.await(), items.await())
-                }
+    fun load(): Job = viewModelScope.launch {
+        if (_pantry.value !is Loadable.Ready) _pantry.value = Loadable.Loading
+        _pantry.value = loadable {
+            coroutineScope {
+                val summary = async { repository.summary() }
+                val items = async { repository.activeItems() }
+                Pantry(summary.await(), items.await())
             }
         }
     }

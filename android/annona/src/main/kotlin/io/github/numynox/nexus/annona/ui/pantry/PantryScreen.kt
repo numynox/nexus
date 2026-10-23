@@ -54,6 +54,7 @@ import io.github.numynox.nexus.core.ui.NexusFormat
 import io.github.numynox.nexus.core.ui.components.EmptyState
 import io.github.numynox.nexus.core.ui.components.ErrorState
 import io.github.numynox.nexus.core.ui.components.PlaceholderList
+import io.github.numynox.nexus.core.ui.components.rememberPullRefresh
 import io.github.numynox.nexus.core.ui.components.MetricCard
 import io.github.numynox.nexus.core.ui.components.MetricRow
 import io.github.numynox.nexus.core.ui.components.NexusCard
@@ -72,10 +73,9 @@ fun PantryScreen(app: AppViewModel, navigator: Navigator) {
     val update by app.update.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    var refreshing by remember { mutableStateOf(false) }
+    val pull = rememberPullRefresh(viewModel::load)
 
     LaunchedEffect(version) { viewModel.load() }
-    LaunchedEffect(pantry) { if (pantry !is Loadable.Loading) refreshing = false }
 
     Scaffold(
         topBar = {
@@ -102,8 +102,8 @@ fun PantryScreen(app: AppViewModel, navigator: Navigator) {
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         PullToRefreshBox(
-            isRefreshing = refreshing,
-            onRefresh = { refreshing = true; viewModel.load() },
+            isRefreshing = pull.refreshing,
+            onRefresh = pull.onRefresh,
             modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()),
         ) {
             when (val state = pantry) {
