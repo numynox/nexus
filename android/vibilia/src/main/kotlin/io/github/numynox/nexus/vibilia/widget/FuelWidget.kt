@@ -154,7 +154,7 @@ object FuelWidgetData {
 private val WidgetColors = ColorProviders(light = VibiliaPalette.light, dark = VibiliaPalette.dark)
 
 /** The orange of a low tank, as the app's gauge draws it. */
-private val Low = ColorProvider(day = Color(0xFF8C5000), night = Color(0xFFFFB870))
+private val Low = ColorProvider(day = Color(0xFF874D00), night = Color(0xFFFFB870))
 
 @Composable
 fun FuelWidgetContent(state: FuelWidgetState, dynamicColor: Boolean = false) {

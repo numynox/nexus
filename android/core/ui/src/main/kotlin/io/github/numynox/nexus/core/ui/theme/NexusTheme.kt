@@ -47,12 +47,14 @@ data class ExtendedColors(
     val onWarningContainer: Color,
 )
 
+// Success and warning are text as well as fills: dark enough for 4.5:1 on
+// every app's cards, also on the 12 % tint of a tag.
 private val LightExtended = ExtendedColors(
-    success = Color(0xFF2E7D32),
+    success = Color(0xFF27692A),
     onSuccess = Color(0xFFFFFFFF),
     successContainer = Color(0xFFB8F0B9),
     onSuccessContainer = Color(0xFF002106),
-    warning = Color(0xFF8C5000),
+    warning = Color(0xFF874D00),
     warningContainer = Color(0xFFFFDCBE),
     onWarningContainer = Color(0xFF2D1600),
 )

@@ -118,7 +118,7 @@ private val WidgetColors = ColorProviders(light = AnnonaPalette.light, dark = An
 
 /** The pantry badge colours: past its date, and due this week. */
 private val Expired = ColorProvider(day = Color(0xFFBA1A1A), night = Color(0xFFFFB4AB))
-private val Soon = ColorProvider(day = Color(0xFF8C5000), night = Color(0xFFFFB870))
+private val Soon = ColorProvider(day = Color(0xFF874D00), night = Color(0xFFFFB870))
 
 @Composable
 fun UseSoonContent(state: UseSoonState, today: LocalDate = LocalDate.now(), dynamicColor: Boolean = false) {

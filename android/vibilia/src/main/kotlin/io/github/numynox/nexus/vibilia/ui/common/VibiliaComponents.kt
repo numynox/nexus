@@ -405,7 +405,8 @@ fun StationCard(
     val container by animateColorAsState(
         when {
             selected -> MaterialTheme.colorScheme.secondaryContainer
-            cheapest -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.16f)
+            // Faint enough for the red "Cheapest" and its price to read on it.
+            cheapest -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.12f)
             else -> MaterialTheme.colorScheme.surfaceContainerLow
         },
         label = "station",
