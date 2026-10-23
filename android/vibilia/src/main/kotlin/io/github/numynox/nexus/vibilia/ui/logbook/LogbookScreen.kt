@@ -188,12 +188,29 @@ internal fun LogbookList(
                             month.distance?.let(::monthDistanceLabel)?.let {
                                 Text(it, style = MaterialTheme.typography.bodySmall.tabular(), color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
+                            // The diary's one line: this month against the one before.
+                            month.comparison?.let {
+                                Text(
+                                    it,
+                                    style = MaterialTheme.typography.bodySmall.tabular(),
+                                    color = if (" less than " in it) NexusThemeDefaults.extendedColors.success else MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
-                        Text(
-                            NexusFormat.euro(month.spent),
-                            style = MaterialTheme.typography.labelLarge.tabular(),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                NexusFormat.euro(month.spent),
+                                style = MaterialTheme.typography.labelLarge.tabular(),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            if (month.other >= 0.005 && month.fuel >= 0.005) {
+                                Text(
+                                    "${NexusFormat.euro(month.fuel, 0)} fuel · ${NexusFormat.euro(month.other, 0)} other",
+                                    style = MaterialTheme.typography.labelSmall.tabular(),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
                     }
                 }
             }

@@ -154,6 +154,42 @@
     return dayjs(getEventTimestamp(event)).format("YYYY-MM");
   }
 
+  function eventCost(event: any): number {
+    return Number(
+      event.entryType === "expense" ? event.amount : event.total_price,
+    ) || 0;
+  }
+
+  /** Everything spent per month, keyed "YYYY-MM". */
+  let spendByMonth = $derived(
+    events.reduce<Record<string, number>>((byMonth, e) => {
+      const key = monthKey(e);
+      byMonth[key] = (byMonth[key] ?? 0) + eventCost(e);
+      return byMonth;
+    }, {}),
+  );
+
+  /**
+   * The diary's one line: "12 € less than September". A month without entries
+   * spent nothing; the first month has nothing before it to compare with. The
+   * running month says "so far". Mirrors LogbookViewModel.spendComparison.
+   */
+  function formatSpendComparison(key: string): string {
+    const months = Object.keys(spendByMonth).sort();
+    const previous = dayjs(`${key}-01`).subtract(1, "month");
+    const previousKey = previous.format("YYYY-MM");
+    if (!months.length || previousKey < months[0]) return "";
+    const difference = Math.round(
+      (spendByMonth[key] ?? 0) - (spendByMonth[previousKey] ?? 0),
+    );
+    const name = previous.format("MMMM");
+    const line =
+      difference === 0
+        ? `Same as ${name}`
+        : `${Math.abs(difference)} € ${difference < 0 ? "less" : "more"} than ${name}`;
+    return key === dayjs().format("YYYY-MM") ? `${line} so far` : line;
+  }
+
   /** "628 km · 9 h driven". */
   function formatMonthDistance(key: string): string {
     const month = distanceByMonth[key];
@@ -431,6 +467,25 @@
               </span>
               <span class="tabular-nums text-base-content/40">
                 {formatMonthDistance(monthKey(e))}
+              </span>
+              <span
+                class="flex w-full flex-wrap items-baseline justify-between gap-x-3 tabular-nums"
+              >
+                {#if formatSpendComparison(monthKey(e))}
+                  {@const comparison = formatSpendComparison(monthKey(e))}
+                  <span
+                    class={comparison.includes(" less than ")
+                      ? "text-success"
+                      : "text-base-content/50"}
+                  >
+                    {comparison}
+                  </span>
+                {:else}
+                  <span></span>
+                {/if}
+                <span class="font-semibold text-base-content/60">
+                  {(spendByMonth[monthKey(e)] ?? 0).toFixed(2)} €
+                </span>
               </span>
             </div>
           {/if}
