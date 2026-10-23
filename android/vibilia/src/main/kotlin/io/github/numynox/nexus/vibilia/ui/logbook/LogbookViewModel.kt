@@ -42,6 +42,10 @@ class LogbookViewModel(private val container: AppContainer) : ViewModel() {
     private val _state = MutableStateFlow<Loadable<Logbook>>(Loadable.Loading)
     val state: StateFlow<Loadable<Logbook>> = _state.asStateFlow()
 
+    /** A pull to refresh is running: the pull indicator shows it, the logbook stays. */
+    private val _refreshing = MutableStateFlow(false)
+    val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
+
     private var key: Pair<String, Int>? = null
 
     fun load(carId: String, version: Int, force: Boolean = false) {
@@ -50,7 +54,8 @@ class LogbookViewModel(private val container: AppContainer) : ViewModel() {
         key = carId to version
         viewModelScope.launch {
             if (switchingCar) _state.value = Loadable.Loading
-            _state.value = loadable {
+            if (force) _refreshing.value = true
+            val result = loadable {
                 val refuels = async { container.logbook.refuels(carId) }
                 val expenses = async { container.logbook.expenses(carId) }
                 // Extra detail: the logbook still loads without it.
@@ -59,6 +64,9 @@ class LogbookViewModel(private val container: AppContainer) : ViewModel() {
                 }
                 build(refuels.await(), expenses.await(), distance.await())
             }
+            // A refresh that failed leaves the logbook that was there.
+            if (!(force && result is Loadable.Failed && _state.value is Loadable.Ready)) _state.value = result
+            _refreshing.value = false
         }
     }
 

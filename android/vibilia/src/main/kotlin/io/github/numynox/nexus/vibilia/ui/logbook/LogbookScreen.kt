@@ -78,6 +78,7 @@ import java.util.Locale
 fun LogbookScreen(app: AppViewModel) {
     val viewModel = containerViewModel { LogbookViewModel(it) }
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
     val cars by app.cars.collectAsStateWithLifecycle()
     val car by app.selectedCar.collectAsStateWithLifecycle()
     val version by app.dataVersion.collectAsStateWithLifecycle()
@@ -137,7 +138,7 @@ fun LogbookScreen(app: AppViewModel) {
                     Loadable.Loading -> PlaceholderList(count = 4, modifier = Modifier.padding(horizontal = 16.dp))
                     is Loadable.Failed -> ErrorState(logbook.message, onRetry = { viewModel.load(car!!.id, version, force = true) })
                     is Loadable.Ready -> PullToRefreshBox(
-                        isRefreshing = false,
+                        isRefreshing = refreshing,
                         onRefresh = { viewModel.load(car!!.id, version, force = true) },
                     ) {
                         if (logbook.value.months.isEmpty()) {
