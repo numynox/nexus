@@ -16,6 +16,9 @@ android {
 
 dependencies {
     implementation(libs.androidx.work.runtime)
+    // The home screen widget.
+    implementation(libs.androidx.glance.appwidget)
+    implementation(libs.androidx.glance.material3)
     implementation(libs.maplibre.android)
 
     testImplementation(libs.androidx.work.testing)

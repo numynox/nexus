@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import io.github.numynox.nexus.core.data.NexusJson
 import io.github.numynox.nexus.core.ui.theme.ThemeMode
+import io.github.numynox.nexus.vibilia.widget.FuelSnapshot
 import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
@@ -53,6 +54,7 @@ class VibiliaPreferences(private val context: Context) {
         val RefuelRemindersOn = booleanPreferencesKey("refuel_reminders_on")
         val RefuelReminderPercent = intPreferencesKey("refuel_reminder_percent")
         val RefuelReminderSentOn = stringPreferencesKey("refuel_reminder_sent_on")
+        val WidgetSnapshot = stringPreferencesKey("widget_snapshot")
     }
 
     val settings: Flow<VibiliaSettings> = context.vibiliaStore.data.map { it.toSettings() }
@@ -84,6 +86,14 @@ class VibiliaPreferences(private val context: Context) {
         context.vibiliaStore.data.first()[Keys.RefuelReminderSentOn]?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
 
     suspend fun setRefuelReminderSentOn(day: LocalDate) = edit { it[Keys.RefuelReminderSentOn] = day.toString() }
+
+    /** What the home screen widget last loaded, shown while it cannot load. */
+    suspend fun widgetSnapshot(): FuelSnapshot? =
+        context.vibiliaStore.data.first()[Keys.WidgetSnapshot]
+            ?.let { runCatching { NexusJson.decodeFromString<FuelSnapshot>(it) }.getOrNull() }
+
+    suspend fun setWidgetSnapshot(snapshot: FuelSnapshot) =
+        edit { it[Keys.WidgetSnapshot] = NexusJson.encodeToString(snapshot) }
 
     /** A random id per installation, so the server can tell this phone's reports apart. */
     suspend fun deviceId(): String {
