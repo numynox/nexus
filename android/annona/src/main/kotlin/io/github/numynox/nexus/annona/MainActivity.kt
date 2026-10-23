@@ -6,8 +6,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import io.github.numynox.nexus.annona.ui.AnnonaApp
 import io.github.numynox.nexus.annona.ui.ScanMode
+import io.github.numynox.nexus.annona.widget.UseSoonWidget
 import io.github.numynox.nexus.core.ui.app.startNexusActivity
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     /** A launcher shortcut's request to open the scanner, consumed by the navigation. */
@@ -24,6 +26,13 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         intent.scanMode()?.let { shortcut.value = it }
+    }
+
+    /** Leaving the app is when the home screen shows again: bring the widget up to date. */
+    override fun onStop() {
+        super.onStop()
+        val container = (application as AnnonaApplication).container
+        container.core.scope.launch { UseSoonWidget.refresh(applicationContext) }
     }
 
     private fun Intent.scanMode(): ScanMode? = when (action) {

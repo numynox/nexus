@@ -18,6 +18,9 @@ dependencies {
     implementation(libs.coil.network.okhttp)
     // The daily expiry reminder.
     implementation(libs.androidx.work.runtime)
+    // The home screen widget.
+    implementation(libs.androidx.glance.appwidget)
+    implementation(libs.androidx.glance.material3)
 
     testImplementation(libs.coil.test)
     testImplementation(libs.androidx.work.testing)

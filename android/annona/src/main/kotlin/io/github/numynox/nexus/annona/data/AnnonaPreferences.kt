@@ -8,6 +8,8 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import io.github.numynox.nexus.annona.widget.SoonItem
+import io.github.numynox.nexus.core.data.NexusJson
 import io.github.numynox.nexus.core.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -39,6 +41,7 @@ class AnnonaPreferences(private val context: Context) {
         val RemindersOn = booleanPreferencesKey("reminders_on")
         val ReminderDays = intPreferencesKey("reminder_days")
         val ReminderHour = intPreferencesKey("reminder_hour")
+        val WidgetItems = stringPreferencesKey("widget_items")
     }
 
     val settings: Flow<AnnonaSettings> = context.annonaStore.data.map { it.toSettings() }
@@ -58,6 +61,14 @@ class AnnonaPreferences(private val context: Context) {
     suspend fun setRemindersOn(value: Boolean) = edit { it[Keys.RemindersOn] = value }
     suspend fun setReminderDays(value: Int) = edit { it[Keys.ReminderDays] = value.coerceIn(1, 14) }
     suspend fun setReminderHour(value: Int) = edit { it[Keys.ReminderHour] = value.coerceIn(6, 21) }
+
+    /** What the home screen widget last loaded, shown while it cannot load. */
+    suspend fun widgetItems(): List<SoonItem>? =
+        context.annonaStore.data.first()[Keys.WidgetItems]
+            ?.let { runCatching { NexusJson.decodeFromString<List<SoonItem>>(it) }.getOrNull() }
+
+    suspend fun setWidgetItems(items: List<SoonItem>) =
+        edit { it[Keys.WidgetItems] = NexusJson.encodeToString(items) }
 
     private suspend fun edit(block: (MutablePreferences) -> Unit) {
         context.annonaStore.edit(block)
