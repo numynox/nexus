@@ -33,6 +33,7 @@ import io.github.numynox.nexus.core.ui.NexusFormat
 import io.github.numynox.nexus.core.ui.components.ConnectedChoiceRow
 import io.github.numynox.nexus.core.ui.components.EmptyState
 import io.github.numynox.nexus.core.ui.components.ErrorState
+import io.github.numynox.nexus.core.ui.components.rememberPullRefresh
 import io.github.numynox.nexus.noctua.ui.AppViewModel
 import io.github.numynox.nexus.noctua.ui.common.ArticleActions
 import io.github.numynox.nexus.noctua.ui.common.ArticleCard
@@ -51,13 +52,12 @@ fun LibraryScreen(app: AppViewModel) {
     val starOverrides by viewModel.starOverrides.collectAsStateWithLifecycle()
     val readOverrides by viewModel.readOverrides.collectAsStateWithLifecycle()
     var shelf by rememberSaveable { mutableStateOf(Shelf.Starred) }
-    var refreshing by remember { mutableStateOf(false) }
+    val pull = rememberPullRefresh(viewModel::load)
     val context = LocalContext.current
     val toolbarColor = MaterialTheme.colorScheme.surface
     val snackbar = remember { SnackbarHostState() }
 
     LaunchedEffect(viewModel) { viewModel.messages.collect { snackbar.showSnackbar(it) } }
-    LaunchedEffect(library) { if (library !is Loadable.Loading) refreshing = false }
 
     val actions = ArticleActions(
         open = { openArticle(context, it, settings.openInApp, toolbarColor) },
@@ -71,8 +71,8 @@ fun LibraryScreen(app: AppViewModel) {
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         PullToRefreshBox(
-            isRefreshing = refreshing,
-            onRefresh = { refreshing = true; viewModel.load() },
+            isRefreshing = pull.refreshing,
+            onRefresh = pull.onRefresh,
             modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()),
         ) {
             LazyColumn(

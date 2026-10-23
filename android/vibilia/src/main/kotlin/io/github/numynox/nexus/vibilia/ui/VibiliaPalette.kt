@@ -9,10 +9,12 @@ import io.github.numynox.nexus.core.ui.theme.NexusPalette
  * Generated from the logo's pump red (#C4161C) with Material's colour
  * utilities, Fidelity variant — it keeps the seed's chroma, so the app stays
  * recognisably red rather than the dusty rose of the default tonal scheme.
+ * Light primary and tertiary are a step darker than generated, back near the
+ * logo's own red: as text on the cards they fell just short of 4.5:1.
  */
 val VibiliaPalette = NexusPalette(
     light = lightColorScheme(
-        primary = Color(0xFFDE2D2B),
+        primary = Color(0xFFBE1F1E),
         onPrimary = Color(0xFFFFFFFF),
         primaryContainer = Color(0xFFC4161C),
         onPrimaryContainer = Color(0xFFFFD6D2),
@@ -21,7 +23,7 @@ val VibiliaPalette = NexusPalette(
         onSecondary = Color(0xFFFFFFFF),
         secondaryContainer = Color(0xFFFFDAD6),
         onSecondaryContainer = Color(0xFFAD4039),
-        tertiary = Color(0xFF2977C2),
+        tertiary = Color(0xFF2366A7),
         onTertiary = Color(0xFFFFFFFF),
         tertiaryContainer = Color(0xFF2977C2),
         onTertiaryContainer = Color(0xFFFFFFFF),

@@ -4,4 +4,6 @@
     <string name="shortcut_add">Add groceries</string>
     <string name="shortcut_consume">Use something up</string>
     <string name="reminder_channel">Expiry reminders</string>
+    <string name="widget_name">Use soon</string>
+    <string name="widget_description">What in the pantry expires next</string>
 </resources>

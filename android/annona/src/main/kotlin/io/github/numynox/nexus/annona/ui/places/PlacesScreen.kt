@@ -45,9 +45,11 @@ import io.github.numynox.nexus.core.ui.Loadable
 import io.github.numynox.nexus.core.ui.components.EmptyState
 import io.github.numynox.nexus.core.ui.components.ErrorState
 import io.github.numynox.nexus.core.ui.components.PlaceholderList
+import io.github.numynox.nexus.core.ui.components.rememberPullRefresh
 import io.github.numynox.nexus.core.ui.components.NexusCard
 import io.github.numynox.nexus.core.ui.components.SectionHeader
 import io.github.numynox.nexus.core.ui.loadable
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -58,11 +60,9 @@ class PlacesViewModel(container: AppContainer) : ViewModel() {
     private val _places = MutableStateFlow<Loadable<List<Place>>>(Loadable.Loading)
     val places: StateFlow<Loadable<List<Place>>> = _places.asStateFlow()
 
-    fun load() {
-        viewModelScope.launch {
-            if (_places.value !is Loadable.Ready) _places.value = Loadable.Loading
-            _places.value = loadable { repository.places() }
-        }
+    fun load(): Job = viewModelScope.launch {
+        if (_places.value !is Loadable.Ready) _places.value = Loadable.Loading
+        _places.value = loadable { repository.places() }
     }
 }
 
@@ -72,9 +72,8 @@ fun PlacesScreen(app: AppViewModel, navigator: Navigator) {
     val viewModel = containerViewModel { PlacesViewModel(it) }
     val places by viewModel.places.collectAsStateWithLifecycle()
     val version by app.dataVersion.collectAsStateWithLifecycle()
-    var refreshing by remember { mutableStateOf(false) }
+    val pull = rememberPullRefresh(viewModel::load)
     LaunchedEffect(version) { viewModel.load() }
-    LaunchedEffect(places) { if (places !is Loadable.Loading) refreshing = false }
 
     Scaffold(
         topBar = { TopAppBar(title = { Text("Places") }) },
@@ -87,8 +86,8 @@ fun PlacesScreen(app: AppViewModel, navigator: Navigator) {
         },
     ) { padding ->
         PullToRefreshBox(
-            isRefreshing = refreshing,
-            onRefresh = { refreshing = true; viewModel.load() },
+            isRefreshing = pull.refreshing,
+            onRefresh = pull.onRefresh,
             modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()),
         ) {
             when (val state = places) {

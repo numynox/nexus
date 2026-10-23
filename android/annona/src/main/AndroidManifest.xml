@@ -35,5 +35,18 @@
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
         </activity>
+
+        <!-- The home screen widget: what to use up next. -->
+        <receiver
+            android:name=".widget.UseSoonWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/use_soon_widget" />
+        </receiver>
     </application>
 </manifest>

@@ -48,6 +48,7 @@ import io.github.numynox.nexus.core.ui.chart.SeriesStyle
 import io.github.numynox.nexus.core.ui.components.EmptyState
 import io.github.numynox.nexus.core.ui.components.ErrorState
 import io.github.numynox.nexus.core.ui.components.PlaceholderList
+import io.github.numynox.nexus.core.ui.components.rememberPullRefresh
 import io.github.numynox.nexus.core.ui.components.MetricCard
 import io.github.numynox.nexus.core.ui.components.MetricRow
 import io.github.numynox.nexus.core.ui.components.NexusCard
@@ -62,13 +63,12 @@ private val Weekdays = listOf("Mo", "Tu", "We", "Th", "Fr", "Sa", "Su")
 fun StatisticsScreen() {
     val viewModel = containerViewModel { StatisticsViewModel(it) }
     val stats by viewModel.stats.collectAsStateWithLifecycle()
-    var refreshing by remember { mutableStateOf(false) }
-    LaunchedEffect(stats) { if (stats !is Loadable.Loading) refreshing = false }
+    val pull = rememberPullRefresh(viewModel::load)
 
     Scaffold(topBar = { TopAppBar(title = { Text("Statistics") }) }) { padding ->
         PullToRefreshBox(
-            isRefreshing = refreshing,
-            onRefresh = { refreshing = true; viewModel.load() },
+            isRefreshing = pull.refreshing,
+            onRefresh = pull.onRefresh,
             modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()),
         ) {
             when (val state = stats) {

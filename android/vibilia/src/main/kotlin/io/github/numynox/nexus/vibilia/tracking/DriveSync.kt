@@ -13,6 +13,7 @@ import androidx.work.WorkerParameters
 import io.github.numynox.nexus.core.data.isNetworkFailure
 import io.github.numynox.nexus.vibilia.VibiliaApplication
 import io.github.numynox.nexus.vibilia.data.DriveIntervalUpload
+import io.github.numynox.nexus.vibilia.widget.FuelWidget
 import java.time.Duration
 import java.time.Instant
 
@@ -59,6 +60,8 @@ class DriveSyncWorker(context: Context, params: WorkerParameters) : CoroutineWor
         val batch = runCatching { container.drives.upload(uploads) }
         if (batch.isSuccess) {
             tracker.markUploaded(uploads.map { it.id }.toSet())
+            // The drive used fuel: the widget's tank should show it.
+            FuelWidget.refresh(applicationContext)
             return Result.success()
         }
         if (batch.exceptionOrNull()?.isNetworkFailure() == true) return Result.retry()

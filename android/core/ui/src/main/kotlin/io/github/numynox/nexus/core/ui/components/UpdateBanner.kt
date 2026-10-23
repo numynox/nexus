@@ -2,6 +2,8 @@ package io.github.numynox.nexus.core.ui.components
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.SystemUpdate
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -22,7 +24,12 @@ fun UpdateBanner(update: AvailableUpdate?, modifier: Modifier = Modifier) {
         text = "Version ${update?.versionName.orEmpty()} is available.",
         modifier = modifier,
         action = {
-            TextButton(onClick = { update?.let { uriHandler.openUri(it.apkUrl ?: it.pageUrl) } }) {
+            // The banner's own text colour: a text button's default, primary,
+            // all but vanishes on the tertiary container in every palette.
+            TextButton(
+                onClick = { update?.let { uriHandler.openUri(it.apkUrl ?: it.pageUrl) } },
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onTertiaryContainer),
+            ) {
                 Text("Download")
             }
         },

@@ -58,6 +58,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -155,15 +156,28 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
     )
 
     val listState = rememberLazyListState()
-    LaunchedEffect(viewModel) {
-        viewModel.refreshed.collect { listState.scrollToItem(0) }
+    // Every way to refresh — the pull past the end, the end panel's button,
+    // the menu — is this one, and all of them end the same way: at the top.
+    val refresh = { viewModel.refresh(settings.selectedSectionId) }
+    // A new list — refreshed, another section, searched, filtered, reordered
+    // (ListStart) — starts at its top, whichever control made it. Keyed on
+    // what arrives together with the rows, so it runs once they are in the
+    // list; requestScrollToItem, not scrollToItem, because the list otherwise
+    // keeps its old first item in view by its key and the reader stays where
+    // the old list was — at "all caught up", with the new articles above.
+    // Only a list the screen has not started yet: coming back from another
+    // tab composes this again, and must not move it.
+    var startedList by rememberSaveable { mutableIntStateOf(view.start.hashCode()) }
+    LaunchedEffect(view.start) {
+        if (view.start.hashCode() != startedList) listState.requestScrollToItem(0)
+        startedList = view.start.hashCode()
     }
     // The update banner leads the list only while there is one: an empty item
     // would still take a gap, and push the end panel off where it rests below
     // the articles (see [EndOfFeed]).
     val lead = if (update != null) 1 else 0
     val pullThreshold = with(LocalDensity.current) { 96.dp.toPx() }
-    val endPull = remember(pullThreshold) { EndPull(pullThreshold) { viewModel.load(settings.selectedSectionId, refresh = true) } }
+    val endPull = remember(pullThreshold) { EndPull(pullThreshold) { refresh() } }
     val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
     // Seen on scroll: a story is seen once it has gone up past the top of the
     // list, and only while scrolling down — the web's rule, on the list's
@@ -238,16 +252,14 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
                                     onDensity = app::setDensity,
                                     onSortOrder = app::setSortOrder,
                                     onMarkAllRead = { confirmMarkAll = viewModel.unreadShown() },
-                                    onRefresh = { viewModel.load(settings.selectedSectionId, refresh = true) },
+                                    onRefresh = refresh,
                                 )
                             },
                         )
                     }
                     if (sections.isNotEmpty()) {
-                        SectionChips(sections, section?.id, onSelect = { id ->
-                            scope.launch { listState.scrollToItem(0) }
-                            app.selectSection(id)
-                        })
+                        // The new section's list starts at its top (ListStart).
+                        SectionChips(sections, section?.id, onSelect = { app.selectSection(it) })
                     } else if (knownSections == null) {
                         // Not known yet (the first start, nothing cached): the
                         // chips' row is held, so they do not push the list down.
@@ -329,7 +341,7 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
                                 empty = rows.isEmpty(),
                                 pull = endPull,
                                 refreshing = refreshing,
-                                onRefresh = { viewModel.load(settings.selectedSectionId, refresh = true) },
+                                onRefresh = refresh,
                                 modifier = Modifier.fillParentMaxHeight(),
                             )
                         }
