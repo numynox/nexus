@@ -473,17 +473,12 @@
               >
                 {#if formatSpendComparison(monthKey(e))}
                   {@const comparison = formatSpendComparison(monthKey(e))}
-                  <span
-                    class={comparison.includes(" less than ")
-                      ? "text-success"
-                      : "text-base-content/50"}
-                  >
-                    {comparison}
-                  </span>
+                  <!-- No text-success: in lofi, the default theme, it is a pale green near 1.3:1 on white. -->
+                  <span class="text-base-content/70">{comparison}</span>
                 {:else}
                   <span></span>
                 {/if}
-                <span class="font-semibold text-base-content/60">
+                <span class="font-semibold text-base-content/70">
                   {(spendByMonth[monthKey(e)] ?? 0).toFixed(2)} €
                 </span>
               </span>
