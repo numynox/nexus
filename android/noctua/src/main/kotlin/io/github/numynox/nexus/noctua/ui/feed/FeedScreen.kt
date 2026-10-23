@@ -58,6 +58,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -155,15 +156,26 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
     )
 
     val listState = rememberLazyListState()
-    LaunchedEffect(viewModel) {
-        viewModel.refreshed.collect { listState.scrollToItem(0) }
+    // Every way to refresh — the pull past the end, the end panel's button,
+    // the menu — is this one, and all of them end the same way: at the top.
+    val refresh = { viewModel.refresh(settings.selectedSectionId) }
+    // Keyed on the count that arrives together with the refreshed rows, so it
+    // runs once they are in the list. requestScrollToItem, not scrollToItem:
+    // the list otherwise keeps the end panel in view by its key while the new
+    // articles land above it, and the reader would stay at "all caught up".
+    // Only a refresh newer than the screen has seen: coming back from another
+    // tab composes this again, and must not move the list.
+    var handledRefreshes by rememberSaveable { mutableIntStateOf(view.refreshes) }
+    LaunchedEffect(view.refreshes) {
+        if (view.refreshes > handledRefreshes) listState.requestScrollToItem(0)
+        handledRefreshes = view.refreshes
     }
     // The update banner leads the list only while there is one: an empty item
     // would still take a gap, and push the end panel off where it rests below
     // the articles (see [EndOfFeed]).
     val lead = if (update != null) 1 else 0
     val pullThreshold = with(LocalDensity.current) { 96.dp.toPx() }
-    val endPull = remember(pullThreshold) { EndPull(pullThreshold) { viewModel.load(settings.selectedSectionId, refresh = true) } }
+    val endPull = remember(pullThreshold) { EndPull(pullThreshold) { refresh() } }
     val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
     // Seen on scroll: a story is seen once it has gone up past the top of the
     // list, and only while scrolling down — the web's rule, on the list's
@@ -238,7 +250,7 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
                                     onDensity = app::setDensity,
                                     onSortOrder = app::setSortOrder,
                                     onMarkAllRead = { confirmMarkAll = viewModel.unreadShown() },
-                                    onRefresh = { viewModel.load(settings.selectedSectionId, refresh = true) },
+                                    onRefresh = refresh,
                                 )
                             },
                         )
@@ -329,7 +341,7 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
                                 empty = rows.isEmpty(),
                                 pull = endPull,
                                 refreshing = refreshing,
-                                onRefresh = { viewModel.load(settings.selectedSectionId, refresh = true) },
+                                onRefresh = refresh,
                                 modifier = Modifier.fillParentMaxHeight(),
                             )
                         }

@@ -81,6 +81,11 @@ object FakeBackend {
     /** While set, article queries wait for it — to catch the feed mid-load. */
     @Volatile var holdArticles: CountDownLatch? = null
 
+    /** A story that arrives only once this is set — what a refresh finds. */
+    @Volatile var breakingNews = false
+    const val BREAKING = "Breaking: storm warning issued for the North Sea coast"
+    private val breaking = Story(520, 1, 1, BREAKING, "Gusts of up to 120 km/h are expected from tonight.")
+
     /** A reader who has not set up a section yet. */
     @Volatile var withoutSections = false
 
@@ -97,7 +102,8 @@ object FakeBackend {
                 holdArticles?.await(20, TimeUnit.SECONDS)
                 // PostgREST's `feed_id=in.(1,2,3)`, the feeds of the chosen section.
                 val wanted = request.url.parameters["feed_id"]?.removePrefix("in.(")?.removeSuffix(")")?.split(",")?.mapNotNull { it.toLongOrNull() }
-                buildJsonArray { stories.filter { wanted == null || it.feed in wanted }.forEach { add(articleJson(it, embedFeed = false)) } }
+                val all = if (breakingNews) listOf(breaking) + stories else stories
+                buildJsonArray { all.filter { wanted == null || it.feed in wanted }.forEach { add(articleJson(it, embedFeed = false)) } }
             }
             path.endsWith("/rest/v1/article_reads") && select.contains("articles(") -> buildJsonArray {
                 reads.entries.sortedBy { it.value }.forEach { (id, minutes) ->

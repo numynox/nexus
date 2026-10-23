@@ -37,6 +37,8 @@ data class FeedLoad(
     /** Seen at load and hidden for it (if the user hides seen articles). */
     val hiddenAtLoad: Set<Long>,
     val groups: Map<Long, Long> = emptyMap(),
+    /** How many refreshes have landed, this one included; 0 until the first. */
+    val refreshes: Int = 0,
 )
 
 /** The feed as drawn, with the counts the header shows. */
@@ -45,6 +47,12 @@ data class FeedView(
     val unseen: Int,
     /** Share of this load's unseen stories seen since, for the progress bar. */
     val progress: Float,
+    /**
+     * Counts the refreshes behind [days]. It changes in the same value as the
+     * rows a refresh brought, so the list can start over at its top once
+     * they are drawn — however the refresh was asked for.
+     */
+    val refreshes: Int = 0,
 )
 
 class FeedViewModel(private val container: AppContainer) : ViewModel() {
@@ -92,10 +100,6 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val messages: SharedFlow<String> = _messages.asSharedFlow()
 
-    /** A refresh landed: the list starts over at its top, as the web's reload does. */
-    private val _refreshed = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    val refreshed: SharedFlow<Unit> = _refreshed.asSharedFlow()
-
     private val settings = preferences.settings.stateIn(viewModelScope, SharingStarted.Eagerly, NoctuaSettings())
 
     /**
@@ -105,14 +109,19 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
      */
     private val baseline = MutableStateFlow(0)
 
+    /** The days to draw, and the refreshes behind them — one value, so they never part. */
     private val days = combine(_load, settings, query, feedFilter) { load, settings, query, feed ->
-        load.valueOrNull?.let { buildFeed(it.content.articles, it.hiddenAtLoad, query, feed, settings.sortOrder, it.groups) }.orEmpty()
+        val loaded = load.valueOrNull
+        loaded?.let { buildFeed(it.content.articles, it.hiddenAtLoad, query, feed, settings.sortOrder, it.groups) }.orEmpty() to (loaded?.refreshes ?: 0)
     }
 
-    val view: StateFlow<FeedView> = combine(days, seen, baseline) { days, seen, baseline ->
+    val view: StateFlow<FeedView> = combine(days, seen, baseline) { (days, refreshes), seen, baseline ->
         val unseen = unseenCount(days, seen)
-        FeedView(days, unseen, seenProgress(baseline, unseen))
+        FeedView(days, unseen, seenProgress(baseline, unseen), refreshes)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, FeedView(emptyList(), 0, 0f))
+
+    /** Refreshes landed so far; a section switch or a plain reload keeps the count. */
+    private var refreshes = 0
 
     init {
         viewModelScope.launch {
@@ -123,7 +132,7 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
 
     private suspend fun takeBaseline() {
         // The stored set, not [seen], which may not have loaded yet on the first call.
-        baseline.value = unseenCount(days.first(), preferences.seen.first())
+        baseline.value = unseenCount(days.first().first, preferences.seen.first())
     }
 
     /** Shows one feed of the section, or all of them; like a new page on the web, the progress starts over. */
@@ -149,6 +158,13 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
         load(sectionId)
     }
 
+    /**
+     * The reader's own refresh — the pull past the end, the end panel's button
+     * and the menu's are all this one call. Once it lands, the list starts
+     * over at its top, as the web's reload does ([FeedView.refreshes]).
+     */
+    fun refresh(sectionId: Long?) = load(sectionId, refresh = true)
+
     /** (Re)loads the given section; [sectionId] may be stale or unset and falls back to the first. */
     fun load(sectionId: Long?, refresh: Boolean = false) {
         requested.value = sectionId
@@ -166,10 +182,13 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
             val shown = _load.value.valueOrNull?.sectionId
             if (!refresh && (_load.value !is Loadable.Ready || (target != null && target != shown))) _load.value = Loadable.Loading
             try {
-                val result = loadable { fetch(sectionId) }
+                val result = loadable { fetch(sectionId) }.let { result ->
+                    if (result !is Loadable.Ready) return@let result
+                    if (refresh) refreshes++
+                    Loadable.Ready(result.value.copy(refreshes = refreshes))
+                }
                 if (result is Loadable.Ready || !refresh) _load.value = result
                 if (result is Loadable.Ready) takeBaseline()
-                if (result is Loadable.Ready && refresh) _refreshed.tryEmit(Unit)
                 if (result is Loadable.Failed && refresh) _messages.tryEmit(result.message)
             } finally {
                 if (loading == coroutineContext[Job]) {
