@@ -40,6 +40,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearWavyProgressIndicator
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
@@ -417,7 +418,7 @@ private fun FeedFilterButton(section: Section, selected: Long?, onSelect: (Long?
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) {
-            Icon(Icons.Rounded.FilterList, contentDescription = "Filter by feed", tint = if (selected != null) MaterialTheme.colorScheme.primary else Color.Unspecified)
+            Icon(Icons.Rounded.FilterList, contentDescription = "Filter by feed", tint = if (selected != null) MaterialTheme.colorScheme.primary else LocalContentColor.current)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
