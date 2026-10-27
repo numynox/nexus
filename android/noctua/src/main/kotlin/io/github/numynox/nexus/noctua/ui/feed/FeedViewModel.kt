@@ -9,11 +9,13 @@ import io.github.numynox.nexus.core.ui.valueOrNull
 import io.github.numynox.nexus.noctua.AppContainer
 import io.github.numynox.nexus.noctua.BuildConfig
 import io.github.numynox.nexus.noctua.data.Article
+import io.github.numynox.nexus.noctua.data.DatedArticle
 import io.github.numynox.nexus.noctua.data.FeedContent
 import io.github.numynox.nexus.noctua.data.NoctuaSettings
 import io.github.numynox.nexus.noctua.data.Section
 import io.github.numynox.nexus.noctua.data.SortOrder
 import java.time.Instant
+import java.time.LocalDate
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -104,6 +106,13 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
     val reads: StateFlow<Map<Long, Instant>> = _reads.asStateFlow()
     private val _starred = MutableStateFlow<Set<Long>>(emptySet())
     val starred: StateFlow<Set<Long>> = _starred.asStateFlow()
+
+    /** Today's reading, oldest first — the stars over the end of the feed — with this session's reads added at once. */
+    private val _today = MutableStateFlow<List<DatedArticle>>(emptyList())
+    val today: StateFlow<List<DatedArticle>> = _today.asStateFlow()
+
+    /** The time of day the owl goes by. */
+    val clock get() = container.clock
 
     val seen: StateFlow<Set<Long>> = preferences.seen.stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
 
@@ -229,6 +238,7 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
         val feeds = section?.feeds.orEmpty()
         val articles = repository.articles(feeds, BuildConfig.ARTICLE_FETCH_LIMIT)
         val reads = async { repository.reads(articles.map { it.id }) }
+        val today = async { readToday() }
         val current = preferences.current()
         val seenNow = preferences.seen.first()
         val hidden = if (current.hideSeen) articles.mapNotNullTo(HashSet()) { a -> a.id.takeIf { it in seenNow } } else emptySet()
@@ -245,9 +255,19 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
         val content = FeedContent(sections, articles, reads.await(), starred.await())
         _reads.value = content.reads
         _starred.value = content.starred
+        _today.value = today.await()
         feedFilter.value = feedFilter.value?.takeIf { id -> feeds.any { it.id == id } }
         _expanded.value = emptySet()
         FeedLoad(content, section?.id, hidden, groups.await())
+    }
+
+    /** Only the sky depends on it, so a failure keeps the stars already up rather than failing the load. */
+    private suspend fun readToday(): List<DatedArticle> = try {
+        repository.readSince(LocalDate.now(clock).atStartOfDay(clock.zone).toInstant())
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        _today.value
     }
 
     private fun resolve(sections: List<Section>, id: Long?): Section? = sections.firstOrNull { it.id == id } ?: sections.firstOrNull()
@@ -271,12 +291,23 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
 
     private fun setRead(ids: List<Long>, read: Boolean) {
         val before = _reads.value
+        val todayBefore = _today.value
         _reads.update { reads -> if (read) reads + ids.associateWith { Instant.now() } else reads - ids.toSet() }
+        _today.update { today ->
+            if (read) {
+                val known = today.mapTo(HashSet()) { it.article.id }
+                val articles = _load.value.valueOrNull?.content?.articles.orEmpty().associateBy { it.id }
+                today + ids.filter { it !in known }.mapNotNull { id -> articles[id]?.let { DatedArticle(it, Instant.now(clock)) } }
+            } else {
+                today.filter { it.article.id !in ids }
+            }
+        }
         viewModelScope.launch {
             runCatching { if (read) repository.markRead(ids) else repository.markUnread(ids) }
                 .onFailure {
                     // Put it back: the card should not claim what is not stored.
                     _reads.value = before
+                    _today.value = todayBefore
                     _messages.tryEmit(it.describe())
                 }
         }

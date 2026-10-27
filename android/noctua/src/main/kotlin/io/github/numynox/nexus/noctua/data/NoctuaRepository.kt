@@ -252,6 +252,19 @@ class NoctuaRepository(private val supabase: SupabaseClient) {
             .decodeList<ReadRow>()
             .mapNotNull { row -> row.articles?.let { DatedArticle(it.toArticle(null), row.readAt) } }
 
+    /** What was read since [since], oldest first: the stars over the end of the feed. */
+    suspend fun readSince(since: Instant): List<DatedArticle> =
+        supabase.from("article_reads")
+            .select(Columns.raw("article_id,read_at,articles(${ArticleColumns},feeds(id,name,icon))")) {
+                filter { eq("user_id", userId); gte("read_at", since.toString()) }
+                order("read_at", Order.ASCENDING)
+                limit(TodayLimit.toLong())
+            }
+            .decodeList<ReadRow>()
+            .filter { !it.readAt.isBefore(since) }
+            .sortedBy { it.readAt }
+            .mapNotNull { row -> row.articles?.let { DatedArticle(it.toArticle(null), row.readAt) } }
+
     /** Wipes the durable read history; statistics start over. */
     suspend fun clearReadHistory() {
         supabase.from("article_reads").delete { filter { eq("user_id", userId) } }
@@ -265,6 +278,8 @@ class NoctuaRepository(private val supabase: SupabaseClient) {
             .decodeAs<ReadingStatisticsRow>()
 
     private companion object {
+        /** More stars than any day's reading, and than the sky has room for. */
+        const val TodayLimit = 150
         const val ArticleColumns = "id,feed_id,title,url,published_at,updated_at,author,summary,image_url,tags"
     }
 }

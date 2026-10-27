@@ -8,11 +8,16 @@ import coil3.test.FakeImageLoaderEngine
 import io.github.numynox.nexus.core.testing.FakeSupabase
 import io.github.numynox.nexus.noctua.AppContainer
 import io.github.numynox.nexus.noctua.NoctuaApplication
+import java.time.Clock
+import java.time.Duration
+import java.time.ZonedDateTime
 import kotlinx.coroutines.runBlocking
 
 /**
  * The real app on a fake backend, signed in. Images come from a fake Coil
- * engine — a colour per picture — since the JVM test has no network.
+ * engine — a colour per picture — since the JVM test has no network. The
+ * clock says half past ten in the evening of today, whenever the test runs,
+ * so the owl at the end of the feed is awake in every run.
  */
 class ScreenshotApplication : NoctuaApplication() {
     override fun onCreate() {
@@ -31,5 +36,10 @@ class ScreenshotApplication : NoctuaApplication() {
         runBlocking { FakeSupabase.signIn(container.core.supabase) }
     }
 
-    override fun createContainer(): AppContainer = AppContainer(this, FakeBackend.engine(), FakeBackend.config)
+    override fun createContainer(): AppContainer = AppContainer(this, FakeBackend.engine(), FakeBackend.config, clock = lateEvening())
+
+    private fun lateEvening(): Clock {
+        val now = ZonedDateTime.now()
+        return Clock.offset(Clock.systemDefaultZone(), Duration.between(now, now.toLocalDate().atTime(22, 30).atZone(now.zone)))
+    }
 }
