@@ -30,6 +30,8 @@ mean something narrower than they look.
 | `noctua_seen_articles` (localStorage) | — | **seen**: device-local, disposable; drives "hide what I've already looked at" |
 | `article_stars` | Starred | **intent**, not history: what you meant to come back to. `/read` is where you have been, `/starred` is what you saved |
 | — | Library | Android only: the starred and read lists as one tab with two shelves; the web keeps `/starred` and `/read` |
+| end of the feed (`EndOfFeed`, the end panel) | Nothing new / That's everything | the panel after the last article, where pulling up refreshes. "Nothing new" when no article is left to show, "That's everything" below a list. The owl lives here (`decisions/2026-10-27-the-owl-at-the-end-of-the-feed.md`) |
+| today's reads (`article_reads` since midnight) | Today's reading | the stars over the end of the feed: one per article read today, local time |
 
 "Read" and "seen" are two different things tracked in two different places.
 Clearing seen history does not touch statistics. On Android "seen" lives in
