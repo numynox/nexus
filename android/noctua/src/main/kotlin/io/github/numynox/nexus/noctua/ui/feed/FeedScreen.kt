@@ -108,6 +108,7 @@ private sealed interface Row {
 fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
     val viewModel = containerViewModel { FeedViewModel(it) }
     val settings by app.settings.collectAsStateWithLifecycle()
+    val stored by app.storedSettings.collectAsStateWithLifecycle()
     val sectionsVersion by app.sectionsVersion.collectAsStateWithLifecycle()
     val update by app.update.collectAsStateWithLifecycle()
     val load by viewModel.load.collectAsStateWithLifecycle()
@@ -130,8 +131,9 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
     var searching by rememberSaveable { mutableStateOf(false) }
     var confirmMarkAll by remember { mutableStateOf<List<Long>>(emptyList()) }
 
-    LaunchedEffect(settings.selectedSectionId, sectionsVersion) {
-        viewModel.show(settings.selectedSectionId, sectionsVersion)
+    // Not before the stored section is known (AppViewModel.storedSettings).
+    LaunchedEffect(stored != null, stored?.selectedSectionId, sectionsVersion) {
+        stored?.let { viewModel.show(it.selectedSectionId, sectionsVersion) }
     }
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { snackbar.showSnackbar(it) }

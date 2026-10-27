@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -22,7 +23,17 @@ class AppViewModel(val container: AppContainer) : ViewModel() {
 
     val auth: StateFlow<AuthState> = container.core.auth.state
 
-    val settings: StateFlow<NoctuaSettings> = container.preferences.settings
+    /**
+     * The stored preferences, or null until they have been read. The feed
+     * waits for them: loading the default section and then the stored one
+     * fetches twice, and the second load can land after the reader has
+     * scrolled, hiding everything they saw in the meantime.
+     */
+    val storedSettings: StateFlow<NoctuaSettings?> = container.preferences.settings
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /** [storedSettings], with the defaults until they are read — for everything that can draw before. */
+    val settings: StateFlow<NoctuaSettings> = storedSettings.map { it ?: NoctuaSettings() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, NoctuaSettings())
 
     private val _update = MutableStateFlow<AvailableUpdate?>(null)
