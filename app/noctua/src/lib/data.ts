@@ -630,6 +630,46 @@ export async function fetchReadArticlesForUser(
   return statuses;
 }
 
+/** One of today's reads: a star over the end of the feed. */
+export interface TodayRead {
+  id: string;
+  title: string;
+  url: string;
+  feed_name: string;
+  read_at: string;
+}
+
+/** What was read since `since`, oldest first — the stars over the end of the feed. */
+export async function fetchReadsSinceForUser(
+  userId: string,
+  since: Date,
+): Promise<TodayRead[]> {
+  const supabase = getSupabaseClient();
+  const db = supabase as any;
+  const { data, error } = await db
+    .from("article_reads")
+    .select("article_id,read_at,articles(id,title,url,feeds(name))")
+    .eq("user_id", userId)
+    .gte("read_at", since.toISOString())
+    .order("read_at", { ascending: true })
+    .limit(150);
+
+  if (error) {
+    throw error;
+  }
+
+  // An article outside the reader's sections is hidden by RLS: no star for it.
+  return (data || [])
+    .filter((row: any) => row.articles)
+    .map((row: any) => ({
+      id: String(row.article_id),
+      title: row.articles.title || "Untitled",
+      url: row.articles.url,
+      feed_name: row.articles.feeds?.name || "Unknown feed",
+      read_at: row.read_at,
+    }));
+}
+
 export async function markArticleAsReadForUser(
   userId: string,
   articleId: string,

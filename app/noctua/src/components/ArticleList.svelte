@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import {
     fetchReadArticlesForUser,
+    fetchReadsSinceForUser,
     getSession,
     markArticleAsReadForUser,
     markArticlesAsReadForUser,
@@ -11,6 +12,7 @@
     unmarkArticlesAsReadForUser,
     unstarArticleForUser,
     type ReadArticleStatuses,
+    type TodayRead,
   } from "../lib/data";
   import {
     getDensity,
@@ -39,6 +41,7 @@
   } from "lucide-svelte";
   import type { Article } from "../lib/types";
   import ArticleCard from "./ArticleCard.svelte";
+  import NightOwl from "./NightOwl.svelte";
 
   interface Props {
     articles: Article[];
@@ -69,6 +72,8 @@
     ...optimisticReadArticles,
   }));
   let seenArticles = $state<SeenArticleStatuses>({});
+  /** Today's reads as loaded; the owl's sky adds this session's on top. */
+  let readToday = $state<TodayRead[]>([]);
   let userId = $state("");
   let searchQuery = $state("");
   let hideSeenArticles = $state(true);
@@ -658,6 +663,32 @@
     pullActive = false;
   }
 
+  /**
+   * The stars over the end of the feed: today's reads as loaded, plus the
+   * articles read since on this page, less any marked unread again.
+   */
+  let todayStars = $derived.by(() => {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const byId = new Map(articles.map((article) => [article.id, article]));
+    const stars = readToday.filter(
+      (read) => !byId.has(read.id) || read.id in readArticles,
+    );
+    const known = new Set(stars.map((read) => read.id));
+    for (const [id, status] of Object.entries(readArticles)) {
+      const article = byId.get(id);
+      if (!article || known.has(id) || new Date(status.timestamp) < start) continue;
+      stars.push({
+        id,
+        title: article.title,
+        url: article.url,
+        feed_name: article.feed_name,
+        read_at: status.timestamp,
+      });
+    }
+    return stars.sort((a, b) => a.read_at.localeCompare(b.read_at));
+  });
+
   let displayedUnreadAndUnseenCount = $derived.by(() => {
     if (onlyRead || onlyStarred) {
       // count read articles for stats on the read-only page
@@ -718,6 +749,13 @@
           fetchStarredArticleIdsForUser(userId)
             .then((starred) => (starredArticles = starred))
             .catch((error) => console.warn("Failed to load stars", error));
+          if (!onlyRead && !onlyStarred) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            fetchReadsSinceForUser(userId, today)
+              .then((reads) => (readToday = reads))
+              .catch((error) => console.warn("Failed to load today's reads", error));
+          }
         }
       })
       .catch(() => {
@@ -848,15 +886,6 @@
       });
   }
 
-  function handleReload() {
-    try {
-      const url = new URL(window.location.href);
-      url.searchParams.set("_noctua_reload", String(Date.now()));
-      window.location.replace(url.toString());
-    } catch (e) {
-      window.location.reload();
-    }
-  }
 </script>
 
 {#if filteredArticles.length > 0}
@@ -1231,17 +1260,30 @@
     ontouchcancel={onTouchEnd}
   >
     <div
-      class="w-full max-w-3xl rounded-3xl border border-dashed border-base-300 bg-base-200/50 py-8 text-center md:py-20"
+      class="w-full max-w-3xl rounded-3xl border border-dashed border-base-300 bg-base-200/50 pb-8 pt-4 text-center md:pb-12 md:pt-8"
     >
-      <CheckCheck class="mx-auto mb-4 h-14 w-14 text-success" />
-      <h3 class="mb-2 text-2xl font-bold">You're all caught up</h3>
+      <div class="mx-4 mb-6 h-[min(52svh,440px)] md:mx-8">
+        <NightOwl
+          pull={pullDistance / PULL_THRESHOLD}
+          {refreshing}
+          reads={todayStars}
+        />
+      </div>
+      <h3 class="mb-2 text-2xl font-bold">
+        {filteredArticles.length === 0 ? "Nothing new" : "That's everything"}
+      </h3>
       <p class="mb-6 px-6 text-base-content/60 md:px-16">
-        There are no articles to show right now — either you've already viewed
-        them, or your current filters hide some items.
+        {filteredArticles.length === 0
+          ? "Every article here has been seen, or your filters hide the rest. Pull up or refresh for what came in since."
+          : "Refresh to fetch what came in since and clear what you've seen."}
       </p>
       <div class="flex items-center justify-center gap-3">
-        <button class="btn btn-primary" onclick={handleReload}>
-          Reload page
+        <button
+          class="btn btn-primary"
+          onclick={() => void refresh()}
+          disabled={refreshing}
+        >
+          Refresh
         </button>
       </div>
 
@@ -1252,7 +1294,7 @@
           {#if refreshing}
             Refreshing…
           {:else if pullDistance >= PULL_THRESHOLD}
-            Release to refresh
+            Let go to send the owl
           {:else}
             Keep pulling up to refresh
           {/if}
