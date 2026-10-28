@@ -344,6 +344,9 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
                                 empty = rows.isEmpty(),
                                 pull = endPull,
                                 refreshing = refreshing,
+                                refreshes = state.value.refreshes,
+                                // Taken again with each load, so the owl wakes or sleeps on the next refresh.
+                                now = remember(state.value) { java.time.ZonedDateTime.now(viewModel.clock) },
                                 onRefresh = refresh,
                                 modifier = Modifier.fillParentMaxHeight(),
                             )

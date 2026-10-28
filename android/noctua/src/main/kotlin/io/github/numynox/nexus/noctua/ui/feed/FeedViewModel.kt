@@ -105,6 +105,9 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
     private val _starred = MutableStateFlow<Set<Long>>(emptySet())
     val starred: StateFlow<Set<Long>> = _starred.asStateFlow()
 
+    /** The time of day the owl at the end of the feed goes by. */
+    val clock get() = container.clock
+
     val seen: StateFlow<Set<Long>> = preferences.seen.stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
 
     val query = MutableStateFlow("")

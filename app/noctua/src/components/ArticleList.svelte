@@ -39,6 +39,7 @@
   } from "lucide-svelte";
   import type { Article } from "../lib/types";
   import ArticleCard from "./ArticleCard.svelte";
+  import NightOwl from "./NightOwl.svelte";
 
   interface Props {
     articles: Article[];
@@ -848,15 +849,6 @@
       });
   }
 
-  function handleReload() {
-    try {
-      const url = new URL(window.location.href);
-      url.searchParams.set("_noctua_reload", String(Date.now()));
-      window.location.replace(url.toString());
-    } catch (e) {
-      window.location.reload();
-    }
-  }
 </script>
 
 {#if filteredArticles.length > 0}
@@ -1231,17 +1223,30 @@
     ontouchcancel={onTouchEnd}
   >
     <div
-      class="w-full max-w-3xl rounded-3xl border border-dashed border-base-300 bg-base-200/50 py-8 text-center md:py-20"
+      class="w-full max-w-3xl pb-8 text-center md:pb-12"
     >
-      <CheckCheck class="mx-auto mb-4 h-14 w-14 text-success" />
-      <h3 class="mb-2 text-2xl font-bold">You're all caught up</h3>
+      <!-- No card: the owl sits on the page's own background, in any theme. -->
+      <div class="mb-6 h-[min(56svh,460px)]">
+        <NightOwl
+          pull={pullDistance / PULL_THRESHOLD}
+          {refreshing}
+        />
+      </div>
+      <h3 class="mb-2 text-2xl font-bold">
+        {filteredArticles.length === 0 ? "Nothing new" : "That's everything"}
+      </h3>
       <p class="mb-6 px-6 text-base-content/60 md:px-16">
-        There are no articles to show right now — either you've already viewed
-        them, or your current filters hide some items.
+        {filteredArticles.length === 0
+          ? "Every article here has been seen, or your filters hide the rest. Pull up or refresh for what came in since."
+          : "Refresh to fetch what came in since and clear what you've seen."}
       </p>
       <div class="flex items-center justify-center gap-3">
-        <button class="btn btn-primary" onclick={handleReload}>
-          Reload page
+        <button
+          class="btn btn-primary"
+          onclick={() => void refresh()}
+          disabled={refreshing}
+        >
+          Refresh
         </button>
       </div>
 
@@ -1252,7 +1257,7 @@
           {#if refreshing}
             Refreshing…
           {:else if pullDistance >= PULL_THRESHOLD}
-            Release to refresh
+            Let go to send the owl
           {:else}
             Keep pulling up to refresh
           {/if}
