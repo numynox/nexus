@@ -123,7 +123,6 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
     val section by viewModel.section.collectAsStateWithLifecycle()
     val query by viewModel.query.collectAsStateWithLifecycle()
     val feedFilter by viewModel.feedFilter.collectAsStateWithLifecycle()
-    val today by viewModel.today.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
@@ -346,11 +345,9 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
                                 pull = endPull,
                                 refreshing = refreshing,
                                 refreshes = state.value.refreshes,
-                                today = today,
                                 // Taken again with each load, so the owl wakes or sleeps on the next refresh.
                                 now = remember(state.value) { java.time.ZonedDateTime.now(viewModel.clock) },
                                 onRefresh = refresh,
-                                onOpen = actions.open,
                                 modifier = Modifier.fillParentMaxHeight(),
                             )
                         }

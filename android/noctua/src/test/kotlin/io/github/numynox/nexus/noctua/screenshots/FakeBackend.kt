@@ -75,8 +75,7 @@ object FakeBackend {
 
     /** One story told by three feeds — collapsed to one card. */
     private val groups = mapOf(501L to 501L, 502L to 501L, 503L to 501L)
-    // Minutes ago; all but the last were today, for the stars over the end of the feed.
-    private val reads = mapOf(504L to 50L, 506L to 120L, 508L to 150L, 509L to 200L, 510L to 300L, 512L to 1_400L)
+    private val reads = mapOf(504L to 50L, 509L to 200L, 512L to 1_400L)
     private val starred = listOf(506L, 511L, 508L)
 
     /** While set, article queries wait for it — to catch the feed mid-load. */

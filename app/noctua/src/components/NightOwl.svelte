@@ -1,49 +1,53 @@
 <!--
-  The owl at the end of the feed: a branch under a sky whose stars are today's
-  reading, one per article, joined in the order they were read. The pull past
-  the end is the owl's — its eyes widen and its ear tufts pop up at the
-  threshold; let go and it flies off to look for news, and comes back shaking
-  its head if there was none. By day it naps.
+  The owl at the end of the feed, on a branch drawn straight onto the page's
+  own background: by night under a few stars and the moon in its real phase,
+  by day asleep in the sun. The pull past the end is the owl's — its eyes
+  widen and its ear tufts pop up at the threshold; let go and it flies off to
+  look for news.
+
+  Unlike Android's, this one rarely gets to see its flight through: the feed
+  page swaps the list for a spinner while it refreshes, and the owl hops back
+  in with the new list instead.
 
   The Android app's EndOfFeed is the fuller version of this and its source of
   truth: the shapes are the same SVG paths, in the same 360 × 470 units
   (lib/nightSky.ts). Positions and motion are eased towards targets each
-  frame, so a new target taken mid-way never jerks.
+  frame, so a new target taken mid-way never jerks. Colours mix with the
+  theme's own, so the scene works in light and dark themes alike.
 -->
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { TodayRead } from "../lib/data";
   import {
-    constellation,
+    BRANCH_TIP_X,
+    branchHighlight,
+    branchPath,
+    branchWidth,
+    branchY,
     isNight,
     MOON,
     moonLit,
     moonLitPath,
     moonPhase,
     moonPhaseName,
-    seeded,
+    SKY_STARS,
   } from "../lib/nightSky";
 
   interface Props {
     /** How far the end is pulled: 1 at the refresh threshold, up to 1.5. */
     pull?: number;
     refreshing?: boolean;
-    /** Today's reads, oldest first: the stars. */
-    reads?: TodayRead[];
     now?: Date;
   }
 
   let {
     pull = 0,
     refreshing = false,
-    reads = [],
     now = new Date(),
   }: Props = $props();
 
   const uid = $props.id();
   const night = $derived(isNight(now));
   const phase = $derived(moonPhase(now));
-  const stars = $derived(constellation(reads.map((r) => r.id)));
 
   const reducedQuery =
     typeof window !== "undefined"
@@ -51,30 +55,33 @@
       : null;
   const reduced = reducedQuery?.matches ?? false;
 
-  // ── Static sky ───────────────────────────────────────────────────────────
-  const backgroundStars = (() => {
-    const r = seeded(7);
-    return Array.from({ length: 70 }, () => ({
-      x: -200 + r() * 760,
-      y: -400 + r() * 780,
-      r: 0.5 + r() * 0.9,
-      o: 0.35 + r() * 0.5,
-      d: r() * 4,
-      dur: 3 + r() * 3,
-    }));
-  })();
-
-  const LEAVES: [number, number, number][] = [
-    [38, -30, -1],
-    [58, 24, 1],
-    [74, -20, 1],
-    [300, 210, -1],
-    [318, 160, 1],
+  // ── The branch's leaves ──────────────────────────────────────────────────
+  /** At `x` along the branch, on its lower side or not, pointing at `angle` degrees (0 right, 90 down). */
+  interface Leaf {
+    x: number;
+    below: boolean;
+    angle: number;
+    size: number;
+    dark: boolean;
+  }
+  const LEAVES: Leaf[] = [
+    { x: 92, below: false, angle: -118, size: 0.9, dark: false },
+    { x: 100, below: false, angle: -72, size: 0.8, dark: true },
+    { x: 262, below: true, angle: 112, size: 0.8, dark: true },
+    { x: 292, below: false, angle: -58, size: 0.9, dark: false },
+    { x: 312, below: true, angle: 64, size: 0.85, dark: true },
+    { x: BRANCH_TIP_X - 2, below: false, angle: -22, size: 0.9, dark: false },
+  ];
+  /** The twig hanging off to the left of the owl, and its three leaves. */
+  const TWIG_X = 58;
+  const TWIG_LEAVES = [
+    { dx: -32, dy: 22, angle: 150, size: 1, dark: false },
+    { dx: -32, dy: 22, angle: 196, size: 0.85, dark: true },
+    { dx: -11, dy: 12.5, angle: 58, size: 0.75, dark: false },
   ];
 
-  function branchY(x: number, b: number): number {
-    const t = (x + 220) / 800;
-    return (1 - t) ** 2 * 436 + 2 * t * (1 - t) * (418 + 2 * b) + t * t * 402;
+  function leafAt(x: number, y: number, angle: number, size: number): string {
+    return `translate(${x} ${y}) rotate(${angle}) scale(${size * 1.35})`;
   }
 
   // ── Eased values ─────────────────────────────────────────────────────────
@@ -122,7 +129,6 @@
   let lastTouch = 0;
   let pointer: { x: number; y: number } | null = null;
 
-  let selected = $state<number | null>(null);
   let note = $state<string | null>(null);
   let shoot = $state<{ x: number; y: number; key: number } | null>(null);
   let noteTimer: ReturnType<typeof setTimeout> | undefined;
@@ -154,8 +160,10 @@
   let closedREl: SVGPathElement | undefined = $state();
   let browsEl: SVGPathElement | undefined = $state();
   let branchEl: SVGPathElement | undefined = $state();
+  let highlightEl: SVGPathElement | undefined = $state();
   let twigEl: SVGPathElement | undefined = $state();
   let leafEls: SVGGElement[] = $state([]);
+  let twigLeafEls: SVGGElement[] = $state([]);
   let miniEl: SVGGElement | undefined = $state();
   let miniWingEl: SVGPathElement | undefined = $state();
   let bubbleEl: SVGGElement | undefined = $state();
@@ -171,12 +179,22 @@
     const br = still ? 0 : Math.sin(now / 950) * 0.012;
 
     const bend = A.bend.v + 7 * g;
-    branchEl?.setAttribute("d", `M -220 436 Q 180 ${418 + 2 * bend} 580 402`);
-    const ty = branchY(52, bend);
-    twigEl?.setAttribute("d", `M 52 ${ty + 2} Q 40 ${ty + 16} 22 ${ty + 22}`);
+    branchEl?.setAttribute("d", branchPath(bend));
+    highlightEl?.setAttribute("d", branchHighlight(bend));
+    const joinY = branchY(TWIG_X, bend);
+    twigEl?.setAttribute(
+      "d",
+      `M ${TWIG_X + 4} ${joinY} Q ${TWIG_X - 8} ${joinY + 14} ${TWIG_X - 32} ${joinY + 22}`,
+    );
+    twigLeafEls.forEach((el, i) => {
+      const l = TWIG_LEAVES[i];
+      el?.setAttribute("transform", leafAt(TWIG_X + l.dx, joinY + l.dy, l.angle, l.size));
+    });
     leafEls.forEach((el, i) => {
-      const x = LEAVES[i][0];
-      el?.setAttribute("transform", `translate(${x} ${branchY(x, bend) - 2})`);
+      const l = LEAVES[i];
+      const half = branchWidth(l.x) / 2 - 1.5;
+      const y = branchY(l.x, bend) + (l.below ? half : -half);
+      el?.setAttribute("transform", leafAt(l.x, y, l.angle, l.size));
     });
 
     const feetY = 413.5 + bend;
@@ -363,7 +381,6 @@
   async function takeOff() {
     away = true;
     busy = false;
-    selected = null;
     showBack = false;
     set("turn", 1, 20);
     set("headRot", 0, 14);
@@ -525,11 +542,11 @@
         return;
       }
     }
-    if (selected !== null) {
-      selected = null;
-      return;
-    }
-    if (Math.hypot(p.x - MOON.x, p.y - MOON.y) < 36) {
+    if (Math.hypot(p.x - MOON.x, p.y - MOON.y) < 40) {
+      if (!night) {
+        say("The owl sleeps until dark");
+        return;
+      }
       say(`${moonPhaseName(phase)} · ${Math.round(moonLit(phase) * 100)}% lit`);
       void play(async () => {
         if (!sleeping) {
@@ -589,12 +606,6 @@
     });
   }
 
-  function onStar(event: MouseEvent, index: number) {
-    event.stopPropagation();
-    lastTouch = performance.now();
-    selected = selected === index ? null : index;
-  }
-
   // ── Frame loop ───────────────────────────────────────────────────────────
   onMount(() => {
     let last = performance.now();
@@ -622,27 +633,19 @@
     };
   });
 
-  const timeFormat = new Intl.DateTimeFormat(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
   const description = $derived(
-    `An owl on a branch under the ${night ? "night " : ""}sky, with a star for each of the ${reads.length} articles read today`,
+    night
+      ? "An owl on a branch under the moon and stars"
+      : "An owl asleep on a branch in the sun",
   );
-  const selectedRead = $derived(selected === null ? null : reads[selected]);
-  const selectedStar = $derived(selected === null ? null : stars[selected]);
 </script>
 
-<div
-  class="night-owl relative overflow-hidden rounded-3xl"
-  class:day={!night}
-  class:reduced
->
+<div class="night-owl relative h-full" class:reduced>
   <!-- The owl's taps are play: the panel's Refresh button and the r key do the work. -->
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
   <svg
     bind:this={svg}
-    class="block h-full w-full select-none"
+    class="block h-full w-full select-none overflow-visible"
     viewBox="0 0 360 470"
     preserveAspectRatio="xMidYMax meet"
     role="img"
@@ -655,45 +658,61 @@
     onclick={onClick}
   >
     <defs>
-      <linearGradient id="{uid}-sky" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="var(--owl-sky-top)" />
-        <stop offset="1" stop-color="var(--owl-sky-bottom)" />
-      </linearGradient>
-      <radialGradient id="{uid}-glow">
-        <stop offset="0" stop-color="#fff6d6" stop-opacity=".55" />
-        <stop offset="1" stop-color="#fff6d6" stop-opacity="0" />
+      <radialGradient id="{uid}-moonglow">
+        <stop offset="0" stop-color="var(--owl-moon)" stop-opacity=".35" />
+        <stop offset="1" stop-color="var(--owl-moon)" stop-opacity="0" />
+      </radialGradient>
+      <radialGradient id="{uid}-sunglow">
+        <stop offset="0" stop-color="#f6c343" stop-opacity=".32" />
+        <stop offset="1" stop-color="#f6c343" stop-opacity="0" />
       </radialGradient>
       <linearGradient id="{uid}-streak" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0" stop-color="#fff" stop-opacity="1" />
-        <stop offset="1" stop-color="#fff" stop-opacity="0" />
+        <stop offset="0" stop-color="var(--owl-star)" stop-opacity="1" />
+        <stop offset="1" stop-color="var(--owl-star)" stop-opacity="0" />
       </linearGradient>
       <clipPath id="{uid}-eyeL"><circle cx="-19" cy="-138" r="16" /></clipPath>
       <clipPath id="{uid}-eyeR"><circle cx="19" cy="-138" r="16" /></clipPath>
+      <path id="{uid}-leaf" d="M 0 0 C 4 -6 12 -7 18 0 C 12 7 4 6 0 0 Z" />
     </defs>
 
-    <rect x="-1000" y="-1000" width="2360" height="1470" fill="url(#{uid}-sky)" />
     {#if night}
-      <g>
-        {#each backgroundStars as s, i (i)}
+      <g class="sky-in">
+        {#each SKY_STARS as star, i (i)}
           <circle
             class="twinkle"
-            cx={s.x}
-            cy={s.y}
-            r={s.r}
-            fill="#fff"
-            opacity={s.o}
-            style={`--d:${s.d}s; --dur:${s.dur}s`}
+            cx={star.x}
+            cy={star.y}
+            r={star.r}
+            fill="var(--owl-star)"
+            style={`--d:${star.delay}s`}
           />
         {/each}
       </g>
     {/if}
 
-    <g class="cursor-pointer">
+    <g class="sky-in cursor-pointer">
       {#if night}
-        <circle bind:this={glowEl} cx={MOON.x} cy={MOON.y} r="70" fill="url(#{uid}-glow)" />
+        <circle bind:this={glowEl} cx={MOON.x} cy={MOON.y} r="64" fill="url(#{uid}-moonglow)" />
+        <circle cx={MOON.x} cy={MOON.y} r={MOON.r} fill="var(--owl-moon-shadow)" />
+        <path d={moonLitPath(phase)} fill="var(--owl-moon)" />
+      {:else}
+        <circle cx={MOON.x} cy={MOON.y} r="66" fill="url(#{uid}-sunglow)" />
+        <g class="rays" style={`transform-origin: ${MOON.x}px ${MOON.y}px`}>
+          {#each Array.from({ length: 10 }, (_, i) => (i * Math.PI) / 5) as a (a)}
+            <line
+              x1={MOON.x + Math.cos(a) * 28}
+              y1={MOON.y + Math.sin(a) * 28}
+              x2={MOON.x + Math.cos(a) * 36}
+              y2={MOON.y + Math.sin(a) * 36}
+              stroke="#f6c343"
+              stroke-opacity=".7"
+              stroke-width="2.5"
+              stroke-linecap="round"
+            />
+          {/each}
+        </g>
+        <circle cx={MOON.x} cy={MOON.y} r="21" fill="#f6c343" />
       {/if}
-      <circle cx={MOON.x} cy={MOON.y} r={MOON.r} fill="#fff" opacity=".07" />
-      <path d={moonLitPath(phase)} fill={night ? "#f7f0d6" : "#ffffff"} />
     </g>
 
     <g bind:this={miniEl} opacity="0">
@@ -703,40 +722,6 @@
         d="M -2 -1 L -14 -7 L -6 2 Z M 2 -1 L 14 -7 L 6 2 Z"
         fill="var(--owl-mini)"
       />
-    </g>
-
-    <g class="constellation">
-      {#each stars as star, i (reads[i]?.id ?? i)}
-        {#if i > 0}
-          <line
-            class="cline"
-            x1={stars[i - 1].x}
-            y1={stars[i - 1].y}
-            x2={star.x}
-            y2={star.y}
-            stroke="var(--owl-star)"
-            stroke-opacity={night ? 0.32 : 0.28}
-            stroke-width="1"
-            style={`--len:${Math.hypot(star.x - stars[i - 1].x, star.y - stars[i - 1].y).toFixed(1)}; --fd:${(0.5 + i * Math.min(0.12, 1.5 / stars.length)).toFixed(2)}s`}
-          />
-        {/if}
-      {/each}
-      {#each stars as star, i (reads[i]?.id ?? i)}
-        {@const r = 2.2 + (Number(reads[i]?.id ?? 0) % 3) * 0.9}
-        <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-        <g
-          class="cstar cursor-pointer"
-          class:newest={i === stars.length - 1}
-          class:on={i === selected}
-          transform={`translate(${star.x} ${star.y})`}
-          style={`--fd:${(0.3 + i * Math.min(0.12, 1.5 / stars.length)).toFixed(2)}s`}
-          onclick={(e) => onStar(e, i)}
-        >
-          <circle class="halo" r={r * 3.2} fill="var(--owl-star)" opacity=".14" />
-          <circle class="core" {r} fill="var(--owl-star)" />
-          <circle r="15" fill="transparent" />
-        </g>
-      {/each}
     </g>
 
     {#if shoot}
@@ -751,21 +736,20 @@
             stroke-width="2"
             stroke-linecap="round"
           />
-          <circle cx={shoot.x} cy={shoot.y} r="1.8" fill="#fff" />
+          <circle cx={shoot.x} cy={shoot.y} r="1.8" fill="var(--owl-star)" />
         </g>
       {/key}
     {/if}
 
-    <path
-      d="M -220 470 L -220 442 Q -120 432 -20 442 Q 60 450 110 440 Q 180 430 250 440 Q 320 450 380 438 Q 480 430 580 440 L 580 470 Z"
-      fill="var(--owl-ground)"
-    />
-    <path bind:this={twigEl} fill="none" stroke="#6b4a2f" stroke-width="4" stroke-linecap="round" />
-    <path bind:this={branchEl} fill="none" stroke="#6b4a2f" stroke-width="10" stroke-linecap="round" />
-    {#each LEAVES as [, angle, side], i (i)}
-      <g bind:this={leafEls[i]}>
-        <ellipse cx={side * 9} cy="-4" rx="10" ry="4.5" fill="#7aa35a" transform={`rotate(${angle})`} />
-      </g>
+    <!-- The twig first, so the branch covers where it joins. -->
+    <path bind:this={twigEl} fill="none" stroke="#6b4a2f" stroke-width="4.5" stroke-linecap="round" />
+    <path bind:this={branchEl} fill="#6b4a2f" />
+    <path bind:this={highlightEl} fill="none" stroke="#8a6446" stroke-opacity=".7" stroke-width="1.4" stroke-linecap="round" />
+    {#each TWIG_LEAVES as leaf, i (i)}
+      <g bind:this={twigLeafEls[i]}>{@render leafShape(leaf.dark)}</g>
+    {/each}
+    {#each LEAVES as leaf, i (i)}
+      <g bind:this={leafEls[i]}>{@render leafShape(leaf.dark)}</g>
     {/each}
 
     <g bind:this={owlEl} class="cursor-pointer">
@@ -859,109 +843,67 @@
     </g>
   </svg>
 
-  <div class="pointer-events-none absolute left-4 top-4 text-left text-[var(--owl-text)]">
-    <div class="text-[11px] font-bold tracking-wider">TODAY'S READING</div>
-    <div class="text-xs">
-      {reads.length === 0
-        ? "Nothing read yet"
-        : reads.length === 1
-          ? "1 article"
-          : `${reads.length} articles`}
-    </div>
-  </div>
-
   {#if note}
     <div
-      class="absolute left-1/2 top-14 max-w-[86%] -translate-x-1/2 truncate rounded-full bg-[#faf6ea] px-4 py-1.5 text-sm font-bold text-[#1f2250] shadow"
+      class="absolute left-1/2 top-4 max-w-[86%] -translate-x-1/2 truncate rounded-full bg-neutral px-4 py-1.5 text-sm font-bold text-neutral-content shadow"
     >
       {note}
     </div>
   {/if}
-
-  {#if selectedRead && selectedStar && svg}
-    {@const box = svg.getBoundingClientRect()}
-    {@const scale = Math.min(box.width / 360, box.height / 470)}
-    {@const left = (box.width - 360 * scale) / 2 + selectedStar.x * scale}
-    {@const top = box.height - 470 * scale + selectedStar.y * scale}
-    <div
-      class="absolute z-10 w-60 rounded-2xl bg-[#faf6ea] p-3 text-left text-[#1f2250] shadow-lg"
-      style={`left: ${Math.max(12, Math.min(box.width - 252, left - 120))}px; top: ${top + 14}px`}
-    >
-      <div class="truncate text-[11px] font-bold uppercase tracking-wide text-[#6e5f33]">
-        {selectedRead.feed_name}
-      </div>
-      <div class="mb-1 mt-0.5 line-clamp-3 font-bold leading-snug">{selectedRead.title}</div>
-      <div class="flex items-center justify-between gap-2 text-xs text-[#555880]">
-        <span>Read at {timeFormat.format(new Date(selectedRead.read_at))}</span>
-        <a
-          class="rounded-full bg-[#2f3389] px-3 py-1 font-bold text-[#f6f0dc]"
-          href={selectedRead.url}
-          target="_blank"
-          rel="noopener noreferrer">Open</a
-        >
-      </div>
-    </div>
-  {/if}
 </div>
 
+<!-- A leaf on a short stalk that starts inside the bark, pointing along +x. -->
+{#snippet leafShape(dark: boolean)}
+  <line x1="-3" y1="0" x2="2.5" y2="0" stroke="#5e7a3a" stroke-width="1.6" stroke-linecap="round" />
+  <g transform="translate(2 0)">
+    <use href="#{uid}-leaf" fill={dark ? "#557f3b" : "#6f9c4e"} />
+    <path d="M 2 0 L 14 0" stroke="#e6f2d8" stroke-opacity=".4" stroke-width=".9" stroke-linecap="round" />
+  </g>
+{/snippet}
+
 <style>
+  /*
+   * The scene sits on the page's own background, so its colours mix with the
+   * theme's text colour: pale on a dark theme, deeper on a light one, where a
+   * white moon or star would vanish.
+   */
   .night-owl {
-    --owl-sky-top: #080a22;
-    --owl-sky-bottom: #1b2056;
-    --owl-ground: #0f1236;
-    --owl-star: #ffe7a6;
-    --owl-text: #a9acd0;
-    --owl-mini: #0a0c22;
+    --owl-star: color-mix(in oklab, #f2c94c 62%, var(--color-base-content));
+    --owl-moon: color-mix(in oklab, #f2d27a 88%, var(--color-base-content));
+    --owl-moon-shadow: color-mix(in oklab, var(--color-base-content) 7%, transparent);
+    --owl-rim: color-mix(in oklab, var(--color-base-content) 16%, transparent);
+    --owl-text: color-mix(in oklab, var(--color-base-content) 55%, transparent);
+    --owl-mini: #1a1c45;
     touch-action: pan-y;
   }
-  .night-owl.day {
-    --owl-sky-top: #bcd3ea;
-    --owl-sky-bottom: #efe7d4;
-    --owl-ground: #e2dbc6;
-    --owl-star: #8b7845;
-    --owl-text: #5d6085;
-    --owl-mini: #2f3389;
-  }
-  .night-owl:not(.day) .rim {
-    stroke: rgba(210, 215, 255, 0.16);
+  .rim {
+    stroke: var(--owl-rim);
     stroke-width: 2;
   }
-  .twinkle {
-    animation: twinkle var(--dur, 4s) ease-in-out var(--d, 0s) infinite;
-  }
-  @keyframes twinkle {
-    50% {
-      opacity: 0.25;
-    }
-  }
-  .cline {
-    stroke-dasharray: var(--len);
-    animation: draw 0.7s ease-out both;
-    animation-delay: var(--fd, 0s);
-  }
-  @keyframes draw {
-    from {
-      stroke-dashoffset: var(--len);
-    }
-  }
-  .cstar {
-    animation: fadein 0.6s ease-out both;
-    animation-delay: var(--fd, 0s);
+  .sky-in {
+    animation: fadein 1.2s ease-out both;
   }
   @keyframes fadein {
     from {
       opacity: 0;
     }
   }
-  .cstar .halo {
-    transition: opacity 0.2s;
+  .twinkle {
+    opacity: 0.8;
+    animation: twinkle 4.5s ease-in-out var(--d, 0s) infinite;
   }
-  .cstar:hover .halo,
-  .cstar.on .halo {
-    opacity: 0.45;
+  @keyframes twinkle {
+    50% {
+      opacity: 0.3;
+    }
   }
-  .cstar.newest .core {
-    animation: twinkle 2.6s ease-in-out infinite;
+  .rays {
+    animation: turn 52s linear infinite;
+  }
+  @keyframes turn {
+    to {
+      transform: rotate(360deg);
+    }
   }
   .zz text {
     animation: zz 3.2s ease-in infinite;
@@ -1003,10 +945,9 @@
     }
   }
   .reduced .twinkle,
-  .reduced .cstar.newest .core,
+  .reduced .rays,
   .reduced .zz text,
-  .reduced .cline,
-  .reduced .cstar {
+  .reduced .sky-in {
     animation: none;
   }
   .reduced .zz text {

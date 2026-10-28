@@ -1,9 +1,11 @@
 package io.github.numynox.nexus.noctua.ui.feed.owl
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -15,6 +17,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -24,8 +27,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.sp
-import java.util.Random
 import kotlin.math.PI
+import kotlin.math.cos
 import kotlin.math.sin
 
 /** The scene's 360 × 470 units fitted into a size in pixels: whole, centred across, the branch at the foot. */
@@ -33,20 +36,15 @@ class SceneFrame(width: Float, height: Float) {
     val scale = minOf(width / SceneWidth, height / SceneHeight)
     /** Extra units beside the scene, half on each side, when the box is wider than it. */
     val left = (width / scale - SceneWidth) / 2f
-    /** Extra units of sky above the scene when the box is taller than it. */
+    /** Extra units above the scene when the box is taller than it. */
     val above = height / scale - SceneHeight
-    /**
-     * How far the moon and the stars rise into that extra sky: a tall screen
-     * would otherwise keep them low, crowding the owl under an empty sky.
-     */
-    val skyLift = minOf(above * 0.6f, 260f)
+    /** How far the moon or sun rises into that extra room, so a tall screen does not keep it low over the owl. */
+    val skyLift = minOf(above * 0.5f, 160f)
 
     fun toPx(x: Float, y: Float) = Offset((x + left) * scale, (y + above) * scale)
     fun toUnits(at: Offset) = Offset(at.x / scale - left, at.y / scale - above)
 
-    /** A point of the moon and stars' layer — lifted by [skyLift] — in pixels. */
-    fun skyToPx(x: Float, y: Float) = toPx(x, y - skyLift)
-    /** A point in pixels on the moon and stars' layer. */
+    /** A point in pixels on the layer of the moon or sun, which is lifted by [skyLift]. */
     fun toSky(at: Offset) = toUnits(at) + Offset(0f, skyLift)
 
     companion object {
@@ -55,15 +53,12 @@ class SceneFrame(width: Float, height: Float) {
     }
 }
 
-/** What the sky shows besides the owl. */
+/** What the scene shows besides the owl. */
 class SkyContent(
     val night: Boolean,
     val moonPhase: Double,
-    /** Today's reading, in order: a star each. */
-    val stars: List<SkyPoint>,
-    val starSizes: List<Float>,
-    val selectedStar: Int?,
     val shootingStar: ShootingStar?,
+    val colors: SkyColors,
 )
 
 /** A shooting star crossing from ([x], [y]), started at [start] in the owl's time. */
@@ -80,7 +75,7 @@ data class ShootingStar(val x: Float, val y: Float, val start: Float) {
     }
 }
 
-/** The owl's own colours, from its logo: the same in light and dark themes. */
+/** The owl's own colours, from its logo: the same in every theme. */
 private object OwlColors {
     val Body = Color(0xFF2F3389)
     val Wing = Color(0xFF262A74)
@@ -91,17 +86,62 @@ private object OwlColors {
     val Beak = Color(0xFFE59C34)
     val Brow = Color(0xFF15174A)
     val BackFeather = Color(0xFF4A50B0)
-    val Rim = Color(0x29D2D7FF)
     val Bark = Color(0xFF6B4A2F)
-    val Leaf = Color(0xFF7AA35A)
+    val BarkLight = Color(0xFF8A6446)
+    val Leaf = Color(0xFF6F9C4E)
+    val LeafDark = Color(0xFF557F3B)
+    val LeafVein = Color(0x66E6F2D8)
+    val Stalk = Color(0xFF5E7A3A)
     val Bubble = Color(0xFFFAF6EA)
+    val Sun = Color(0xFFF6C343)
 }
 
-/** Sky colours for night and day: a deep navy, and a pale morning blue fading into warm light. */
-class SkyColors(val top: Color, val bottom: Color, val ground: Color, val star: Color, val text: Color, val mini: Color)
+/**
+ * The colours that sit on the app's own background, which is the only sky:
+ * pale stars and a soft moon on a dark theme, gold ones on a light theme,
+ * where white would vanish.
+ */
+class SkyColors(
+    val dark: Boolean,
+    val star: Color,
+    val moon: Color,
+    val moonShadow: Color,
+    val glow: Color,
+    val rim: Color?,
+    val text: Color,
+    val mini: Color,
+)
 
-val NightSky = SkyColors(Color(0xFF080A22), Color(0xFF1B2056), Color(0xFF0F1236), Color(0xFFFFE7A6), Color(0xFFA9ACD0), Color(0xFF0A0C22))
-val DaySky = SkyColors(Color(0xFFBCD3EA), Color(0xFFEFE7D4), Color(0xFFE2DBC6), Color(0xFF8B7845), Color(0xFF5D6085), Color(0xFF2F3389))
+@Composable
+fun skyColors(): SkyColors {
+    val scheme = MaterialTheme.colorScheme
+    val dark = scheme.surface.luminance() < 0.5f
+    return remember(scheme) {
+        if (dark) {
+            SkyColors(
+                dark = true,
+                star = Color(0xFFFFE7A6),
+                moon = Color(0xFFF7F0D6),
+                moonShadow = Color.White.copy(alpha = 0.08f),
+                glow = Color(0xFFFFF6D6),
+                rim = Color(0x33D2D7FF),
+                text = scheme.onSurfaceVariant,
+                mini = Color(0xFF0A0C22),
+            )
+        } else {
+            SkyColors(
+                dark = false,
+                star = Color(0xFFC29A2E),
+                moon = Color(0xFFEBD48A),
+                moonShadow = scheme.onSurface.copy(alpha = 0.06f),
+                glow = Color(0xFFF2D27A),
+                rim = null,
+                text = scheme.onSurfaceVariant,
+                mini = OwlColors.Body,
+            )
+        }
+    }
+}
 
 /** Parses SVG path data — the owl's shapes are the web owl's paths, unchanged. */
 private fun svg(d: String): Path = PathParser().parsePathString(d).toPath()
@@ -121,7 +161,9 @@ private object OwlShapes {
     val back = svg("M -24 -150 q 6 6 12 0 M 12 -150 q 6 6 12 0 M -6 -134 q 6 6 12 0 M -24 -120 q 6 6 12 0 M 12 -120 q 6 6 12 0")
     val miniWings = svg("M -2 -1 L -14 -7 L -6 2 Z M 2 -1 L 14 -7 L 6 2 Z")
     val bubbleTail = svg("M 52 -201 l -6 9 l 14 -9 Z")
-    val hills = svg("M -220 470 L -220 442 Q -120 432 -20 442 Q 60 450 110 440 Q 180 430 250 440 Q 320 450 380 438 Q 480 430 580 440 L 580 470 Z")
+    /** A leaf pointing along +x from its stalk at the origin, 18 long. */
+    val leaf = svg("M 0 0 C 4 -6 12 -7 18 0 C 12 7 4 6 0 0 Z")
+    val leafVein = svg("M 2 0 L 14 0")
     // A shade wider than the white of the eye, so a shut lid leaves no rim of it.
     fun eye(side: Float) = Path().apply { addOval(Rect(Offset(19f * side, -138f), 16f)) }
     val eyeLeft = eye(-1f)
@@ -131,76 +173,88 @@ private object OwlShapes {
 /** Where the owl's feet rest on the branch, bent by [bend]. */
 const val FeetY = 413.5f
 
-/** The branch: a curve from far left to far right, sagging by [bend] where the owl sits. */
-fun branchY(x: Float, bend: Float): Float {
-    val t = (x + 220f) / 800f
-    return (1 - t) * (1 - t) * 436f + 2 * t * (1 - t) * (418f + 2 * bend) + t * t * 402f
-}
+/**
+ * A leaf on the branch: at [x] along it, on its upper side ([below] false)
+ * or its lower one, pointing at [angle] degrees (0 is right, 90 down),
+ * [size] times the leaf's length.
+ */
+private class Leaf(val x: Float, val below: Boolean, val angle: Float, val size: Float, val dark: Boolean)
 
-private val LeafSpots = listOf(Triple(38f, -30f, -1f), Triple(58f, 24f, 1f), Triple(74f, -20f, 1f), Triple(300f, 210f, -1f), Triple(318f, 160f, 1f))
+private val BranchLeaves = listOf(
+    Leaf(92f, below = false, angle = -118f, size = 0.9f, dark = false),
+    Leaf(100f, below = false, angle = -72f, size = 0.8f, dark = true),
+    Leaf(262f, below = true, angle = 112f, size = 0.8f, dark = true),
+    Leaf(292f, below = false, angle = -58f, size = 0.9f, dark = false),
+    Leaf(312f, below = true, angle = 64f, size = 0.85f, dark = true),
+    Leaf(BranchTipX - 2f, below = false, angle = -22f, size = 0.9f, dark = false),
+)
 
-private class BackgroundStar(val x: Float, val y: Float, val r: Float, val alpha: Float, val phase: Float, val speed: Float)
+/** The twig that hangs off the branch to the left of the owl, and its leaves at the end and halfway. */
+private const val TwigX = 58f
 
 /**
- * The night sky, the branch and the owl, drawn from [motion] and [pull] (how
- * far the end of the feed is pulled, 1 at the refresh threshold). Reading
+ * The scene on the app's own background: stars and the moon by night, the
+ * sun by day, the branch and the owl, drawn from [motion] and [pull] (how far
+ * the end of the feed is pulled, 1 at the refresh threshold). Reading
  * [OwlMotion.time] here, in the draw phase, keeps the breathing and the
  * twinkling from recomposing anything.
  */
 @Composable
 fun OwlScene(motion: OwlMotion, sky: SkyContent, pull: () -> Float, modifier: Modifier = Modifier) {
     val measurer = rememberTextMeasurer()
-    val background = remember {
-        val random = Random(7)
-        List(70) {
-            BackgroundStar(
-                x = -200f + random.nextFloat() * 760f,
-                y = -700f + random.nextFloat() * 1_080f,
-                r = 0.5f + random.nextFloat() * 0.9f,
-                alpha = 0.35f + random.nextFloat() * 0.5f,
-                phase = random.nextFloat() * 6.28f,
-                speed = 1f + random.nextFloat() * 1.2f,
-            )
-        }
-    }
-    val moon = remember(sky.moonPhase) { svg(moonLitPath(sky.moonPhase, MoonX, MoonY, MoonR)) }
-    val colors = if (sky.night) NightSky else DaySky
+    val moon = remember(sky.moonPhase) { svg(moonLitPath(sky.moonPhase, SkyLightX, SkyLightY, MoonR)) }
+    val colors = sky.colors
     Canvas(modifier) {
         val frame = SceneFrame(size.width, size.height)
         motion.skyAbove = frame.above
         motion.skyLift = frame.skyLift
         val time = motion.time
-        drawRect(Brush.verticalGradient(listOf(colors.top, colors.bottom)))
         withTransform({
             scale(frame.scale, frame.scale, pivot = Offset.Zero)
             translate(frame.left, frame.above)
         }) {
+            val reveal = motion.reveal.value
             if (sky.night) {
-                background.forEach { star ->
-                    val twinkle = if (motion.reduced) 1f else 0.6f + 0.4f * sin(time * star.speed + star.phase)
-                    drawCircle(Color.White.copy(alpha = star.alpha * twinkle), star.r, Offset(star.x, star.y))
+                SkyStars.forEachIndexed { i, star ->
+                    val shown = ((reveal * 1.6f) - i * 0.018f).coerceIn(0f, 1f)
+                    val twinkle = if (motion.reduced) 1f else 0.55f + 0.45f * sin(time * 1.3f + star.phase)
+                    drawCircle(colors.star.copy(alpha = 0.85f * shown * twinkle), star.r, Offset(star.x, star.y))
                 }
             }
             withTransform({ translate(0f, -frame.skyLift) }) {
-                drawMoon(moon, sky.night)
+                if (sky.night) drawMoon(moon, colors, reveal) else drawSun(colors, time, motion.reduced, reveal)
                 drawSearchingOwl(motion, colors)
-                drawConstellation(motion, sky, colors)
-                sky.shootingStar?.let { drawShootingStar(it, time) }
+                sky.shootingStar?.let { drawShootingStar(it, time, colors) }
             }
-            drawPath(OwlShapes.hills, colors.ground)
-            drawBranch(motion.bend.value)
-            drawOwl(motion, sky.night, pull(), colors, measurer)
+            drawBranch(motion.bend.value + 7f * pull().coerceIn(0f, 1f))
+            drawOwl(motion, pull(), colors, measurer)
         }
     }
 }
 
-private fun DrawScope.drawMoon(lit: Path, night: Boolean) {
-    val centre = Offset(MoonX, MoonY)
-    if (night) {
-        drawCircle(Brush.radialGradient(listOf(Color(0x8CFFF6D6), Color(0x00FFF6D6)), centre, 70f), 70f, centre)
+private fun DrawScope.drawMoon(lit: Path, colors: SkyColors, reveal: Float) {
+    val centre = Offset(SkyLightX, SkyLightY)
+    val shown = reveal.coerceIn(0f, 1f)
+    val glowAlpha = if (colors.dark) 0.35f else 0.28f
+    drawCircle(Brush.radialGradient(listOf(colors.glow.copy(alpha = glowAlpha * shown), Color.Transparent), centre, 64f), 64f, centre)
+    drawCircle(colors.moonShadow, MoonR, centre, alpha = shown)
+    drawPath(lit, colors.moon, alpha = shown)
+}
+
+/** The sun, by day: a warm disc with a soft glow and short rays turning slowly. */
+private fun DrawScope.drawSun(colors: SkyColors, time: Float, reduced: Boolean, reveal: Float) {
+    val centre = Offset(SkyLightX, SkyLightY)
+    val shown = reveal.coerceIn(0f, 1f)
+    drawCircle(Brush.radialGradient(listOf(OwlColors.Sun.copy(alpha = 0.32f * shown), Color.Transparent), centre, 66f), 66f, centre)
+    val turn = if (reduced) 0f else time * 0.12f
+    for (i in 0 until 10) {
+        val a = turn + i * (2 * PI.toFloat() / 10)
+        val from = centre + Offset(cos(a), sin(a)) * 28f
+        val to = centre + Offset(cos(a), sin(a)) * 36f
+        drawLine(OwlColors.Sun.copy(alpha = 0.7f * shown), from, to, strokeWidth = 2.5f, cap = StrokeCap.Round)
     }
-    drawCircle(Color.White.copy(alpha = 0.07f), MoonR, centre)
-    drawPath(lit, if (night) Color(0xFFF7F0D6) else Color.White)
+    drawCircle(OwlColors.Sun.copy(alpha = shown), 21f, centre)
+    if (colors.dark) drawCircle(Color.White.copy(alpha = 0.18f * shown), 21f, centre, style = Stroke(1.2f))
 }
 
 private fun DrawScope.drawSearchingOwl(motion: OwlMotion, colors: SkyColors) {
@@ -208,8 +262,8 @@ private fun DrawScope.drawSearchingOwl(motion: OwlMotion, colors: SkyColors) {
     if (shown < 0.01f) return
     val time = motion.time
     val t = ((time - motion.searchStart) / 1.7f).mod(1f)
-    val x = MoonX - 95f + t * 190f
-    val y = MoonY + 6f - sin(t * PI.toFloat()) * 18f + sin(time * 6.25f) * 2f
+    val x = SkyLightX - 95f + t * 190f
+    val y = SkyLightY + 6f - sin(t * PI.toFloat()) * 18f + sin(time * 6.25f) * 2f
     withTransform({ translate(x, y) }) {
         drawOval(colors.mini.copy(alpha = shown), Offset(-6.5f, -5.5f), Size(13f, 11f))
         withTransform({ scale(1f, if (motion.reduced) 1f else sin(time * 18f), pivot = Offset.Zero) }) {
@@ -218,63 +272,71 @@ private fun DrawScope.drawSearchingOwl(motion: OwlMotion, colors: SkyColors) {
     }
 }
 
-private fun DrawScope.drawConstellation(motion: OwlMotion, sky: SkyContent, colors: SkyColors) {
-    val stars = sky.stars
-    if (stars.isEmpty()) return
-    val elapsed = motion.reveal.value
-    val gap = starDelayMs(stars.size)
-    stars.forEachIndexed { i, star ->
-        if (i == 0) return@forEachIndexed
-        val drawn = ((elapsed - 500f - i * gap) / 500f).coerceIn(0f, 1f)
-        if (drawn <= 0f) return@forEachIndexed
-        val from = Offset(stars[i - 1].x, stars[i - 1].y)
-        val to = Offset(star.x, star.y)
-        drawLine(colors.star.copy(alpha = if (sky.night) 0.32f else 0.28f), from, from + (to - from) * drawn, strokeWidth = 1f)
-    }
-    stars.forEachIndexed { i, star ->
-        val shown = ((elapsed - 300f - i * gap) / 600f).coerceIn(0f, 1f)
-        if (shown <= 0f) return@forEachIndexed
-        val r = sky.starSizes[i]
-        val newest = i == stars.lastIndex && !motion.reduced
-        val twinkle = if (newest) 0.65f + 0.35f * sin(motion.time * 2.4f) else 1f
-        val centre = Offset(star.x, star.y)
-        drawCircle(colors.star.copy(alpha = shown * if (i == sky.selectedStar) 0.45f else 0.14f), r * 3.2f, centre)
-        drawCircle(colors.star.copy(alpha = shown * twinkle), r, centre)
-    }
-}
-
-private fun DrawScope.drawShootingStar(star: ShootingStar, time: Float) {
+private fun DrawScope.drawShootingStar(star: ShootingStar, time: Float, colors: SkyColors) {
     val head = star.headAt(time) ?: return
     val p = (time - star.start) / ShootingStar.Duration
     val alpha = if (p < 0.12f) p / 0.12f else 1f - (p - 0.12f) / 0.88f
     val tail = head + Offset(46f, -25f)
-    drawLine(Brush.linearGradient(listOf(Color.White.copy(alpha = alpha), Color.Transparent), head, tail), head, tail, strokeWidth = 2f, cap = StrokeCap.Round)
-    drawCircle(Color.White.copy(alpha = alpha), 1.8f, head)
+    drawLine(Brush.linearGradient(listOf(colors.star.copy(alpha = alpha), Color.Transparent), head, tail), head, tail, strokeWidth = 2f, cap = StrokeCap.Round)
+    drawCircle(colors.star.copy(alpha = alpha), 1.8f, head)
 }
 
+/** The branch as a filled shape: thick where it comes in, tapering to a rounded tip, with a lighter upper edge. */
 private fun DrawScope.drawBranch(bend: Float) {
-    val branch = Path().apply {
-        moveTo(-220f, 436f)
-        quadraticTo(180f, 418f + 2 * bend, 580f, 402f)
+    val outline = Path()
+    val steps = 48
+    val xs = List(steps + 1) { BranchStartX + (BranchTipX - BranchStartX) * it / steps }
+    xs.forEachIndexed { i, x ->
+        val y = branchY(x, bend) - branchWidth(x) / 2f
+        if (i == 0) outline.moveTo(x, y) else outline.lineTo(x, y)
     }
-    val twigY = branchY(52f, bend)
+    val tipY = branchY(BranchTipX, bend)
+    outline.quadraticTo(BranchTipX + 7f, tipY, BranchTipX, tipY + branchWidth(BranchTipX) / 2f)
+    xs.reversed().forEach { x -> outline.lineTo(x, branchY(x, bend) + branchWidth(x) / 2f) }
+    outline.close()
+
+    // The twig, drawn first so the branch covers where it joins.
+    val joinY = branchY(TwigX, bend)
+    val twigEnd = Offset(TwigX - 32f, joinY + 22f)
     val twig = Path().apply {
-        moveTo(52f, twigY + 2f)
-        quadraticTo(40f, twigY + 16f, 22f, twigY + 22f)
+        moveTo(TwigX + 4f, joinY)
+        quadraticTo(TwigX - 8f, joinY + 14f, twigEnd.x, twigEnd.y)
     }
-    drawPath(twig, OwlColors.Bark, style = Stroke(4f, cap = StrokeCap.Round))
-    drawPath(branch, OwlColors.Bark, style = Stroke(10f, cap = StrokeCap.Round))
-    LeafSpots.forEach { (x, angle, side) ->
-        withTransform({
-            translate(x, branchY(x, bend) - 2f)
-            rotate(angle, pivot = Offset.Zero)
-        }) {
-            drawOval(OwlColors.Leaf, Offset(side * 9f - 10f, -8.5f), Size(20f, 9f))
+    drawPath(twig, OwlColors.Bark, style = Stroke(4.5f, cap = StrokeCap.Round))
+    drawPath(outline, OwlColors.Bark)
+    val highlight = Path()
+    xs.filter { it > -200f && it < BranchTipX - 12f }.forEachIndexed { i, x ->
+        val y = branchY(x, bend) - branchWidth(x) / 2f + 1.6f
+        if (i == 0) highlight.moveTo(x, y) else highlight.lineTo(x, y)
+    }
+    drawPath(highlight, OwlColors.BarkLight.copy(alpha = 0.7f), style = Stroke(1.4f, cap = StrokeCap.Round))
+
+    drawLeaf(twigEnd, 150f, 1f, dark = false)
+    drawLeaf(twigEnd, 196f, 0.85f, dark = true)
+    drawLeaf(Offset(TwigX - 11f, joinY + 12.5f), 58f, 0.75f, dark = false)
+    BranchLeaves.forEach { leaf ->
+        val half = branchWidth(leaf.x) / 2f - 1.5f
+        val at = Offset(leaf.x, branchY(leaf.x, bend) + if (leaf.below) half else -half)
+        drawLeaf(at, leaf.angle, leaf.size, leaf.dark)
+    }
+}
+
+/** A leaf on a short stalk that starts inside the bark, so it grows out of the wood rather than floating beside it. */
+private fun DrawScope.drawLeaf(at: Offset, angle: Float, size: Float, dark: Boolean) {
+    withTransform({
+        translate(at.x, at.y)
+        rotate(angle, pivot = Offset.Zero)
+        scale(size * 1.35f, size * 1.35f, pivot = Offset.Zero)
+    }) {
+        drawLine(OwlColors.Stalk, Offset(-3f, 0f), Offset(2.5f, 0f), strokeWidth = 1.6f, cap = StrokeCap.Round)
+        withTransform({ translate(2f, 0f) }) {
+            drawPath(OwlShapes.leaf, if (dark) OwlColors.LeafDark else OwlColors.Leaf)
+            drawPath(OwlShapes.leafVein, OwlColors.LeafVein, style = Stroke(0.9f, cap = StrokeCap.Round))
         }
     }
 }
 
-private fun DrawScope.drawOwl(motion: OwlMotion, night: Boolean, pull: Float, colors: SkyColors, measurer: TextMeasurer) {
+private fun DrawScope.drawOwl(motion: OwlMotion, pull: Float, colors: SkyColors, measurer: TextMeasurer) {
     val time = motion.time
     val still = motion.reduced || motion.busy || pull > 0f
     val breath = if (still) 0f else sin(time * 1.05f) * 0.012f
@@ -283,9 +345,8 @@ private fun DrawScope.drawOwl(motion: OwlMotion, night: Boolean, pull: Float, co
     val ready = pull >= 1f
     val sx = motion.scaleX.value * (1f + 0.035f * g) * (1f + breath * 0.4f)
     val sy = motion.scaleY.value * (1f - 0.07f * g) * (1f + breath)
-    val bend = motion.bend.value + 7f * g
-    val feetY = FeetY + bend
-    val rim = if (night) Stroke(2f) else null
+    val feetY = FeetY + motion.bend.value + 7f * g
+    val rim = colors.rim
 
     withTransform({
         translate(180f + motion.owlX.value, feetY + motion.owlY.value)
@@ -295,7 +356,7 @@ private fun DrawScope.drawOwl(motion: OwlMotion, night: Boolean, pull: Float, co
         withTransform({ rotate(wing, Offset(-40f, -96f)) }) { drawPath(OwlShapes.wingLeft, OwlColors.Wing) }
         withTransform({ rotate(-wing, Offset(40f, -96f)) }) { drawPath(OwlShapes.wingRight, OwlColors.Wing) }
         drawPath(OwlShapes.body, OwlColors.Body)
-        rim?.let { drawPath(OwlShapes.body, OwlColors.Rim, style = it) }
+        rim?.let { drawPath(OwlShapes.body, it, style = Stroke(2f)) }
         drawOval(OwlColors.Belly, Offset(-33f, -90f), Size(66f, 84f))
         drawPath(OwlShapes.chevrons, OwlColors.Chevron, style = Stroke(2f, cap = StrokeCap.Round))
         drawPath(OwlShapes.feet, OwlColors.Beak, style = Stroke(3f, cap = StrokeCap.Round))
@@ -307,11 +368,17 @@ private fun DrawScope.drawOwl(motion: OwlMotion, night: Boolean, pull: Float, co
         }) {
             val tufts = maxOf(motion.tufts.value, if (ready) 1f else 0f)
             withTransform({ translate(0f, -tufts * 6f) }) {
-                withTransform({ rotate(-tufts * 10f, Offset(-34f, -166f)) }) { drawPath(OwlShapes.tuftLeft, OwlColors.Body) }
-                withTransform({ rotate(tufts * 10f, Offset(34f, -166f)) }) { drawPath(OwlShapes.tuftRight, OwlColors.Body) }
+                withTransform({ rotate(-tufts * 10f, Offset(-34f, -166f)) }) {
+                    drawPath(OwlShapes.tuftLeft, OwlColors.Body)
+                    rim?.let { drawPath(OwlShapes.tuftLeft, it, style = Stroke(1.5f)) }
+                }
+                withTransform({ rotate(tufts * 10f, Offset(34f, -166f)) }) {
+                    drawPath(OwlShapes.tuftRight, OwlColors.Body)
+                    rim?.let { drawPath(OwlShapes.tuftRight, it, style = Stroke(1.5f)) }
+                }
             }
             drawOval(OwlColors.Body, Offset(-50f, -178f), Size(100f, 80f))
-            rim?.let { drawOval(OwlColors.Rim, Offset(-50f, -178f), Size(100f, 80f), style = it) }
+            rim?.let { drawOval(it, Offset(-50f, -178f), Size(100f, 80f), style = Stroke(2f)) }
             if (motion.showBack) {
                 drawPath(OwlShapes.back, OwlColors.BackFeather, style = Stroke(2f, cap = StrokeCap.Round))
             } else {
@@ -365,7 +432,7 @@ private fun DrawScope.drawSnore(time: Float, reduced: Boolean, colors: SkyColors
 private fun DrawScope.drawBubble(text: String, measurer: TextMeasurer) {
     val layout = measurer.measure(text, unitsStyle(13f, OwlColors.Body, this, italic = true))
     val width = maxOf(30f, layout.size.width + 20f)
-    drawRoundRect(OwlColors.Bubble, Offset(44f, -226f), Size(width, 26f), androidx.compose.ui.geometry.CornerRadius(13f))
+    drawRoundRect(OwlColors.Bubble, Offset(44f, -226f), Size(width, 26f), CornerRadius(13f))
     drawPath(OwlShapes.bubbleTail, OwlColors.Bubble)
     drawText(layout, topLeft = Offset(44f + (width - layout.size.width) / 2f, -213f - layout.size.height / 2f))
 }

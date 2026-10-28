@@ -2,7 +2,6 @@
   import { onMount } from "svelte";
   import {
     fetchReadArticlesForUser,
-    fetchReadsSinceForUser,
     getSession,
     markArticleAsReadForUser,
     markArticlesAsReadForUser,
@@ -12,7 +11,6 @@
     unmarkArticlesAsReadForUser,
     unstarArticleForUser,
     type ReadArticleStatuses,
-    type TodayRead,
   } from "../lib/data";
   import {
     getDensity,
@@ -72,8 +70,6 @@
     ...optimisticReadArticles,
   }));
   let seenArticles = $state<SeenArticleStatuses>({});
-  /** Today's reads as loaded; the owl's sky adds this session's on top. */
-  let readToday = $state<TodayRead[]>([]);
   let userId = $state("");
   let searchQuery = $state("");
   let hideSeenArticles = $state(true);
@@ -663,32 +659,6 @@
     pullActive = false;
   }
 
-  /**
-   * The stars over the end of the feed: today's reads as loaded, plus the
-   * articles read since on this page, less any marked unread again.
-   */
-  let todayStars = $derived.by(() => {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    const byId = new Map(articles.map((article) => [article.id, article]));
-    const stars = readToday.filter(
-      (read) => !byId.has(read.id) || read.id in readArticles,
-    );
-    const known = new Set(stars.map((read) => read.id));
-    for (const [id, status] of Object.entries(readArticles)) {
-      const article = byId.get(id);
-      if (!article || known.has(id) || new Date(status.timestamp) < start) continue;
-      stars.push({
-        id,
-        title: article.title,
-        url: article.url,
-        feed_name: article.feed_name,
-        read_at: status.timestamp,
-      });
-    }
-    return stars.sort((a, b) => a.read_at.localeCompare(b.read_at));
-  });
-
   let displayedUnreadAndUnseenCount = $derived.by(() => {
     if (onlyRead || onlyStarred) {
       // count read articles for stats on the read-only page
@@ -749,13 +719,6 @@
           fetchStarredArticleIdsForUser(userId)
             .then((starred) => (starredArticles = starred))
             .catch((error) => console.warn("Failed to load stars", error));
-          if (!onlyRead && !onlyStarred) {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            fetchReadsSinceForUser(userId, today)
-              .then((reads) => (readToday = reads))
-              .catch((error) => console.warn("Failed to load today's reads", error));
-          }
         }
       })
       .catch(() => {
@@ -1260,13 +1223,13 @@
     ontouchcancel={onTouchEnd}
   >
     <div
-      class="w-full max-w-3xl rounded-3xl border border-dashed border-base-300 bg-base-200/50 pb-8 pt-4 text-center md:pb-12 md:pt-8"
+      class="w-full max-w-3xl pb-8 text-center md:pb-12"
     >
-      <div class="mx-4 mb-6 h-[min(52svh,440px)] md:mx-8">
+      <!-- No card: the owl sits on the page's own background, in any theme. -->
+      <div class="mb-6 h-[min(56svh,460px)]">
         <NightOwl
           pull={pullDistance / PULL_THRESHOLD}
           {refreshing}
-          reads={todayStars}
         />
       </div>
       <h3 class="mb-2 text-2xl font-bold">

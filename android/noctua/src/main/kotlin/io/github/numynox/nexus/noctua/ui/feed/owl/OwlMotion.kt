@@ -48,7 +48,7 @@ class OwlMotion internal constructor(private val scope: CoroutineScope, val redu
     val brows = value(0f)
     /** The small owl crossing the moon while a refresh runs. */
     val searching = value(0f)
-    /** How far the stars of today's reading have come in, in milliseconds. */
+    /** How far the sky has faded in as the scene appears, 0 to 1. */
     val reveal = value(0f)
 
     var flapping by mutableStateOf(false)
@@ -123,8 +123,7 @@ class OwlMotion internal constructor(private val scope: CoroutineScope, val redu
     /** Hops onto the branch from the right, settles, and blinks once — or wakes asleep, by day. */
     fun enter(night: Boolean) {
         scene = scope.launch {
-            // To the longest any sky takes, so stars that arrive after the entrance come in whole.
-            launch { reveal.snapTo(0f); reveal.animateTo(StarsRevealMaxMs, tween(StarsRevealMaxMs.toInt(), easing = LinearEasing)) }
+            launch { reveal.snapTo(0f); reveal.animateTo(1f, tween(1_200, easing = LinearEasing)) }
             lidLeft.snapTo(if (night) 0f else 1f); lidRight.snapTo(if (night) 0f else 1f)
             sleeping = !night
             if (reduced) return@launch
@@ -279,7 +278,7 @@ class OwlMotion internal constructor(private val scope: CoroutineScope, val redu
     /** Looks up at the moon for a while. */
     fun admireMoon() = play {
         if (!sleeping) {
-            lookAt(MoonX, MoonY - skyLift); headTurn.to(9f, 8f)
+            lookAt(SkyLightX, SkyLightY - skyLift); headTurn.to(9f, 8f)
         }
         delay(1_600)
         headTurn.to(0f, 6f)
@@ -308,12 +307,6 @@ class OwlMotion internal constructor(private val scope: CoroutineScope, val redu
         said = scope.launch { delay(millis); bubble = null }
     }
 }
-
-/** The longest the stars of today's reading take to come in, one after the other: the last starts by 1.8 s. */
-internal const val StarsRevealMaxMs = 2_400f
-
-/** The gap between two stars coming in: a long day's sky must not take ages. */
-internal fun starDelayMs(count: Int): Float = if (count <= 0) 0f else minOf(120f, 1_500f / count)
 
 @Composable
 fun rememberOwlMotion(reduced: Boolean): OwlMotion {

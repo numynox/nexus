@@ -3,18 +3,14 @@ package io.github.numynox.nexus.noctua.ui.feed
 import android.provider.Settings
 import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Refresh
@@ -23,7 +19,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -35,46 +30,38 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
-import io.github.numynox.nexus.noctua.data.Article
-import io.github.numynox.nexus.noctua.data.DatedArticle
-import io.github.numynox.nexus.noctua.ui.feed.owl.DaySky
 import io.github.numynox.nexus.noctua.ui.feed.owl.FeetY
-import io.github.numynox.nexus.noctua.ui.feed.owl.MoonX
-import io.github.numynox.nexus.noctua.ui.feed.owl.MoonY
-import io.github.numynox.nexus.noctua.ui.feed.owl.NightSky
+import io.github.numynox.nexus.noctua.ui.feed.owl.OwlMotion
 import io.github.numynox.nexus.noctua.ui.feed.owl.OwlScene
 import io.github.numynox.nexus.noctua.ui.feed.owl.SceneFrame
 import io.github.numynox.nexus.noctua.ui.feed.owl.ShootingStar
 import io.github.numynox.nexus.noctua.ui.feed.owl.SkyContent
-import io.github.numynox.nexus.noctua.ui.feed.owl.constellation
+import io.github.numynox.nexus.noctua.ui.feed.owl.SkyLightX
+import io.github.numynox.nexus.noctua.ui.feed.owl.SkyLightY
 import io.github.numynox.nexus.noctua.ui.feed.owl.hoot
 import io.github.numynox.nexus.noctua.ui.feed.owl.isNight
 import io.github.numynox.nexus.noctua.ui.feed.owl.moonLit
 import io.github.numynox.nexus.noctua.ui.feed.owl.moonPhase
 import io.github.numynox.nexus.noctua.ui.feed.owl.moonPhaseName
 import io.github.numynox.nexus.noctua.ui.feed.owl.rememberOwlMotion
+import io.github.numynox.nexus.noctua.ui.feed.owl.skyColors
 import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 import kotlin.math.hypot
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -129,13 +116,13 @@ class EndPull(private val threshold: Float, private val onRefresh: () -> Unit) :
  * article can scroll all the way past the top and count as seen — a shorter
  * one would leave the progress short of done for good.
  *
- * Most of it is a window onto the night: an owl on a branch under a sky
- * whose stars are today's reading, one per article, joined in the order they
- * were read. The pull past the end is the owl's: its eyes widen and its ear
- * tufts pop up at the threshold; let go and it flies off to look for news.
- * When the refresh finds some the list starts over at its top and the owl is
- * out of sight; when it finds none the owl comes back and shakes its head.
- * By day it naps. A few small things answer a tap or a long press.
+ * An owl on a branch, drawn straight onto the app's background: by night
+ * under a few stars and the moon in its real phase, by day asleep in the sun.
+ * The pull past the end is the owl's: its eyes widen and its ear tufts pop up
+ * at the threshold; let go and it flies off to look for news. When the
+ * refresh finds some the list starts over at its top and the owl is out of
+ * sight; when it finds none the owl comes back and shakes its head. A few
+ * small things answer a tap or a long press.
  */
 @Composable
 fun EndOfFeed(
@@ -144,12 +131,11 @@ fun EndOfFeed(
     refreshing: Boolean,
     /** Refreshes landed so far ([FeedLoad.refreshes]): one landing while the owl is away means it checked. */
     refreshes: Int,
-    /** What was read today, in reading order: the stars. */
-    today: List<DatedArticle>,
     now: ZonedDateTime,
     onRefresh: () -> Unit,
-    onOpen: (Article) -> Unit,
     modifier: Modifier = Modifier,
+    /** The list's side padding, which the scene reaches across so the branch comes in from the screen's edge. */
+    bleed: Dp = 16.dp,
 ) {
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
@@ -159,17 +145,14 @@ fun EndOfFeed(
     val motion = rememberOwlMotion(reduced)
     val night = isNight(now.toLocalTime())
     val phase = remember(now.toLocalDate()) { moonPhase(now.toInstant()) }
-    val stars = remember(today) { constellation(today.map { it.article.id }) }
-    val starSizes = remember(today) { today.map { 2.2f + it.article.id.mod(3) * 0.9f } }
+    val colors = skyColors()
 
-    var selected by remember { mutableStateOf<Int?>(null) }
     var shooting by remember { mutableStateOf<ShootingStar?>(null) }
     var note by remember { mutableStateOf<String?>(null) }
     /** The last refresh came back, and the panel is still here: nothing new. */
     var checked by remember { mutableStateOf(false) }
     var lastTouch by remember { mutableFloatStateOf(0f) }
     val taps = remember { ArrayDeque<Float>() }
-    var box by remember { mutableStateOf(IntSize.Zero) }
 
     LaunchedEffect(motion) { motion.enter(night) }
 
@@ -215,7 +198,6 @@ fun EndOfFeed(
         if (refreshing) {
             startedAt = refreshes
             checked = false
-            selected = null
             motion.takeOff()
         } else if (motion.away) {
             // Still on screen after a refresh that landed: it found nothing new.
@@ -238,28 +220,32 @@ fun EndOfFeed(
         }
     }
 
-    val colors = if (night) NightSky else DaySky
     Column(
         modifier.fillMaxWidth().padding(top = 8.dp, bottom = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
             Modifier
-                .fillMaxWidth()
                 .weight(1f)
-                .clip(RoundedCornerShape(28.dp))
-                .onSizeChanged { box = it },
+                // Wider than the list's padding allows, to the screen's edges.
+                .layout { measurable, constraints ->
+                    val extra = (bleed * 2).roundToPx()
+                    val width = constraints.maxWidth + extra
+                    val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
+                    layout(constraints.maxWidth, placeable.height) { placeable.place(-extra / 2, 0) }
+                }
+                .clipToBounds(),
         ) {
             OwlScene(
                 motion = motion,
-                sky = SkyContent(night, phase, stars, starSizes, selected, shooting),
+                sky = SkyContent(night, phase, shooting, colors),
                 pull = { pull.stretch },
                 modifier = Modifier
                     .fillMaxSize()
                     .semantics {
-                        contentDescription = "An owl on a branch under the ${if (night) "night " else ""}sky, with a star for each of the ${today.size} articles read today"
+                        contentDescription = if (night) "An owl on a branch under the moon and stars" else "An owl asleep on a branch in the sun"
                     }
-                    .pointerInput(motion, stars, night) {
+                    .pointerInput(motion, night) {
                         detectTapGestures(
                             onTap = { at ->
                                 lastTouch = motion.time
@@ -267,19 +253,17 @@ fun EndOfFeed(
                                 val u = frame.toUnits(at)
                                 val sky = frame.toSky(at)
                                 val caught = shooting?.headAt(motion.time)
-                                val star = stars.indices.minByOrNull { hypot(stars[it].x - sky.x, stars[it].y - sky.y) }
-                                    ?.takeIf { hypot(stars[it].x - sky.x, stars[it].y - sky.y) < 16f }
                                 when {
                                     caught != null && hypot(caught.x - sky.x, caught.y - sky.y) < 40f -> {
                                         shooting = null
                                         motion.surprised()
                                         note = "You caught a shooting star. Make a wish."
                                     }
-                                    star != null -> selected = star.takeIf { it != selected }
-                                    selected != null -> selected = null
-                                    hypot(sky.x - MoonX, sky.y - MoonY) < 36f -> {
+                                    hypot(sky.x - SkyLightX, sky.y - SkyLightY) < 40f -> if (night) {
                                         motion.admireMoon()
                                         note = "${moonPhaseName(phase)} · ${(moonLit(phase) * 100).roundToInt()}% lit"
+                                    } else {
+                                        note = "The owl sleeps until dark"
                                     }
                                     onOwl(u, motion) && !motion.away -> when {
                                         motion.sleeping -> motion.peek()
@@ -309,46 +293,21 @@ fun EndOfFeed(
                         )
                     },
             )
-            Column(Modifier.padding(start = 18.dp, top = 16.dp)) {
-                Text("TODAY'S READING", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = colors.text)
-                Text(
-                    when (today.size) {
-                        0 -> "Nothing read yet"
-                        1 -> "1 article"
-                        else -> "${today.size} articles"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.text,
-                )
-            }
             note?.let {
                 Surface(
                     shape = RoundedCornerShape(50),
-                    color = SkyCard,
-                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 56.dp, start = 16.dp, end = 16.dp),
+                    color = MaterialTheme.colorScheme.inverseSurface,
+                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 16.dp, start = 32.dp, end = 32.dp),
                 ) {
-                    Text(it, style = MaterialTheme.typography.labelLarge, color = SkyCardText, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp))
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.inverseOnSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                    )
                 }
-            }
-            selected?.let { index ->
-                val read = today.getOrNull(index) ?: return@let
-                val star = stars[index]
-                StarCard(
-                    read = read,
-                    now = now,
-                    onOpen = { onOpen(read.article) },
-                    modifier = Modifier
-                        .width(StarCardWidth)
-                        .offset {
-                            val at = SceneFrame(box.width.toFloat(), box.height.toFloat()).skyToPx(star.x, star.y)
-                            val width = StarCardWidth.roundToPx()
-                            val margin = 12.dp.roundToPx()
-                            IntOffset(
-                                (at.x - width / 2f).roundToInt().coerceIn(margin, (box.width - width - margin).coerceAtLeast(margin)),
-                                (at.y + 14.dp.toPx()).roundToInt(),
-                            )
-                        },
-                )
             }
         }
         Spacer(Modifier.height(20.dp))
@@ -377,28 +336,8 @@ fun EndOfFeed(
 }
 
 /** Whether a point of the scene is on the owl, wherever it is perched. */
-private fun onOwl(u: Offset, motion: io.github.numynox.nexus.noctua.ui.feed.owl.OwlMotion): Boolean {
+private fun onOwl(u: Offset, motion: OwlMotion): Boolean {
     val x = 180f + motion.owlX.value
     val feet = FeetY + motion.bend.value + motion.owlY.value
     return u.x in x - 60f..x + 60f && u.y in feet - 200f..feet + 10f
-}
-
-private val StarCardWidth = 240.dp
-private val SkyCard = Color(0xFFFAF6EA)
-private val SkyCardText = Color(0xFF1F2250)
-
-/** A star of today's reading, tapped: which article it is, and a way back to it. */
-@Composable
-private fun StarCard(read: DatedArticle, now: ZonedDateTime, onOpen: () -> Unit, modifier: Modifier = Modifier) {
-    val time = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).format(read.at.atZone(now.zone))
-    Surface(shape = RoundedCornerShape(16.dp), color = SkyCard, shadowElevation = 6.dp, modifier = modifier) {
-        Column(Modifier.padding(start = 14.dp, end = 6.dp, top = 12.dp, bottom = 4.dp)) {
-            Text(read.article.feedName.uppercase(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color(0xFF6E5F33), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(read.article.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = SkyCardText, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp, end = 8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                Text("Read at $time", style = MaterialTheme.typography.bodySmall, color = Color(0xFF555880))
-                TextButton(onClick = onOpen) { Text("Open", color = Color(0xFF2F3389)) }
-            }
-        }
-    }
 }

@@ -75,8 +75,7 @@ class AppScreenshots {
         waitForText("A new proof settles a 90-year-old question about prime gaps")
         shot("08-library-starred")
         tap("Read")
-        // The most recent read leads the shelf.
-        waitForText("Linux 7.2 released with a new scheduler for hybrid CPUs")
+        waitForText("Deutsche Bahn reports punctuality up for the third month running")
         shot("09-library-read")
 
         tap("Statistics")

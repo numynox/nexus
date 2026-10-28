@@ -51,35 +51,46 @@ fun moonLitPath(phase: Double, cx: Float, cy: Float, r: Float): String {
 /** Night is when the owl is awake: from seven in the evening to seven in the morning. */
 fun isNight(time: LocalTime): Boolean = time.hour < 7 || time.hour >= 19
 
-data class SkyPoint(val x: Float, val y: Float)
-
-/** Where the moon sits in the scene, and how big it is. */
-const val MoonX = 282f
-const val MoonY = 78f
+/** Where the moon by night, or the sun by day, sits in the scene. */
+const val SkyLightX = 282f
+const val SkyLightY = 78f
 const val MoonR = 24f
 
+/** One of the night's small stars. */
+data class SkyStar(val x: Float, val y: Float, val r: Float, val phase: Float)
+
 /**
- * A star for each article read today, in reading order. Each star's place is
- * drawn from its article's id, so the stars already up stay put when a new
- * one joins — and it keeps clear of the moon, the owl's head and the stars
- * placed before it, giving up on the spacing only when the sky is full.
+ * The night's stars: the same few dots every night, scattered over the sky
+ * above the branch — some higher than the scene, for a tall screen — clear
+ * of the moon and the owl's head.
  */
-fun constellation(articleIds: List<Long>): List<SkyPoint> {
-    val placed = ArrayList<SkyPoint>(articleIds.size)
-    articleIds.forEach { id ->
-        val random = Random(id * 7919 + 17)
-        var point: SkyPoint
-        var tries = 0
-        do {
-            point = SkyPoint(26f + random.nextFloat() * 308f, 58f + random.nextFloat() * 178f)
-            tries++
-        } while (tries < 60 && !clear(point, placed))
-        placed += point
+val SkyStars: List<SkyStar> = run {
+    val random = Random(7)
+    val stars = ArrayList<SkyStar>()
+    while (stars.size < 34) {
+        val x = 12f + random.nextFloat() * 336f
+        val y = -320f + random.nextFloat() * 560f
+        val r = 0.7f + random.nextFloat() * 0.9f
+        val phase = random.nextFloat() * 6.28f
+        val clear = hypot(x - SkyLightX, y - SkyLightY) > 46f && !(x in 110f..250f && y > 190f) &&
+            stars.none { hypot(it.x - x, it.y - y) < 26f }
+        if (clear) stars += SkyStar(x, y, r, phase)
     }
-    return placed
+    stars
 }
 
-private fun clear(p: SkyPoint, placed: List<SkyPoint>): Boolean =
-    hypot(p.x - MoonX, p.y - MoonY) >= 48f &&
-        !(p.x in 105f..255f && p.y > 205f) &&
-        placed.none { hypot(it.x - p.x, it.y - p.y) < 34f }
+/** Where the branch's centre line runs at [x], sagging by [bend] under the owl. */
+fun branchY(x: Float, bend: Float): Float {
+    val t = (x + 220f) / 800f
+    return (1 - t) * (1 - t) * 436f + 2 * t * (1 - t) * (418f + 2 * bend) + t * t * 402f
+}
+
+/** The branch comes in from beyond the left edge and ends here, in a tip right of the owl. */
+const val BranchStartX = -220f
+const val BranchTipX = 326f
+
+/** How thick the branch is at [x]: stout where it comes in, slender towards its tip. */
+fun branchWidth(x: Float): Float {
+    val t = ((x - BranchStartX) / (BranchTipX - BranchStartX)).coerceIn(0f, 1f)
+    return 15f - 9f * t
+}

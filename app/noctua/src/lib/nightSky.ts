@@ -34,6 +34,7 @@ export function moonPhaseName(phase: number): string {
   return PHASE_NAMES[Math.round(phase * 8) % 8];
 }
 
+/** Where the moon by night, or the sun by day, sits in the scene. */
 export const MOON = { x: 282, y: 78, r: 24 };
 
 /**
@@ -56,8 +57,8 @@ export function isNight(at: Date): boolean {
   return hour < 7 || hour >= 19;
 }
 
-/** A small seeded generator (mulberry32), so a star's place depends only on its article. */
-export function seeded(seed: number): () => number {
+/** A small seeded generator (mulberry32), so the stars are the same every night. */
+function seeded(seed: number): () => number {
   let state = seed | 0;
   return () => {
     state = (state + 0x6d2b79f5) | 0;
@@ -67,36 +68,73 @@ export function seeded(seed: number): () => number {
   };
 }
 
-export interface SkyPoint {
+export interface SkyStar {
   x: number;
   y: number;
+  r: number;
+  /** Seconds into its twinkle, so they do not all pulse together. */
+  delay: number;
 }
 
 /**
- * A star per article read today, in reading order, each placed from its
- * article's id: the stars already up stay put when a new one joins. Each keeps
- * clear of the moon, the owl's head and the stars before it, until the sky is
- * too full for that.
+ * The night's stars: the same few dots every night, over the sky above the
+ * branch — some higher than the scene, for a tall box — clear of the moon and
+ * the owl's head.
  */
-export function constellation(articleIds: string[]): SkyPoint[] {
-  const placed: SkyPoint[] = [];
-  for (const id of articleIds) {
-    const random = seeded(Number(id) * 7919 + 17);
-    let point: SkyPoint;
-    let tries = 0;
-    do {
-      point = { x: 26 + random() * 308, y: 58 + random() * 178 };
-      tries++;
-    } while (tries < 60 && !clear(point, placed));
-    placed.push(point);
+export const SKY_STARS: SkyStar[] = (() => {
+  const random = seeded(7);
+  const stars: SkyStar[] = [];
+  while (stars.length < 34) {
+    const x = 12 + random() * 336;
+    const y = -320 + random() * 560;
+    const r = 0.7 + random() * 0.9;
+    const delay = random() * 4;
+    const clear =
+      Math.hypot(x - MOON.x, y - MOON.y) > 46 &&
+      !(x >= 110 && x <= 250 && y > 190) &&
+      stars.every((s) => Math.hypot(s.x - x, s.y - y) >= 26);
+    if (clear) stars.push({ x, y, r, delay });
   }
-  return placed;
+  return stars;
+})();
+
+/** The branch comes in from beyond the left edge and ends in a tip right of the owl. */
+export const BRANCH_START_X = -220;
+export const BRANCH_TIP_X = 326;
+
+/** Where the branch's centre line runs at `x`, sagging by `bend` under the owl. */
+export function branchY(x: number, bend: number): number {
+  const t = (x + 220) / 800;
+  return (1 - t) ** 2 * 436 + 2 * t * (1 - t) * (418 + 2 * bend) + t * t * 402;
 }
 
-function clear(p: SkyPoint, placed: SkyPoint[]): boolean {
-  return (
-    Math.hypot(p.x - MOON.x, p.y - MOON.y) >= 48 &&
-    !(p.x >= 105 && p.x <= 255 && p.y > 205) &&
-    placed.every((q) => Math.hypot(q.x - p.x, q.y - p.y) >= 34)
+/** How thick the branch is at `x`: stout where it comes in, slender towards its tip. */
+export function branchWidth(x: number): number {
+  const t = Math.min(1, Math.max(0, (x - BRANCH_START_X) / (BRANCH_TIP_X - BRANCH_START_X)));
+  return 15 - 9 * t;
+}
+
+/** The branch's outline as SVG path data: tapering, with a rounded tip. */
+export function branchPath(bend: number): string {
+  const steps = 48;
+  const xs = Array.from(
+    { length: steps + 1 },
+    (_, i) => BRANCH_START_X + ((BRANCH_TIP_X - BRANCH_START_X) * i) / steps,
   );
+  const top = xs.map((x) => `${x.toFixed(1)} ${(branchY(x, bend) - branchWidth(x) / 2).toFixed(1)}`);
+  const bottom = [...xs]
+    .reverse()
+    .map((x) => `${x.toFixed(1)} ${(branchY(x, bend) + branchWidth(x) / 2).toFixed(1)}`);
+  const tipY = branchY(BRANCH_TIP_X, bend);
+  const tip = `Q ${BRANCH_TIP_X + 7} ${tipY.toFixed(1)} ${BRANCH_TIP_X} ${(tipY + branchWidth(BRANCH_TIP_X) / 2).toFixed(1)}`;
+  return `M ${top.join(" L ")} ${tip} L ${bottom.join(" L ")} Z`;
+}
+
+/** The lighter line along the branch's upper edge. */
+export function branchHighlight(bend: number): string {
+  const points: string[] = [];
+  for (let x = -200; x < BRANCH_TIP_X - 12; x += 12) {
+    points.push(`${x} ${(branchY(x, bend) - branchWidth(x) / 2 + 1.6).toFixed(1)}`);
+  }
+  return `M ${points.join(" L ")}`;
 }

@@ -8,17 +8,22 @@ The end of Noctua's feed — the panel that holds the pull-to-refresh
 (`2026-09-06-refresh-at-the-end-of-the-feed.md`) — was a check mark and a
 button. It is the screen a reader sees most when there is nothing left, and
 the wish was to make it playful without making it loud. A prototype was
-agreed first (night sky, owl, flight on refresh, today's reading as a
-constellation, a handful of easter eggs). One part of it was dropped on
-review: new articles showed in a sheet before the list. The reader wants to
-keep reading straight away, and both apps already start a refreshed list at
-its top, so the owl must never stand between the reader and the articles.
+agreed first (night sky, owl, flight on refresh, a handful of easter eggs).
+Two parts of it were dropped on review. New articles showed in a sheet
+before the list: the reader wants to keep reading straight away, and both
+apps already start a refreshed list at its top, so the owl must never stand
+between the reader and the articles. And the first build drew the scene in a
+dark sky card with today's reads as a constellation: in a dark theme that
+put a large bright card in the middle of the screen, and the constellation
+was more than the panel needs.
 
 ## Decision
-- **The panel is a window onto the night**: an owl on a branch, a moon in its
-  real phase, and a star for each article read today, joined in reading
-  order. Tapping a star shows the article and opens it. The owl is awake from
-  19:00 to 07:00 local time and naps otherwise.
+- **No card: the app's background is the sky.** Only the branch, the owl,
+  the moon (in its real phase) or the sun, and by night a few fixed star
+  dots are drawn on top. Their colours follow the theme — pale on a dark
+  one, deeper gold on a light one — so all four of day/night × light/dark
+  work. The owl is awake from 19:00 to 07:00 local time and naps otherwise.
+  The stars are decoration only, the same every night, tied to no data.
 - **The pull is the owl's**: eyes widen and look up, the branch bends, ear
   tufts pop up (with a haptic tick) at the threshold. Letting go sends it up
   out of the sky; a small owl crosses the moon while the refresh runs. If the
@@ -33,13 +38,12 @@ its top, so the owl must never stand between the reader and the articles.
   (`ui/feed/owl/`), with the motion in `OwlMotion` as critically damped
   springs. The web (`NightOwl.svelte`) draws the same SVG paths in the same
   360 × 470 units, and mirrors the sky helpers in `lib/nightSky.ts`.
-- **Today's reading is read from `article_reads`**, not from the loaded
-  feed, so articles read in another section count too. It is display only; no
-  RPC, because there is nothing to aggregate.
 - **Animations off means no motion**: Android's animator scale at 0 and the
   web's `prefers-reduced-motion` skip the flight and idle life.
 
 ## Consequences
+- The owl itself keeps its logo colours in every theme; on a dark theme it
+  gets a faint rim so the navy does not sink into the background.
 - The geometry lives twice, in Kotlin and in Svelte. A change to the owl's
   shape is a change to both; the path strings are identical on purpose so
   they can be copied across.

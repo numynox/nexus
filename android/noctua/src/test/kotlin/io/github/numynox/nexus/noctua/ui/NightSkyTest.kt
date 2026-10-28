@@ -1,8 +1,10 @@
 package io.github.numynox.nexus.noctua.ui
 
-import io.github.numynox.nexus.noctua.ui.feed.owl.MoonX
-import io.github.numynox.nexus.noctua.ui.feed.owl.MoonY
-import io.github.numynox.nexus.noctua.ui.feed.owl.constellation
+import io.github.numynox.nexus.noctua.ui.feed.owl.BranchTipX
+import io.github.numynox.nexus.noctua.ui.feed.owl.SkyLightX
+import io.github.numynox.nexus.noctua.ui.feed.owl.SkyLightY
+import io.github.numynox.nexus.noctua.ui.feed.owl.SkyStars
+import io.github.numynox.nexus.noctua.ui.feed.owl.branchWidth
 import io.github.numynox.nexus.noctua.ui.feed.owl.isNight
 import io.github.numynox.nexus.noctua.ui.feed.owl.moonLit
 import io.github.numynox.nexus.noctua.ui.feed.owl.moonLitPath
@@ -61,20 +63,18 @@ class NightSkyTest {
     }
 
     @Test
-    fun starsStayPutAsTheDayGoesOn() {
-        val morning = constellation(listOf(504L, 509L, 512L))
-        val evening = constellation(listOf(504L, 509L, 512L, 601L, 733L))
-        assertEquals(morning, evening.take(3))
+    fun starsKeepClearOfTheMoonAndTheOwl() {
+        SkyStars.forEach { star ->
+            assertTrue("$star is off the sky", star.x in 0f..360f && star.y < 250f)
+            assertTrue("$star is on the moon", hypot(star.x - SkyLightX, star.y - SkyLightY) > 46f)
+            assertFalse("$star is on the owl", star.x in 110f..250f && star.y > 190f)
+        }
     }
 
     @Test
-    fun starsKeepClearOfTheMoonTheOwlAndEachOther() {
-        val stars = constellation((1L..12L).map { it * 101 })
-        stars.forEach { star ->
-            assertTrue("$star is off the sky", star.x in 26f..334f && star.y in 58f..236f)
-            assertTrue("$star is on the moon", hypot(star.x - MoonX, star.y - MoonY) >= 48f)
-            assertFalse("$star is on the owl", star.x in 105f..255f && star.y > 205f)
-        }
-        stars.forEachIndexed { i, a -> stars.drop(i + 1).forEach { b -> assertTrue("$a and $b touch", hypot(a.x - b.x, a.y - b.y) >= 34f) } }
+    fun theBranchTapers() {
+        assertTrue(branchWidth(-220f) > branchWidth(180f))
+        assertTrue(branchWidth(180f) > branchWidth(BranchTipX))
+        assertTrue(branchWidth(BranchTipX) > 0f)
     }
 }
