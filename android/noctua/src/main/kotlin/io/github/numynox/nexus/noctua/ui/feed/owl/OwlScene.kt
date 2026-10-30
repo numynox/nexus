@@ -164,7 +164,8 @@ private object OwlShapes {
     /** A leaf pointing along +x from its stalk at the origin, 18 long. */
     val leaf = svg("M 0 0 C 4 -6 12 -7 18 0 C 12 7 4 6 0 0 Z")
     val leafVein = svg("M 2 0 L 14 0")
-    // A shade wider than the white of the eye, so a shut lid leaves no rim of it.
+    // A shade wider than the white of the eye, as the lid in drawEye reaches
+    // a shade below it: a shut lid leaves no rim of white.
     fun eye(side: Float) = Path().apply { addOval(Rect(Offset(19f * side, -138f), 16f)) }
     val eyeLeft = eye(-1f)
     val eyeRight = eye(1f)
@@ -414,7 +415,7 @@ private fun DrawScope.drawEye(side: Float, motion: OwlMotion, pull: Float, lid: 
         drawCircle(Color.White, 2.2f, look + Offset(-2f, -2.5f))
     }
     if (lid > 0f) {
-        clipPath(clip) { drawRect(OwlColors.Body, Offset(x - 17f, -155f), Size(34f, 32f * lid)) }
+        clipPath(clip) { drawRect(OwlColors.Body, Offset(x - 17f, -155f), Size(34f, 34f * lid)) }
     }
     if (lid > 0.88f) drawPath(closed, OwlColors.Belly, style = Stroke(2.2f, cap = StrokeCap.Round))
 }

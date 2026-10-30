@@ -231,8 +231,8 @@
     const clamp = (v: number) => Math.max(0, Math.min(1, v));
     const lL = clamp(Math.min(A.lidL.v, 1 - clamp((p - 0.45) / 0.45)));
     const lR = clamp(Math.min(A.lidR.v, 1 - clamp((p - 0.15) / 0.45)));
-    lidLEl?.setAttribute("height", (32 * lL).toFixed(2));
-    lidREl?.setAttribute("height", (32 * lR).toFixed(2));
+    lidLEl?.setAttribute("height", (34 * lL).toFixed(2));
+    lidREl?.setAttribute("height", (34 * lR).toFixed(2));
     closedLEl?.setAttribute("opacity", lL > 0.88 ? "1" : "0");
     closedREl?.setAttribute("opacity", lR > 0.88 ? "1" : "0");
     browsEl?.setAttribute("opacity", A.brow.v.toFixed(2));
