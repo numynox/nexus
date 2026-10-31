@@ -61,6 +61,7 @@ class NoctuaPreferences(private val context: Context) {
         val OpenInApp = booleanPreferencesKey("open_in_app")
         val SelectedSection = longPreferencesKey("selected_section_id")
         val Seen = stringSetPreferencesKey("seen_articles")
+        val Resurfaced = stringSetPreferencesKey("resurfaced_recommendations")
         val CachedSections = stringPreferencesKey("cached_sections")
     }
 
@@ -109,6 +110,23 @@ class NoctuaPreferences(private val context: Context) {
     }
 
     suspend fun clearSeen() = edit { it.remove(Keys.Seen) }
+
+    /**
+     * Someone else's recommendation makes an article unseen again — once per
+     * article on this phone, however many recommend it. Call before the feed
+     * takes what was seen at load.
+     */
+    suspend fun resurfaceRecommended(ids: Collection<Long>) {
+        if (ids.isEmpty()) return
+        edit { prefs ->
+            val done = prefs[Keys.Resurfaced].orEmpty()
+            val fresh = ids.map { it.toString() }.filter { it !in done }
+            if (fresh.isEmpty()) return@edit
+            prefs[Keys.Seen] = prefs[Keys.Seen].orEmpty() - fresh.toSet()
+            // Capped like the seen set; recommendations older than a month are not returned anyway.
+            prefs[Keys.Resurfaced] = (done + fresh).mapNotNull { it.toLongOrNull() }.sortedDescending().take(MAX_SEEN).mapTo(HashSet()) { it.toString() }
+        }
+    }
 
     /**
      * The sections as last loaded, for [userId] only — so the feed's header and

@@ -257,6 +257,37 @@ class NoctuaRepository(private val supabase: SupabaseClient) {
         supabase.from("article_reads").delete { filter { eq("user_id", userId) } }
     }
 
+    // ── Recommendations ─────────────────────────────────────────────────────
+
+    /** The signed-in user, to tell one's own recommendations from others'. */
+    val currentUserId: String? get() = supabase.auth.currentUserOrNull()?.id
+
+    /**
+     * Articles recommended in the last [days] days, newest recommendation
+     * first. A SECURITY DEFINER RPC: it includes articles from feeds the
+     * reader does not follow, which the articles table would hide.
+     */
+    suspend fun recommendations(days: Int = 30): List<Recommendation> =
+        supabase.postgrest.rpc("noctua_recommended_articles", buildJsonObject { put("p_days", days) })
+            .decodeList<RecommendationRow>()
+            .map { it.toRecommendation() }
+
+    suspend fun recommend(articleId: Long) {
+        supabase.from("noctua_recommendations").upsert(
+            buildJsonObject {
+                put("user_id", userId)
+                put("article_id", articleId)
+            },
+        ) {
+            onConflict = "article_id,user_id"
+            ignoreDuplicates = true
+        }
+    }
+
+    suspend fun unrecommend(articleId: Long) {
+        supabase.from("noctua_recommendations").delete { filter { eq("user_id", userId); eq("article_id", articleId) } }
+    }
+
     // ── Statistics ──────────────────────────────────────────────────────────
 
     /** The statistics over the last [weeks] weeks, counted by the database. */

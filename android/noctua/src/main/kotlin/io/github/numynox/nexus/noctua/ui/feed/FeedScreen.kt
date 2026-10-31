@@ -123,6 +123,7 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
     val section by viewModel.section.collectAsStateWithLifecycle()
     val query by viewModel.query.collectAsStateWithLifecycle()
     val feedFilter by viewModel.feedFilter.collectAsStateWithLifecycle()
+    val recommended by viewModel.recommendations.byArticle.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
@@ -156,6 +157,7 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
         toggleStar = viewModel::toggleStar,
         toggleRead = viewModel::toggleRead,
         share = { shareArticle(context, it) },
+        toggleRecommend = viewModel::toggleRecommend,
     )
 
     val listState = rememberLazyListState()
@@ -328,6 +330,8 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
                                     similar = row.item.similar,
                                     similarExpanded = article.id in expanded,
                                     onToggleSimilar = { viewModel.toggleExpanded(article.id) },
+                                    recommendedBy = recommended[article.id]?.byLine(viewModel.recommendations.me),
+                                    recommendedByMe = recommended[article.id]?.mine == true,
                                     modifier = Modifier.animateItem(),
                                 )
                             }

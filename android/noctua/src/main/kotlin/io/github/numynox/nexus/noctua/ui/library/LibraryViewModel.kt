@@ -8,6 +8,7 @@ import io.github.numynox.nexus.core.ui.loadable
 import io.github.numynox.nexus.noctua.AppContainer
 import io.github.numynox.nexus.noctua.data.Article
 import io.github.numynox.nexus.noctua.data.DatedArticle
+import io.github.numynox.nexus.noctua.ui.common.Recommendations
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,6 +39,9 @@ class LibraryViewModel(container: AppContainer) : ViewModel() {
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val messages: SharedFlow<String> = _messages.asSharedFlow()
 
+    /** Who recommended what, so the shelves mark it as the feed does. */
+    val recommendations = Recommendations(repository, viewModelScope, _messages)
+
     init {
         load()
     }
@@ -47,6 +51,8 @@ class LibraryViewModel(container: AppContainer) : ViewModel() {
         _library.value = loadable { Library(repository.starredArticles(), repository.readArticles(READ_LIMIT)) }
         _starOverrides.value = emptyMap()
         _readOverrides.value = emptyMap()
+        // Only the highlight depends on it, so a failure leaves the shelves as they are.
+        runCatching { repository.recommendations() }.onSuccess(recommendations::loaded)
     }
 
     private val loaded: Library? get() = (_library.value as? Loadable.Ready)?.value

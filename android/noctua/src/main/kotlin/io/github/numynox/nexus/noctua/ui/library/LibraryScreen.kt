@@ -57,6 +57,8 @@ fun LibraryScreen(app: AppViewModel) {
     val toolbarColor = MaterialTheme.colorScheme.surface
     val snackbar = remember { SnackbarHostState() }
 
+    val recommended by viewModel.recommendations.byArticle.collectAsStateWithLifecycle()
+
     LaunchedEffect(viewModel) { viewModel.messages.collect { snackbar.showSnackbar(it) } }
 
     val actions = ArticleActions(
@@ -64,6 +66,7 @@ fun LibraryScreen(app: AppViewModel) {
         toggleStar = viewModel::toggleStar,
         toggleRead = viewModel::toggleRead,
         share = { shareArticle(context, it) },
+        toggleRecommend = viewModel.recommendations::toggle,
     )
 
     Scaffold(
@@ -117,6 +120,8 @@ fun LibraryScreen(app: AppViewModel) {
                                 // Fades only what was taken off this shelf just now.
                                 faded = if (shelf == Shelf.Starred) !isStarred else !isRead,
                                 caption = (if (shelf == Shelf.Starred) "Starred " else "Read ") + NexusFormat.dateTime(entry.at),
+                                recommendedBy = recommended[article.id]?.byLine(viewModel.recommendations.me),
+                                recommendedByMe = recommended[article.id]?.mine == true,
                                 modifier = Modifier.animateItem(),
                             )
                         }

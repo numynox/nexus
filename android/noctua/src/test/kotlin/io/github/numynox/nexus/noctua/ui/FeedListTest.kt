@@ -1,8 +1,11 @@
 package io.github.numynox.nexus.noctua.ui
 
 import io.github.numynox.nexus.noctua.data.Article
+import io.github.numynox.nexus.noctua.data.Recommendation
+import io.github.numynox.nexus.noctua.data.Recommender
 import io.github.numynox.nexus.noctua.data.SortOrder
 import io.github.numynox.nexus.noctua.data.plainText
+import io.github.numynox.nexus.noctua.ui.feed.RECOMMENDED_LABEL
 import io.github.numynox.nexus.noctua.ui.feed.buildFeed
 import io.github.numynox.nexus.noctua.ui.feed.dayLabel
 import io.github.numynox.nexus.noctua.ui.feed.relativeAge
@@ -32,7 +35,30 @@ class FeedListTest {
         feed: Long? = null,
         order: SortOrder = SortOrder.Newest,
         groups: Map<Long, Long> = emptyMap(),
-    ) = buildFeed(articles, hidden, query, feed, order, groups, today, zone, Locale.ENGLISH)
+        pinned: List<Article> = emptyList(),
+    ) = buildFeed(articles, hidden, query, feed, order, groups, today, zone, Locale.ENGLISH, pinned)
+
+    @Test
+    fun recommendationsLeadTheFeedOnceAndFollowTheSearch() {
+        val old = article(9, at(10, 9), feed = 5, title = "Old but recommended")
+        val articles = listOf(article(1, at(19, 8)), article(2, at(18, 9)), old)
+        val days = build(articles, feed = 1, pinned = listOf(old))
+        assertEquals(listOf(RECOMMENDED_LABEL, "Today", "Yesterday"), days.map { it.label })
+        assertEquals(listOf(9L), days[0].items.map { it.article.id })
+        assertEquals(3, unseenCount(days, emptySet()))
+        assertEquals(emptyList<String>(), build(articles, query = "nothing like it", pinned = listOf(old)).map { it.label })
+    }
+
+    @Test
+    fun aRecommendationNamesOthersFirstAndTheReaderLast() {
+        val story = article(1, at(19, 8))
+        fun rec(vararg by: Pair<String, String>, mine: Boolean) =
+            Recommendation(story, at(19, 9), by.map { Recommender(it.first, it.second) }, mine, fromOthers = by.any { it.first != "me" })
+        assertEquals("anna", rec("a" to "anna", mine = false).byLine("me"))
+        assertEquals("you", rec("me" to "jannis", mine = true).byLine("me"))
+        assertEquals("anna and you", rec("me" to "jannis", "a" to "anna", mine = true).byLine("me"))
+        assertEquals("anna, ben and you", rec("a" to "anna", "me" to "jannis", "b" to "ben", mine = true).byLine("me"))
+    }
 
     @Test
     fun groupsByDayNewestFirst() {

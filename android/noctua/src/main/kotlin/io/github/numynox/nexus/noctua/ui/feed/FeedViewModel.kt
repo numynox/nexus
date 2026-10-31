@@ -11,6 +11,8 @@ import io.github.numynox.nexus.noctua.BuildConfig
 import io.github.numynox.nexus.noctua.data.Article
 import io.github.numynox.nexus.noctua.data.FeedContent
 import io.github.numynox.nexus.noctua.data.NoctuaSettings
+import io.github.numynox.nexus.noctua.data.Recommendation
+import io.github.numynox.nexus.noctua.ui.common.Recommendations
 import io.github.numynox.nexus.noctua.data.Section
 import io.github.numynox.nexus.noctua.data.SortOrder
 import java.time.Instant
@@ -38,6 +40,8 @@ data class FeedLoad(
     /** Seen at load and hidden for it (if the user hides seen articles). */
     val hiddenAtLoad: Set<Long>,
     val groups: Map<Long, Long> = emptyMap(),
+    /** Recommended by someone else and unseen at load: these lead the feed. */
+    val pinned: List<Article> = emptyList(),
     /** How many refreshes have landed, this one included; 0 until the first. */
     val refreshes: Int = 0,
 )
@@ -119,6 +123,9 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val messages: SharedFlow<String> = _messages.asSharedFlow()
 
+    /** Who recommended what, with the reader's own swipes over it. */
+    val recommendations = Recommendations(repository, viewModelScope, _messages)
+
     private val settings = preferences.settings.stateIn(viewModelScope, SharingStarted.Eagerly, NoctuaSettings())
 
     /**
@@ -131,7 +138,7 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
     /** The days to draw, and which list they are — one value, so they never part. */
     private val days = combine(_load, settings, query, feedFilter) { load, settings, query, feed ->
         val loaded = load.valueOrNull
-        val days = loaded?.let { buildFeed(it.content.articles, it.hiddenAtLoad, query, feed, settings.sortOrder, it.groups) }.orEmpty()
+        val days = loaded?.let { buildFeed(it.content.articles, it.hiddenAtLoad, query, feed, settings.sortOrder, it.groups, pinned = it.pinned) }.orEmpty()
         days to ListStart(loaded?.refreshes ?: 0, loaded?.sectionId, query.trim(), feed, settings.sortOrder)
     }
 
@@ -223,6 +230,16 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
         // Stars do not depend on the section, so they are asked for at once;
         // the articles need the sections, and the rest needs the articles.
         val starred = async { repository.starredIds() }
+        // A nicety too: without them the feed is simply the feed.
+        val recommended = async {
+            try {
+                repository.recommendations()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                emptyList<Recommendation>()
+            }
+        }
         val sections = repository.sections()
         _sections.value = sections
         container.core.auth.currentUserId?.let { preferences.cacheSections(it, sections) }
@@ -231,9 +248,16 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
         val section = resolve(sections, requested)
         val feeds = section?.feeds.orEmpty()
         val articles = repository.articles(feeds, BuildConfig.ARTICLE_FETCH_LIMIT)
-        val reads = async { repository.reads(articles.map { it.id }) }
+        val recommendations = recommended.await()
+        val fromOthers = recommendations.filter { it.fromOthers }
+        // Before the seen snapshot: someone else's recommendation brings the
+        // article back once, even if it was scrolled past already.
+        preferences.resurfaceRecommended(fromOthers.map { it.article.id })
         val current = preferences.current()
         val seenNow = preferences.seen.first()
+        val pinned = fromOthers.map { it.article }.filter { it.id !in seenNow }
+        val shownIds = articles.map { it.id }
+        val reads = async { repository.reads(shownIds + pinned.map { it.id }.filter { it !in shownIds }) }
         val hidden = if (current.hideSeen) articles.mapNotNullTo(HashSet()) { a -> a.id.takeIf { it in seenNow } } else emptySet()
         // Grouping is a nicety: without it every story simply stands alone.
         val groups = async {
@@ -248,9 +272,10 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
         val content = FeedContent(sections, articles, reads.await(), starred.await())
         _reads.value = content.reads
         _starred.value = content.starred
+        this@FeedViewModel.recommendations.loaded(recommendations)
         feedFilter.value = feedFilter.value?.takeIf { id -> feeds.any { it.id == id } }
         _expanded.value = emptySet()
-        FeedLoad(content, section?.id, hidden, groups.await())
+        FeedLoad(content, section?.id, hidden, groups.await(), pinned = pinned)
     }
 
     private fun resolve(sections: List<Section>, id: Long?): Section? = sections.firstOrNull { it.id == id } ?: sections.firstOrNull()
@@ -284,6 +309,8 @@ class FeedViewModel(private val container: AppContainer) : ViewModel() {
                 }
         }
     }
+
+    fun toggleRecommend(article: Article) = recommendations.toggle(article)
 
     fun toggleStar(article: Article) {
         val starring = article.id !in _starred.value

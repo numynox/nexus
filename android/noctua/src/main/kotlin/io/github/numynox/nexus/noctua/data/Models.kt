@@ -109,6 +109,68 @@ internal data class ArticleRow(
     )
 }
 
+/** Someone who recommended an article: the profile's name, else the address before the @. */
+data class Recommender(val userId: String, val name: String)
+
+/**
+ * An article recommended to every Noctua user — marked for everyone, and
+ * pinned to the top of the feed once for everyone but the recommender
+ * (decisions/2026-10-31-noctua-recommendations.md).
+ */
+data class Recommendation(
+    val article: Article,
+    /** The latest recommendation of it. */
+    val at: Instant,
+    /** Oldest first. */
+    val recommenders: List<Recommender>,
+    /** The signed-in user is one of the recommenders. */
+    val mine: Boolean,
+    /** Someone else is — what pins it to the top. */
+    val fromOthers: Boolean,
+) {
+    /** "Anna and you": who recommended it, others first, the reader last. */
+    fun byLine(me: String?): String {
+        val names = recommenders.filter { it.userId != me }.map { it.name } + listOfNotNull("you".takeIf { mine })
+        return if (names.size <= 1) names.firstOrNull().orEmpty() else names.dropLast(1).joinToString(", ") + " and " + names.last()
+    }
+}
+
+@Serializable
+internal data class RecommenderRow(
+    @SerialName("user_id") val userId: String,
+    val name: String = "Someone",
+)
+
+/** A row of `noctua_recommended_articles`: the article itself, its feed, and who recommended it. */
+@Serializable
+internal data class RecommendationRow(
+    @SerialName("article_id") val articleId: Long,
+    @SerialName("feed_id") val feedId: Long,
+    val title: String? = null,
+    val url: String = "",
+    @SerialName("published_at") val publishedAt: Instant? = null,
+    @SerialName("updated_at") val updatedAt: Instant? = null,
+    val author: String? = null,
+    val summary: String? = null,
+    @SerialName("image_url") val imageUrl: String? = null,
+    val tags: List<String>? = null,
+    @SerialName("feed_name") val feedName: String? = null,
+    @SerialName("feed_icon") val feedIcon: String? = null,
+    @SerialName("recommended_at") val recommendedAt: Instant,
+    val recommenders: List<RecommenderRow> = emptyList(),
+    val mine: Boolean = false,
+    @SerialName("from_others") val fromOthers: Boolean = false,
+) {
+    fun toRecommendation() = Recommendation(
+        article = ArticleRow(articleId, feedId, title, url, publishedAt, updatedAt, author, summary, imageUrl, tags)
+            .toArticle(Feed(feedId, feedName ?: "Unknown feed", icon = feedIcon)),
+        at = recommendedAt,
+        recommenders = recommenders.map { Recommender(it.userId, it.name) },
+        mine = mine,
+        fromOthers = fromOthers,
+    )
+}
+
 /** An article with when it was read or starred, for the library lists. */
 data class DatedArticle(val article: Article, val at: Instant)
 

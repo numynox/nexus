@@ -78,6 +78,16 @@ object FakeBackend {
     private val reads = mapOf(504L to 50L, 509L to 200L, 512L to 1_400L)
     private val starred = listOf(506L, 511L, 508L)
 
+    /**
+     * Recommendations: one from another reader — a day-old story, pinned to
+     * the top — and one of the reader's own, highlighted where it stands.
+     */
+    private data class Rec(val article: Long, val minutesAgo: Long, val by: List<Pair<String, String>>, val mine: Boolean)
+    private val recommendations = listOf(
+        Rec(513, 90, listOf("other-user" to "anna"), mine = false),
+        Rec(505, 60, listOf(FakeSupabase.USER_ID to "jannis"), mine = true),
+    )
+
     /** While set, article queries wait for it — to catch the feed mid-load. */
     @Volatile var holdArticles: CountDownLatch? = null
 
@@ -93,6 +103,24 @@ object FakeBackend {
         val select = request.select()
         when {
             path.endsWith("/rpc/noctua_reading_statistics") -> statisticsJson()
+            path.endsWith("/rpc/noctua_recommended_articles") -> buildJsonArray {
+                recommendations.forEach { rec ->
+                    val story = stories.first { it.id == rec.article }
+                    val feed = feeds.first { it.id == story.feed }
+                    addJsonObject {
+                        put("article_id", story.id); put("feed_id", story.feed); put("title", story.title)
+                        put("url", "https://${feed.host}/articles/${story.id}")
+                        put("published_at", now.minus(story.minutesAgo, ChronoUnit.MINUTES).toString())
+                        put("summary", story.summary)
+                        if (story.image) put("image_url", "https://${feed.host}/images/${story.id}.jpg")
+                        putJsonArray("tags") {}
+                        put("feed_name", feed.name); put("feed_icon", "https://${feed.host}/favicon.ico")
+                        put("recommended_at", now.minus(rec.minutesAgo, ChronoUnit.MINUTES).toString())
+                        putJsonArray("recommenders") { rec.by.forEach { (id, name) -> addJsonObject { put("user_id", id); put("name", name) } } }
+                        put("mine", rec.mine); put("from_others", rec.by.any { it.first != FakeSupabase.USER_ID })
+                    }
+                }
+            }
             path.endsWith("/rpc/get_similar_article_groups") -> buildJsonArray {
                 groups.forEach { (article, key) -> addJsonObject { put("article_id", article); put("group_key", key) } }
             }

@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.Campaign
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
@@ -94,12 +96,16 @@ data class ArticleActions(
     val toggleStar: (Article) -> Unit,
     val toggleRead: (Article) -> Unit,
     val share: (Article) -> Unit,
+    /** Recommend to every other reader, or withdraw one's own recommendation. */
+    val toggleRecommend: (Article) -> Unit,
 )
 
 /**
- * An article in a list. Tap opens it; swipe right stars, swipe left marks it
- * read or unread; a long press offers the same and sharing. Read and seen
- * articles fade back, unless [faded] says otherwise (the library lists).
+ * An article in a list. Tap opens it; swipe right stars, swipe left
+ * recommends it to everyone (or withdraws that); a long press offers the same,
+ * marking it read and sharing. Read and seen articles fade back, unless
+ * [faded] says otherwise (the library lists). A recommended article is
+ * outlined and says who recommended it ([recommendedBy]), faded or not.
  */
 @Composable
 fun ArticleCard(
@@ -115,6 +121,8 @@ fun ArticleCard(
     similar: List<Article> = emptyList(),
     similarExpanded: Boolean = false,
     onToggleSimilar: () -> Unit = {},
+    recommendedBy: String? = null,
+    recommendedByMe: Boolean = false,
 ) {
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
@@ -125,12 +133,12 @@ fun ArticleCard(
     SwipeToDismissBox(
         state = state,
         modifier = modifier,
-        backgroundContent = { SwipeBackground(state.dismissDirection, starred, read, shape) },
+        backgroundContent = { SwipeBackground(state.dismissDirection, starred, recommendedByMe, shape) },
         onDismiss = { direction ->
             haptics.performHapticFeedback(HapticFeedbackType.Confirm)
             when (direction) {
                 SwipeToDismissBoxValue.StartToEnd -> actions.toggleStar(article)
-                SwipeToDismissBoxValue.EndToStart -> actions.toggleRead(article)
+                SwipeToDismissBoxValue.EndToStart -> actions.toggleRecommend(article)
                 SwipeToDismissBoxValue.Settled -> Unit
             }
             // Nothing is removed: the card springs back with its new state.
@@ -140,13 +148,15 @@ fun ArticleCard(
         Surface(
             color = MaterialTheme.colorScheme.surfaceContainerLow,
             shape = shape,
+            border = if (recommendedBy != null) BorderStroke(2.dp, MaterialTheme.colorScheme.secondary) else null,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column {
+                if (recommendedBy != null) RecommendedBanner(recommendedBy)
                 if (density == Density.Stories) {
-                    StoryBody(article, read, starred, actions, caption, faded ?: (read || seen), Modifier.alpha(alpha))
+                    StoryBody(article, read, starred, recommendedByMe, actions, caption, faded ?: (read || seen), Modifier.alpha(alpha))
                 } else {
-                    ArticleBody(article, read, starred, density, actions, caption, Modifier.alpha(alpha))
+                    ArticleBody(article, read, starred, recommendedByMe, density, actions, caption, Modifier.alpha(alpha))
                 }
                 if (similar.isNotEmpty()) {
                     SimilarStories(similar, similarExpanded, onToggleSimilar, actions, Modifier.alpha(alpha))
@@ -162,6 +172,7 @@ private fun ArticleBody(
     article: Article,
     read: Boolean,
     starred: Boolean,
+    recommendedByMe: Boolean,
     density: Density,
     actions: ArticleActions,
     caption: String?,
@@ -229,11 +240,33 @@ private fun ArticleBody(
                 )
             }
         }
-        ArticleMenu(menu, onDismiss = { menu = false }, article, read, starred, actions)
+        ArticleMenu(menu, onDismiss = { menu = false }, article, read, starred, recommendedByMe, actions)
     }
 }
 
-/** The long press: open, star, read and share — the same in every layout. */
+/** "Recommended by Anna and you", across the top of a recommended card. */
+@Composable
+private fun RecommendedBanner(byLine: String) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.secondaryContainer)
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(Icons.Rounded.Campaign, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(18.dp))
+        Text(
+            "Recommended by $byLine",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/** The long press: open, star, recommend, read and share — the same in every layout. */
 @Composable
 private fun ArticleMenu(
     expanded: Boolean,
@@ -241,6 +274,7 @@ private fun ArticleMenu(
     article: Article,
     read: Boolean,
     starred: Boolean,
+    recommendedByMe: Boolean,
     actions: ArticleActions,
 ) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
@@ -253,6 +287,11 @@ private fun ArticleMenu(
             text = { Text(if (starred) "Remove star" else "Star") },
             leadingIcon = { Icon(if (starred) Icons.Rounded.StarOutline else Icons.Rounded.Star, contentDescription = null) },
             onClick = { onDismiss(); actions.toggleStar(article) },
+        )
+        DropdownMenuItem(
+            text = { Text(if (recommendedByMe) "Withdraw recommendation" else "Recommend to everyone") },
+            leadingIcon = { Icon(Icons.Rounded.Campaign, contentDescription = null) },
+            onClick = { onDismiss(); actions.toggleRecommend(article) },
         )
         DropdownMenuItem(
             text = { Text(if (read) "Mark unread" else "Mark read") },
@@ -284,6 +323,7 @@ private fun StoryBody(
     article: Article,
     read: Boolean,
     starred: Boolean,
+    recommendedByMe: Boolean,
     actions: ArticleActions,
     caption: String?,
     faded: Boolean,
@@ -365,7 +405,7 @@ private fun StoryBody(
                 Text(caption, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
             }
         }
-        ArticleMenu(menu, onDismiss = { menu = false }, article, read, starred, actions)
+        ArticleMenu(menu, onDismiss = { menu = false }, article, read, starred, recommendedByMe, actions)
     }
 }
 
@@ -461,7 +501,7 @@ fun FeedIcon(url: String?, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun SwipeBackground(direction: SwipeToDismissBoxValue, starred: Boolean, read: Boolean, shape: Shape) {
+private fun SwipeBackground(direction: SwipeToDismissBoxValue, starred: Boolean, recommendedByMe: Boolean, shape: Shape) {
     val (color, icon, label) = when (direction) {
         SwipeToDismissBoxValue.StartToEnd -> Triple(
             NexusThemeDefaults.extendedColors.warningContainer,
@@ -469,14 +509,14 @@ private fun SwipeBackground(direction: SwipeToDismissBoxValue, starred: Boolean,
             if (starred) "Unstar" else "Star",
         )
         SwipeToDismissBoxValue.EndToStart -> Triple(
-            MaterialTheme.colorScheme.primaryContainer,
-            if (read) Icons.Rounded.MarkEmailUnread else Icons.Rounded.CheckCircle,
-            if (read) "Unread" else "Read",
+            MaterialTheme.colorScheme.secondaryContainer,
+            Icons.Rounded.Campaign,
+            if (recommendedByMe) "Withdraw" else "Recommend",
         )
         SwipeToDismissBoxValue.Settled -> Triple(Color.Transparent, null, "")
     }
     val background by animateColorAsState(color, label = "swipe")
-    val content = if (direction == SwipeToDismissBoxValue.StartToEnd) NexusThemeDefaults.extendedColors.onWarningContainer else MaterialTheme.colorScheme.onPrimaryContainer
+    val content = if (direction == SwipeToDismissBoxValue.StartToEnd) NexusThemeDefaults.extendedColors.onWarningContainer else MaterialTheme.colorScheme.onSecondaryContainer
     Row(
         Modifier
             .fillMaxSize()

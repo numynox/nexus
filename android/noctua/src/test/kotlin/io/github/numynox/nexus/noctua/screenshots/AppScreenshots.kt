@@ -40,6 +40,8 @@ class AppScreenshots {
     @Test
     fun walkThroughTheApp() = with(robot) {
         waitForText("EU agrees on the first binding rules for general-purpose AI models")
+        // Another reader's recommendation leads the feed.
+        waitForText("Recommended by anna")
         shot("01-feed")
         tap("2 more on this story")
         shot("02-feed-same-story")
@@ -51,7 +53,8 @@ class AppScreenshots {
         tap("Star")
 
         tap("Tech")
-        waitForText("6 new")
+        // Six of its own, and the recommendation pinned above them.
+        waitForText("7 new")
         shot("04-feed-section")
         tapIcon("More")
         shot("05-feed-menu")

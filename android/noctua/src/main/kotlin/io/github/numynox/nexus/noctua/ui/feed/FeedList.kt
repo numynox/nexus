@@ -18,11 +18,16 @@ data class FeedItem(val article: Article, val similar: List<Article>) {
 
 data class DayGroup(val label: String, val items: List<FeedItem>)
 
+/** The group above the days: other readers' recommendations, unseen at load. */
+const val RECOMMENDED_LABEL = "Recommended"
+
 /**
  * The feed as the list draws it — the web's `groupedArticles`. Filters by the
  * seen snapshot taken at load (so articles seen now stay put until the next
  * refresh) and the search, sorts, collapses same-story clusters under the
- * first of them in sort order, and groups by day.
+ * first of them in sort order, and groups by day. [pinned] — recommendations
+ * from others — leads as a group of its own, whatever the feed or the order,
+ * and is not repeated in its day.
  */
 fun buildFeed(
     articles: List<Article>,
@@ -34,15 +39,18 @@ fun buildFeed(
     today: LocalDate = LocalDate.now(),
     zone: ZoneId = ZoneId.systemDefault(),
     locale: Locale = Locale.getDefault(),
+    pinned: List<Article> = emptyList(),
 ): List<DayGroup> {
     val needle = query.trim().lowercase()
+    val matches = { it: Article ->
+        needle.isEmpty() || it.title.lowercase().contains(needle) ||
+            it.summary?.lowercase()?.contains(needle) == true || it.feedName.lowercase().contains(needle)
+    }
+    val pinnedIds = pinned.mapTo(HashSet()) { it.id }
     val visible = articles.asSequence()
-        .filter { it.id !in hiddenAtLoad }
+        .filter { it.id !in hiddenAtLoad && it.id !in pinnedIds }
         .filter { feedId == null || it.feedId == feedId }
-        .filter {
-            needle.isEmpty() || it.title.lowercase().contains(needle) ||
-                it.summary?.lowercase()?.contains(needle) == true || it.feedName.lowercase().contains(needle)
-        }
+        .filter(matches)
         .sortedWith(
             if (sortOrder == SortOrder.Oldest) compareBy<Article> { it.time ?: Instant.EPOCH }.thenBy { it.id }
             else compareByDescending<Article> { it.time ?: Instant.EPOCH }.thenByDescending { it.id },
@@ -56,6 +64,9 @@ fun buildFeed(
     }
 
     val result = mutableListOf<DayGroup>()
+    pinned.filter(matches).takeIf { it.isNotEmpty() }?.let { shown ->
+        result += DayGroup(RECOMMENDED_LABEL, shown.map { FeedItem(it, emptyList()) })
+    }
     leaders.values.forEach { (leader, similar) ->
         val label = dayLabel(leader.time, today, zone, locale)
         val item = FeedItem(leader, similar)
