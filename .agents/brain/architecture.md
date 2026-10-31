@@ -418,7 +418,8 @@ Things that differ from the web on purpose:
   Statistics, Settings. Sections are chips above the feed, one shown at a
   time as on the web — no built-in "All", a mix is a section the reader makes; a
   section's feeds are a filter in the top bar. Swipe right stars, swipe left
-  toggles read, a long press shares; articles open in a Custom Tab. Seen is
+  recommends to everyone (`decisions/2026-10-31-noctua-recommendations.md`), a
+  long press also marks read and shares; articles open in a Custom Tab. Seen is
   marked as items scroll up past the top of the list and kept in DataStore,
   capped at 5,000 ids. The progress bar and the "N new" count follow the web:
   articles (every member of a cluster) shown and unseen, against the count
@@ -489,6 +490,9 @@ on save:
     (`set local role authenticated` plus a `request.jwt.claims` `sub`),
     including Annona's deliberate sharing — so that "everyone can see it"
     stays a decision rather than an accident.
+  - `noctua_recommendations.test.sql` does the same for Noctua's one shared
+    thing: everyone reads every recommendation and gets the article through
+    the RPC, nobody writes or withdraws in someone else's name.
 
 Both suites were checked by mutation: loosening the sections policy to
 `using (true)`, and making the statistics RPC ignore missed refuels, each make

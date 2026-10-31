@@ -29,6 +29,7 @@ mean something narrower than they look.
 | `article_reads` | — | **read**: durable, per-user, in the database; drives statistics |
 | `noctua_seen_articles` (localStorage) | — | **seen**: device-local, disposable; drives "hide what I've already looked at" |
 | `article_stars` | Starred | **intent**, not history: what you meant to come back to. `/read` is where you have been, `/starred` is what you saved |
+| `noctua_recommendations` | Recommend / Recommended by … | one reader marking an article for **everyone** — the one deliberately shared thing in Noctua. Pinned above the days ("Recommended") for the others, once per device, then just highlighted. The request called it "notify"; there is no push notification (`decisions/2026-10-31-noctua-recommendations.md`) |
 | — | Library | Android only: the starred and read lists as one tab with two shelves; the web keeps `/starred` and `/read` |
 | end of the feed (`EndOfFeed`, the end panel) | Nothing new / That's everything | the panel after the last article, where pulling up refreshes. "Nothing new" when no article is left to show, "That's everything" below a list. The owl lives here (`decisions/2026-10-27-the-owl-at-the-end-of-the-feed.md`) |
 
