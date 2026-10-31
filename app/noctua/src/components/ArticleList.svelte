@@ -10,7 +10,10 @@
     starArticleForUser,
     unmarkArticlesAsReadForUser,
     unstarArticleForUser,
+    recommendArticleForUser,
+    unrecommendArticleForUser,
     type ReadArticleStatuses,
+    type Recommendation,
   } from "../lib/data";
   import {
     getDensity,
@@ -34,6 +37,7 @@
     LayoutGrid,
     List,
     Layers,
+    Megaphone,
     Star,
     Undo2,
   } from "lucide-svelte";
@@ -52,6 +56,8 @@
     onRefresh?: () => void | Promise<void>;
     /** When true, only starred articles are shown */
     onlyStarred?: boolean;
+    /** Recommended articles, as loaded with the feed. */
+    recommendations?: Recommendation[];
   }
 
   let {
@@ -61,6 +67,7 @@
     noDim = false,
     onRefresh,
     onlyStarred = false,
+    recommendations = [],
   }: Props = $props();
 
   let persistedReadArticles = $state<ReadArticleStatuses>({});
@@ -150,6 +157,116 @@
     window.addEventListener("scroll", scrollHandler, { passive: true });
   }
 
+  function matchesQuery(article: Article): boolean {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      article.title.toLowerCase().includes(query) ||
+      !!article.summary?.toLowerCase().includes(query) ||
+      article.feed_name.toLowerCase().includes(query)
+    );
+  }
+
+  // ── Recommendations ──────────────────────────────────────────────────────
+  /** Live: article id → its recommendation, with this reader's own toggles. */
+  let recommended = $state<Record<string, Recommendation>>({});
+
+  $effect(() => {
+    const byId: Record<string, Recommendation> = {};
+    recommendations.forEach((recommendation) => {
+      byId[recommendation.article.id] = recommendation;
+    });
+    recommended = byId;
+  });
+
+  /**
+   * Recommended by someone else and unseen when the feed loaded: these lead
+   * the feed, whichever section it is. Taken from the load, not the live map,
+   * so recommending one yourself does not reshuffle the list. Once seen, it
+   * is back to an ordinary, highlighted article on the next load.
+   */
+  let pinnedArticles = $derived.by(() => {
+    if (!initialized || onlyRead || onlyStarred) return [];
+
+    return recommendations
+      .filter((recommendation) => recommendation.fromOthers)
+      .map((recommendation) => recommendation.article)
+      .filter((article) => !initialSeenArticles[article.id])
+      .filter(matchesQuery);
+  });
+
+  let pinnedIds = $derived(new Set(pinnedArticles.map((article) => article.id)));
+
+  /** "Anna and you" — who recommended it, others first; null if nobody did. */
+  function recommendedBy(articleId: string): string | null {
+    const recommendation = recommended[articleId];
+    if (!recommendation || recommendation.recommenders.length === 0) {
+      return null;
+    }
+
+    const names = recommendation.recommenders
+      .filter((r) => r.userId !== userId)
+      .map((r) => r.name);
+    if (recommendation.mine) names.push("you");
+
+    if (names.length <= 1) return names[0] ?? null;
+    return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  }
+
+  let recommendToast = $state("");
+  let recommendToastTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function showRecommendToast(message: string) {
+    recommendToast = message;
+    if (recommendToastTimer) clearTimeout(recommendToastTimer);
+    recommendToastTimer = setTimeout(() => (recommendToast = ""), 3000);
+  }
+
+  /** Recommend to everyone, or withdraw one's own recommendation. */
+  function toggleRecommend(article: Article) {
+    if (!userId) return;
+
+    const before = recommended;
+    const current = recommended[article.id];
+    const withdrawing = !!current?.mine;
+    const next = { ...recommended };
+
+    if (withdrawing) {
+      const rest = current.recommenders.filter((r) => r.userId !== userId);
+      if (rest.length === 0) {
+        delete next[article.id];
+      } else {
+        next[article.id] = { ...current, recommenders: rest, mine: false };
+      }
+    } else {
+      const me = { userId, name: "you", at: new Date().toISOString() };
+      next[article.id] = current
+        ? { ...current, recommenders: [...current.recommenders, me], mine: true }
+        : {
+            article,
+            recommendedAt: me.at,
+            recommenders: [me],
+            mine: true,
+            fromOthers: false,
+          };
+    }
+    recommended = next;
+    showRecommendToast(
+      withdrawing ? "Recommendation withdrawn" : "Recommended to everyone",
+    );
+
+    const action = withdrawing
+      ? unrecommendArticleForUser(userId, article.id)
+      : recommendArticleForUser(userId, article.id);
+
+    action.catch((error) => {
+      console.warn("Failed to sync recommendation", error);
+      // Put it back: the highlight should not claim what is not stored.
+      recommended = before;
+      showRecommendToast("Could not save the recommendation");
+    });
+  }
+
   // Filtered articles
   let filteredArticles = $derived.by(() => {
     // If we haven't loaded storage/prefs yet, render nothing to avoid
@@ -168,21 +285,20 @@
       if (hideSeenArticles) {
         result = result.filter((a) => !initialSeenArticles[a.id]);
       }
+      // Pinned recommendations are drawn above the days, not twice.
+      result = result.filter((a) => !pinnedIds.has(a.id));
     }
 
     // Filter by search query
     if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(
-        (a) =>
-          a.title.toLowerCase().includes(query) ||
-          a.summary?.toLowerCase().includes(query) ||
-          a.feed_name.toLowerCase().includes(query),
-      );
+      result = result.filter(matchesQuery);
     }
 
     return result;
   });
+
+  /** Everything drawn: pinned recommendations and the feed below them. */
+  let shownCount = $derived(filteredArticles.length + pinnedArticles.length);
 
   let starredArticles = $state<Record<string, true>>({});
 
@@ -348,6 +464,17 @@
     const leaderFor = new Map<string, { article: Article; similar: Article[] }>();
     let visibleIndex = -1;
 
+    if (pinnedArticles.length > 0) {
+      groups.push({
+        label: "Recommended",
+        items: pinnedArticles.map((article) => ({
+          article,
+          index: ++visibleIndex,
+          similar: [] as Article[],
+        })),
+      });
+    }
+
     sortedArticles.forEach((article) => {
       const key = similarGroups[article.id] ?? article.id;
       const leader = leaderFor.get(key);
@@ -408,7 +535,7 @@
    * first; the undo stays for the fifteen seconds after that.
    */
   function requestMarkAllRead() {
-    const ids = sortedArticles
+    const ids = [...pinnedArticles, ...sortedArticles]
       .filter((article) => !readArticles[article.id])
       .map((article) => article.id);
 
@@ -576,6 +703,13 @@
           if (article) toggleStar(article.id);
         }
         break;
+      case "n":
+        if (focusedIndex >= 0) {
+          event.preventDefault();
+          const article = navigableArticles[focusedIndex];
+          if (article) toggleRecommend(article);
+        }
+        break;
       case "a":
         event.preventDefault();
         requestMarkAllRead();
@@ -606,6 +740,7 @@
     ["o or Enter", "Open the focused article"],
     ["m", "Toggle read on the focused article"],
     ["s", "Star the focused article"],
+    ["n", "Recommend it to everyone, or withdraw that"],
     ["a", "Mark everything shown as read"],
     ["u", "Undo that"],
     ["r", "Refresh"],
@@ -665,8 +800,9 @@
       return filteredArticles.length;
     }
 
-    return filteredArticles.filter((article) => !(article.id in seenArticles))
-      .length;
+    return [...pinnedArticles, ...filteredArticles].filter(
+      (article) => !(article.id in seenArticles),
+    ).length;
   });
 
   $effect(() => {
@@ -778,6 +914,7 @@
     return () => {
       window.removeEventListener("keydown", handleKeydown);
       if (undoTimer) clearTimeout(undoTimer);
+      if (recommendToastTimer) clearTimeout(recommendToastTimer);
       if (scrollHandler) {
         window.removeEventListener("scroll", scrollHandler);
       }
@@ -791,7 +928,12 @@
       return;
     }
 
-    const articleIds = articles.map((article) => article.id);
+    const articleIds = [
+      ...articles.map((article) => article.id),
+      ...recommendations
+        .map((recommendation) => recommendation.article.id)
+        .filter((id) => !articles.some((article) => article.id === id)),
+    ];
     if (!articleIds.length) {
       persistedReadArticles = {};
       return;
@@ -851,12 +993,12 @@
 
 </script>
 
-{#if filteredArticles.length > 0}
+{#if shownCount > 0}
   <div
     class="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-base-300/60 pb-3"
   >
     <div class="flex items-center gap-2 text-sm text-base-content/60">
-      <span>{sortedArticles.length} articles</span>
+      <span>{sortedArticles.length + pinnedArticles.length} articles</span>
       {#if refreshing}
         <span class="loading loading-spinner loading-xs"></span>
       {/if}
@@ -947,6 +1089,8 @@
               class="isolate flex items-center gap-1 pr-1 transition-colors {focusedIndex ===
               index
                 ? 'bg-base-200 ring-1 ring-primary/40'
+                : ''} {recommended[article.id]
+                ? 'border-l-4 border-secondary bg-secondary/10'
                 : ''}"
             >
               <a
@@ -967,7 +1111,14 @@
                     : 'bg-primary'}"
                   aria-hidden="true"
                 ></span>
-                <span class="min-w-0 flex-1 truncate">{article.title}</span>
+                <span class="min-w-0 flex-1 truncate">
+                  {article.title}
+                  {#if recommendedBy(article.id)}
+                    <span class="block truncate text-xs font-semibold text-secondary">
+                      Recommended by {recommendedBy(article.id)}
+                    </span>
+                  {/if}
+                </span>
                 <span
                   class="hidden shrink-0 text-xs text-base-content/50 sm:inline"
                 >
@@ -977,6 +1128,22 @@
                   {relativeTime(article)}
                 </span>
               </a>
+
+              <button
+                type="button"
+                class="btn btn-ghost btn-xs btn-square shrink-0"
+                onclick={() => toggleRecommend(article)}
+                aria-pressed={!!recommended[article.id]?.mine}
+                title={recommended[article.id]?.mine
+                  ? "Withdraw your recommendation (n)"
+                  : "Recommend to everyone (n)"}
+              >
+                <Megaphone
+                  class="h-4 w-4 {recommended[article.id]?.mine
+                    ? 'text-secondary'
+                    : 'text-base-content/40'}"
+                />
+              </button>
 
               <button
                 type="button"
@@ -1066,7 +1233,24 @@
                   readTimestamp={readArticles[article.id]?.timestamp || null}
                   onArticleClick={() => handleArticleClick(article.id)}
                   {noDim}
+                  recommendedBy={recommendedBy(article.id)}
                 />
+
+                <button
+                  type="button"
+                  class="btn btn-circle btn-ghost btn-sm absolute right-12 top-2 bg-base-100/70 backdrop-blur-sm"
+                  onclick={() => toggleRecommend(article)}
+                  aria-pressed={!!recommended[article.id]?.mine}
+                  title={recommended[article.id]?.mine
+                    ? "Withdraw your recommendation (n)"
+                    : "Recommend to everyone (n)"}
+                >
+                  <Megaphone
+                    class="h-4 w-4 {recommended[article.id]?.mine
+                      ? 'text-secondary'
+                      : 'text-base-content/50'}"
+                  />
+                </button>
 
                 <button
                   type="button"
@@ -1172,6 +1356,15 @@
   </form>
 </dialog>
 
+{#if recommendToast}
+  <div class="toast toast-center toast-top z-50">
+    <div class="alert alert-info shadow-lg">
+      <Megaphone class="h-4 w-4" />
+      <span>{recommendToast}</span>
+    </div>
+  </div>
+{/if}
+
 {#if undoable.length > 0}
   <div class="toast toast-center toast-bottom z-50">
     <div class="alert alert-info shadow-lg">
@@ -1233,10 +1426,10 @@
         />
       </div>
       <h3 class="mb-2 text-2xl font-bold">
-        {filteredArticles.length === 0 ? "Nothing new" : "That's everything"}
+        {shownCount === 0 ? "Nothing new" : "That's everything"}
       </h3>
       <p class="mb-6 px-6 text-base-content/60 md:px-16">
-        {filteredArticles.length === 0
+        {shownCount === 0
           ? "Every article here has been seen, or your filters hide the rest. Pull up or refresh for what came in since."
           : "Refresh to fetch what came in since and clear what you've seen."}
       </p>

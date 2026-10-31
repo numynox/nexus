@@ -19,6 +19,7 @@ const STORAGE_KEYS = {
   DENSITY: "noctua_density",
   SORT_ORDER: "noctua_sort_order",
   PREFERENCES: "noctua_preferences",
+  RESURFACED: "noctua_resurfaced_recommendations",
 } as const;
 
 /**
@@ -195,6 +196,32 @@ export function clearSeenHistory(): void {
     setStorageItem(STORAGE_KEYS.SEEN_ARTICLES, {});
   }
   dispatchEventSafe("noctua:activity");
+}
+
+/**
+ * A recommendation from someone else makes its article unseen again — once per
+ * article on this device, however many people recommend it. Returns the ids
+ * that were made unseen now. Call before the feed takes its seen snapshot.
+ */
+export function resurfaceRecommended(articleIds: string[]): string[] {
+  if (articleIds.length === 0) return [];
+
+  const done = getStorageItem<Record<string, true>>(
+    STORAGE_KEYS.RESURFACED,
+    {},
+  );
+  const fresh = articleIds.filter((id) => !done[id]);
+  if (fresh.length === 0) return [];
+
+  const seen = getSeenArticles();
+  fresh.forEach((id) => {
+    delete seen[id];
+    done[id] = true;
+  });
+
+  setStorageItem(STORAGE_KEYS.SEEN_ARTICLES, seen);
+  setStorageItem(STORAGE_KEYS.RESURFACED, done);
+  return fresh;
 }
 
 // ============ Preferences ============

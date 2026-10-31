@@ -893,3 +893,103 @@ export async function fetchReadingStatisticsForUser(
     publishedHours: row.published_hours || [],
   };
 }
+
+// ── Recommendations ─────────────────────────────────────────────────────────
+// A reader recommends an article to every other Noctua user. It is marked for
+// everyone, and pinned to the top of everyone else's feed once
+// (decisions/2026-10-31-noctua-recommendations.md).
+
+export interface Recommender {
+  userId: string;
+  /** The profile's name, else the address before the @. */
+  name: string;
+  at: string;
+}
+
+export interface Recommendation {
+  article: Article;
+  /** The latest recommendation of this article. */
+  recommendedAt: string;
+  /** Oldest first. */
+  recommenders: Recommender[];
+  /** The signed-in user is one of the recommenders. */
+  mine: boolean;
+  /** Someone other than the signed-in user is — what pins it to the top. */
+  fromOthers: boolean;
+}
+
+/**
+ * Articles recommended recently, newest recommendation first. Comes from a
+ * SECURITY DEFINER RPC, so it includes articles from feeds the reader does
+ * not follow.
+ */
+export async function fetchRecommendations(): Promise<Recommendation[]> {
+  const supabase = getSupabaseClient();
+  const db = supabase as any;
+
+  const { data, error } = await db.rpc("noctua_recommended_articles", {});
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).map((row: any) => ({
+    article: {
+      id: String(row.article_id),
+      feed_id: String(row.feed_id),
+      feed_name: row.feed_name || "Unknown feed",
+      feed_icon: row.feed_icon || null,
+      title: row.title || "Untitled",
+      url: row.url,
+      published: row.published_at,
+      updated: row.updated_at,
+      author: row.author,
+      summary: row.summary,
+      image_url: row.image_url,
+      tags: Array.isArray(row.tags) ? row.tags : [],
+    },
+    recommendedAt: row.recommended_at,
+    recommenders: (row.recommenders ?? []).map((r: any) => ({
+      userId: String(r.user_id),
+      name: String(r.name ?? "Someone"),
+      at: String(r.at ?? ""),
+    })),
+    mine: !!row.mine,
+    fromOthers: !!row.from_others,
+  }));
+}
+
+export async function recommendArticleForUser(
+  userId: string,
+  articleId: string,
+): Promise<void> {
+  const supabase = getSupabaseClient();
+  const db = supabase as any;
+
+  const { error } = await db.from("noctua_recommendations").upsert(
+    { user_id: userId, article_id: toDbId(articleId) },
+    { onConflict: "article_id,user_id", ignoreDuplicates: true },
+  );
+
+  if (error) {
+    throw error;
+  }
+}
+
+export async function unrecommendArticleForUser(
+  userId: string,
+  articleId: string,
+): Promise<void> {
+  const supabase = getSupabaseClient();
+  const db = supabase as any;
+
+  const { error } = await db
+    .from("noctua_recommendations")
+    .delete()
+    .eq("user_id", userId)
+    .eq("article_id", toDbId(articleId));
+
+  if (error) {
+    throw error;
+  }
+}

@@ -7,7 +7,10 @@
     loadUserContent,
     onAuthStateChange,
     describeError,
+    fetchRecommendations,
+    type Recommendation,
   } from "../lib/data";
+  import { resurfaceRecommended } from "../lib/storage";
   import type { Article, Section } from "../lib/types";
   import ArticleList from "./ArticleList.svelte";
 
@@ -28,6 +31,7 @@
   let unreadAndUnseenDisplayed = $state(0);
   let sections = $state<Section[]>([]);
   let articles = $state<Article[]>([]);
+  let recommendations = $state<Recommendation[]>([]);
   let loginHref = $state("/login");
   let baseUrl = $state("/");
   let siteTitle = $state("Noctua");
@@ -146,6 +150,13 @@
     loading = true;
     errorMessage = "";
 
+    // Asked for alongside the feed. Not fatal: without them the feed is
+    // simply the feed.
+    const recommendationsRequest = fetchRecommendations().catch((error) => {
+      console.warn("Failed to load recommendations", error);
+      return [] as Recommendation[];
+    });
+
     try {
       const selectedFromUrl = getSelectedSectionFromUrl();
       const selectedFeedFromUrl = getSelectedFeedFromUrl();
@@ -197,6 +208,17 @@
           : content.articles;
       }
 
+      recommendations = await recommendationsRequest;
+      if (!onlyRead && !onlyStarred) {
+        // Before the list mounts and takes its seen snapshot: someone else's
+        // recommendation brings the article back once, even if it was seen.
+        resurfaceRecommended(
+          recommendations
+            .filter((recommendation) => recommendation.fromOthers)
+            .map((recommendation) => recommendation.article.id),
+        );
+      }
+
       // update URL parameters: clear section when in read mode, otherwise
       // keep them in sync with current selection
       if (onlyRead) {
@@ -233,6 +255,7 @@
       isLoggedIn = false;
       sections = [];
       articles = [];
+      recommendations = [];
       selectedSectionId = null;
       selectedFeedId = null;
     } finally {
@@ -381,6 +404,7 @@
 
   <ArticleList
     {articles}
+    {recommendations}
     onStatsChange={handleStatsChange}
     {onlyRead}
     noDim={onlyRead}

@@ -2,6 +2,7 @@
   import placeholderImage from "../assets/placeholder.png?url";
   import type { Article } from "../lib/types";
   import FeedIcon from "./FeedIcon.svelte";
+  import { Megaphone } from "lucide-svelte";
 
   interface Props {
     article: Article;
@@ -11,6 +12,8 @@
     onArticleClick: () => void;
     /** when true the card should not be visually dimmed/grayscaled */
     noDim?: boolean;
+    /** Who recommended it ("Anna and you"), or null when nobody did. */
+    recommendedBy?: string | null;
   }
 
   let {
@@ -20,6 +23,7 @@
     readTimestamp,
     onArticleClick,
     noDim = false,
+    recommendedBy = null,
   }: Props = $props();
 
   function formatDate(dateStr: string | null): string {
@@ -86,6 +90,8 @@
   class="card bg-base-300 cursor-pointer transition-all rounded-lg hover:outline hover:outline-2 hover:outline-primary text-left w-full"
   class:opacity-60={(isRead || isSeen) && !noDim}
   class:grayscale-25={(isRead || isSeen) && !noDim}
+  class:ring-2={!!recommendedBy}
+  class:ring-secondary={!!recommendedBy}
   onclick={handleCardClick}
 >
   <figure class="relative">
@@ -101,6 +107,14 @@
     ></div>
   </figure>
   <div class="card-body p-4 relative z-10 -mt-18">
+    {#if recommendedBy}
+      <span
+        class="badge badge-secondary badge-sm h-auto gap-1 self-start py-0.5 font-semibold"
+      >
+        <Megaphone class="h-3 w-3 shrink-0" />
+        Recommended by {recommendedBy}
+      </span>
+    {/if}
     <div class="text-xs text-base-content/60 flex flex-wrap gap-2">
       <span class="badge badge-neutral badge-sm flex items-center gap-1">
         <FeedIcon icon={article.feed_icon} />
