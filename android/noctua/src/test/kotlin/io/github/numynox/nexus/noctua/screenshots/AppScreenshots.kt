@@ -46,7 +46,9 @@ class AppScreenshots {
         tap("2 more on this story")
         shot("02-feed-same-story")
 
-        compose.onAllNodes(hasText("Linux 7.2 released with a new scheduler for hybrid CPUs")).onFirst()
+        // The pinned recommendation: on screen without scrolling, which would
+        // mark it seen, and its menu offers recommending it too.
+        compose.onAllNodes(hasText("How birds navigate by sensing Earth's magnetic field")).onFirst()
             .performTouchInput { longClick() }
         settle()
         shot("03-article-menu")

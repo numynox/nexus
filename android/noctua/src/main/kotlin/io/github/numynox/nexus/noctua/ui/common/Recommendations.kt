@@ -39,8 +39,8 @@ class Recommendations(
         val current = before[article.id]
         val withdrawing = current?.mine == true
         _byArticle.value = before.toMutableMap().apply {
-            if (withdrawing) {
-                val rest = current!!.recommenders.filter { it.userId != me }
+            if (current != null && withdrawing) {
+                val rest = current.recommenders.filter { it.userId != me }
                 if (rest.isEmpty()) remove(article.id) else put(article.id, current.copy(recommenders = rest, mine = false))
             } else {
                 val self = Recommender(me, "you")
