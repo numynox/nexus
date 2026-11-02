@@ -31,3 +31,11 @@ entrypoint = "./functions/fetch-nearby-fuel-prices/index.ts"
 enabled = true
 verify_jwt = true
 entrypoint = "./functions/lookup-food-product/index.ts"
+
+# Abeona's station search, journey search and live refresh, called from both
+# clients with the signed-in user's JWT, which the function re-checks with
+# auth.getUser(). Like lookup-food-product, it runs as the caller.
+[functions.abeona-transit]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/abeona-transit/index.ts"

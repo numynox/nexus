@@ -25,3 +25,8 @@ settings:
     title: "Annona"
     description: "Grocery expiration tracker."
     base_url: "/nexus/annona"
+
+  abeona:
+    title: "Abeona"
+    description: "Train ride companion."
+    base_url: "/nexus/abeona"

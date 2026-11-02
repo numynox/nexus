@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Abeona's railway green, the seed of the app's palette. -->
+    <color name="abeona_green">#1F6F5C</color>
+    <color name="splash_background">#F7F8F5</color>
+</resources>

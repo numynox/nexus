@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 220" role="img" aria-label="A train on a winding track under the stars">
+  <defs>
+    <clipPath id="abeona-year-clip"><rect x="0" y="0" width="360" height="220" rx="28"/></clipPath>
+  </defs>
+  <g clip-path="url(#abeona-year-clip)">
+    <rect width="360" height="220" fill="var(--il-night, #12313A)"/>
+    <!-- stars -->
+    <g fill="var(--il-amber, #F2B84B)">
+      <path d="M52 36 l2.4 5.6 5.6 2.4 -5.6 2.4 -2.4 5.6 -2.4 -5.6 -5.6 -2.4 5.6 -2.4 z"/>
+      <path d="M298 28 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3 z"/>
+      <path d="M222 62 l1.8 4.2 4.2 1.8 -4.2 1.8 -1.8 4.2 -1.8 -4.2 -4.2 -1.8 4.2 -1.8 z"/>
+    </g>
+    <g fill="var(--il-white, #FFFFFF)" opacity="0.8">
+      <circle cx="110" cy="26" r="1.6"/><circle cx="150" cy="54" r="1.2"/><circle cx="190" cy="22" r="1.8"/>
+      <circle cx="252" cy="40" r="1.2"/><circle cx="330" cy="70" r="1.6"/><circle cx="24" cy="80" r="1.2"/>
+      <circle cx="88" cy="70" r="1"/><circle cx="270" cy="88" r="1"/>
+    </g>
+    <!-- moon -->
+    <path d="M120 40 a18 18 0 1 0 22 22 a14 14 0 1 1 -22 -22 z" fill="var(--il-moon, #E8F3EE)"/>
+    <!-- hills -->
+    <path d="M0 150 C60 124 120 130 180 146 C240 162 300 132 360 128 V220 H0 Z" fill="var(--il-green, #1F6F5C)" opacity="0.55"/>
+    <path d="M0 176 C80 160 160 166 230 178 C280 186 320 180 360 172 V220 H0 Z" fill="var(--il-green, #1F6F5C)"/>
+    <!-- winding track: sleepers then rails -->
+    <path d="M-10 206 C60 206 70 170 130 168 C190 166 196 196 250 194 C300 192 312 150 370 146" fill="none" stroke="var(--il-night, #12313A)" stroke-opacity="0.55" stroke-width="7" stroke-linecap="round"/>
+    <path d="M-10 206 C60 206 70 170 130 168 C190 166 196 196 250 194 C300 192 312 150 370 146" fill="none" stroke="var(--il-amber, #F2B84B)" stroke-width="2.5" stroke-linecap="round"/>
+    <!-- glowing train -->
+    <g transform="translate(206 168) rotate(-2)">
+      <path d="M4 4 H62 C74 4 82 10 86 18 L87 22 C88 25 86 28 83 28 H4 C2 28 0 26 0 24 V8 C0 6 2 4 4 4 Z" fill="var(--il-white, #FFFFFF)"/>
+      <path d="M0 18 H85 L87 22 C88 25 86 28 83 28 H4 C2 28 0 26 0 24 Z" fill="var(--il-green, #1F6F5C)"/>
+      <rect x="0" y="16" width="85" height="2" fill="var(--il-amber, #F2B84B)"/>
+      <g fill="var(--il-amber, #F2B84B)">
+        <rect x="6" y="8" width="10" height="5" rx="1.5"/><rect x="19" y="8" width="10" height="5" rx="1.5"/>
+        <rect x="35" y="8" width="10" height="5" rx="1.5"/><rect x="48" y="8" width="10" height="5" rx="1.5"/>
+      </g>
+      <path d="M66 8 H70 C76 9 80 12 82 15 H67 C66 15 66 14 66 13 Z" fill="var(--il-ink, #12313A)"/>
+      <path d="M86 22 L120 14 L120 30 Z" fill="var(--il-amber, #F2B84B)" opacity="0.25"/>
+    </g>
+  </g>
+</svg>

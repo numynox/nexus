@@ -1,0 +1,199 @@
+@import "tailwindcss";
+
+/*
+ * The curated shared themes (keep in step with THEMES in packages/ui and the
+ * other apps' stylesheets), without a default: Abeona's own two themes below
+ * are the default and what "auto" resolves to (src/lib/themes.ts).
+ */
+@plugin "daisyui" {
+  themes: dim, night, dark, nord, business, forest, coffee, halloween, sunset,
+    emerald, lofi;
+}
+
+/* Calm, airy, green — inspired by Scandinavian rail apps. */
+@plugin "daisyui/theme" {
+  name: "abeona";
+  default: true;
+  prefersdark: false;
+  color-scheme: light;
+  --color-base-100: #f7f8f5;
+  --color-base-200: #eef1ec;
+  --color-base-300: #dfe5df;
+  --color-base-content: #12313a;
+  --color-primary: #1f6f5c;
+  --color-primary-content: #ffffff;
+  --color-secondary: #cfe6f2;
+  --color-secondary-content: #12313a;
+  --color-accent: #f2b84b;
+  --color-accent-content: #3d2a05;
+  --color-neutral: #12313a;
+  --color-neutral-content: #f7f8f5;
+  --color-info: #3c87a8;
+  --color-info-content: #ffffff;
+  --color-success: #1f6f5c;
+  --color-success-content: #ffffff;
+  --color-warning: #f2b84b;
+  --color-warning-content: #3d2a05;
+  --color-error: #c4553b;
+  --color-error-content: #ffffff;
+  --radius-selector: 2rem;
+  --radius-field: 0.875rem;
+  --radius-box: 1.5rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+@plugin "daisyui/theme" {
+  name: "abeona-dark";
+  default: false;
+  prefersdark: true;
+  color-scheme: dark;
+  --color-base-100: #0e1f24;
+  --color-base-200: #132a30;
+  --color-base-300: #1d3a41;
+  --color-base-content: #e3eeea;
+  --color-primary: #4fb394;
+  --color-primary-content: #062019;
+  --color-secondary: #1c3a45;
+  --color-secondary-content: #cfe6f2;
+  --color-accent: #f2b84b;
+  --color-accent-content: #2b1d03;
+  --color-neutral: #e3eeea;
+  --color-neutral-content: #0e1f24;
+  --color-info: #7fbfdc;
+  --color-info-content: #06202b;
+  --color-success: #4fb394;
+  --color-success-content: #062019;
+  --color-warning: #f2b84b;
+  --color-warning-content: #2b1d03;
+  --color-error: #e07a5f;
+  --color-error-content: #2a0b04;
+  --radius-selector: 2rem;
+  --radius-field: 0.875rem;
+  --radius-box: 1.5rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+/* Tailwind does not scan node_modules, and @nexus/ui is linked there. */
+@source "../../../../packages/ui/src";
+
+/*
+ * App tokens on top of daisyUI's. Every theme gets values derived from its
+ * own colours; Abeona's two themes pin them to the brand palette.
+ *   card   — the raised surface of a card
+ *   mint   — calm tinted surface (hero cards, chips)
+ *   sky    — secondary tinted surface
+ *   amber  — the one accent for delays and attention; amber-ink is its
+ *            readable text colour on light surfaces
+ *   ink    — headline text
+ */
+:root {
+  --ab-card: color-mix(in oklab, var(--color-base-100) 70%, white 30%);
+  --ab-mint: color-mix(in oklab, var(--color-primary) 12%, var(--color-base-100));
+  --ab-sky: color-mix(in oklab, var(--color-info) 14%, var(--color-base-100));
+  --ab-amber: #f2b84b;
+  --ab-amber-soft: color-mix(in oklab, #f2b84b 22%, var(--color-base-100));
+  --ab-amber-ink: color-mix(in oklab, #f2b84b 55%, var(--color-base-content));
+  --ab-ink: var(--color-base-content);
+  --ab-shadow: 0 1px 2px rgb(18 49 58 / 0.04), 0 8px 24px -12px rgb(18 49 58 / 0.12);
+
+  /* Illustration palette (src/illustrations/*.svg read these). */
+  --il-sky: #cfe6f2;
+  --il-mint: #e8f3ee;
+  --il-hill: #9cc8b5;
+  --il-green: #1f6f5c;
+  --il-ink: #12313a;
+  --il-rail: #12313a;
+  --il-white: #ffffff;
+  --il-amber: #f2b84b;
+  --il-danger: #c4553b;
+  --il-night: #12313a;
+  --il-moon: #e8f3ee;
+}
+
+.dark,
+[data-theme="abeona-dark"] {
+  --ab-card: color-mix(in oklab, var(--color-base-200) 80%, white 4%);
+  --il-sky: #1c3a45;
+  --il-mint: #173530;
+  --il-hill: #24564a;
+  --il-green: #2e8c73;
+  --il-ink: #0a1d22;
+  --il-rail: #5e8f86;
+  --il-white: #e8f3ee;
+  --il-night: #0a1d22;
+}
+
+[data-theme="abeona"] {
+  --ab-card: #ffffff;
+  --ab-mint: #e8f3ee;
+  --ab-sky: #cfe6f2;
+  --ab-amber-soft: #fcefd2;
+  --ab-amber-ink: #8a5a06;
+  --ab-ink: #12313a;
+}
+
+[data-theme="abeona-dark"] {
+  --ab-card: #132a30;
+  --ab-mint: #173530;
+  --ab-sky: #1c3a45;
+  --ab-amber-soft: rgb(242 184 75 / 0.16);
+  --ab-amber-ink: #f2b84b;
+  --ab-ink: #f1f7f4;
+  --ab-shadow: 0 1px 2px rgb(0 0 0 / 0.2), 0 8px 24px -12px rgb(0 0 0 / 0.5);
+}
+
+@theme inline {
+  --color-card: var(--ab-card);
+  --color-mint: var(--ab-mint);
+  --color-sky: var(--ab-sky);
+  --color-amber: var(--ab-amber);
+  --color-amber-soft: var(--ab-amber-soft);
+  --color-amber-ink: var(--ab-amber-ink);
+  --color-ink: var(--ab-ink);
+  --shadow-card: var(--ab-shadow);
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  font-size: 16px;
+  font-family:
+    "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+}
+
+html.theme-transition,
+html.theme-transition body,
+html.theme-transition * {
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+/* Inline illustrations scale with their box. */
+.illustration svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* Times and platforms line up in columns. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}

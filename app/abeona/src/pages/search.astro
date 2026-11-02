@@ -1,0 +1,8 @@
+---
+import SearchRoute from "../components/routes/SearchRoute.svelte";
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Plan a trip">
+  <SearchRoute client:only="svelte" />
+</Layout>

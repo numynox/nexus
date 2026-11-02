@@ -1,5 +1,5 @@
 /**
- * Theme handling, shared by all three apps.
+ * Theme handling, shared by all the apps.
  *
  * daisyUI ships 35 themes; loading all of them made the picker a wall of
  * near-identical options and every app's CSS carry variables nobody used. These
@@ -30,39 +30,64 @@ export const AUTO_LIGHT_THEME = "lofi";
 
 export const AUTO = "auto";
 
+/**
+ * An app may bring its own themes on top of the curated set (Abeona does: its
+ * brand themes, which "auto" resolves to). Every function below takes these
+ * optionally; without them it is the shared set with the shared auto pair.
+ *
+ * @typedef {{ themes?: NexusTheme[], autoLight?: string, autoDark?: string }} ThemeSet
+ */
+
+/** @param {ThemeSet} [set] */
+function themeSet(set) {
+  return {
+    themes: set?.themes ?? THEMES,
+    autoLight: set?.autoLight ?? AUTO_LIGHT_THEME,
+    autoDark: set?.autoDark ?? AUTO_DARK_THEME,
+  };
+}
+
 const isBrowser = () => typeof window !== "undefined";
 
-/** @param {string} value */
-export function isKnownTheme(value) {
-  return value === AUTO || THEMES.some((t) => t.name === value);
+/**
+ * @param {string} value
+ * @param {ThemeSet} [set]
+ */
+export function isKnownTheme(value, set) {
+  return value === AUTO || themeSet(set).themes.some((t) => t.name === value);
 }
 
 /**
  * Resolve a stored preference to the theme that should be on <html>.
  * @param {string} theme
+ * @param {ThemeSet} [set]
  * @returns {string}
  */
-export function resolveTheme(theme) {
-  if (theme && theme !== AUTO && isKnownTheme(theme)) return theme;
+export function resolveTheme(theme, set) {
+  if (theme && theme !== AUTO && isKnownTheme(theme, set)) return theme;
 
   const prefersDark =
     isBrowser() && window.matchMedia("(prefers-color-scheme: dark)").matches;
 
-  return prefersDark ? AUTO_DARK_THEME : AUTO_LIGHT_THEME;
+  const { autoDark, autoLight } = themeSet(set);
+  return prefersDark ? autoDark : autoLight;
 }
 
 /**
  * @param {string} storageKey
+ * @param {ThemeSet} [set]
  * @returns {string} the stored preference, or "auto"
  */
-export function getTheme(storageKey) {
+export function getTheme(storageKey, set) {
   if (!isBrowser()) return AUTO;
 
   try {
     const raw = localStorage.getItem(storageKey);
     if (!raw) return AUTO;
     const parsed = JSON.parse(raw);
-    return typeof parsed === "string" && isKnownTheme(parsed) ? parsed : AUTO;
+    return typeof parsed === "string" && isKnownTheme(parsed, set)
+      ? parsed
+      : AUTO;
   } catch {
     return AUTO;
   }
@@ -70,13 +95,13 @@ export function getTheme(storageKey) {
 
 /**
  * @param {string} theme
- * @param {{ animated?: boolean }} [options]
+ * @param {{ animated?: boolean } & ThemeSet} [options]
  */
 export function applyTheme(theme, options = {}) {
   if (!isBrowser()) return;
 
   const html = document.documentElement;
-  const resolved = resolveTheme(theme);
+  const resolved = resolveTheme(theme, options);
 
   if (options.animated) {
     html.classList.add("theme-transition");
@@ -86,15 +111,16 @@ export function applyTheme(theme, options = {}) {
   html.setAttribute("data-theme", resolved);
   html.classList.toggle(
     "dark",
-    THEMES.some((t) => t.name === resolved && t.dark),
+    themeSet(options).themes.some((t) => t.name === resolved && t.dark),
   );
 }
 
 /**
  * @param {string} storageKey
  * @param {string} theme
+ * @param {ThemeSet} [set]
  */
-export function setTheme(storageKey, theme) {
+export function setTheme(storageKey, theme, set) {
   if (!isBrowser()) return;
 
   try {
@@ -103,7 +129,7 @@ export function setTheme(storageKey, theme) {
     console.warn("Failed to save theme:", error);
   }
 
-  applyTheme(theme, { animated: true });
+  applyTheme(theme, { ...set, animated: true });
 }
 
 /**
@@ -113,9 +139,11 @@ export function setTheme(storageKey, theme) {
  * `<script is:inline set:html={...}>`.
  *
  * @param {string} storageKey
+ * @param {ThemeSet} [set]
  */
-export function themeBootstrapScript(storageKey) {
-  const themeNames = JSON.stringify(THEMES.map((t) => t.name));
+export function themeBootstrapScript(storageKey, set) {
+  const { themes, autoLight, autoDark } = themeSet(set);
+  const themeNames = JSON.stringify(themes.map((t) => t.name));
 
   return `(function () {
   try {
@@ -124,11 +152,11 @@ export function themeBootstrapScript(storageKey) {
     var theme = stored ? JSON.parse(stored) : "auto";
     if (typeof theme !== "string" || known.indexOf(theme) === -1) {
       var prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      theme = prefersDark ? ${JSON.stringify(AUTO_DARK_THEME)} : ${JSON.stringify(AUTO_LIGHT_THEME)};
+      theme = prefersDark ? ${JSON.stringify(autoDark)} : ${JSON.stringify(autoLight)};
     }
     document.documentElement.setAttribute("data-theme", theme);
   } catch (e) {
-    document.documentElement.setAttribute("data-theme", ${JSON.stringify(AUTO_DARK_THEME)});
+    document.documentElement.setAttribute("data-theme", ${JSON.stringify(autoDark)});
   }
 })();`;
 }

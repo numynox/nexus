@@ -1,0 +1,31 @@
+{
+  "name": "abeona-app",
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "astro dev --port 4324",
+    "build": "astro check && astro build",
+    "preview": "astro preview",
+    "test": "node --test src/lib/*.test.ts",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/check": "^0.9.10",
+    "@astrojs/svelte": "^9.0.1",
+    "@nexus/config": "*",
+    "@nexus/ui": "*",
+    "@supabase/supabase-js": "^2.45.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "astro": "^7.3.1",
+    "daisyui": "^5.5.19",
+    "leaflet": "^1.9.4",
+    "lucide-svelte": "^0.577.0",
+    "pdfjs-dist": "~6.4.299",
+    "svelte": "^5.55.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "@types/leaflet": "^1.9.21"
+  }
+}

@@ -1,0 +1,8 @@
+---
+import TripRoute from "../components/routes/TripRoute.svelte";
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Trip">
+  <TripRoute client:only="svelte" />
+</Layout>

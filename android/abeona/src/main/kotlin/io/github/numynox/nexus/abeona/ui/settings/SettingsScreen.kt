@@ -1,0 +1,307 @@
+package io.github.numynox.nexus.abeona.ui.settings
+
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Map
+import androidx.compose.material.icons.rounded.PersonAdd
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.numynox.nexus.abeona.data.HouseholdMember
+import io.github.numynox.nexus.abeona.data.Traveller
+import io.github.numynox.nexus.abeona.ui.AppViewModel
+import io.github.numynox.nexus.abeona.ui.common.containerViewModel
+import io.github.numynox.nexus.core.data.AuthState
+import io.github.numynox.nexus.core.ui.Loadable
+import io.github.numynox.nexus.core.ui.components.LoadingState
+import io.github.numynox.nexus.core.ui.components.NexusCard
+import io.github.numynox.nexus.core.ui.components.SectionHeader
+import io.github.numynox.nexus.core.ui.components.UpdateBanner
+import io.github.numynox.nexus.core.ui.settings.AboutItem
+import io.github.numynox.nexus.core.ui.settings.AccountCard
+import io.github.numynox.nexus.core.ui.settings.AppearanceCard
+import io.github.numynox.nexus.core.ui.settings.SettingLabel
+import io.github.numynox.nexus.core.ui.settings.SettingSwitch
+
+private sealed interface Editing {
+    data object Invite : Editing
+    data class TravellerEdit(val traveller: Traveller?) : Editing
+}
+
+@Composable
+fun SettingsScreen(app: AppViewModel) {
+    val viewModel = containerViewModel { SettingsViewModel(it) }
+    val settings by app.settings.collectAsStateWithLifecycle()
+    val auth by app.auth.collectAsStateWithLifecycle()
+    val update by app.update.collectAsStateWithLifecycle()
+    val household by viewModel.household.collectAsStateWithLifecycle()
+    val snackbar = remember { SnackbarHostState() }
+    var editing by remember { mutableStateOf<Editing?>(null) }
+    var confirmLeave by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) app.setLiveCompanion(true)
+    }
+
+    LaunchedEffect(viewModel) { viewModel.load() }
+    LaunchedEffect(viewModel) { viewModel.messages.collect { snackbar.showSnackbar(it) } }
+
+    Scaffold(topBar = { TopAppBar(title = { Text("Settings") }) }, snackbarHost = { SnackbarHost(snackbar) }) { padding ->
+        LazyColumn(
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding(), bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            item { UpdateBanner(update) }
+
+            item { SectionHeader("On the day") }
+            item {
+                NexusCard {
+                    SettingSwitch(
+                        title = "Start the live companion by itself",
+                        description = "Half an hour before a trip, this phone starts following it: platform, delay and your changes in a notification, with an alert when something changes. Only this phone.",
+                        checked = settings.liveCompanion,
+                        onCheckedChange = { on ->
+                            val allowed = Build.VERSION.SDK_INT < 33 ||
+                                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+                            if (on && !allowed) notifications.launch(Manifest.permission.POST_NOTIFICATIONS) else app.setLiveCompanion(on)
+                        },
+                    )
+                }
+            }
+
+            when (val state = household) {
+                Loadable.Loading -> item { LoadingState(Modifier.fillMaxWidth().padding(24.dp)) }
+                is Loadable.Failed -> item { Text(state.message, color = MaterialTheme.colorScheme.error) }
+                is Loadable.Ready -> {
+                    item {
+                        SectionHeader("Household", supporting = "Shares every trip and ticket", trailing = {
+                            FilledTonalButton(onClick = { editing = Editing.Invite }) {
+                                Icon(Icons.Rounded.PersonAdd, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Text("Invite", modifier = Modifier.padding(start = 6.dp))
+                            }
+                        })
+                    }
+                    item {
+                        NexusCard {
+                            state.value.members.forEachIndexed { index, member ->
+                                if (index > 0) HorizontalDivider(Modifier.padding(vertical = 6.dp))
+                                MemberRow(member, isMe = member.userId == viewModel.userId)
+                            }
+                            if (state.value.members.size > 1) {
+                                OutlinedButton(onClick = { confirmLeave = true }, modifier = Modifier.padding(top = 12.dp)) {
+                                    Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Text("Leave household", modifier = Modifier.padding(start = 8.dp))
+                                }
+                            }
+                        }
+                    }
+                    item {
+                        SectionHeader("Travellers", supporting = "Everyone who rides, with or without an account", trailing = {
+                            FilledTonalButton(onClick = { editing = Editing.TravellerEdit(null) }) {
+                                Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Text("Add", modifier = Modifier.padding(start = 6.dp))
+                            }
+                        })
+                    }
+                    item {
+                        NexusCard {
+                            if (state.value.travellers.isEmpty()) Text("Nobody yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            state.value.travellers.forEachIndexed { index, traveller ->
+                                if (index > 0) HorizontalDivider(Modifier.padding(vertical = 2.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Initial(traveller.name)
+                                    Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                                        Text(traveller.name, style = MaterialTheme.typography.titleSmall)
+                                        if (traveller.userId != null) {
+                                            Text("Has an account", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    }
+                                    IconButton(onClick = { editing = Editing.TravellerEdit(traveller) }) {
+                                        Icon(Icons.Rounded.Edit, contentDescription = "Edit ${traveller.name}")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            item { SectionHeader("Appearance") }
+            item {
+                AppearanceCard(
+                    themeMode = settings.themeMode,
+                    onThemeMode = app::setThemeMode,
+                    dynamicColor = settings.dynamicColor,
+                    onDynamicColor = app::setDynamicColor,
+                    appColour = "Abeona green",
+                )
+            }
+            item { SectionHeader("Account") }
+            item { AccountCard("Abeona", (auth as? AuthState.SignedIn)?.email, onSignOut = app::signOut) }
+            item {
+                NexusCard {
+                    SettingLabel(Icons.Rounded.Map, "Data sources")
+                    Text(
+                        "Timetable data: Transitous (transitous.org), © OpenStreetMap contributors, and the respective transit operators.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
+                }
+            }
+            item { AboutItem(viewModel.config) }
+        }
+    }
+
+    when (val current = editing) {
+        Editing.Invite -> TextSheet(
+            title = "Invite to household",
+            help = "They need a Nexus account. If they have trips of their own and nobody else in their household, those come along.",
+            label = "Email",
+            initial = "",
+            keyboard = KeyboardType.Email,
+            confirm = "Invite",
+            onSave = { viewModel.invite(it); editing = null },
+            onDelete = null,
+            onDismiss = { editing = null },
+        )
+        is Editing.TravellerEdit -> TextSheet(
+            title = if (current.traveller == null) "New traveller" else "Edit traveller",
+            help = "Travellers are who rides: you, and children or partners without an account.",
+            label = "Name",
+            initial = current.traveller?.name.orEmpty(),
+            keyboard = KeyboardType.Text,
+            confirm = "Save",
+            onSave = { name ->
+                current.traveller?.let { viewModel.renameTraveller(it.id, name) } ?: viewModel.addTraveller(name)
+                editing = null
+            },
+            onDelete = current.traveller?.takeIf { it.userId == null }?.let { traveller -> { viewModel.deleteTraveller(traveller.id); editing = null } },
+            onDismiss = { editing = null },
+        )
+        null -> Unit
+    }
+
+    if (confirmLeave) {
+        AlertDialog(
+            onDismissRequest = { confirmLeave = false },
+            title = { Text("Leave the household?") },
+            text = { Text("The trips stay with the others. You start again with a household of your own.") },
+            confirmButton = {
+                TextButton(onClick = { confirmLeave = false; viewModel.leave { app.changed() } }) {
+                    Text("Leave", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmLeave = false }) { Text("Stay") } },
+        )
+    }
+}
+
+@Composable
+private fun MemberRow(member: HouseholdMember, isMe: Boolean) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Initial(member.displayName)
+        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+            Text(member.displayName + if (isMe) " (you)" else "", style = MaterialTheme.typography.titleSmall)
+            member.email?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+        if (member.role == "owner") Text("Owner", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+    }
+}
+
+@Composable
+private fun Initial(name: String) {
+    Box(
+        Modifier.size(36.dp).background(MaterialTheme.colorScheme.secondaryContainer, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(name.take(1).uppercase(), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
+    }
+}
+
+@Composable
+private fun TextSheet(
+    title: String,
+    help: String,
+    label: String,
+    initial: String,
+    keyboard: KeyboardType,
+    confirm: String,
+    onSave: (String) -> Unit,
+    onDelete: (() -> Unit)?,
+    onDismiss: () -> Unit,
+) {
+    var value by remember { mutableStateOf(initial) }
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(Modifier.padding(horizontal = 24.dp).navigationBarsPadding().imePadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(title, style = MaterialTheme.typography.headlineSmall)
+            Text(help, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            OutlinedTextField(
+                value = value,
+                onValueChange = { value = it },
+                label = { Text(label) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = keyboard),
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (onDelete != null) TextButton(onClick = onDelete) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onDismiss) { Text("Cancel") }
+                    Button(onClick = { onSave(value.trim()) }, enabled = value.isNotBlank()) { Text(confirm) }
+                }
+            }
+        }
+    }
+}

@@ -13,19 +13,34 @@ export declare const AUTO: "auto";
 export declare const AUTO_DARK_THEME: string;
 export declare const AUTO_LIGHT_THEME: string;
 
-export declare function isKnownTheme(value: string): boolean;
-export declare function resolveTheme(theme: string): string;
-export declare function getTheme(storageKey: string): string;
-export declare function setTheme(storageKey: string, theme: string): void;
+/** An app's own theme set; omitted, it is THEMES with the shared auto pair. */
+export interface ThemeSet {
+  themes?: NexusTheme[];
+  autoLight?: string;
+  autoDark?: string;
+}
+
+export declare function isKnownTheme(value: string, set?: ThemeSet): boolean;
+export declare function resolveTheme(theme: string, set?: ThemeSet): string;
+export declare function getTheme(storageKey: string, set?: ThemeSet): string;
+export declare function setTheme(
+  storageKey: string,
+  theme: string,
+  set?: ThemeSet,
+): void;
 export declare function applyTheme(
   theme: string,
-  options?: { animated?: boolean },
+  options?: { animated?: boolean } & ThemeSet,
 ): void;
-export declare function themeBootstrapScript(storageKey: string): string;
+export declare function themeBootstrapScript(
+  storageKey: string,
+  set?: ThemeSet,
+): string;
 
 export declare const ThemePicker: Component<{
   current: string;
   onSelect: (theme: string) => void;
+  set?: ThemeSet;
 }>;
 
 export declare const LoginPanel: Component<{

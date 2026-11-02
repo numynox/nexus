@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 220" role="img" aria-label="A station platform with a canopy and a clock">
+  <defs>
+    <clipPath id="abeona-station-clip"><rect x="0" y="0" width="360" height="220" rx="28"/></clipPath>
+  </defs>
+  <g clip-path="url(#abeona-station-clip)">
+    <rect width="360" height="220" fill="var(--il-mint, #E8F3EE)"/>
+    <!-- distant skyline -->
+    <g fill="var(--il-sky, #CFE6F2)">
+      <rect x="20" y="88" width="34" height="80" rx="4"/>
+      <rect x="60" y="70" width="26" height="98" rx="4"/>
+      <rect x="250" y="80" width="30" height="88" rx="4"/>
+      <rect x="286" y="60" width="38" height="108" rx="4"/>
+    </g>
+    <!-- canopy roof -->
+    <path d="M40 54 L180 30 L320 54 V64 H40 Z" fill="var(--il-green, #1F6F5C)"/>
+    <rect x="40" y="64" width="280" height="6" fill="var(--il-ink, #12313A)" opacity="0.85"/>
+    <!-- columns -->
+    <g fill="var(--il-ink, #12313A)">
+      <rect x="70" y="70" width="6" height="98"/>
+      <rect x="177" y="70" width="6" height="98"/>
+      <rect x="284" y="70" width="6" height="98"/>
+    </g>
+    <!-- clock hanging from the canopy -->
+    <rect x="179" y="70" width="2" height="12" fill="var(--il-ink, #12313A)"/>
+    <circle cx="180" cy="98" r="17" fill="var(--il-white, #FFFFFF)" stroke="var(--il-ink, #12313A)" stroke-width="4"/>
+    <g stroke="var(--il-ink, #12313A)" stroke-linecap="round">
+      <line x1="180" y1="98" x2="180" y2="87" stroke-width="2.5"/>
+      <line x1="180" y1="98" x2="188" y2="101" stroke-width="2.5"/>
+    </g>
+    <line x1="180" y1="98" x2="173" y2="109" stroke="var(--il-danger, #C4553B)" stroke-width="1.5" stroke-linecap="round"/>
+    <circle cx="180" cy="98" r="2" fill="var(--il-danger, #C4553B)"/>
+    <!-- platform sign -->
+    <rect x="96" y="80" width="56" height="20" rx="5" fill="var(--il-ink, #12313A)"/>
+    <rect x="102" y="86" width="10" height="8" rx="2" fill="var(--il-amber, #F2B84B)"/>
+    <rect x="116" y="88" width="30" height="4" rx="2" fill="var(--il-white, #FFFFFF)" opacity="0.85"/>
+    <!-- bench -->
+    <rect x="216" y="142" width="44" height="6" rx="3" fill="var(--il-green, #1F6F5C)"/>
+    <rect x="216" y="132" width="44" height="5" rx="2.5" fill="var(--il-green, #1F6F5C)" opacity="0.7"/>
+    <rect x="220" y="148" width="4" height="14" fill="var(--il-ink, #12313A)"/>
+    <rect x="252" y="148" width="4" height="14" fill="var(--il-ink, #12313A)"/>
+    <!-- platform -->
+    <rect x="0" y="162" width="360" height="22" fill="var(--il-white, #FFFFFF)"/>
+    <rect x="0" y="178" width="360" height="5" fill="var(--il-amber, #F2B84B)"/>
+    <g fill="var(--il-ink, #12313A)" opacity="0.18">
+      <rect x="20" y="168" width="40" height="3" rx="1.5"/><rect x="140" y="168" width="40" height="3" rx="1.5"/><rect x="260" y="168" width="40" height="3" rx="1.5"/>
+    </g>
+    <!-- track -->
+    <rect x="0" y="184" width="360" height="36" fill="var(--il-ink, #12313A)" opacity="0.12"/>
+    <rect x="0" y="198" width="360" height="3" fill="var(--il-rail, #12313A)" opacity="0.7"/>
+    <rect x="0" y="210" width="360" height="3" fill="var(--il-rail, #12313A)" opacity="0.7"/>
+  </g>
+</svg>

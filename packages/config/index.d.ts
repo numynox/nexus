@@ -1,4 +1,4 @@
-export type AppName = "noctua" | "vibilia" | "annona";
+export type AppName = "noctua" | "vibilia" | "annona" | "abeona";
 
 export const APP_NAMES: AppName[];
 
