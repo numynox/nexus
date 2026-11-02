@@ -19,7 +19,12 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Surface
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.semantics.Role
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
@@ -42,7 +47,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -273,21 +277,16 @@ fun CommuteScreen(app: AppViewModel, carId: String, onBack: () -> Unit) {
             item {
                 NexusCard {
                     SectionHeader("Days")
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
                         CommuteWeekdays.forEach { (iso, label) ->
-                            FilterChip(
-                                selected = iso in viewModel.weekdays,
-                                onClick = { viewModel.toggle(iso) },
-                                label = { Text(label, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
-                                modifier = Modifier.weight(1f),
-                            )
+                            DayToggle(label, iso in viewModel.weekdays, { viewModel.toggle(iso) }, Modifier.weight(1f))
                         }
                     }
                 }
             }
             item {
                 WindowCard(
-                    title = "To work",
+                    title = "Way to work",
                     from = viewModel.toWorkFrom,
                     until = viewModel.toWorkUntil,
                     onFrom = { viewModel.toWorkFrom = it },
@@ -297,7 +296,7 @@ fun CommuteScreen(app: AppViewModel, carId: String, onBack: () -> Unit) {
             }
             item {
                 WindowCard(
-                    title = "Home",
+                    title = "Way home",
                     from = viewModel.toHomeFrom,
                     until = viewModel.toHomeUntil,
                     onFrom = { viewModel.toHomeFrom = it },
@@ -357,6 +356,23 @@ fun CommuteScreen(app: AppViewModel, carId: String, onBack: () -> Unit) {
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
         )
+    }
+}
+
+/** A round day toggle; seven fit a phone's width without the label wrapping. */
+@Composable
+private fun DayToggle(label: String, selected: Boolean, onToggle: () -> Unit, modifier: Modifier) {
+    Surface(
+        shape = CircleShape,
+        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest,
+        contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier
+            .aspectRatio(1f)
+            .toggleable(value = selected, role = Role.Checkbox, onValueChange = { onToggle() }),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+        }
     }
 }
 

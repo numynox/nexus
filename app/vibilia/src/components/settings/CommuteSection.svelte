@@ -263,7 +263,7 @@
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-        {#each [{ key: "to_work" as const, title: "To work", icon: Briefcase }, { key: "to_home" as const, title: "Home", icon: House }] as leg (leg.key)}
+        {#each [{ key: "to_work" as const, title: "Way to work", icon: Briefcase }, { key: "to_home" as const, title: "Way home", icon: House }] as leg (leg.key)}
           <div class="space-y-2">
             <div class="font-semibold text-sm flex items-center gap-2">
               <leg.icon class="w-4 h-4 text-primary" />
