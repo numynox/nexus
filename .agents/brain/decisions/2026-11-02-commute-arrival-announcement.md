@@ -12,8 +12,9 @@ car's speakers the moment the trip starts.
 The request also asked for a notification on every other phone the car is
 shared with. Nexus has no push channel; the options were FCM through an Edge
 Function (the one Firebase piece `2026-10-19-native-android-apps.md` allows),
-polling every 15 minutes, or ntfy. The owner chose to **leave that out** for
-now, so the per-direction "notify others" switches were not built either.
+polling every 15 minutes, or ntfy. The owner chose to **leave app
+notifications out** and, instead, to have the phone **text one contact by
+SMS**, switchable per direction (usually only the way home).
 
 ## Decision
 - **A commute is per person and per car** (`vibilia_commutes`, primary key
@@ -34,6 +35,13 @@ now, so the per-direction "notify others" switches were not built either.
   work for the way home), it speaks "Die Ankunftszeit auf der Arbeit ist 7:45
   Uhr. Gute Fahrt." or "… daheim …" as navigation guidance, which the car plays.
   Arrival is connect time plus the median. Once per car, direction and day.
+- **Texting** reuses the same minute and the same geofence check: the commute
+  holds one contact (`sms_name`, `sms_number`, stored as digits with an
+  optional leading plus) and `sms_to_work` / `sms_to_home`. The phone sends
+  "Bin losgefahren. Ankunft daheim ca. 17:45 Uhr." from its own SIM through
+  `SmsManager`. Only a phone that was granted `SEND_SMS` texts, so it is per
+  phone like the spoken announcement; either one runs without the other.
+  The web edits the contact and switches but cannot send.
 - Commutes and their medians are cached on the phone, so a connection in a
   dead spot still works; the service asks the server again during the minute.
 
@@ -46,6 +54,11 @@ now, so the per-direction "notify others" switches were not built either.
   then the phone stays silent.
 - Drives are not tied to places, so any drive starting in the window counts,
   including one that does not go to work. The median absorbs the odd one.
-- Adding notifications to other members later needs a push transport — that
-  is the decision deferred above, not a schema change: the commute already
-  says who is going where.
+- SMS costs whatever the user's plan charges, needs a SIM and signal, and
+  has no retry. The text comes from the user's own number, hence the first
+  person. Android may make a sideloaded app ask for "restricted settings"
+  before it can be granted `SEND_SMS`; Play's SMS policy does not apply.
+- A phone number is stored next to home and work, readable only by the
+  commute's owner.
+- Push notifications to other members' apps remain possible later with a
+  push transport; the commute already says who is going where.

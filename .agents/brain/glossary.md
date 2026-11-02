@@ -59,6 +59,7 @@ the app's DataStore instead of `localStorage` — still per device.
 | `vibilia_commutes` | Commute | one person's commute in one car: weekdays, a window each way, home and work with a radius. Private to that person |
 | `to_work` / `to_home` | To work / Home | the two directions of a commute, in columns (`to_work_from`), the RPC's `direction` and the Android code (`CommuteDirection`) |
 | expected travel time | Travel time | median of your own drives that started in the window (`get_vibilia_commute_expectation`) |
+| `sms_number`, `sms_to_work`, `sms_to_home` | Text someone | one contact the phone texts the arrival time to, on the chosen ways |
 | announce commute | Say the arrival time in the car | device-local switch; the phone speaks the arrival time through the car (Android only) |
 | track drives | Record drives on this phone | device-local switch; without it the phone still remembers the connected car for the refuel form |
 
