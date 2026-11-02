@@ -421,3 +421,34 @@ data class DriveIntervalUpload(
     @SerialName("started_at") val startedAt: Instant,
     @SerialName("ended_at") val endedAt: Instant,
 )
+
+/**
+ * One person's commute in one car (vibilia_commutes), private to them. Times
+ * are local, as Postgres returns them ("07:30:00"); weekdays are ISO, Monday 1.
+ */
+@Serializable
+data class Commute(
+    @SerialName("car_id") val carId: String,
+    val weekdays: List<Int> = listOf(1, 2, 3, 4, 5),
+    @SerialName("to_work_from") val toWorkFrom: String,
+    @SerialName("to_work_until") val toWorkUntil: String,
+    @SerialName("to_home_from") val toHomeFrom: String,
+    @SerialName("to_home_until") val toHomeUntil: String,
+    @SerialName("home_lat") val homeLat: Double,
+    @SerialName("home_lng") val homeLng: Double,
+    @SerialName("home_radius_m") val homeRadiusM: Int = 300,
+    @SerialName("work_lat") val workLat: Double,
+    @SerialName("work_lng") val workLng: Double,
+    @SerialName("work_radius_m") val workRadiusM: Int = 300,
+)
+
+/** Median travel time one way, from get_vibilia_commute_expectation. */
+@Serializable
+data class CommuteExpectation(
+    /** "to_work" or "to_home". */
+    val direction: String,
+    @SerialName("median_seconds") val medianSeconds: Int? = null,
+    @SerialName("sample_count") val sampleCount: Int = 0,
+    /** Filled in on the phone when cached. */
+    @SerialName("car_id") val carId: String? = null,
+)

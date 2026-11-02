@@ -11,6 +11,7 @@ import androidx.core.content.ContextCompat
 import io.github.numynox.nexus.vibilia.data.BluetoothLink
 import io.github.numynox.nexus.vibilia.data.CarRepository
 import io.github.numynox.nexus.vibilia.data.VibiliaPreferences
+import io.github.numynox.nexus.vibilia.commute.CommuteAnnouncer
 import java.time.Duration
 import java.time.Instant
 
@@ -38,8 +39,13 @@ class DriveTracking(
 
     suspend fun onConnected(address: String) {
         val recording = preferences.current().trackDrives && hasPermission()
-        val known = tracker.onConnected(address, preferences.cachedLinks(), recording)
+        val links = preferences.cachedLinks()
+        val known = tracker.onConnected(address, links, recording)
         if (known && recording) DriveSync.startHeartbeat(context)
+        // Independent of recording: announcing the arrival is its own switch.
+        links.firstOrNull { it.address.equals(address, ignoreCase = true) }?.let { link ->
+            CommuteAnnouncer.onConnected(context, preferences, link.carId)
+        }
     }
 
     suspend fun onDisconnected(address: String) {

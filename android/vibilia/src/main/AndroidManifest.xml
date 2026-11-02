@@ -12,6 +12,11 @@
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- The commute announcement: a minute of listening for the position after
+         connecting to the car, from the background, then speech. -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <!-- The daily reminder when a tank runs low. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
@@ -50,6 +55,11 @@
                 <action android:name="android.bluetooth.device.action.ACL_DISCONNECTED" />
             </intent-filter>
         </receiver>
+
+        <service
+            android:name=".commute.CommuteAnnouncementService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
 
         <receiver
             android:name=".tracking.BootReceiver"

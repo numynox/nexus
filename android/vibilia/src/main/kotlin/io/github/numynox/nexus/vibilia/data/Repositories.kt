@@ -271,3 +271,29 @@ class DriveRepository(private val supabase: SupabaseClient) {
         }
     }
 }
+
+/**
+ * Your commutes (decisions/2026-11-02-commute-arrival-announcement.md). RLS
+ * returns only your own; the expectation is the median of your own drives.
+ * Both answer empty against a database that predates the table.
+ */
+class CommuteRepository(private val supabase: SupabaseClient) {
+
+    suspend fun commutes(): List<Commute> =
+        supabase.from("vibilia_commutes").select().decodeList()
+
+    suspend fun save(userId: String, commute: Commute) {
+        supabase.from("vibilia_commutes").upsert(commute.toJsonObject().with("user_id" to userId)) {
+            onConflict = "user_id,car_id"
+        }
+    }
+
+    suspend fun delete(carId: String) {
+        supabase.from("vibilia_commutes").delete { filter { eq("car_id", carId) } }
+    }
+
+    suspend fun expectation(carId: String): List<CommuteExpectation> =
+        supabase.postgrest.rpc("get_vibilia_commute_expectation", buildJsonObject { put("p_car_id", carId) })
+            .decodeList<CommuteExpectation>()
+            .map { it.copy(carId = carId) }
+}

@@ -4,6 +4,7 @@ import android.content.Context
 import io.github.numynox.nexus.core.data.NexusConfig
 import io.github.numynox.nexus.core.data.NexusCore
 import io.github.numynox.nexus.vibilia.data.CarRepository
+import io.github.numynox.nexus.vibilia.data.CommuteRepository
 import io.github.numynox.nexus.vibilia.data.DriveRepository
 import io.github.numynox.nexus.vibilia.data.FuelPriceRepository
 import io.github.numynox.nexus.vibilia.data.LogbookRepository
@@ -48,6 +49,7 @@ class AppContainer(
     val logbook = LogbookRepository(supabase)
     val statistics = StatisticsRepository(supabase)
     val drives = DriveRepository(supabase)
+    val commutes = CommuteRepository(supabase)
     val locations = LocationProvider(context)
     val driveTracking = DriveTracking(context, DriveTracker(context), preferences, cars)
 }

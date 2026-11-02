@@ -2,6 +2,8 @@
 <resources>
     <string name="app_name">Vibilia</string>
     <string name="reminder_channel">Refuel reminders</string>
+    <string name="commute_channel">Commute announcement</string>
+    <string name="commute_listening">Checking whether this is your commute</string>
     <string name="widget_name">Tank and price</string>
     <string name="widget_description">How full the car is, and where fuel is cheapest now</string>
 </resources>
