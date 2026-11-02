@@ -36,6 +36,11 @@ const DEFAULTS = {
     description: "Grocery expiration tracker.",
     baseUrl: "/nexus/annona",
   },
+  abeona: {
+    title: "Abeona",
+    description: "Train ride companion.",
+    baseUrl: "/nexus/abeona",
+  },
 };
 
 export const APP_NAMES = Object.keys(DEFAULTS);
@@ -70,7 +75,7 @@ function baseUrl(value, fallback) {
  * The values an app needs at runtime — injected into the bundle, so they must
  * stay small and JSON-serialisable.
  *
- * @param {"noctua" | "vibilia" | "annona"} app
+ * @param {"noctua" | "vibilia" | "annona" | "abeona"} app
  */
 export function loadAppConfig(app) {
   const defaults = DEFAULTS[app];
@@ -128,7 +133,7 @@ export function appOutDir(app) {
  * build, and the `define` entry that makes the same values available to
  * `src/lib/config.ts` in both the built pages and the browser bundle.
  *
- * @param {"noctua" | "vibilia" | "annona"} app
+ * @param {"noctua" | "vibilia" | "annona" | "abeona"} app
  */
 export function defineNexusConfig(app) {
   const config = loadAppConfig(app);

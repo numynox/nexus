@@ -2,7 +2,7 @@
 /**
  * Builds the landing page at the root of the Pages site.
  *
- * https://numynox.github.io/nexus/ was a 404: the three apps live at
+ * https://numynox.github.io/nexus/ was a 404: the apps live at
  * /nexus/<app> and you had to know the URLs. This writes a small index.html
  * beside them.
  *
@@ -28,6 +28,7 @@ const ACCENTS = {
   noctua: "#8b8cf0",
   vibilia: "#e05a5a",
   annona: "#4bbf7a",
+  abeona: "#1f6f5c",
 };
 
 function escapeHtml(value) {
@@ -74,7 +75,7 @@ const html = `<!doctype html>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Nexus</title>
-    <meta name="description" content="Noctua, Vibilia and Annona." />
+    <meta name="description" content="Noctua, Vibilia, Annona and Abeona." />
     <meta name="theme-color" content="#242933" />
     <link
       rel="icon"
