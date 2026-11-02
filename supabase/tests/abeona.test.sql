@@ -9,7 +9,7 @@ begin;
 
 create extension if not exists pgtap;
 
-select plan(26);
+select plan(29);
 
 insert into auth.users (id, email) values
   ('abe00000-0000-4000-8000-000000000001', 'abeona-a@test.local'),
@@ -152,6 +152,15 @@ select ok(
     (select id from abeona_ids where key = 'household_b')::text || '/'
     || (select id from abeona_ids where key = 'trip_a')::text || '/ticket.pdf'),
   'nor reach one through a trip id under a different prefix');
+
+-- ── Grants: nothing for signed-out callers ─────────────────────────────────
+reset role;
+select ok(not has_function_privilege('anon', 'public.abeona_user_in_household(uuid, uuid)', 'execute'),
+  'anon cannot ask who is in which household');
+select ok(not has_function_privilege('anon', 'public.abeona_invite_to_household(text)', 'execute'),
+  'anon cannot call the household RPCs');
+select ok(has_function_privilege('authenticated', 'public.abeona_save_trip(jsonb, jsonb)', 'execute'),
+  'signed-in users keep their RPCs');
 
 select * from finish();
 rollback;
