@@ -13,6 +13,7 @@
   import { preferredFuelType, session } from "../../lib/stores";
   import AccountSection from "./AccountSection.svelte";
   import AppearanceSection from "./AppearanceSection.svelte";
+  import CommuteSection from "./CommuteSection.svelte";
   import VehicleManagerSection from "./VehicleManagerSection.svelte";
 
   let saving = $state(false);
@@ -73,6 +74,8 @@
     savingFuelPreference={saving}
     onFuelTypeChange={updateFuelPreference}
   />
+
+  <CommuteSection />
 
   <AppearanceSection
     {currentTheme}

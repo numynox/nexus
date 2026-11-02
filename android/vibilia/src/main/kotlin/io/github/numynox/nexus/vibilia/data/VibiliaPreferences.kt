@@ -31,6 +31,8 @@ data class VibiliaSettings(
     val refuelRemindersOn: Boolean = false,
     /** Below this fill level, in percent (10–40), a car counts as low. */
     val refuelReminderPercent: Int = 20,
+    /** Speak the commute's arrival time through the car. Per phone, off by default. */
+    val announceCommute: Boolean = false,
 )
 
 /**
@@ -55,6 +57,10 @@ class VibiliaPreferences(private val context: Context) {
         val RefuelReminderPercent = intPreferencesKey("refuel_reminder_percent")
         val RefuelReminderSentOn = stringPreferencesKey("refuel_reminder_sent_on")
         val WidgetSnapshot = stringPreferencesKey("widget_snapshot")
+        val AnnounceCommute = booleanPreferencesKey("announce_commute")
+        val Commutes = stringPreferencesKey("commutes")
+        val CommuteExpectations = stringPreferencesKey("commute_expectations")
+        val CommuteAnnounced = stringPreferencesKey("commute_announced")
     }
 
     val settings: Flow<VibiliaSettings> = context.vibiliaStore.data.map { it.toSettings() }
@@ -68,6 +74,7 @@ class VibiliaPreferences(private val context: Context) {
         trackDrives = this[Keys.TrackDrives] ?: false,
         refuelRemindersOn = this[Keys.RefuelRemindersOn] ?: false,
         refuelReminderPercent = (this[Keys.RefuelReminderPercent] ?: 20).coerceIn(10, 40),
+        announceCommute = this[Keys.AnnounceCommute] ?: false,
     )
 
     suspend fun current(): VibiliaSettings = settings.first()
@@ -80,6 +87,32 @@ class VibiliaPreferences(private val context: Context) {
     suspend fun setTrackDrives(value: Boolean) = edit { it[Keys.TrackDrives] = value }
     suspend fun setRefuelRemindersOn(value: Boolean) = edit { it[Keys.RefuelRemindersOn] = value }
     suspend fun setRefuelReminderPercent(value: Int) = edit { it[Keys.RefuelReminderPercent] = value.coerceIn(10, 40) }
+    suspend fun setAnnounceCommute(value: Boolean) = edit { it[Keys.AnnounceCommute] = value }
+
+    /**
+     * Your commutes and their expected travel times as last loaded, so a
+     * connection in a dead spot can still be announced.
+     */
+    suspend fun cachedCommutes(): List<Commute> =
+        context.vibiliaStore.data.first()[Keys.Commutes]
+            ?.let { runCatching { NexusJson.decodeFromString<List<Commute>>(it) }.getOrNull() }
+            .orEmpty()
+
+    suspend fun setCachedCommutes(commutes: List<Commute>) =
+        edit { it[Keys.Commutes] = NexusJson.encodeToString(commutes) }
+
+    suspend fun cachedCommuteExpectations(): List<CommuteExpectation> =
+        context.vibiliaStore.data.first()[Keys.CommuteExpectations]
+            ?.let { runCatching { NexusJson.decodeFromString<List<CommuteExpectation>>(it) }.getOrNull() }
+            .orEmpty()
+
+    suspend fun setCachedCommuteExpectations(expectations: List<CommuteExpectation>) =
+        edit { it[Keys.CommuteExpectations] = NexusJson.encodeToString(expectations) }
+
+    /** "car|direction|date" of the last announcement, so a flaky reconnect is not announced twice. */
+    suspend fun commuteAnnounced(): String? = context.vibiliaStore.data.first()[Keys.CommuteAnnounced]
+
+    suspend fun setCommuteAnnounced(value: String) = edit { it[Keys.CommuteAnnounced] = value }
 
     /** The day the last refuel reminder went out, so one day gets one. */
     suspend fun refuelReminderSentOn(): LocalDate? =

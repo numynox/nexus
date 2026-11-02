@@ -9,6 +9,8 @@ import io.github.numynox.nexus.vibilia.data.BluetoothLink
 import io.github.numynox.nexus.vibilia.data.Car
 import io.github.numynox.nexus.vibilia.data.CarDraft
 import io.github.numynox.nexus.vibilia.data.CarMember
+import io.github.numynox.nexus.vibilia.data.Commute
+import io.github.numynox.nexus.vibilia.commute.CommuteAnnouncer
 import io.github.numynox.nexus.vibilia.tracking.PairedDevice
 import io.github.numynox.nexus.core.ui.Loadable
 import io.github.numynox.nexus.core.ui.loadable
@@ -28,10 +30,23 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     val bluetoothPermission: String? get() = container.driveTracking.permission
     val config: NexusConfig get() = container.config
 
+    private val _commutes = MutableStateFlow<List<Commute>>(emptyList())
+    /** Your commutes, one per car at most. */
+    val commutes: StateFlow<List<Commute>> = _commutes.asStateFlow()
+
     init {
         viewModelScope.launch {
             _links.value = container.preferences.cachedLinks()
             _links.value = container.driveTracking.refreshLinks()
+        }
+    }
+
+    /** From the cache at once, then from the server — also after returning from a commute. */
+    fun reloadCommutes() {
+        viewModelScope.launch {
+            _commutes.value = container.preferences.cachedCommutes()
+            CommuteAnnouncer.refresh(container.commutes, container.preferences)
+            _commutes.value = container.preferences.cachedCommutes()
         }
     }
 

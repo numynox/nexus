@@ -61,6 +61,9 @@ object FakeBackend {
             path.endsWith("/rpc/get_car_refuel_plot_events") -> plotEvents().toString()
             path.endsWith("/rpc/get_car_distance_per_month") -> months().toString()
             path.endsWith("/rpc/list_car_members") -> members().toString()
+            path.endsWith("/rpc/get_vibilia_commute_expectation") ->
+                """[{"direction":"to_work","median_seconds":1920,"sample_count":8},{"direction":"to_home","median_seconds":2280,"sample_count":7}]"""
+            path.endsWith("/rest/v1/vibilia_commutes") -> commutes().toString()
             path.endsWith("/rest/v1/cars") -> cars().toString()
             path.endsWith("/rest/v1/refuel_events") && params["limit"] == "1" -> JsonArray(refuels().take(1)).toString()
             path.endsWith("/rest/v1/refuel_events") -> JsonArray(refuels()).toString()
@@ -69,6 +72,19 @@ object FakeBackend {
             path.endsWith("/rest/v1/vibilia_car_bluetooth_devices") ->
                 buildJsonArray { links.forEach { addJsonObject { put("car_id", it.carId); put("address", it.address); put("name", it.name) } } }.toString()
             else -> null
+        }
+    }
+
+    /** Your commute in the Golf; home is where the screenshots' phone is. */
+    private fun commutes() = buildJsonArray {
+        addJsonObject {
+            put("car_id", GOLF)
+            putJsonArray("weekdays") { (1..5).forEach { add(it) } }
+            put("to_work_from", "06:30:00"); put("to_work_until", "09:30:00")
+            put("to_home_from", "16:00:00"); put("to_home_until", "19:00:00")
+            put("home_lat", 49.5897); put("home_lng", 11.0040); put("home_radius_m", 300)
+            put("work_lat", 49.5730); put("work_lng", 11.0270); put("work_radius_m", 400)
+            put("sms_name", "Alex"); put("sms_number", "+491701234567"); put("sms_to_home", true); put("sms_to_work", false)
         }
     }
 

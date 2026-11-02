@@ -34,6 +34,7 @@ import androidx.navigation3.ui.NavDisplay
 import io.github.numynox.nexus.vibilia.ui.logbook.EditorSheetHost
 import io.github.numynox.nexus.vibilia.ui.logbook.LogbookScreen
 import io.github.numynox.nexus.vibilia.ui.prices.PricesScreen
+import io.github.numynox.nexus.vibilia.ui.settings.CommuteScreen
 import io.github.numynox.nexus.vibilia.ui.settings.SettingsScreen
 import io.github.numynox.nexus.vibilia.ui.settings.VehicleEditorScreen
 import io.github.numynox.nexus.vibilia.ui.statistics.StatisticsScreen
@@ -46,6 +47,9 @@ import kotlinx.serialization.Serializable
 
 /** A vehicle's details, members and Bluetooth; [carId] null adds a new one. */
 @Serializable data class VehicleRoute(val carId: String? = null) : NavKey
+
+/** Your commute in one car. */
+@Serializable data class CommuteRoute(val carId: String) : NavKey
 
 private data class TopLevel(val route: NavKey, val label: String, val icon: ImageVector, val selectedIcon: ImageVector)
 
@@ -111,7 +115,13 @@ fun MainScaffold(app: AppViewModel) {
                 entry<PricesRoute> { PricesScreen(app) }
                 entry<LogbookRoute> { LogbookScreen(app) }
                 entry<StatisticsRoute> { StatisticsScreen(app) }
-                entry<SettingsRoute> { SettingsScreen(app, onOpenVehicle = { carId -> backStack.add(VehicleRoute(carId)) }) }
+                entry<SettingsRoute> {
+                    SettingsScreen(
+                        app,
+                        onOpenVehicle = { carId -> backStack.add(VehicleRoute(carId)) },
+                        onOpenCommute = { carId -> backStack.add(CommuteRoute(carId)) },
+                    )
+                }
                 entry<VehicleRoute>(
                     metadata = NavDisplay.transitionSpec {
                         (slideInHorizontally(tween(380)) { it / 3 } + fadeIn(tween(260))) togetherWith fadeOut(tween(120))
@@ -120,6 +130,9 @@ fun MainScaffold(app: AppViewModel) {
                     },
                 ) { key ->
                     VehicleEditorScreen(app, carId = key.carId, onBack = { backStack.removeLastOrNull() })
+                }
+                entry<CommuteRoute> { key ->
+                    CommuteScreen(app, carId = key.carId, onBack = { backStack.removeLastOrNull() })
                 }
             },
         )

@@ -32,6 +32,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -52,19 +53,28 @@ import io.github.numynox.nexus.core.ui.settings.AccountCard
 import io.github.numynox.nexus.core.ui.settings.AppearanceCard
 import io.github.numynox.nexus.core.ui.settings.SettingSwitch
 import io.github.numynox.nexus.vibilia.data.FuelTypes
+import io.github.numynox.nexus.vibilia.commute.CommuteAnnouncer
+import androidx.compose.material.icons.rounded.Commute
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import android.os.Build
+import androidx.compose.foundation.clickable
 import io.github.numynox.nexus.vibilia.ui.AppViewModel
 import io.github.numynox.nexus.vibilia.ui.common.PlateBadge
 import io.github.numynox.nexus.vibilia.ui.common.containerViewModel
 import io.github.numynox.nexus.core.ui.valueOrNull
 
 @Composable
-fun SettingsScreen(app: AppViewModel, onOpenVehicle: (String?) -> Unit) {
+fun SettingsScreen(app: AppViewModel, onOpenVehicle: (String?) -> Unit, onOpenCommute: (String) -> Unit = {}) {
     val viewModel = containerViewModel { SettingsViewModel(it) }
     val settings by app.settings.collectAsStateWithLifecycle()
     val cars by app.cars.collectAsStateWithLifecycle()
     val auth by app.auth.collectAsStateWithLifecycle()
     val update by app.update.collectAsStateWithLifecycle()
     val links by viewModel.links.collectAsStateWithLifecycle()
+    val commutes by viewModel.commutes.collectAsStateWithLifecycle()
+    // Again on every return here, so a commute just saved shows.
+    LaunchedEffect(Unit) { viewModel.reloadCommutes() }
     val uriHandler = LocalUriHandler.current
 
     val bluetoothLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -73,6 +83,19 @@ fun SettingsScreen(app: AppViewModel, onOpenVehicle: (String?) -> Unit) {
     val context = LocalContext.current
     val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) app.setRefuelRemindersOn(true)
+    }
+
+    // Announcing needs, in turn: the position and Bluetooth events while the app
+    // is open, then the position from the background ("Allow all the time",
+    // which Android 11+ only grants on its own settings page).
+    val backgroundLocation = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        if (CommuteAnnouncer.hasPermissions(context)) app.setAnnounceCommute(true)
+    }
+    val foregroundForCommute = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        if (granted[Manifest.permission.ACCESS_FINE_LOCATION] == true || ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            if (CommuteAnnouncer.hasPermissions(context)) app.setAnnounceCommute(true)
+            else backgroundLocation.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        }
     }
 
     Scaffold(topBar = { TopAppBar(title = { Text("Settings") }) }) { padding ->
@@ -188,6 +211,42 @@ fun SettingsScreen(app: AppViewModel, onOpenVehicle: (String?) -> Unit) {
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.tertiary,
                             modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+                }
+            }
+
+            item { SectionHeader("Commute") }
+            item {
+                NexusCard {
+                    SettingSwitch(
+                        title = "Say the arrival time in the car",
+                        description = "Connecting to the car inside your commute window, near home or work, this phone listens for a minute " +
+                            "and then says when you will arrive, from the median of your drives. Needs location \"all the time\".",
+                        checked = settings.announceCommute && CommuteAnnouncer.hasPermissions(context),
+                        onCheckedChange = { on ->
+                            val missingForeground = buildList {
+                                add(Manifest.permission.ACCESS_FINE_LOCATION)
+                                add(Manifest.permission.ACCESS_COARSE_LOCATION)
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) add(Manifest.permission.BLUETOOTH_CONNECT)
+                            }.filter { ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED }
+                            when {
+                                !on -> app.setAnnounceCommute(false)
+                                CommuteAnnouncer.hasPermissions(context) -> app.setAnnounceCommute(true)
+                                missingForeground.isNotEmpty() -> foregroundForCommute.launch(missingForeground.toTypedArray())
+                                else -> backgroundLocation.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                            }
+                        },
+                    )
+                    cars.valueOrNull.orEmpty().forEach { car ->
+                        val commute = commutes.firstOrNull { it.carId == car.id }
+                        ListItem(
+                            headlineContent = { Text(car.name) },
+                            supportingContent = { Text(commute?.summary() ?: "Not set up") },
+                            leadingContent = { Icon(Icons.Rounded.Commute, contentDescription = null) },
+                            trailingContent = { Icon(Icons.Rounded.ChevronRight, contentDescription = null) },
+                            colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                            modifier = Modifier.padding(top = 4.dp).clickable { onOpenCommute(car.id) },
                         )
                     }
                 }
