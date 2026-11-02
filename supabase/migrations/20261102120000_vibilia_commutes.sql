@@ -5,7 +5,8 @@
 -- are (a point and a radius each). The expected travel time is the median of
 -- that person's own Bluetooth drives in the car that started inside the window.
 -- The Android app speaks the arrival time through the car when the phone
--- connects inside a window, near the place the trip starts from.
+-- connects inside a window, near the place the trip starts from, and can text
+-- one contact the same news (sms_* columns; sent by the phone, not a server).
 --
 -- Per person and per car: two people sharing a car have different commutes,
 -- and home and work locations are nobody else's business. Nothing here is
@@ -29,6 +30,12 @@ create table if not exists public.vibilia_commutes (
   work_lat double precision not null,
   work_lng double precision not null,
   work_radius_m integer not null default 300,
+  -- One person to text the arrival time to, by direction. The phone sends it
+  -- from its own SIM; the server only remembers whom.
+  sms_name text,
+  sms_number text,
+  sms_to_work boolean not null default false,
+  sms_to_home boolean not null default false,
   created_at timestamptz not null default now(),
   primary key (user_id, car_id),
   constraint vibilia_commutes_weekdays_valid
@@ -40,7 +47,11 @@ create table if not exists public.vibilia_commutes (
   constraint vibilia_commutes_work_point
     check (work_lat between -90 and 90 and work_lng between -180 and 180),
   constraint vibilia_commutes_home_radius check (home_radius_m between 50 and 5000),
-  constraint vibilia_commutes_work_radius check (work_radius_m between 50 and 5000)
+  constraint vibilia_commutes_work_radius check (work_radius_m between 50 and 5000),
+  constraint vibilia_commutes_sms_number_format check (sms_number ~ '^\+?[0-9]{3,20}$'),
+  constraint vibilia_commutes_sms_name_length check (length(sms_name) <= 100),
+  constraint vibilia_commutes_sms_needs_number
+    check (sms_number is not null or not (sms_to_work or sms_to_home))
 );
 
 comment on table public.vibilia_commutes is

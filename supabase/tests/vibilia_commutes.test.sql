@@ -12,7 +12,7 @@ begin;
 
 create extension if not exists pgtap;
 
-select plan(12);
+select plan(15);
 
 -- ── Fixtures ───────────────────────────────────────────────────────────────
 insert into auth.users (id, email) values
@@ -104,6 +104,28 @@ select throws_ok(
   '23514',
   null,
   'a window must end after it starts'
+);
+
+select lives_ok(
+  $$ update public.vibilia_commutes set sms_name = 'Alex', sms_number = '+491701234567', sms_to_home = true
+     where car_id = 'c0bb0000-0000-4000-8000-000000000001' $$,
+  'one contact to text on the way home'
+);
+
+select throws_ok(
+  $$ update public.vibilia_commutes set sms_number = '0170 123 4567'
+     where car_id = 'c0bb0000-0000-4000-8000-000000000001' $$,
+  '23514',
+  null,
+  'a number is stored as digits only'
+);
+
+select throws_ok(
+  $$ update public.vibilia_commutes set sms_number = null
+     where car_id = 'c0bb0000-0000-4000-8000-000000000001' $$,
+  '23514',
+  null,
+  'texting needs a number'
 );
 
 -- ── As the member ─────────────────────────────────────────────────────────
