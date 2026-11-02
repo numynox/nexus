@@ -9,7 +9,7 @@ begin;
 
 create extension if not exists pgtap;
 
-select plan(24);
+select plan(26);
 
 insert into auth.users (id, email) values
   ('abe00000-0000-4000-8000-000000000001', 'abeona-a@test.local'),
@@ -124,6 +124,13 @@ select is(public.abeona_current_household(), (select id from abeona_ids where ke
   'the invitee now belongs to the inviter''s household');
 select is((select count(*)::int from public.abeona_trips), 2, 'and sees all of its trips');
 
+set local request.jwt.claims = '{"sub": "abe00000-0000-4000-8000-000000000001", "role": "authenticated"}';
+select ok(
+  public.abeona_user_in_household_path(
+    (select id from abeona_ids where key = 'household_b')::text || '/'
+    || (select id from abeona_ids where key = 'trip_b')::text || '/ticket.pdf'),
+  'a merged trip''s ticket follows the trip, not its old household prefix');
+
 -- ── C cannot be pulled out of a shared household ───────────────────────────
 set local request.jwt.claims = '{"sub": "abe00000-0000-4000-8000-000000000003", "role": "authenticated"}';
 select public.abeona_ensure_household();
@@ -140,6 +147,11 @@ set local request.jwt.claims = '{"sub": "abe00000-0000-4000-8000-000000000003", 
 select ok(
   not public.abeona_user_in_household_path((select id from abeona_ids where key = 'household_a')::text || '/x/ticket.pdf'),
   'a stranger may not touch another household''s tickets');
+select ok(
+  not public.abeona_user_in_household_path(
+    (select id from abeona_ids where key = 'household_b')::text || '/'
+    || (select id from abeona_ids where key = 'trip_a')::text || '/ticket.pdf'),
+  'nor reach one through a trip id under a different prefix');
 
 select * from finish();
 rollback;

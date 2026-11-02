@@ -136,8 +136,12 @@ $$;
 revoke all on function public.abeona_user_in_household(uuid, uuid) from public;
 grant execute on function public.abeona_user_in_household(uuid, uuid) to authenticated;
 
--- Storage paths start with the household id; anything that is not a uuid
--- there is simply not accessible (rather than an error in a policy).
+-- Storage paths are <household_id>/<trip_id>/<file> (or <household_id>/<…>
+-- for files that belong to no trip). Access follows the trip when the second
+-- segment is one, so a ticket stays readable after its trip moved household
+-- on a merge; otherwise it follows the household in the first segment.
+-- Anything that is not a uuid there is simply not accessible, rather than an
+-- error in a policy.
 create or replace function public.abeona_user_in_household_path(p_name text)
 returns boolean
 language plpgsql
@@ -146,9 +150,20 @@ security definer
 set search_path = public
 as $$
 declare
+  v_uuid constant text := '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
   v_first text := split_part(coalesce(p_name, ''), '/', 1);
+  v_second text := split_part(coalesce(p_name, ''), '/', 2);
+  v_trip_household uuid;
 begin
-  if v_first !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+  if v_second ~* v_uuid then
+    select household_id into v_trip_household
+    from public.abeona_trips
+    where id = v_second::uuid;
+    if v_trip_household is not null then
+      return public.abeona_user_in_household(v_trip_household, auth.uid());
+    end if;
+  end if;
+  if v_first !~* v_uuid then
     return false;
   end if;
   return public.abeona_user_in_household(v_first::uuid, auth.uid());
