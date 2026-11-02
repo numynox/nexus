@@ -15,6 +15,7 @@ import io.github.numynox.nexus.vibilia.data.CarExpense
 import io.github.numynox.nexus.vibilia.data.RefuelEvent
 import io.github.numynox.nexus.vibilia.data.VibiliaSettings
 import io.github.numynox.nexus.vibilia.reminders.RefuelReminders
+import io.github.numynox.nexus.vibilia.commute.CommuteAnnouncer
 import io.github.numynox.nexus.vibilia.tracking.DriveSync
 import io.github.numynox.nexus.vibilia.tracking.TrackerState
 import io.github.numynox.nexus.vibilia.tracking.uploadedBetween
@@ -129,6 +130,7 @@ class AppViewModel(private val container: AppContainer, private val application:
         viewModelScope.launch {
             container.driveTracking.refreshLinks()
             DriveSync.schedule(application)
+            CommuteAnnouncer.refresh(container.commutes, container.preferences)
         }
     }
 
@@ -145,6 +147,7 @@ class AppViewModel(private val container: AppContainer, private val application:
     fun setDynamicColor(value: Boolean) = viewModelScope.launch { container.preferences.setDynamicColor(value) }
     fun setRefuelRemindersOn(value: Boolean) = viewModelScope.launch { container.preferences.setRefuelRemindersOn(value) }
     fun setRefuelReminderPercent(value: Int) = viewModelScope.launch { container.preferences.setRefuelReminderPercent(value) }
+    fun setAnnounceCommute(value: Boolean) = viewModelScope.launch { container.preferences.setAnnounceCommute(value) }
 
     fun selectCar(carId: String) {
         viewModelScope.launch { container.preferences.setSelectedCar(carId) }
