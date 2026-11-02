@@ -1,6 +1,6 @@
 # Nexus
 
-Monorepo for three small internal web apps that share one Supabase backend and
+Monorepo for four small internal web apps that share one Supabase backend and
 one GitHub Pages site:
 
 | App | What it does | Path |
@@ -8,8 +8,9 @@ one GitHub Pages site:
 | **Noctua** | RSS reader | `app/noctua` |
 | **Vibilia** | Fuel prices, refuel log, vehicle statistics and expenses | `app/vibilia` |
 | **Annona** | Grocery and food expiration tracker | `app/annona` |
+| **Abeona** | Train ride companion: trips, live delays, tickets, year in review | `app/abeona` |
 
-One Supabase account signs you in to all three. There is no sign-up screen —
+One Supabase account signs you in to all of them. There is no sign-up screen —
 accounts are created in the Supabase dashboard.
 
 Each app also has a native Android app (`android/`), on the same backend and
@@ -26,7 +27,8 @@ nexus/
 ├── app/
 │   ├── noctua/          # Astro + Svelte, static
 │   ├── vibilia/
-│   └── annona/
+│   ├── annona/
+│   └── abeona/
 ├── supabase/
 │   ├── migrations/      # the only description of the schema
 │   ├── functions/       # Deno Edge Functions
@@ -39,9 +41,10 @@ nexus/
 │   ├── core/testing/    # fake Supabase and screenshot robot — shared by the tests
 │   ├── noctua/          # the Noctua app
 │   ├── vibilia/         # the Vibilia app
-│   └── annona/          # the Annona app
+│   ├── annona/          # the Annona app
+│   └── abeona/          # the Abeona app
 ├── packages/
-│   └── config/          # the one reader for config.yaml, used by all three apps
+│   └── config/          # the one reader for config.yaml, used by every app
 ├── scripts/             # backup, restore, seed, import
 ├── config.yaml          # build-time settings (see architecture.md)
 ├── .bruno/              # HTTP collection for invoking Edge Functions by hand
@@ -59,7 +62,7 @@ nexus/
 
 ### 1. Install
 
-One install at the root covers all three apps (npm workspaces):
+One install at the root covers every app (npm workspaces):
 
 ```bash
 npm install
@@ -77,7 +80,7 @@ prints them again later; `npm run db:stop` shuts it down.
 ### 3. Configure the environment
 
 Copy `.env.example` to `.env` and fill in the values from the previous step. All
-three apps read this one file at the repository root (`vite.envDir` points at
+all the apps read this one file at the repository root (`vite.envDir` points at
 it) — there are no per-app env files.
 
 ```bash
@@ -139,15 +142,17 @@ Run the app you are working on:
 npm run dev:noctua
 npm run dev:vibilia
 npm run dev:annona
+npm run dev:abeona
 ```
 
-Ports are pinned so all three can run side by side:
+Ports are pinned so they can run side by side:
 
 | App | Dev URL |
 | :--- | :--- |
 | Noctua | `http://localhost:4321/nexus/noctua/` |
 | Vibilia | `http://localhost:4322/nexus/vibilia/` |
 | Annona | `http://localhost:4323/nexus/annona/` |
+| Abeona | `http://localhost:4324/nexus/abeona/` |
 
 The base path is part of the app, so the bare port root will 404.
 
@@ -161,7 +166,7 @@ Then invoke them with the Bruno collection in `.bruno/supabase/`; the two
 scheduled functions require their invoke secret and will return 401 without it.
 
 **Anything that calls an Edge Function needs this running** — Annona's barcode
-lookup most obviously. `npm run db:start` does not serve functions; only
+lookup and all of Abeona's search and live refresh most obviously. `npm run db:start` does not serve functions; only
 `db:functions:serve` does.
 
 With it stopped, the request still reaches the API gateway, which then fails to
@@ -213,7 +218,7 @@ npm run test:db               # pgTAP tests against the local Supabase stack
 
 `supabase/tests/` covers Vibilia's refuel statistics arithmetic, its drive
 tracking (deduplication, attribution to days, the model, the fuel estimate)
-and the RLS policies of all three apps. Each file runs in a transaction that is rolled back,
+and the RLS policies of every app. Each file runs in a transaction that is rolled back,
 so it is safe against a database with data in it, and it needs the local stack
 running (`npm run db:start`). It is not part of CI — run it when you touch a
 migration, a policy or an RPC.
@@ -221,18 +226,20 @@ migration, a policy or an RPC.
 ## Build
 
 ```bash
-npm run build:websites        # all three, into output/pages/<app>, plus the landing page
+npm run build:websites        # every app, into output/pages/<app>, plus the landing page
 npm run build:noctua
 npm run build:vibilia
 npm run build:annona
+npm run build:abeona
 npm run build:landing         # output/pages/index.html, generated from config.yaml
 ```
 
-Each build runs `astro check` before `astro build`, so all three apps are
+Each build runs `astro check` before `astro build`, so every app is
 type-checked — though `astro check` only covers `.astro` and `.ts` files, not
 the script block of a `.svelte` component. `output/` is generated and git-ignored. CI runs `build:websites`
 and publishes `output/pages`; this is the only automated check that exists, so
-build all three before pushing.
+build them all before pushing. Abeona's shared rules (transfer confidence,
+train binding) also have tests: `npm run test:abeona` (plain `node --test`).
 
 ## Android apps
 
@@ -247,7 +254,7 @@ uses `10.0.2.2`. Debug builds allow plain HTTP to exactly those hosts
 (`src/debug/res/xml/network_security_config.xml`) — a LAN address would be
 refused.
 
-Every task exists for each app module — `:noctua`, `:vibilia`, `:annona`:
+Every task exists for each app module — `:noctua`, `:vibilia`, `:annona`, `:abeona`:
 
 ```bash
 cd android
@@ -255,7 +262,7 @@ cd android
 ./gradlew :annona:testDebugUnitTest       # the JVM unit tests
 ./gradlew :annona:recordRoborazziDebug    # unit tests + screenshots of every screen
 ./gradlew :annona:assembleRelease         # what CI publishes
-./gradlew recordRoborazziDebug assembleRelease   # all three, as before a push
+./gradlew recordRoborazziDebug assembleRelease   # every app, as before a push
 ```
 
 ### Screenshots
@@ -286,8 +293,8 @@ else works in the emulator.
 
 | Area | Scripts |
 | :--- | :--- |
-| Tests | `test:db` |
-| Build / dev | `build:websites`, `build:{noctua,vibilia,annona}`, `build:landing`, `dev:{noctua,vibilia,annona}` |
+| Tests | `test:db`, `test:abeona` |
+| Build / dev | `build:websites`, `build:{noctua,vibilia,annona,abeona}`, `build:landing`, `dev:{noctua,vibilia,annona,abeona}` |
 | Local Supabase | `db:start`, `db:stop`, `db:status`, `db:reset`, `db:functions:serve` |
 | Link / migrate | `db:login`, `db:link`, `db:projects:list`, `db:migrations:list`, `db:migrations:up`, `db:push`, `db:push:dry-run`, `db:pull` |
 | Functions | `db:functions:deploy`, `db:functions:list` |

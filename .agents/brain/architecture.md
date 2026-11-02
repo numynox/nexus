@@ -24,7 +24,7 @@ covers how it is put together.
                                               │
                      ┌────────────────────────▼───────────────────────────┐
                      │            one Supabase project ("nexus")          │
-                     │  auth.users · public schema (all three apps)       │
+                     │  auth.users · public schema (all four apps)        │
                      │  RLS on every table · SECURITY DEFINER RPCs        │
                      │  pg_cron + pg_net + Vault ──► Edge Functions       │
                      └────────────────────────┬───────────────────────────┘
@@ -32,7 +32,7 @@ covers how it is put together.
                             Tankerkoenig API · RSS feeds (outbound)
 ```
 
-There is **no application server**. The three apps are static HTML + JS — plus
+There is **no application server**. The four apps are static HTML + JS — plus
 a native Android app each — and the only backend is Supabase. See
 `decisions/2026-02-15-static-astro-svelte-on-github-pages.md` for why, and what
 that costs.
@@ -43,7 +43,7 @@ that costs.
 
 ### Build topology
 
-npm workspaces (`app/noctua`, `app/vibilia`, `app/annona`) with a single
+npm workspaces (`app/noctua`, `app/vibilia`, `app/annona`, `app/abeona`) with a single
 lockfile at the root. Each app is an independent Astro project that builds
 **static** output into a shared directory:
 
@@ -52,15 +52,16 @@ lockfile at the root. Each app is an independent Astro project that builds
 | Noctua | `/nexus/noctua` | `output/pages/noctua` |
 | Vibilia | `/nexus/vibilia` | `output/pages/vibilia` |
 | Annona | `/nexus/annona` | `output/pages/annona` |
+| Abeona | `/nexus/abeona` | `output/pages/abeona` |
 
-All three take `base` and `outDir` from `config.yaml` through
-`packages/config`, and all three are on the same versions — Astro 7,
+All four take `base` and `outDir` from `config.yaml` through
+`packages/config`, and all four are on the same versions — Astro 7,
 `@astrojs/svelte` 9, Svelte 5, Tailwind 4 + daisyUI 5. Keep them in step: they
 share one hoisted copy of each, and a split forces npm to nest duplicates.
 
-`output/pages` is what gets published, so the three apps are siblings under one
+`output/pages` is what gets published, so the apps are siblings under one
 Pages site and the `base` paths are load-bearing — every internal link is built
-from `getBaseUrl()`, never hardcoded. All three set `vite.envDir: "../.."`, so
+from `getBaseUrl()`, never hardcoded. All four set `vite.envDir: "../.."`, so
 they read the **root** `.env`; there are no per-app env files.
 
 ### Layering inside an app
@@ -80,7 +81,7 @@ sign-in panel, the theme picker and all theme handling; see
 `decisions/2026-09-05-shared-ui-package.md`). Each app keeps a thin
 `AppShell.svelte` that passes in its own sidebar and auth functions.
 
-Supporting modules, same names in all three apps:
+Supporting modules, same names in every app:
 
 - `lib/data.ts` — **the entire data access layer**: auth helpers, every query,
   every RPC call, and the TypeScript interfaces for the rows it returns
@@ -94,7 +95,7 @@ Supporting modules, same names in all three apps:
   (`noctua_*`, `vibilia_*`, `annona_*`), each value guarded and normalised on
   read. Device-local preferences live here, never in the database
   (`decisions/2026-04-06-device-local-preferences-in-localstorage.md`).
-- `lib/stores.ts` — tiny Svelte stores; `session` in all three.
+- `lib/stores.ts` — tiny Svelte stores; `session` in all of them.
 - `lib/config.ts` — title, description, base URL and the app's build-time
   settings, all read from the injected `__NEXUS_CONFIG__` (below).
 
@@ -146,6 +147,14 @@ stylesheet, and the `@source "../../../../packages/ui/src"` line beside it —
 Tailwind does not scan `node_modules`, so without it the shared components ship
 unstyled.
 
+An app may add its **own** themes on top of the shared set: Abeona defines
+`abeona` and `abeona-dark` in its stylesheet and passes a `ThemeSet`
+(`{themes, autoLight, autoDark}`, from its `lib/themes.ts`) to the theme
+functions and `ThemePicker`, so "auto" resolves to its own pair. Without a set
+an app behaves as before. An app's own themes live only in its stylesheet and
+its `themes.ts`. Abeona's illustrations are inline SVGs (`?raw`) that read
+`--il-*` colours its stylesheet sets per theme, so they recolour with it.
+
 Icons are `lucide-svelte`. Charts are `chart.js` (Vibilia wraps it in
 `svelte-chartjs`; Noctua and Annona draw with their own components). Vibilia's
 map is Leaflet, loaded from the bundle. Annona's barcode scanner is
@@ -161,7 +170,7 @@ service worker is registered by an inline script in the layout, skipped on
 
 ### Build-time configuration (`config.yaml`)
 
-One file, one reader, three apps. `packages/config` (a workspace package, the
+One file, one reader, four apps. `packages/config` (a workspace package, the
 only thing that depends on `js-yaml`) parses `config.yaml` in Node at build
 time. Nothing else reads YAML, and no app touches the filesystem for config.
 
@@ -180,7 +189,7 @@ client-side Svelte — which matters, since `getBaseUrl()` is called from both.
 
 | Key | Consumed as |
 | :--- | :--- |
-| `<app>.title` / `.description` / `.base_url` | all three apps: titles, `base`, manifest, internal links |
+| `<app>.title` / `.description` / `.base_url` | every app: titles, `base`, manifest, internal links |
 | `noctua.article_fetch_limit` | Noctua layout → `data-article-fetch-limit` on `<html>` |
 | `noctua.statistics_weeks` | Noctua layout → `data-statistics-weeks` |
 | `vibilia.price_bucket_minutes` | props into `FuelPriceRoute` |
@@ -199,7 +208,7 @@ component-level detail, not a config one.
 
 ## Backend (Supabase)
 
-One project, one `public` schema, shared by all three apps
+One project, one `public` schema, shared by all four apps
 (`decisions/2026-02-10-single-supabase-project-shared-schema.md`).
 
 ### Table naming
@@ -225,10 +234,10 @@ A `rls_auto_enable()` event trigger turns RLS on for every new table in `public`
 automatically, so forgetting `ENABLE ROW LEVEL SECURITY` fails closed (no
 policies) rather than open.
 
-### Authorization: three different models, on purpose
+### Authorization: four different models, on purpose
 
 This is the single most important thing to understand before touching data
-access. All three apps share one user pool, but they scope data differently:
+access. All four apps share one user pool, but they scope data differently:
 
 | App | Model | Mechanism |
 | :--- | :--- | :--- |
@@ -298,7 +307,7 @@ Deno, in `supabase/functions/`, deployed manually. Two authentication styles:
 The first two use the service-role key and must never be reachable without the
 secret. The last two run as the caller and validate their own inputs (lat/lng
 bounds, radius 0.1–25 km, fuel type allow-list; barcode digits and length)
-because the requests come from a browser. `supabase/config.toml` declares all three: `verify_jwt = false` for the two
+because the requests come from a browser. `supabase/config.toml` declares them all: `verify_jwt = false` for the two
 guarded by a shared secret, `true` for the one called from a browser.
 
 ### Scheduling
@@ -321,7 +330,7 @@ and must exist in each environment or the job raises.
 ### Retention
 
 Nothing here grows without a bound, because the free tier is 500 MB for all
-three apps and two writers would otherwise eat it: the fuel price cron (~3,000
+the apps and two writers would otherwise eat it: the fuel price cron (~3,000
 rows a day) and `pg_net`, which logs the HTTP response of every scheduled call
 even though both invoke wrappers are fire-and-forget.
 
@@ -384,9 +393,10 @@ android/
                 (theme + session gate + sign-in), Loadable, formatting, components,
                 NexusChart, shared settings cards
   core/testing  FakeSupabase and ScreenshotRobot — test-only
-  noctua/ vibilia/ annona/   one module per app: data/ (rows, repository,
-                preferences), ui/ (one package per screen), plus what is the
-                app's own (Vibilia's tracking/, Annona's scan/ and reminders/)
+  noctua/ vibilia/ annona/ abeona/   one module per app: data/ (rows,
+                repository, preferences), ui/ (one package per screen), plus
+                what is the app's own (Vibilia's tracking/, Annona's scan/ and
+                reminders/, Abeona's domain/, live/ and widget/)
 ```
 
 The split mirrors the websites: `core/` is `packages/`, an app module is an
@@ -445,6 +455,27 @@ Things that differ from the web on purpose:
   goes to the `lookup-food-product` Edge Function as on the web. A daily
   **expiry reminder** (WorkManager, device-local and off by default) lists
   what expires within the chosen window.
+- **Abeona** — Trips (next trip hero, upcoming, a history card), Search,
+  Review (the year in review as a pager), Settings (household, travellers,
+  live companion). Trip detail has the timeline, MapLibre map, ticket wallet
+  (`PdfRenderer`, full brightness, keep-screen-on) and "Open DB Navigator"
+  (a launch intent for `de.hafas.android.db`, falling back to its store page;
+  declared in `<queries>`). The **offline trip pack** is a JSON file
+  (`files/offline/trips.json`) plus ticket copies in `files/tickets/<trip_id>/`;
+  screens fall back to it when the network fails and say "Offline · updated
+  HH:mm". The **live companion** (`live/`) is a `dataSync` foreground service
+  that refreshes the trip every two minutes and keeps an ongoing notification,
+  with alerts only for changes it sees after its first refresh. An optional,
+  device-local auto-start (off by default) schedules WorkManager jobs for 30
+  minutes before departure. Android 12+ may refuse a background start, so it
+  then posts a "tap to follow it live" notification instead; Android 15's
+  six-hour daily dataSync limit makes it stop itself. The **Next trip** Glance
+  widget keeps the last good trip without its route and computes delays and
+  confidence when it draws. Storage is reached with a plain Ktor client
+  (session token and anon key) because core's Supabase client has no Storage
+  plugin; it still lives only in `AbeonaRepository`. The rules shared with the
+  web (`domain/Transfer.kt`, `app/abeona/src/lib/transfer.ts`) round minutes
+  half up like `Math.round`, and must change together.
 
 The web shows what the phone records where it can, and hides what it cannot
 do: the drive-based fuel estimate and day-accurate monthly chart come from
@@ -507,6 +538,12 @@ on save:
 Both suites were checked by mutation: loosening the sections policy to
 `using (true)`, and making the statistics RPC ignore missed refuels, each make
 them fail.
+
+Abeona's shared rules also have a web test (`npm run test:abeona`, plain
+`node --test` on `.ts` files through Node 22's type stripping, so
+`transfer.ts` may only have `import type` imports) and `abeona.test.sql`
+(household scoping, the merge on invite, distances, statistics, the binding
+rule, ticket storage paths).
 
 Still absent: any linter or formatter, any type-checking inside `.svelte`
 components, any test of the components or the Edge Functions, and `test:db` in
