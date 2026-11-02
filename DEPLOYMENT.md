@@ -183,6 +183,36 @@ npm run db:push              # apply
 Migrations in `supabase/migrations/` are shared by every app — there is no
 per-app database release. Take a backup before pushing anything destructive.
 
+### Without the CLI: from the SQL editor, even on a phone
+
+When the CLI is not at hand (a phone, a cloud session), let the database fetch
+the migration itself. The repository is public and `pg_net` is already
+enabled for the scheduled jobs, so two short statements do it, whatever the
+migration's size. Pin the URL to a **commit**, never a branch, so the file
+cannot change between review and run.
+
+1. Download the file. `pg_net` is asynchronous: the answer lands in
+   `net._http_response` a few seconds later.
+
+   ```sql
+   select net.http_get('https://raw.githubusercontent.com/numynox/nexus/<commit>/supabase/migrations/<version>_<name>.sql');
+   ```
+
+2. Run it, and record it in the CLI's history so `npm run db:push` later sees
+   it as applied. One `do` block is one transaction: if any statement fails,
+   nothing is applied. Match on the migration's first line, so a scheduled
+   job's response can never be picked by mistake.
+
+   ```sql
+   do $$begin execute(select content from net._http_response where content like '<first line of the file>%' order by id desc limit 1);insert into supabase_migrations.schema_migrations(version,name)values('<version>','<name>');end$$;
+   ```
+
+"query string argument of EXECUTE is null" means the download has not arrived
+yet: wait and run step 2 again. `run_nexus_maintenance()` prunes
+`net._http_response` after a day, so nothing needs cleaning up. First used for
+`20261102120000_abeona_foundation`, after the MCP tool's confirmation prompt
+timed out.
+
 ## Edge Function deploy (manual)
 
 ```bash
