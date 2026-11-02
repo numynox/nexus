@@ -13,8 +13,8 @@ a native Android client.
 
 The full feasibility review, with every feature graded feasible, risky,
 deferred or impossible, is in the two GitHub issues that carry the remaining
-work ("Abeona: ticket intake, BahnCards and the live travel day" and
-"Abeona: after the ride, history and polish"). Keep it there, not here.
+work: #37 ("Abeona: ticket intake, BahnCards and the live travel day") and
+#38 ("Abeona: after the ride, history and polish"). Keep it there, not here.
 
 Trips are rarely made alone, and the app's user travels with family. Three
 scoping models were weighed: per user (like Noctua), per-object sharing (like
@@ -55,7 +55,7 @@ Vibilia's cars) and a shared household (like Annona, but bounded).
   Server push (pg_cron plus FCM or Web Push) is deferred.
 - Delays in the statistics are only as good as the last refresh. A trip
   nobody opened on the day keeps its planned times. Freezing actuals with a
-  scheduled final snapshot is the next step (issue B).
+  scheduled final snapshot is the next step (#38).
 - The household is the unit of trust. There is no per-trip privacy inside a
   household.
 - Distances are measured in SQL from the saved, thinned route line, or 1.1 ×
