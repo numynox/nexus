@@ -925,3 +925,99 @@ export function assumedDriveKm(hours: number): number {
           : 100;
   return speed * hours;
 }
+
+/**
+ * One person's commute in one car (vibilia_commutes). Times are local
+ * "HH:MM" in Europe/Berlin; weekdays are ISO, Monday = 1. Private to its
+ * owner by RLS. The Android app announces the arrival time from it; the web
+ * edits it and shows the expected travel time.
+ */
+export interface VibiliaCommute {
+  car_id: string;
+  weekdays: number[];
+  to_work_from: string;
+  to_work_until: string;
+  to_home_from: string;
+  to_home_until: string;
+  home_lat: number;
+  home_lng: number;
+  home_radius_m: number;
+  work_lat: number;
+  work_lng: number;
+  work_radius_m: number;
+}
+
+export type CommuteDirection = "to_work" | "to_home";
+
+export interface CommuteExpectation {
+  direction: CommuteDirection;
+  /** Null until a drive of yours started inside the window. */
+  medianSeconds: number | null;
+  sampleCount: number;
+}
+
+/** "07:30:00" from Postgres → "07:30", which <input type="time"> expects. */
+function toHourMinute(value: unknown): string {
+  return String(value ?? "").slice(0, 5);
+}
+
+/** The caller's commutes, one per car at most. Empty before the table exists. */
+export async function fetchCommutes(): Promise<VibiliaCommute[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("vibilia_commutes")
+    .select(
+      "car_id, weekdays, to_work_from, to_work_until, to_home_from, to_home_until, home_lat, home_lng, home_radius_m, work_lat, work_lng, work_radius_m",
+    );
+
+  if (error) return [];
+  return (data || []).map((row: any) => ({
+    ...row,
+    weekdays: (row.weekdays || []).map(Number),
+    to_work_from: toHourMinute(row.to_work_from),
+    to_work_until: toHourMinute(row.to_work_until),
+    to_home_from: toHourMinute(row.to_home_from),
+    to_home_until: toHourMinute(row.to_home_until),
+  }));
+}
+
+export async function saveCommute(commute: VibiliaCommute): Promise<void> {
+  const supabase = getSupabaseClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const { error } = await supabase
+    .from("vibilia_commutes")
+    .upsert(
+      { ...commute, user_id: session?.user?.id },
+      { onConflict: "user_id,car_id" },
+    );
+  if (error) throw error;
+}
+
+export async function deleteCommute(carId: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from("vibilia_commutes")
+    .delete()
+    .eq("car_id", carId);
+  if (error) throw error;
+}
+
+/** Median travel time each way, from your own drives in the car. */
+export async function fetchCommuteExpectation(
+  carId: string,
+): Promise<CommuteExpectation[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc(
+    "get_vibilia_commute_expectation",
+    { p_car_id: carId },
+  );
+
+  if (error) return [];
+  return (data || []).map((row: any) => ({
+    direction: row.direction,
+    medianSeconds: finiteOrNull(row.median_seconds),
+    sampleCount: Number(row.sample_count) || 0,
+  }));
+}
