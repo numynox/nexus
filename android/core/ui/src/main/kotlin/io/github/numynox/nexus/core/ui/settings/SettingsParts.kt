@@ -33,8 +33,8 @@ import io.github.numynox.nexus.core.ui.components.ConnectedChoiceRow
 import io.github.numynox.nexus.core.ui.components.NexusCard
 import io.github.numynox.nexus.core.ui.theme.ThemeMode
 
-/** The three Nexus apps, for "the same account signs you in to …". */
-private val NexusApps = listOf("Noctua", "Vibilia", "Annona")
+/** The Nexus apps, for "the same account signs you in to …". */
+private val NexusApps = listOf("Noctua", "Vibilia", "Annona", "Abeona")
 
 /** A small icon and a title, heading a group of controls inside a card. */
 @Composable
