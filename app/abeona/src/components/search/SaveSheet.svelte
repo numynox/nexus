@@ -1,0 +1,176 @@
+<script lang="ts">
+  import { X } from "lucide-svelte";
+  import { describeError, saveTrip, type FareTypeValue } from "../../lib/data";
+  import { FARE_TYPES, formatDuration, formatLongDate, formatTime } from "../../lib/format";
+  import { summarise } from "../../lib/journey";
+  import type { Journey } from "../../lib/transit";
+  import LegChip from "../common/LegChip.svelte";
+
+  interface Props {
+    journey: Journey | null;
+    onClose: () => void;
+    onSaved: (tripId: string) => void;
+  }
+
+  let { journey, onClose, onSaved }: Props = $props();
+
+  let dialog: HTMLDialogElement | undefined = $state();
+  let title = $state("");
+  let fareType = $state<FareTypeValue>("saver");
+  let trainBinding = $state(true);
+  let bindingTouched = $state(false);
+  let travelClass = $state<1 | 2>(2);
+  let price = $state("");
+  let saving = $state(false);
+  let error = $state("");
+
+  const s = $derived(journey ? summarise(journey.legs) : null);
+
+  $effect(() => {
+    if (!dialog) return;
+    if (journey && !dialog.open) {
+      error = "";
+      dialog.showModal();
+    } else if (!journey && dialog.open) {
+      dialog.close();
+    }
+  });
+
+  function chooseFare(value: FareTypeValue) {
+    fareType = value;
+    // Saver fares are bound to their train; others are not, unless said so.
+    if (!bindingTouched) trainBinding = value === "saver";
+  }
+
+  function parsePrice(raw: string): number | null | "invalid" {
+    const cleaned = raw.trim().replace(/€/g, "").replace(/\s/g, "");
+    if (cleaned === "") return null;
+    const normalised = cleaned.includes(",") ? cleaned.replace(/\./g, "").replace(",", ".") : cleaned;
+    const value = Number(normalised);
+    if (!Number.isFinite(value) || value < 0) return "invalid";
+    return Math.round(value * 100);
+  }
+
+  async function save(event: Event) {
+    event.preventDefault();
+    if (!journey || saving) return;
+    const cents = parsePrice(price);
+    if (cents === "invalid") {
+      error = "Enter the price as a number, e.g. 29.90.";
+      return;
+    }
+    saving = true;
+    error = "";
+    try {
+      const id = await saveTrip(journey, {
+        title,
+        fare_type: fareType,
+        train_binding: trainBinding,
+        travel_class: travelClass,
+        price_cents: cents,
+      });
+      onSaved(id);
+    } catch (e) {
+      error = describeError(e);
+      saving = false;
+    }
+  }
+</script>
+
+<dialog bind:this={dialog} class="modal modal-bottom sm:modal-middle" onclose={onClose}>
+  {#if journey && s}
+    <form class="modal-box max-w-lg rounded-t-[2rem] bg-base-100 p-0 sm:rounded-[2rem]" onsubmit={save}>
+      <div class="bg-mint px-6 pt-6 pb-5">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-primary">{formatLongDate(s.departure.planned)}</p>
+            <h2 class="mt-1 text-xl font-semibold text-ink">{s.departure.name} → {s.arrival.name}</h2>
+          </div>
+          <button type="button" class="btn btn-circle btn-ghost btn-sm" aria-label="Close" onclick={() => dialog?.close()}>
+            <X class="h-4 w-4" />
+          </button>
+        </div>
+        <p class="tabular mt-2 text-sm text-base-content/70">
+          {formatTime(s.departure.planned)} – {formatTime(s.arrival.planned)} · {formatDuration(s.plannedMinutes)} ·
+          {s.changes === 0 ? "direct" : s.changes === 1 ? "1 change" : `${s.changes} changes`}
+        </p>
+        <div class="mt-3 flex flex-wrap gap-1.5">
+          {#each s.rides as ride, i (i)}<LegChip leg={ride} />{/each}
+        </div>
+      </div>
+
+      <div class="space-y-5 px-6 py-6">
+        <label class="block">
+          <span class="block px-1 pb-1 text-xs font-semibold uppercase tracking-wider text-base-content/55">Title <span class="normal-case font-normal tracking-normal">(optional)</span></span>
+          <input class="input w-full rounded-2xl bg-card" placeholder="e.g. Weekend in Berlin" bind:value={title} maxlength="80" />
+        </label>
+
+        <fieldset>
+          <legend class="px-1 pb-2 text-xs font-semibold uppercase tracking-wider text-base-content/55">Ticket</legend>
+          <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {#each FARE_TYPES as fare (fare.value)}
+              <button
+                type="button"
+                class="rounded-2xl border px-3 py-2.5 text-sm font-medium transition
+                  {fareType === fare.value ? 'border-primary bg-mint text-primary' : 'border-base-300 bg-card hover:border-base-content/30'}"
+                aria-pressed={fareType === fare.value}
+                onclick={() => chooseFare(fare.value)}
+              >
+                {fare.label}
+              </button>
+            {/each}
+          </div>
+        </fieldset>
+
+        <label class="flex cursor-pointer items-start gap-3 rounded-2xl bg-card p-4">
+          <input
+            type="checkbox"
+            class="toggle toggle-primary mt-0.5"
+            bind:checked={trainBinding}
+            onchange={() => (bindingTouched = true)}
+          />
+          <span>
+            <span class="block font-medium">Bound to these trains</span>
+            <span class="block text-sm text-base-content/60">Abeona tells you when a delay of 20 minutes or more lifts the binding.</span>
+          </span>
+        </label>
+
+        <div class="grid grid-cols-2 gap-4">
+          <fieldset>
+            <legend class="px-1 pb-1 text-xs font-semibold uppercase tracking-wider text-base-content/55">Class</legend>
+            <div class="join w-full">
+              {#each [1, 2] as const as c (c)}
+                <button
+                  type="button"
+                  class="btn join-item flex-1 {travelClass === c ? 'btn-primary' : 'bg-card'}"
+                  aria-pressed={travelClass === c}
+                  onclick={() => (travelClass = c)}
+                >{c === 1 ? "1st" : "2nd"}</button>
+              {/each}
+            </div>
+          </fieldset>
+          <label class="block">
+            <span class="block px-1 pb-1 text-xs font-semibold uppercase tracking-wider text-base-content/55">Price <span class="normal-case font-normal tracking-normal">(optional)</span></span>
+            <span class="input w-full rounded-2xl bg-card">
+              <span class="text-base-content/50">€</span>
+              <input inputmode="decimal" placeholder="0.00" bind:value={price} class="tabular" />
+            </span>
+          </label>
+        </div>
+
+        {#if error}
+          <p class="rounded-2xl bg-error/10 px-4 py-3 text-sm text-error" role="alert">{error}</p>
+        {/if}
+      </div>
+
+      <div class="flex gap-3 px-6 pb-6">
+        <button type="button" class="btn btn-ghost flex-1 rounded-full" onclick={() => dialog?.close()}>Cancel</button>
+        <button type="submit" class="btn btn-primary flex-[2] rounded-full" disabled={saving}>
+          {#if saving}<span class="loading loading-spinner loading-sm"></span>{/if}
+          Save trip
+        </button>
+      </div>
+    </form>
+  {/if}
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>

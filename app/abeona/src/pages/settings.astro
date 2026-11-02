@@ -1,0 +1,8 @@
+---
+import SettingsRoute from "../components/routes/SettingsRoute.svelte";
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Settings">
+  <SettingsRoute client:only="svelte" />
+</Layout>

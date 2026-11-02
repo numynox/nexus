@@ -1,0 +1,8 @@
+---
+import ReviewRoute from "../components/routes/ReviewRoute.svelte";
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Year in review">
+  <ReviewRoute client:only="svelte" />
+</Layout>

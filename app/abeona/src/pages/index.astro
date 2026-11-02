@@ -1,0 +1,8 @@
+---
+import HomeRoute from "../components/routes/HomeRoute.svelte";
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Trips">
+  <HomeRoute client:only="svelte" />
+</Layout>

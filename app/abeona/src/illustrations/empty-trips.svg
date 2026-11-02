@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 220" role="img" aria-label="A train crossing gentle hills">
+  <defs>
+    <clipPath id="abeona-empty-clip"><rect x="0" y="0" width="360" height="220" rx="28"/></clipPath>
+  </defs>
+  <g clip-path="url(#abeona-empty-clip)">
+    <rect width="360" height="220" fill="var(--il-sky, #CFE6F2)"/>
+    <!-- sun -->
+    <circle cx="276" cy="58" r="26" fill="var(--il-amber, #F2B84B)"/>
+    <circle cx="276" cy="58" r="38" fill="var(--il-amber, #F2B84B)" opacity="0.18"/>
+    <!-- clouds -->
+    <g fill="var(--il-white, #FFFFFF)">
+      <path d="M58 64 h52 a12 12 0 0 0 -12 -14 a17 17 0 0 0 -30 2 a11 11 0 0 0 -10 12 z"/>
+      <path d="M176 40 h40 a9 9 0 0 0 -9 -10 a13 13 0 0 0 -23 2 a8 8 0 0 0 -8 8 z" opacity="0.85"/>
+    </g>
+    <!-- far hills -->
+    <path d="M0 132 C50 98 96 96 150 118 C196 136 236 104 280 100 C316 97 340 108 360 118 V220 H0 Z" fill="var(--il-hill, #9CC8B5)"/>
+    <!-- near hill -->
+    <path d="M0 168 C50 156 90 158 180 158 C260 158 310 150 360 140 V220 H0 Z" fill="var(--il-green, #1F6F5C)"/>
+    <!-- trees on far hill -->
+    <g>
+      <rect x="61" y="104" width="3" height="12" fill="var(--il-ink, #12313A)" opacity="0.6"/>
+      <circle cx="62.5" cy="100" r="9" fill="var(--il-green, #1F6F5C)"/>
+      <rect x="83" y="108" width="3" height="10" fill="var(--il-ink, #12313A)" opacity="0.6"/>
+      <circle cx="84.5" cy="104" r="7" fill="var(--il-green, #1F6F5C)" opacity="0.85"/>
+      <rect x="301" y="100" width="3" height="12" fill="var(--il-ink, #12313A)" opacity="0.6"/>
+      <circle cx="302.5" cy="96" r="8" fill="var(--il-green, #1F6F5C)"/>
+    </g>
+    <!-- track along the near hill -->
+    <path d="M-10 172 C50 160 90 162 180 162 C260 162 310 154 370 144" fill="none" stroke="var(--il-rail, #12313A)" stroke-width="3" stroke-linecap="round"/>
+    <!-- train riding the track -->
+    <g transform="translate(108 118)">
+      <path d="M6 6 H88 C104 6 116 14 122 26 L124 32 C125 36 122 40 118 40 H6 C3 40 0 37 0 34 V12 C0 9 3 6 6 6 Z" fill="var(--il-white, #FFFFFF)"/>
+      <path d="M0 26 H120 L122 30 L124 32 C125 36 122 40 118 40 H6 C3 40 0 37 0 34 Z" fill="var(--il-amber, #F2B84B)"/>
+      <path d="M0 29 H121 L123 32 C124 36 121 40 117 40 H6 C3 40 0 37 0 34 Z" fill="var(--il-ink, #12313A)"/>
+      <rect x="6" y="12" width="78" height="9" rx="3" fill="var(--il-ink, #12313A)"/>
+      <g fill="var(--il-sky, #CFE6F2)" opacity="0.9">
+        <rect x="9" y="14" width="13" height="5" rx="2"/><rect x="25" y="14" width="13" height="5" rx="2"/>
+        <rect x="47" y="14" width="13" height="5" rx="2"/><rect x="63" y="14" width="13" height="5" rx="2"/>
+      </g>
+      <path d="M92 12 H98 C106 13 112 17 116 22 H94 C93 22 92 21 92 20 Z" fill="var(--il-ink, #12313A)"/>
+      <circle cx="119" cy="34" r="1.8" fill="var(--il-amber, #F2B84B)"/>
+      <g fill="var(--il-rail, #12313A)"><circle cx="20" cy="41" r="3"/><circle cx="32" cy="41" r="3"/><circle cx="92" cy="41" r="3"/><circle cx="104" cy="41" r="3"/></g>
+    </g>
+    <!-- foreground meadow -->
+    <path d="M0 196 C80 182 170 186 250 194 C300 199 330 196 360 190 V220 H0 Z" fill="var(--il-mint, #E8F3EE)" opacity="0.9"/>
+    <g fill="var(--il-amber, #F2B84B)">
+      <circle cx="44" cy="200" r="2.5"/><circle cx="58" cy="204" r="2"/><circle cx="292" cy="202" r="2.5"/><circle cx="306" cy="206" r="2"/>
+    </g>
+  </g>
+</svg>
