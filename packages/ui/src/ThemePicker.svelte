@@ -1,16 +1,22 @@
 <script>
-  import { AUTO, THEMES } from "./theme.js";
+  import { AUTO, AUTO_DARK_THEME, AUTO_LIGHT_THEME, THEMES } from "./theme.js";
 
   /**
    * @typedef {Object} Props
    * @property {string} current - the stored preference ("auto" or a theme name)
    * @property {(theme: string) => void} onSelect
+   * @property {import("./theme.js").ThemeSet} [set] - the app's own theme set, if it has one
    */
 
   /** @type {Props} */
-  let { current, onSelect } = $props();
+  let { current, onSelect, set } = $props();
 
-  const options = [{ name: AUTO, label: "Auto", dark: true }, ...THEMES];
+  const options = $derived([
+    { name: AUTO, label: "Auto", dark: true },
+    ...(set?.themes ?? THEMES),
+  ]);
+  const autoLight = $derived(set?.autoLight ?? AUTO_LIGHT_THEME);
+  const autoDark = $derived(set?.autoDark ?? AUTO_DARK_THEME);
 </script>
 
 <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -29,13 +35,13 @@
         <!-- Half light, half dark: what "follow the system" actually means -->
         <div class="flex h-14 w-full">
           <div
-            data-theme="lofi"
+            data-theme={autoLight}
             class="flex flex-1 items-center justify-center bg-base-100"
           >
             <span class="h-5 w-5 rounded-full bg-primary"></span>
           </div>
           <div
-            data-theme="dark"
+            data-theme={autoDark}
             class="flex flex-1 items-center justify-center bg-base-100"
           >
             <span class="h-5 w-5 rounded-full bg-primary"></span>
