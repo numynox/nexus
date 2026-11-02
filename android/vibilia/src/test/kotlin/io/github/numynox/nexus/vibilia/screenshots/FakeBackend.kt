@@ -84,6 +84,7 @@ object FakeBackend {
             put("to_home_from", "16:00:00"); put("to_home_until", "19:00:00")
             put("home_lat", 49.5897); put("home_lng", 11.0040); put("home_radius_m", 300)
             put("work_lat", 49.5730); put("work_lng", 11.0270); put("work_radius_m", 400)
+            put("sms_name", "Alex"); put("sms_number", "+491701234567"); put("sms_to_home", true); put("sms_to_work", false)
         }
     }
 

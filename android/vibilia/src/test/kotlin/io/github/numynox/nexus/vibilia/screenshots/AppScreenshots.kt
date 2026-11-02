@@ -133,9 +133,12 @@ class AppScreenshots {
         waitFor(hasText("Commute · Golf"))
         waitFor(hasText("About 32 min · median of 8 drives"))
         shot("12b-commute")
-        compose.onAllNodes(hasScrollToNodeAction()).onFirst().performScrollToNode(hasText("Remove commute"))
+        compose.onAllNodes(hasScrollToNodeAction()).onFirst().performScrollToNode(hasText("Work"))
         settle()
         shot("12c-commute-places")
+        compose.onAllNodes(hasScrollToNodeAction()).onFirst().performScrollToNode(hasText("Pick a contact"))
+        settle()
+        shot("12c2-commute-sms")
         back()
 
         scrollTo("Remind me to refuel")

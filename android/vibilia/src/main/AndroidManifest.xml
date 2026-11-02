@@ -17,11 +17,15 @@
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- Texting one contact the arrival time. Asked for only when a commute
+         turns it on; sideloaded, so Play's SMS policy does not apply. -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
     <!-- The daily reminder when a tank runs low. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
     <uses-feature android:name="android.hardware.location" android:required="false" />
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
     <application
         android:name=".VibiliaApplication"

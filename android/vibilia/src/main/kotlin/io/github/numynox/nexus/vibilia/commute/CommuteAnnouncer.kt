@@ -20,6 +20,7 @@ import android.os.Bundle
 import android.os.IBinder
 import android.os.Looper
 import android.speech.tts.TextToSpeech
+import android.telephony.SmsManager
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -51,7 +52,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 /**
  * "Die Ankunftszeit auf der Arbeit ist 7:45 Uhr. Gute Fahrt." — spoken through
  * the car when this phone connects to it inside a commute window, near where
- * that trip starts (decisions/2026-11-02-commute-arrival-announcement.md).
+ * that trip starts, and texted to one contact if the commute says so for that
+ * way (decisions/2026-11-02-commute-arrival-announcement.md).
  *
  * The receiver only decides whether a connection is worth a look ([shouldListen]);
  * the minute of listening for the position and the speech run in
@@ -74,6 +76,11 @@ object CommuteAnnouncer {
         ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
     }
 
+    /** Texting is per phone: only a phone that was allowed to send SMS does it. */
+    fun canSendSms(context: Context): Boolean =
+        context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_MESSAGING) &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED
+
     /** Your commutes and their travel times, into the cache a connection reads. */
     suspend fun refresh(repository: CommuteRepository, preferences: VibiliaPreferences) {
         val commutes = runCatching { repository.commutes() }.getOrElse { return }
@@ -86,9 +93,11 @@ object CommuteAnnouncer {
 
     /** Whether a connection to [carId] at [now] could be a commute this phone should announce. */
     suspend fun shouldListen(context: Context, preferences: VibiliaPreferences, carId: String, now: Instant): Boolean {
-        if (!preferences.current().announceCommute || !hasPermissions(context)) return false
+        if (!hasPermissions(context)) return false
         val commute = preferences.cachedCommutes().firstOrNull { it.carId == carId } ?: return false
         val direction = CommutePlan.directionAt(commute, now) ?: return false
+        val texting = CommutePlan.smsNumber(commute, direction) != null && canSendSms(context)
+        if (!preferences.current().announceCommute && !texting) return false
         return preferences.commuteAnnounced() != CommutePlan.announcedKey(carId, direction, now)
     }
 
@@ -155,9 +164,28 @@ class CommuteAnnouncementService : Service() {
         val expectations: List<CommuteExpectation> = fresh.await()
             ?: preferences.cachedCommuteExpectations().filter { it.carId == carId }
         val seconds = CommutePlan.expectedSeconds(expectations, direction) ?: return
-        val text = CommutePlan.announcement(direction, connectedAt.plusSeconds(seconds.toLong()))
-        if (speak(text)) preferences.setCommuteAnnounced(CommutePlan.announcedKey(carId, direction, connectedAt))
+        val arrival = connectedAt.plusSeconds(seconds.toLong())
+        // Text first: it does not wait for the speech, and a failed speech must not cost the text.
+        val texted = CommutePlan.smsNumber(commute, direction)
+            ?.takeIf { CommuteAnnouncer.canSendSms(this) }
+            ?.let { number -> sendSms(number, CommutePlan.smsText(direction, arrival)) } == true
+        val spoken = preferences.current().announceCommute &&
+            speak(CommutePlan.announcement(direction, arrival))
+        if (texted || spoken) preferences.setCommuteAnnounced(CommutePlan.announcedKey(carId, direction, connectedAt))
     }
+
+    /** Hands the text to the phone's SMS stack; true once it was accepted. */
+    @SuppressLint("MissingPermission")
+    private fun sendSms(number: String, text: String): Boolean = runCatching {
+        val manager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            getSystemService(SmsManager::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            SmsManager.getDefault()
+        } ?: error("No SMS on this phone")
+        manager.sendTextMessage(number, null, text, null, null)
+        true
+    }.onFailure { Log.w("CommuteAnnouncer", "Could not send the text", it) }.getOrDefault(false)
 
     /** Every position the phone reports until [until], plus a recent last-known one. */
     @SuppressLint("MissingPermission")

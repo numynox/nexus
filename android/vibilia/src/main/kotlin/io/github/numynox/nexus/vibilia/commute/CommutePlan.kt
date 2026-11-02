@@ -75,6 +75,35 @@ object CommutePlan {
         return "Die Ankunftszeit $where ist $time Uhr. Gute Fahrt."
     }
 
+    /** The number to text on this way, or null when this way texts nobody. */
+    fun smsNumber(commute: Commute, direction: CommuteDirection): String? {
+        val wanted = when (direction) {
+            CommuteDirection.ToWork -> commute.smsToWork
+            CommuteDirection.ToHome -> commute.smsToHome
+        }
+        return commute.smsNumber?.takeIf { wanted && it.isNotBlank() }
+    }
+
+    /** "Bin losgefahren. Ankunft daheim ca. 17:45 Uhr." — sent from your own number, so first person. */
+    fun smsText(direction: CommuteDirection, arrival: Instant, zone: ZoneId = ZoneId.systemDefault()): String {
+        val where = when (direction) {
+            CommuteDirection.ToWork -> "auf der Arbeit"
+            CommuteDirection.ToHome -> "daheim"
+        }
+        return "Bin losgefahren. Ankunft $where ca. ${SpokenTime.format(arrival.atZone(zone))} Uhr."
+    }
+
+    /**
+     * "+49 170 123-4567" → "+491701234567": digits and a leading plus, as the
+     * table stores it. Null when that leaves no plausible number.
+     */
+    fun normalizeNumber(raw: String): String? {
+        val trimmed = raw.trim()
+        val digits = trimmed.filter(Char::isDigit)
+        val number = (if (trimmed.startsWith("+")) "+" else "") + digits
+        return number.takeIf { digits.length in 3..20 }
+    }
+
     /** One announcement per car, direction and day, however often the head unit reconnects. */
     fun announcedKey(carId: String, direction: CommuteDirection, at: Instant, zone: ZoneId = Zone): String =
         "$carId|${direction.key}|${at.atZone(zone).toLocalDate()}"

@@ -74,6 +74,26 @@ class CommutePlanTest {
     }
 
     @Test
+    fun `texting goes to the one number, only on the chosen way`() {
+        val texting = commute.copy(smsNumber = "+491701234567", smsToHome = true)
+        assertEquals("+491701234567", CommutePlan.smsNumber(texting, CommuteDirection.ToHome))
+        assertNull(CommutePlan.smsNumber(texting, CommuteDirection.ToWork))
+        assertNull(CommutePlan.smsNumber(commute.copy(smsToHome = true), CommuteDirection.ToHome))
+        assertEquals(
+            "Bin losgefahren. Ankunft daheim ca. 17:45 Uhr.",
+            CommutePlan.smsText(CommuteDirection.ToHome, berlin("2026-11-02T17:45"), berlin),
+        )
+    }
+
+    @Test
+    fun `numbers are kept as digits and a leading plus`() {
+        assertEquals("+491701234567", CommutePlan.normalizeNumber(" +49 170 123-4567 "))
+        assertEquals("01701234567", CommutePlan.normalizeNumber("0170 / 123 45 67"))
+        assertNull(CommutePlan.normalizeNumber("12"))
+        assertNull(CommutePlan.normalizeNumber("call me"))
+    }
+
+    @Test
     fun `one announcement per car, direction and day`() {
         val morning = CommutePlan.announcedKey("car", CommuteDirection.ToWork, berlin("2026-11-02T07:00"))
         assertEquals(morning, CommutePlan.announcedKey("car", CommuteDirection.ToWork, berlin("2026-11-02T08:30")))

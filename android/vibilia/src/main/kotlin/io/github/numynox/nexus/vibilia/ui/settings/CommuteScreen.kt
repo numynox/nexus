@@ -20,6 +20,21 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Surface
+import android.Manifest
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.provider.ContactsContract
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContract
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.rounded.Contacts
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import io.github.numynox.nexus.core.ui.settings.SettingSwitch
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.selection.toggleable
@@ -113,6 +128,10 @@ class CommuteViewModel(private val container: AppContainer, private val carId: S
     var workLat by mutableStateOf("")
     var workLng by mutableStateOf("")
     var workRadius by mutableIntStateOf(300)
+    var smsName by mutableStateOf("")
+    var smsNumber by mutableStateOf("")
+    var smsToWork by mutableStateOf(false)
+    var smsToHome by mutableStateOf(false)
 
     var saving by mutableStateOf(false)
         private set
@@ -144,6 +163,10 @@ class CommuteViewModel(private val container: AppContainer, private val carId: S
         workLat = commute.workLat.toString()
         workLng = commute.workLng.toString()
         workRadius = commute.workRadiusM
+        smsName = commute.smsName.orEmpty()
+        smsNumber = commute.smsNumber.orEmpty()
+        smsToWork = commute.smsToWork
+        smsToHome = commute.smsToHome
     }
 
     private suspend fun loadExpectations() {
@@ -169,6 +192,12 @@ class CommuteViewModel(private val container: AppContainer, private val carId: S
         }
     }
 
+    /** A contact picked from the phone's address book. */
+    fun setContact(name: String?, number: String) {
+        smsName = name.orEmpty()
+        smsNumber = CommutePlan.normalizeNumber(number) ?: number
+    }
+
     fun travelText(direction: CommuteDirection): String {
         val expectation = expectations.firstOrNull { it.direction == direction.key }
         val seconds = expectation?.medianSeconds ?: return "No drive of yours in this window yet."
@@ -188,6 +217,8 @@ class CommuteViewModel(private val container: AppContainer, private val carId: S
             !toHomeFrom.isBefore(toHomeUntil) -> "The way home must end after it starts."
             hLat == null || hLng == null || hLat !in -90.0..90.0 || hLng !in -180.0..180.0 -> "Set where home is."
             wLat == null || wLng == null || wLat !in -90.0..90.0 || wLng !in -180.0..180.0 -> "Set where work is."
+            smsNumber.isNotBlank() && CommutePlan.normalizeNumber(smsNumber) == null -> "That phone number does not look right."
+            (smsToWork || smsToHome) && smsNumber.isBlank() -> "Pick whom to text, or turn texting off."
             else -> null
         }
         if (error != null) return null
@@ -204,6 +235,10 @@ class CommuteViewModel(private val container: AppContainer, private val carId: S
             workLat = wLat!!,
             workLng = wLng!!,
             workRadiusM = workRadius,
+            smsName = smsName.trim().take(100).ifEmpty { null }?.takeIf { smsNumber.isNotBlank() },
+            smsNumber = smsNumber.takeIf { it.isNotBlank() }?.let(CommutePlan::normalizeNumber),
+            smsToWork = smsToWork,
+            smsToHome = smsToHome,
         )
     }
 
@@ -237,6 +272,42 @@ fun CommuteScreen(app: AppViewModel, carId: String, onBack: () -> Unit) {
     val cars by app.cars.collectAsStateWithLifecycle()
     val carName = cars.valueOrNull?.firstOrNull { it.id == carId }?.name
     var confirmDelete by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    // Picking one phone number grants read access to that row only, so the
+    // app never needs the whole address book.
+    val pickContact = rememberLauncherForActivityResult(PickPhoneNumber()) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.query(
+                uri,
+                arrayOf(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, ContactsContract.CommonDataKinds.Phone.NUMBER),
+                null, null, null,
+            )?.use { cursor -> if (cursor.moveToFirst()) viewModel.setContact(cursor.getString(0), cursor.getString(1).orEmpty()) }
+        }
+    }
+    // Texting needs SMS, and — like the spoken announcement — the position
+    // from the background when the car connects.
+    val backgroundLocation = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    val smsPermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        if (!CommuteAnnouncer.hasPermissions(context) &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        ) {
+            backgroundLocation.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        }
+    }
+    fun askForTexting() {
+        val missing = buildList {
+            add(Manifest.permission.SEND_SMS)
+            add(Manifest.permission.ACCESS_FINE_LOCATION)
+            add(Manifest.permission.ACCESS_COARSE_LOCATION)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) add(Manifest.permission.BLUETOOTH_CONNECT)
+        }.filter { ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED }
+        when {
+            missing.isNotEmpty() -> smsPermissions.launch(missing.toTypedArray())
+            !CommuteAnnouncer.hasPermissions(context) -> backgroundLocation.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -330,6 +401,18 @@ fun CommuteScreen(app: AppViewModel, carId: String, onBack: () -> Unit) {
                     onHere = { viewModel.useHere(home = false) },
                 )
             }
+            item {
+                SmsCard(
+                    viewModel = viewModel,
+                    canSend = CommuteAnnouncer.canSendSms(context),
+                    onPick = { pickContact.launch(Unit) },
+                    onToggle = { toWork, on ->
+                        if (toWork) viewModel.smsToWork = on else viewModel.smsToHome = on
+                        if (on) askForTexting()
+                    },
+                    onAllow = { askForTexting() },
+                )
+            }
             item { FormError(viewModel.error) }
             if (viewModel.exists) {
                 item {
@@ -357,6 +440,76 @@ fun CommuteScreen(app: AppViewModel, carId: String, onBack: () -> Unit) {
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
         )
     }
+}
+
+/** One contact, texted the arrival time on the chosen ways — usually only the way home. */
+@Composable
+private fun SmsCard(
+    viewModel: CommuteViewModel,
+    canSend: Boolean,
+    onPick: () -> Unit,
+    onToggle: (toWork: Boolean, on: Boolean) -> Unit,
+    onAllow: () -> Unit,
+) {
+    NexusCard {
+        SectionHeader("Text someone", supporting = "This phone texts the arrival time from your number, e.g. \"Bin losgefahren. Ankunft daheim ca. 17:45 Uhr.\"")
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedTextField(
+                value = viewModel.smsName,
+                onValueChange = { viewModel.smsName = it },
+                label = { Text("Name") },
+                singleLine = true,
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.weight(1f),
+            )
+            OutlinedTextField(
+                value = viewModel.smsNumber,
+                onValueChange = { next -> viewModel.smsNumber = next.filter { it.isDigit() || it in "+ -/()" } },
+                label = { Text("Phone number") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        FilledTonalButton(onClick = onPick, modifier = Modifier.padding(top = 8.dp)) {
+            Icon(Icons.Rounded.Contacts, contentDescription = null, modifier = Modifier.size(18.dp))
+            Text("Pick a contact", modifier = Modifier.padding(start = 8.dp))
+        }
+        Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SettingSwitch(
+                title = "On the way home",
+                description = "When you leave work.",
+                checked = viewModel.smsToHome,
+                onCheckedChange = { onToggle(false, it) },
+            )
+            SettingSwitch(
+                title = "On the way to work",
+                description = "When you leave home.",
+                checked = viewModel.smsToWork,
+                onCheckedChange = { onToggle(true, it) },
+            )
+        }
+        if ((viewModel.smsToWork || viewModel.smsToHome) && !canSend) {
+            Text(
+                "This phone may not send SMS yet. If Android refuses, allow \"restricted settings\" " +
+                    "in Vibilia's app info first — it asks that of sideloaded apps.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            TextButton(onClick = onAllow) { Text("Allow texting") }
+        }
+    }
+}
+
+/** ACTION_PICK on phone numbers: the result grants access to the one row picked. */
+private class PickPhoneNumber : ActivityResultContract<Unit, Uri?>() {
+    override fun createIntent(context: Context, input: Unit): Intent =
+        Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI)
+
+    override fun parseResult(resultCode: Int, intent: Intent?): Uri? =
+        intent?.data?.takeIf { resultCode == Activity.RESULT_OK }
 }
 
 /** A round day toggle; seven fit a phone's width without the label wrapping. */

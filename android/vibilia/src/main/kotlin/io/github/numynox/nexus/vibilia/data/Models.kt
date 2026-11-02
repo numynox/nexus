@@ -440,6 +440,11 @@ data class Commute(
     @SerialName("work_lat") val workLat: Double,
     @SerialName("work_lng") val workLng: Double,
     @SerialName("work_radius_m") val workRadiusM: Int = 300,
+    /** The one person to text the arrival time to, and on which way. */
+    @SerialName("sms_name") val smsName: String? = null,
+    @SerialName("sms_number") val smsNumber: String? = null,
+    @SerialName("sms_to_work") val smsToWork: Boolean = false,
+    @SerialName("sms_to_home") val smsToHome: Boolean = false,
 )
 
 /** Median travel time one way, from get_vibilia_commute_expectation. */
