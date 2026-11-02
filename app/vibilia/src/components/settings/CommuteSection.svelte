@@ -1,5 +1,11 @@
 <script lang="ts">
-  import { Briefcase, House, LocateFixed, Trash2 } from "lucide-svelte";
+  import {
+    Briefcase,
+    House,
+    LocateFixed,
+    MessageSquareText,
+    Trash2,
+  } from "lucide-svelte";
   import { onMount } from "svelte";
   import type {
     CommuteDirection,
@@ -51,6 +57,10 @@
   let workLat = $state<number | null>(null);
   let workLng = $state<number | null>(null);
   let workRadius = $state(300);
+  let smsName = $state("");
+  let smsNumber = $state("");
+  let smsToWork = $state(false);
+  let smsToHome = $state(false);
 
   const existing = $derived(commutes.find((c) => c.car_id === carId) ?? null);
 
@@ -82,6 +92,10 @@
     workLat = commute?.work_lat ?? null;
     workLng = commute?.work_lng ?? null;
     workRadius = commute?.work_radius_m ?? 300;
+    smsName = commute?.sms_name ?? "";
+    smsNumber = commute?.sms_number ?? "";
+    smsToWork = commute?.sms_to_work ?? false;
+    smsToHome = commute?.sms_to_home ?? false;
     loadExpectations();
   }
 
@@ -133,6 +147,10 @@
       return "The way home must end after it starts.";
     if (!validPoint(homeLat, homeLng)) return "Set where home is.";
     if (!validPoint(workLat, workLng)) return "Set where work is.";
+    if (smsNumber.trim() && normalizeNumber(smsNumber) === null)
+      return "That phone number does not look right.";
+    if ((smsToWork || smsToHome) && !smsNumber.trim())
+      return "Enter whom to text, or turn texting off.";
     if (!validRadius(homeRadius) || !validRadius(workRadius))
       return "A radius is between 50 and 5000 m.";
     return null;
@@ -147,6 +165,14 @@
       Math.abs(lat) <= 90 &&
       Math.abs(lng) <= 180
     );
+  }
+
+  /** "+49 170 123-4567" → "+491701234567", as the table stores it. Same rule as the app. */
+  function normalizeNumber(raw: string): string | null {
+    const trimmed = raw.trim();
+    const digits = trimmed.replace(/\D/g, "");
+    if (digits.length < 3 || digits.length > 20) return null;
+    return (trimmed.startsWith("+") ? "+" : "") + digits;
   }
 
   function validRadius(radius: number): boolean {
@@ -172,6 +198,10 @@
       work_lat: workLat!,
       work_lng: workLng!,
       work_radius_m: workRadius,
+      sms_number: smsNumber.trim() ? normalizeNumber(smsNumber) : null,
+      sms_name: smsNumber.trim() ? smsName.trim().slice(0, 100) || null : null,
+      sms_to_work: smsToWork,
+      sms_to_home: smsToHome,
     };
     saving = true;
     try {
@@ -324,6 +354,29 @@
             <LocateFixed class="w-3 h-3" /> Use my location
           </button>
         </div>
+      </div>
+
+      <div class="space-y-2">
+        <div class="font-semibold text-sm flex items-center gap-2">
+          <MessageSquareText class="w-4 h-4 text-primary" /> Text someone
+        </div>
+        <p class="text-xs text-base-content/60">
+          The Android app texts the arrival time from your number, e.g. "Bin
+          losgefahren. Ankunft daheim ca. 17:45 Uhr." Only from a phone that
+          was allowed to send SMS.
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <input type="text" maxlength="100" class="input input-bordered input-sm" placeholder="Name" aria-label="Name to text" bind:value={smsName} />
+          <input type="tel" class="input input-bordered input-sm" placeholder="+49 170 1234567" aria-label="Phone number to text" bind:value={smsNumber} />
+        </div>
+        <label class="flex items-center gap-2 text-sm">
+          <input type="checkbox" class="toggle toggle-sm toggle-primary" bind:checked={smsToHome} />
+          On the way home
+        </label>
+        <label class="flex items-center gap-2 text-sm">
+          <input type="checkbox" class="toggle toggle-sm toggle-primary" bind:checked={smsToWork} />
+          On the way to work
+        </label>
       </div>
 
       {#if message}

@@ -945,6 +945,11 @@ export interface VibiliaCommute {
   work_lat: number;
   work_lng: number;
   work_radius_m: number;
+  /** One contact the Android app texts the arrival time to, per direction. */
+  sms_name: string | null;
+  sms_number: string | null;
+  sms_to_work: boolean;
+  sms_to_home: boolean;
 }
 
 export type CommuteDirection = "to_work" | "to_home";
@@ -967,7 +972,7 @@ export async function fetchCommutes(): Promise<VibiliaCommute[]> {
   const { data, error } = await supabase
     .from("vibilia_commutes")
     .select(
-      "car_id, weekdays, to_work_from, to_work_until, to_home_from, to_home_until, home_lat, home_lng, home_radius_m, work_lat, work_lng, work_radius_m",
+      "car_id, weekdays, to_work_from, to_work_until, to_home_from, to_home_until, home_lat, home_lng, home_radius_m, work_lat, work_lng, work_radius_m, sms_name, sms_number, sms_to_work, sms_to_home",
     );
 
   if (error) return [];
