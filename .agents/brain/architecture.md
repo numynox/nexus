@@ -210,7 +210,7 @@ Annona namespaces everything with `annona_`. **New tables get a prefix.**
 | :--- | :--- |
 | shared | `profiles` |
 | Noctua | `feeds`, `articles`, `sections`, `sections_feeds`, `article_reads`, `article_stars` |
-| Vibilia | `cars`, `car_access`, `refuel_events`, `car_expenses`, `fuel_stations`, `fuel_prices`, `fuel_prices_daily`, `vibilia_car_bluetooth_devices`, `vibilia_drive_intervals` |
+| Vibilia | `cars`, `car_access`, `refuel_events`, `car_expenses`, `fuel_stations`, `fuel_prices`, `fuel_prices_daily`, `vibilia_car_bluetooth_devices`, `vibilia_drive_intervals`, `vibilia_commutes` |
 | Annona | `annona_categories`, `annona_storage_locations`, `annona_products`, `annona_items`, `annona_item_log` |
 
 `profiles` is the one genuinely shared table: `id` matches `auth.users.id`, and
@@ -259,7 +259,9 @@ Anything aggregating, joining or crossing a permission boundary is a
   `share_car_with_email`, `user_can_access_car`, and drive tracking's
   `get_car_drive_periods`, `get_car_refuel_legs`, `get_car_drive_model`,
   `get_car_daily_distance`, `get_car_distance_per_month`,
-  `get_car_fuel_level_estimate` (`decisions/2026-10-19-bluetooth-drive-tracking.md`).
+  `get_car_fuel_level_estimate` (`decisions/2026-10-19-bluetooth-drive-tracking.md`),
+  and `get_vibilia_commute_expectation`
+  (`decisions/2026-11-02-commute-arrival-announcement.md`).
   The drive-tracking functions run as the caller (not `SECURITY DEFINER`) and
   check `user_can_access_car` themselves.
 - Annona: `annona_dashboard_summary`
@@ -413,7 +415,9 @@ Things that differ from the web on purpose:
   web's tile choice. **Bluetooth drive tracking** (`tracking/`): a manifest
   receiver for `ACL_CONNECTED`/`ACL_DISCONNECTED` feeds `DriveTracker`, a
   state machine persisted in DataStore; WorkManager uploads finished drives and
-  keeps a 15-minute heartbeat while one is open.
+  keeps a 15-minute heartbeat while one is open. The same connect can start
+  the **commute announcement** (`commute/`): a location foreground service
+  listens for a minute and speaks the arrival time through the car.
 - **Noctua** — Feed, Library (the web's /starred and /read as two shelves),
   Statistics, Settings. Sections are chips above the feed, one shown at a
   time as on the web — no built-in "All", a mix is a section the reader makes; a
@@ -490,6 +494,8 @@ on save:
     (`set local role authenticated` plus a `request.jwt.claims` `sub`),
     including Annona's deliberate sharing — so that "everyone can see it"
     stays a decision rather than an accident.
+  - `vibilia_commutes.test.sql` pins the commute median (own drives, weekday,
+    window, 180 days) and that a commute is visible to its owner only.
   - `noctua_recommendations.test.sql` does the same for Noctua's one shared
     thing: everyone reads every recommendation and gets the article through
     the RPC, nobody writes or withdraws in someone else's name.
