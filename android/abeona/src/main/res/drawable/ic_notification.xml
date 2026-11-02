@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The launcher's train at notification size. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M12,2C7,2 4,3.5 4,7V15A3,3 0,0 0,7 18H17A3,3 0,0 0,20 15V7C20,3.5 17,2 12,2ZM7,7.6C7,6.1 9.2,5 12,5C14.8,5 17,6.1 17,7.6V10A1,1 0,0 1,16 11H8A1,1 0,0 1,7 10ZM8.5,12.75A1.25,1.25 0,1 0,8.5 15.25A1.25,1.25 0,1 0,8.5 12.75ZM15.5,12.75A1.25,1.25 0,1 0,15.5 15.25A1.25,1.25 0,1 0,15.5 12.75ZM10.5,13.4H13.5V14.6H10.5Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M7.6,18.6L5.6,22.4H7.9L9.6,18.6ZM16.4,18.6L18.4,22.4H16.1L14.4,18.6Z" />
+</vector>

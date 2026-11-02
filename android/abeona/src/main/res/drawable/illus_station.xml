@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A platform under its canopy, with the clock and the platform number. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="360dp"
+    android:height="200dp"
+    android:viewportWidth="360"
+    android:viewportHeight="200">
+    <path android:fillColor="#FFCFE6F2" android:pathData="M0,0H360V200H0Z" />
+    <path android:fillColor="#FFF2B84B" android:pathData="M326,14A16,16 0,1 1,325.9 14Z" />
+    <path android:fillColor="#FFA9D4C4" android:pathData="M0,124C60,106 110,112 160,118C220,126 280,104 360,112V200H0Z" />
+    <path android:fillColor="#FFBFDCCF" android:pathData="M18,96H40V140H18ZM44,108H62V140H44ZM300,100H318V140H300ZM322,88H344V140H322Z" />
+    <!-- Canopy. -->
+    <path android:fillColor="#FF1F6F5C" android:pathData="M44,52H316L338,70H22Z" />
+    <path android:fillColor="#FF12313A" android:pathData="M22,70H338V77H22Z" />
+    <path android:fillColor="#FF12313A" android:pathData="M68,77H74V152H68ZM177,77H183V152H177ZM286,77H292V152H286Z" />
+    <!-- Clock. -->
+    <path android:fillColor="#FF12313A" android:pathData="M179,77H181V90H179Z" />
+    <path android:fillColor="#FF12313A" android:pathData="M180,88A18,18 0,1 1,179.9 88Z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M180,91.5A14.5,14.5 0,1 1,179.9 91.5Z" />
+    <path android:strokeColor="#FF12313A" android:strokeWidth="2.6" android:strokeLineCap="round" android:pathData="M180,106V96.5M180,106L187.5,106" />
+    <path android:strokeColor="#FFC4553B" android:strokeWidth="1.2" android:strokeLineCap="round" android:pathData="M180,106L174,113" />
+    <path android:fillColor="#FF12313A" android:pathData="M180,104.5A1.6,1.6 0,1 1,179.9 104.5Z" />
+    <!-- Platform sign "7". -->
+    <path android:fillColor="#FF12313A" android:pathData="M84,92H116A4,4 0,0 1,120 96V114A4,4 0,0 1,116 118H84A4,4 0,0 1,80 114V96A4,4 0,0 1,84 92Z" />
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="3.2" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M93,98.5H107L99.5,112" />
+    <path android:fillColor="#FF12313A" android:pathData="M74,96H80V98H74Z" />
+    <!-- Bench. -->
+    <path android:fillColor="#FF1F6F5C" android:pathData="M226,124H270A2,2 0,0 1,270 128H226A2,2 0,0 1,226 124ZM226,134H270A2,2 0,0 1,270 138H226A2,2 0,0 1,226 134Z" />
+    <path android:fillColor="#FF12313A" android:pathData="M230,138H233V150H230ZM263,138H266V150H263Z" />
+    <!-- Platform, its yellow line, the edge and the track. -->
+    <path android:fillColor="#FFDCE5E0" android:pathData="M0,150H360V176H0Z" />
+    <path android:fillColor="#FFF2B84B" android:pathData="M0,170H360V173H0Z" />
+    <path android:fillColor="#FFBFCBC6" android:pathData="M0,176H360V186H0Z" />
+    <path android:fillColor="#FFE8F3EE" android:pathData="M0,186H360V200H0Z" />
+    <path android:fillColor="#FF12313A" android:pathData="M0,192H360V194.5H0Z" />
+</vector>

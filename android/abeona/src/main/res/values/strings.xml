@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Abeona</string>
+    <string name="companion_channel">Live companion</string>
+    <string name="alerts_channel">Trip alerts</string>
+    <string name="widget_name">Next trip</string>
+    <string name="widget_description">Your next departure, platform and delay</string>
+</resources>

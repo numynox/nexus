@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A modern train passing under the catenary, hills behind: the next-trip hero.
+     Flat, in Abeona's palette (sky, mint, railway green, ink, amber). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="360dp"
+    android:height="150dp"
+    android:viewportWidth="360"
+    android:viewportHeight="150">
+    <path android:fillColor="#FFCFE6F2" android:pathData="M0,0H360V150H0Z" />
+    <path android:fillColor="#40F2B84B" android:pathData="M300,10A28,28 0,1 1,299.9 10Z" />
+    <path android:fillColor="#FFF2B84B" android:pathData="M300,20A18,18 0,1 1,299.9 20Z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M46,50H96A8,8 0,0 0,96 34A13,13 0,0 0,72 28A11,11 0,0 0,52 34A8,8 0,0 0,46 50Z" />
+    <path android:fillColor="#E6FFFFFF" android:pathData="M180,34H214A6,6 0,0 0,214 22A9,9 0,0 0,198 18A8,8 0,0 0,184 23A5.5,5.5 0,0 0,180 34Z" />
+    <path android:fillColor="#FFA9D4C4" android:pathData="M0,98C50,70 100,78 150,90C200,102 240,68 300,76C330,80 350,88 360,92V150H0Z" />
+    <path android:fillColor="#FF7DBFA8" android:pathData="M0,108C40,98 70,96 110,102C150,108 170,94 220,98C260,101 300,92 360,100V150H0Z" />
+    <path android:fillColor="#FFE8F3EE" android:pathData="M0,118H360V150H0Z" />
+    <!-- Catenary: masts and the contact wire. -->
+    <path android:fillColor="#8012313A" android:pathData="M22,54H25.5V124H22Z" />
+    <path android:fillColor="#8012313A" android:pathData="M338,54H341.5V124H338Z" />
+    <path android:strokeColor="#8012313A" android:strokeWidth="1.2" android:pathData="M0,62H360" />
+    <path android:strokeColor="#5912313A" android:strokeWidth="1" android:pathData="M14,57H34M330,57H350" />
+    <!-- Pantograph. -->
+    <path android:strokeColor="#FF12313A" android:strokeWidth="2" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M198,78L208,66L196,62M208,66L222,62" />
+    <!-- Body: white, streamlined nose to the right. -->
+    <path android:fillColor="#FFFFFFFF" android:pathData="M40,84A6,6 0,0 1,46 78H268C298,78 320,90 331,106C333.5,110 331,118 325,118H46A6,6 0,0 1,40 112Z" />
+    <path android:fillColor="#FF1F6F5C" android:pathData="M40,104H331.8C333.6,110 331,118 325,118H46A6,6 0,0 1,40 112Z" />
+    <path android:fillColor="#FFF2B84B" android:pathData="M40,100.5H329.3L330.8,103.5H40Z" />
+    <!-- Car joint and doors. -->
+    <path android:fillColor="#FFDCE5E0" android:pathData="M149,78H152V104H149Z" />
+    <path android:fillColor="#FFE1ECE6" android:pathData="M120,81H132V100H120ZM222,81H234V100H222Z" />
+    <path android:fillColor="#FF12313A" android:pathData="M122.5,84H129.5V91H122.5ZM224.5,84H231.5V91H224.5Z" />
+    <!-- Window bands and the windscreen. -->
+    <path android:fillColor="#FF12313A" android:pathData="M54,86H114A3,3 0,0 1,117 89V93A3,3 0,0 1,114 96H54A3,3 0,0 1,51 93V89A3,3 0,0 1,54 86Z" />
+    <path android:fillColor="#FF12313A" android:pathData="M138,86H146V96H138Z" />
+    <path android:fillColor="#FF12313A" android:pathData="M158,86H216A3,3 0,0 1,219 89V93A3,3 0,0 1,216 96H158A3,3 0,0 1,155 93V89A3,3 0,0 1,158 86Z" />
+    <path android:fillColor="#FF12313A" android:pathData="M240,86H262A3,3 0,0 1,265 89V93A3,3 0,0 1,262 96H240A3,3 0,0 1,237 93V89A3,3 0,0 1,240 86Z" />
+    <path android:fillColor="#FF12313A" android:pathData="M274,84H282C298,86 311,93 318.5,100H278A4,4 0,0 1,274 96Z" />
+    <path android:fillColor="#59CFE6F2" android:pathData="M280,86.5H284C294,88 302,92 307,96H284Z" />
+    <path android:fillColor="#FFF2B84B" android:pathData="M325,110.5A2.4,2.4 0,1 1,324.9 110.5Z" />
+    <!-- Bogies, wheels and the rail. -->
+    <path android:fillColor="#FF12313A" android:pathData="M68,117H112A3,3 0,0 1,112 123H68A3,3 0,0 1,68 117ZM250,117H294A3,3 0,0 1,294 123H250A3,3 0,0 1,250 117Z" />
+    <path android:fillColor="#FF12313A" android:pathData="M80,118.5A5,5 0,1 1,79.9 118.5ZM100,118.5A5,5 0,1 1,99.9 118.5ZM262,118.5A5,5 0,1 1,261.9 118.5ZM282,118.5A5,5 0,1 1,281.9 118.5Z" />
+    <path android:fillColor="#FF12313A" android:pathData="M0,127.5H360V130.5H0Z" />
+    <path android:fillColor="#33124E40" android:pathData="M0,133H360V135H0Z" />
+</vector>

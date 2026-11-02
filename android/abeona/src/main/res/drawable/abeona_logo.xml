@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The sign-in screen's logo: the launcher icon as one drawable. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+    <path
+        android:fillColor="#FF1F6F5C"
+        android:pathData="M28,0H68A28,28 0,0 1,96 28V68A28,28 0,0 1,68 96H28A28,28 0,0 1,0 68V28A28,28 0,0 1,28 0Z" />
+    <path
+        android:fillColor="#FFF2B84B"
+        android:pathData="M0,70H96V68A28,28 0,0 1,68 96H28A28,28 0,0 1,0 68Z" />
+    <group
+        android:scaleX="2.6"
+        android:scaleY="2.6"
+        android:translateX="16.8"
+        android:translateY="12">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:fillType="evenOdd"
+            android:pathData="M12,2C7,2 4,3.5 4,7V15A3,3 0,0 0,7 18H17A3,3 0,0 0,20 15V7C20,3.5 17,2 12,2ZM7,7.6C7,6.1 9.2,5 12,5C14.8,5 17,6.1 17,7.6V10A1,1 0,0 1,16 11H8A1,1 0,0 1,7 10ZM8.5,12.75A1.25,1.25 0,1 0,8.5 15.25A1.25,1.25 0,1 0,8.5 12.75ZM15.5,12.75A1.25,1.25 0,1 0,15.5 15.25A1.25,1.25 0,1 0,15.5 12.75ZM10.5,13.4H13.5V14.6H10.5Z" />
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M7.6,18.6L5.6,22.4H7.9L9.6,18.6ZM16.4,18.6L18.4,22.4H16.1L14.4,18.6Z" />
+    </group>
+</vector>
