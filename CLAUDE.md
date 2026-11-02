@@ -1,11 +1,12 @@
 # Nexus
 
-Internal web applications based on Supabase and Github Pages. Three Astro +
+Internal web applications based on Supabase and Github Pages. Four Astro +
 Svelte apps in one npm workspace, all served as static files, all talking to one
 Supabase project:
 - Annona: Track food expiration (`app/annona`)
 - Noctua: Read RSS feeds (`app/noctua`)
 - Vibilia: Track fuel prices and car expenses (`app/vibilia`)
+- Abeona: Train ride companion (`app/abeona`)
 
 Each app also has a native Android app in `android/<app>` (Kotlin, Jetpack
 Compose), on the same Supabase project, released to GitHub Releases and
@@ -78,16 +79,16 @@ The conventions that carry the most weight here — reasoning in
   key ships in the bundle. A new table's policies *are* its security review, and
   a `SECURITY DEFINER` RPC must re-check access itself.
 - **Each app scopes data differently** — per-user in Noctua, per-car ACL in
-  Vibilia, fully shared in Annona. Never assume one app's model applies to
+  Vibilia, fully shared in Annona, per-household in Abeona. Never assume one app's model applies to
   another.
 - **`supabase/migrations/` is the source of truth for the schema.** No ORM, no
   generated types. Never edit an applied migration; add a new one.
 - **Prefix new tables with the app name** (`annona_*`). All three apps share one
   `public` schema.
 - **Device-local preference → `lib/storage.ts`; anything shared → Postgres.**
-- **Build all three apps before pushing** (`npm run build:websites`). For
+- **Build all the apps before pushing** (`npm run build:websites`). For
   changes under `android/`, also run `./gradlew :<app>:recordRoborazziDebug
-  :<app>:assembleRelease` there for each app touched — all three after a change
+  :<app>:assembleRelease` there for each app touched — all of them after a change
   to `core/` or `build-logic/` — and look at the screenshots it writes to
   `android/<app>/build/outputs/roborazzi/app/` (README.md, "Screenshots").
 - **New features reach both clients.** Build an Android feature on the web too

@@ -77,3 +77,20 @@ the app's DataStore instead of `localStorage` — still per device.
 
 Products, categories and locations in Annona are **shared by every user**, not
 owned. There is no "my products".
+
+## Abeona (train rides)
+
+| Code | UI | Notes |
+| :--- | :--- | :--- |
+| `abeona_households` | Household | the people who see each other's trips. Bounded, unlike Annona's everyone-sees-everything; one per user, made on first use |
+| `abeona_household_members` | Members | accounts in a household. Inviting someone who is alone in their own household **merges** it in |
+| `abeona_travellers` | Traveller | a person who rides — a member, or someone without an account (a child). BahnCards will belong to travellers, not to accounts |
+| `abeona_trips` | Trip | one journey from origin to destination, with the ticket facts the app knows (`fare_type`, `train_binding`, class, price) and the stored ticket file |
+| `abeona_legs` | Leg / ride | one train, bus or walk within a trip. `planned_*` never change after saving; `departure`, `arrival` and the current platforms are the live values. Not Vibilia's "leg" between refuels |
+| stopover | Stops | an intermediate stop of a leg, stored as JSON on the leg |
+| transfer confidence | Safe / Tight / At risk | derived, never stored: minutes available for a change against minutes needed (same platform 2, other platform 5, walk + 3). Computed identically in both clients |
+| train binding lifted | You may take another train | derived: a bound ticket (Sparpreis and similar) at ≥ 20 min expected delay at the destination. Never for regional tickets, the Deutschlandticket or a BahnCard 100 |
+| `fare_type` | Ticket | `flex`, `saver`, `regional`, `deutschlandticket`, `bahncard100`, `other` |
+| ticket wallet | Ticket | the stored ticket file shown full-screen at full brightness; next to it always the "Open DB Navigator" button, because some proofs are only valid in DB's app |
+| live companion | Live companion | Android only: a foreground service during a trip that refreshes every two minutes and keeps an ongoing notification |
+| year in review | Year in review | the statistics of one calendar year as story cards (`abeona_statistics`) |

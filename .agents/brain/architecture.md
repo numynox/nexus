@@ -1,12 +1,13 @@
 # Architecture
 
-Three small internal web apps, one Supabase project, one static GitHub Pages
+Four small internal web apps, one Supabase project, one static GitHub Pages
 site. Everything here is either shared deliberately or duplicated deliberately —
 knowing which is which is the point of this file.
 
 - **Noctua** — RSS reader (`app/noctua`)
 - **Vibilia** — fuel prices, refuel log, vehicle statistics, expenses (`app/vibilia`)
 - **Annona** — grocery/food expiration tracker (`app/annona`)
+- **Abeona** — train ride companion: trips, live delays, tickets, history (`app/abeona`)
 
 `README.md` covers running it, `DEPLOYMENT.md` covers shipping it. This file
 covers how it is put together.
@@ -212,6 +213,7 @@ Annona namespaces everything with `annona_`. **New tables get a prefix.**
 | Noctua | `feeds`, `articles`, `sections`, `sections_feeds`, `article_reads`, `article_stars` |
 | Vibilia | `cars`, `car_access`, `refuel_events`, `car_expenses`, `fuel_stations`, `fuel_prices`, `fuel_prices_daily`, `vibilia_car_bluetooth_devices`, `vibilia_drive_intervals` |
 | Annona | `annona_categories`, `annona_storage_locations`, `annona_products`, `annona_items`, `annona_item_log` |
+| Abeona | `abeona_households`, `abeona_household_members`, `abeona_travellers`, `abeona_trips`, `abeona_trip_travellers`, `abeona_legs`; Storage bucket `abeona-tickets` |
 
 `profiles` is the one genuinely shared table: `id` matches `auth.users.id`, and
 `on_auth_user_created → public.handle_new_user_profile()` fills it on signup.
@@ -233,6 +235,7 @@ access. All three apps share one user pool, but they scope data differently:
 | Noctua | per-user | `sections` and `article_reads` are filtered by `auth.uid()`. `feeds` is readable by any authenticated user — the catalogue is common property — but `articles` is **not**: a row is visible only while some section *you* own contains its feed. Unsubscribe from a feed and its articles disappear from your queries |
 | Vibilia | per-car ACL | `cars.owner_id` plus rows in `car_access`, both funnelled through `public.user_can_access_car(car_id, user_id)`; every policy on refuel events and expenses defers to that helper |
 | Annona | shared household | any authenticated user may read and write everything; `annona_item_log.user_id` records who did what (`decisions/2026-04-30-annona-shared-household-data.md`) |
+| Abeona | bounded household | `abeona_households` with members; every trip, traveller and ticket object carries a household, and every policy defers to `public.abeona_user_in_household(household_id, user_id)`. Ticket objects follow their trip (`abeona_user_in_household_path`). Unlike Annona, strangers see nothing (`decisions/2026-11-02-abeona-train-companion.md`, `decisions/2026-11-02-abeona-ticket-storage.md`) |
 
 Because there is no server, **RLS is the whole authorization story.** The anon
 key is public by design; a policy gap is a data leak. Treat every new table's
@@ -263,6 +266,12 @@ Anything aggregating, joining or crossing a permission boundary is a
   The drive-tracking functions run as the caller (not `SECURITY DEFINER`) and
   check `user_can_access_car` themselves.
 - Annona: `annona_dashboard_summary`
+- Abeona: `abeona_ensure_household` (called once after sign-in), `abeona_invite_to_household`,
+  `abeona_leave_household`, `abeona_list_household_members`, `abeona_current_household`,
+  `abeona_user_in_household`, `abeona_save_trip` and `abeona_update_trip_live` (run as the
+  caller, so RLS decides), `abeona_statistics` (history card and year in review),
+  `abeona_train_binding_lifted` (also mirrored in both clients), and the distance helpers
+  `abeona_haversine_km` / `abeona_polyline_km`.
 - Operational: `reassign_profile_user`, `invoke_fetch_rss`,
   `invoke_refresh_fuel_prices`, `nexus_time_zone`,
   `rollup_fuel_prices_daily`, `prune_fuel_prices_raw`,
@@ -284,6 +293,7 @@ Deno, in `supabase/functions/`, deployed manually. Two authentication styles:
 | `refresh-fuel-prices` | `pg_cron`, 6×/hour | shared secret (bearer or `x-invoke-secret`) | Tankerkoenig prices for tracked stations; refreshes one station's details per call, at most weekly per station |
 | `fetch-nearby-fuel-prices` | called from Vibilia's UI | the end user's JWT, verified with `auth.getUser()` | radius search against Tankerkoenig for the nearby view |
 | `lookup-food-product` | called from Annona's scanner | the end user's JWT, verified with `auth.getUser()` | asks Open Food Facts about a barcode Annona has no product for (`decisions/2026-09-05-open-food-facts-lookup.md`) |
+| `abeona-transit` | called from both Abeona clients | the end user's JWT, verified with `auth.getUser()` | station search, journey search and live refresh against Transitous, normalised to `contract.ts`, which both clients mirror by hand; writes nothing (`decisions/2026-11-02-abeona-transit-providers.md`) |
 
 The first two use the service-role key and must never be reachable without the
 secret. The last two run as the caller and validate their own inputs (lat/lng
