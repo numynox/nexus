@@ -1,0 +1,74 @@
+// Run with `npm run test:abeona` (node --test; Node strips the types).
+// The cases live in intake.fixtures.json, which the Android tests run too
+// (IntakeFixturesTest): add a case there, not here.
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { test } from "node:test";
+import { lineKey, platformOf } from "./common.ts";
+import { isDbTicket, parseDbTicket } from "./dbTicket.ts";
+import { fareOf } from "./fare.ts";
+import type { ParsedShare, ParsedTicket } from "./parsed.ts";
+import { pdfText, type PdfJsLike } from "./pdfText.ts";
+import { isShareText, parseShareText } from "./shareText.ts";
+
+interface Fixtures {
+  share: { name: string; file: string; expect: ParsedShare }[];
+  ticket: { name: string; file: string; expect: ParsedTicket }[];
+  pdf: { name: string; file: string; same_as: string }[];
+  fares: { name: string | null; fare_type: string; binding: boolean }[];
+  platforms: { value: string | null; expect: string | null }[];
+  lines: { a: string; b: string; same: boolean }[];
+}
+
+const dir = new URL("./fixtures/", import.meta.url);
+const read = (file: string) => readFileSync(new URL(file, dir), "utf8");
+const fixtures: Fixtures = JSON.parse(readFileSync(new URL("./intake.fixtures.json", import.meta.url), "utf8"));
+
+for (const c of fixtures.share) {
+  test(`share text: ${c.name}`, () => {
+    const text = read(c.file);
+    assert.equal(isShareText(text), true);
+    assert.equal(isDbTicket(text), false);
+    assert.deepEqual(parseShareText(text), c.expect);
+  });
+}
+
+for (const c of fixtures.ticket) {
+  test(`ticket: ${c.name}`, () => {
+    const text = read(c.file);
+    assert.equal(isDbTicket(text), true);
+    assert.equal(isShareText(text), false);
+    assert.deepEqual(parseDbTicket(text), c.expect);
+  });
+
+  test(`ticket, every run of spaces collapsed (what PdfBox gives): ${c.name}`, () => {
+    const text = read(c.file).replace(/[ \t]+/g, " ");
+    assert.deepEqual(parseDbTicket(text), c.expect);
+  });
+}
+
+for (const c of fixtures.pdf) {
+  test(`pdf: ${c.name}`, async () => {
+    const pdfjs = (await import("pdfjs-dist/legacy/build/pdf.mjs")) as unknown as PdfJsLike;
+    const data = new Uint8Array(readFileSync(new URL(c.file, dir)));
+    const text = await pdfText(data, pdfjs);
+    const expected = fixtures.ticket.find((t) => t.file === c.same_as)!.expect;
+    assert.deepEqual(parseDbTicket(text), expected);
+  });
+}
+
+test("fare names", () => {
+  for (const c of fixtures.fares) {
+    const fare = fareOf(c.name);
+    assert.equal(fare.fare_type, c.fare_type, `${c.name}`);
+    assert.equal(fare.binding, c.binding, `${c.name}`);
+  }
+});
+
+test("platforms drop their sectors", () => {
+  for (const c of fixtures.platforms) assert.equal(platformOf(c.value), c.expect, `${c.value}`);
+});
+
+test("line names compare without spaces or case", () => {
+  for (const c of fixtures.lines) assert.equal(lineKey(c.a) === lineKey(c.b), c.same, `${c.a} / ${c.b}`);
+});

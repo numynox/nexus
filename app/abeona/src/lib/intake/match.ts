@@ -1,0 +1,224 @@
+/**
+ * Parsed rides → the connection in the timetable, through the existing
+ * `abeona-transit` actions (`locations`, `journeys`). Mirrored in Kotlin
+ * (domain/intake/Match.kt); the cases are in intake.fixtures.json
+ * ("matching").
+ *
+ * 1. Each station name is looked up once; the first answer is taken.
+ * 2. One search from the first station to the last at the first departure.
+ *    A journey whose rides are the parsed ones — same line, same departure
+ *    and arrival minute — is taken whole, with its refresh token.
+ * 3. Otherwise each ride on its own: a ride of step 2 that matches, else a
+ *    search between that ride's stations at its departure. Transitous often
+ *    routes the same trains with another change (Frankfurt Flughafen instead
+ *    of Hbf), which is why the trains count, not the journey.
+ * 4. A ride nothing matches is kept as parsed: no route line, no trip id,
+ *    never refreshed. Saving still works (`source` 'share' or 'pdf').
+ *
+ * Times printed on DB's tickets and shares are local; they are read in
+ * Europe/Berlin, which is also right for the Benelux, France, Austria,
+ * Switzerland and Italy, but not for the UK or Portugal.
+ */
+import { lineKey } from "./common.ts";
+import type { ParsedLeg } from "./parsed.ts";
+import type { Journey, Leg, Station, StopTime } from "../transit.ts";
+
+export const INTAKE_ZONE = "Europe/Berlin";
+
+/** What matching needs from the timetable; data.ts and the tests each provide one. */
+export interface TransitPort {
+  stations(query: string): Promise<Station[]>;
+  /** Journeys from `from` to `to` departing at or after `time` (an ISO instant). */
+  journeys(from: string, to: string, time: string): Promise<Journey[]>;
+}
+
+export type MatchStatus = "full" | "partial" | "none";
+
+export interface MatchResult {
+  /** The journey to save: the timetable's where found, the parsed rides elsewhere. */
+  journey: Journey;
+  status: MatchStatus;
+  /** How many parsed rides were found in the timetable. */
+  matched: number;
+  total: number;
+  /** Why nothing matched, when a lookup failed (e.g. outside the timetable window). */
+  problem: string | null;
+}
+
+/** Wall-clock minutes of `zone` at an instant. */
+function offsetMinutes(instant: number, zone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: zone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).formatToParts(new Date(instant));
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+  const wall = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"));
+  return Math.round((wall - Math.floor(instant / 60_000) * 60_000) / 60_000);
+}
+
+/** "2025-11-14" + "06:29" in Europe/Berlin → "2025-11-14T05:29:00.000Z". */
+export function localToInstant(date: string, time: string, zone = INTAKE_ZONE): string {
+  const [y, mo, d] = date.split("-").map(Number);
+  const [h, mi] = time.split(":").map(Number);
+  const wall = Date.UTC(y, mo - 1, d, h, mi);
+  let guess = wall - offsetMinutes(wall, zone) * 60_000;
+  // Once more, for an offset that differs on the other side of a DST change.
+  guess = wall - offsetMinutes(guess, zone) * 60_000;
+  return new Date(guess).toISOString();
+}
+
+function sameMinute(iso: string | null, expected: string): boolean {
+  if (!iso) return false;
+  return Math.abs(Date.parse(iso) - Date.parse(expected)) < 60_000;
+}
+
+/** Whether two line names are the same train: "RE19" = "RE 19", or the bracketed number. */
+export function sameLine(parsed: Pick<ParsedLeg, "line" | "product" | "number">, lineName: string | null): boolean {
+  const key = lineKey(lineName);
+  if (key === "") return false;
+  if (key === lineKey(parsed.line)) return true;
+  // "RE19 (4901)" may be "RE 4901" in a feed that names trains by number.
+  return !!parsed.number && !!parsed.product && key === lineKey(`${parsed.product}${parsed.number}`);
+}
+
+/** The timetable's ride is the parsed one: same line, departing and arriving the same minute. */
+export function legMatches(parsed: ParsedLeg, leg: Leg): boolean {
+  if (leg.mode === "walk") return false;
+  return (
+    sameLine(parsed, leg.line_name) &&
+    sameMinute(leg.from.planned, localToInstant(parsed.date, parsed.departure)) &&
+    sameMinute(leg.to.planned, localToInstant(parsed.arrival_date, parsed.arrival))
+  );
+}
+
+function stop(name: string, planned: string, platform: string | null): StopTime {
+  return {
+    id: null,
+    name,
+    lat: null,
+    lon: null,
+    planned,
+    current: null,
+    planned_platform: platform,
+    platform,
+    cancelled: false,
+  };
+}
+
+/** A parsed ride as a leg of the contract: no route line, no trip id, nothing live. */
+export function parsedToLeg(parsed: ParsedLeg): Leg {
+  const product = parsed.product;
+  return {
+    mode: product === "BUS" ? "bus" : "train",
+    product: product === "BUS" ? "Bus" : product,
+    line_name: parsed.line || null,
+    trip_ref: null,
+    headsign: parsed.headsign,
+    operator: null,
+    from: stop(parsed.from, localToInstant(parsed.date, parsed.departure), parsed.from_platform),
+    to: stop(parsed.to, localToInstant(parsed.arrival_date, parsed.arrival), parsed.to_platform),
+    stopovers: [],
+    polyline: null,
+    cancelled: false,
+    realtime: false,
+  };
+}
+
+/** The timetable's leg, with the printed platforms where the timetable has none (future days often do not). */
+function withPrinted(leg: Leg, parsed: ParsedLeg): Leg {
+  const fill = (s: StopTime, platform: string | null): StopTime =>
+    s.planned_platform || !platform ? s : { ...s, planned_platform: platform, platform: s.platform ?? platform };
+  return { ...leg, from: fill(leg.from, parsed.from_platform), to: fill(leg.to, parsed.to_platform) };
+}
+
+/** The parsed rides alone, for saving when nothing could be looked up. */
+export function parsedJourney(legs: ParsedLeg[]): Journey {
+  return { provider: "transitous", refresh_token: null, legs: legs.map(parsedToLeg) };
+}
+
+function rides(journey: Journey): Leg[] {
+  return journey.legs.filter((l) => l.mode !== "walk");
+}
+
+function describe(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export async function matchConnection(legs: ParsedLeg[], port: TransitPort): Promise<MatchResult> {
+  const total = legs.length;
+  if (total === 0) throw new Error("Nothing to match: no rides were found.");
+  let problem: string | null = null;
+
+  // 1. Stations, each name once.
+  const names = [...new Set(legs.flatMap((l) => [l.from, l.to]))];
+  const ids = new Map<string, string | null>();
+  await Promise.all(
+    names.map(async (name) => {
+      try {
+        ids.set(name, (await port.stations(name))[0]?.id ?? null);
+      } catch (e) {
+        problem ??= describe(e);
+        ids.set(name, null);
+      }
+    }),
+  );
+
+  // 2. The whole journey.
+  const first = legs[0];
+  const last = legs[total - 1];
+  const originId = ids.get(first.from) ?? null;
+  const destinationId = ids.get(last.to) ?? null;
+  let candidates: Journey[] = [];
+  if (originId && destinationId) {
+    try {
+      candidates = await port.journeys(originId, destinationId, localToInstant(first.date, first.departure));
+    } catch (e) {
+      problem ??= describe(e);
+    }
+  }
+  for (const journey of candidates) {
+    const r = rides(journey);
+    if (r.length === total && r.every((leg, i) => legMatches(legs[i], leg))) {
+      let k = 0;
+      const filled = journey.legs.map((leg) => (leg.mode === "walk" ? leg : withPrinted(leg, legs[k++])));
+      return { journey: { ...journey, legs: filled }, status: "full", matched: total, total, problem: null };
+    }
+  }
+
+  // 3. Ride by ride.
+  const pool = candidates.flatMap(rides);
+  const found = await Promise.all(
+    legs.map(async (parsed): Promise<Leg | null> => {
+      const known = pool.find((leg) => legMatches(parsed, leg));
+      if (known) return known;
+      const from = ids.get(parsed.from);
+      const to = ids.get(parsed.to);
+      if (!from || !to) return null;
+      try {
+        const answer = await port.journeys(from, to, localToInstant(parsed.date, parsed.departure));
+        for (const journey of answer) {
+          const hit = rides(journey).find((leg) => legMatches(parsed, leg));
+          if (hit) return hit;
+        }
+      } catch (e) {
+        problem ??= describe(e);
+      }
+      return null;
+    }),
+  );
+
+  const matched = found.filter(Boolean).length;
+  const assembled = legs.map((parsed, i) => (found[i] ? withPrinted(found[i]!, parsed) : parsedToLeg(parsed)));
+  return {
+    journey: { provider: "transitous", refresh_token: null, legs: assembled },
+    status: matched === total ? "full" : matched === 0 ? "none" : "partial",
+    matched,
+    total,
+    problem: matched === total ? null : problem,
+  };
+}

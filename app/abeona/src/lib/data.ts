@@ -22,13 +22,9 @@ export { describeError };
 
 // ── Types ──────────────────────────────────────────────────────────
 
-export type FareTypeValue =
-  | "flex"
-  | "saver"
-  | "regional"
-  | "deutschlandticket"
-  | "bahncard100"
-  | "other";
+/** abeona_trips.fare_type; defined with the fare names intake reads (intake/fare.ts). */
+export type { FareTypeValue } from "./intake/fare";
+import type { FareTypeValue } from "./intake/fare";
 
 export interface Trip {
   id: string;

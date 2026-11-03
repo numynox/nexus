@@ -1,0 +1,376 @@
+{
+  "$comment": "Intake's shared cases: the web (intake.test.ts) and Android (IntakeFixturesTest) both run every one. The files in fixtures/ are real DB Navigator shares and a real ticket's `pdftotext -layout` text, anonymised (name, order number, ticket code replaced); synthetic-ticket.pdf is generated from that text by fixtures/make-synthetic-pdf.mjs. Add a case here, not to either test.",
+  "share": [
+    {
+      "name": "outward, 4 rides, bracketed train number, headsigns, platforms with sectors, last ride without headsign",
+      "file": "db-navigator-share-4-legs.txt",
+      "expect": {
+        "kind": "share",
+        "origin": "Erlangen",
+        "destination": "Leuven",
+        "date": "2025-11-14",
+        "legs": [
+          {
+            "line": "RE19",
+            "product": "RE",
+            "number": "4901",
+            "headsign": "Nürnberg Hbf",
+            "from": "Erlangen",
+            "to": "Nürnberg Hbf",
+            "date": "2025-11-14",
+            "departure": "06:29",
+            "arrival_date": "2025-11-14",
+            "arrival": "06:48",
+            "from_platform": "4",
+            "to_platform": "4",
+            "reservation": null
+          },
+          {
+            "line": "ICE 728",
+            "product": "ICE",
+            "number": null,
+            "headsign": "Essen Hbf",
+            "from": "Nürnberg Hbf",
+            "to": "Frankfurt(Main)Hbf",
+            "date": "2025-11-14",
+            "departure": "07:13",
+            "arrival_date": "2025-11-14",
+            "arrival": "10:00",
+            "from_platform": "7",
+            "to_platform": "7",
+            "reservation": null
+          },
+          {
+            "line": "ICE 16",
+            "product": "ICE",
+            "number": null,
+            "headsign": "Bruxelles Midi",
+            "from": "Frankfurt(Main)Hbf",
+            "to": "Liège-Guillemins",
+            "date": "2025-11-14",
+            "departure": "10:34",
+            "arrival_date": "2025-11-14",
+            "arrival": "12:43",
+            "from_platform": "2",
+            "to_platform": "3",
+            "reservation": null
+          },
+          {
+            "line": "IC 535",
+            "product": "IC",
+            "number": null,
+            "headsign": null,
+            "from": "Liège-Guillemins",
+            "to": "Leuven",
+            "date": "2025-11-14",
+            "departure": "13:02",
+            "arrival_date": "2025-11-14",
+            "arrival": "13:32",
+            "from_platform": "3",
+            "to_platform": "1",
+            "reservation": null
+          }
+        ],
+        "link": "https://www.bahn.de/buchung/start?vbid=00000000-0000-4000-8000-000000000000",
+        "vbid": "00000000-0000-4000-8000-000000000000"
+      }
+    },
+    {
+      "name": "return, 4 rides, no platforms and no headsigns",
+      "file": "db-navigator-share-return-no-platforms.txt",
+      "expect": {
+        "kind": "share",
+        "origin": "Leuven",
+        "destination": "Erlangen",
+        "date": "2025-11-16",
+        "legs": [
+          {
+            "line": "IC 512",
+            "product": "IC",
+            "number": null,
+            "headsign": null,
+            "from": "Leuven",
+            "to": "Liège-Guillemins",
+            "date": "2025-11-16",
+            "departure": "14:27",
+            "arrival_date": "2025-11-16",
+            "arrival": "14:59",
+            "from_platform": null,
+            "to_platform": null,
+            "reservation": null
+          },
+          {
+            "line": "ICE 17",
+            "product": "ICE",
+            "number": null,
+            "headsign": null,
+            "from": "Liège-Guillemins",
+            "to": "Frankfurt(Main)Hbf",
+            "date": "2025-11-16",
+            "departure": "15:14",
+            "arrival_date": "2025-11-16",
+            "arrival": "17:27",
+            "from_platform": null,
+            "to_platform": null,
+            "reservation": null
+          },
+          {
+            "line": "ICE 725",
+            "product": "ICE",
+            "number": null,
+            "headsign": null,
+            "from": "Frankfurt(Main)Hbf",
+            "to": "Nürnberg Hbf",
+            "date": "2025-11-16",
+            "departure": "17:57",
+            "arrival_date": "2025-11-16",
+            "arrival": "20:40",
+            "from_platform": null,
+            "to_platform": null,
+            "reservation": null
+          },
+          {
+            "line": "ICE 700",
+            "product": "ICE",
+            "number": null,
+            "headsign": null,
+            "from": "Nürnberg Hbf",
+            "to": "Erlangen",
+            "date": "2025-11-16",
+            "departure": "21:05",
+            "arrival_date": "2025-11-16",
+            "arrival": "21:18",
+            "from_platform": null,
+            "to_platform": null,
+            "reservation": null
+          }
+        ],
+        "link": "https://www.bahn.de/buchung/start?vbid=00000000-0000-4000-8000-000000000001",
+        "vbid": "00000000-0000-4000-8000-000000000001"
+      }
+    }
+  ],
+  "ticket": [
+    {
+      "name": "Super Sparpreis Europa, return half of a booking, 2 travellers with 2 BC25, binding, stop table",
+      "file": "db-ticket-super-sparpreis-europa-return.txt",
+      "expect": {
+        "kind": "ticket",
+        "operator": "db",
+        "fare_name": "Super Sparpreis Europa",
+        "fare_type": "saver",
+        "direction": "return",
+        "travel_class": 2,
+        "travellers": 2,
+        "bahncard_discount": 25,
+        "bahncard_count": 2,
+        "train_binding": true,
+        "booked_lines": [
+          "ICE 17",
+          "ICE 725",
+          "ICE 700"
+        ],
+        "origin": "Leuven",
+        "destination": "Erlangen",
+        "date": "2025-11-16",
+        "legs": [
+          {
+            "line": "IC 512",
+            "product": "IC",
+            "number": null,
+            "headsign": null,
+            "from": "Leuven",
+            "to": "Liège-Guillemins",
+            "date": "2025-11-16",
+            "departure": "14:27",
+            "arrival_date": "2025-11-16",
+            "arrival": "14:59",
+            "from_platform": "3",
+            "to_platform": "1",
+            "reservation": null
+          },
+          {
+            "line": "ICE 17",
+            "product": "ICE",
+            "number": null,
+            "headsign": null,
+            "from": "Liège-Guillemins",
+            "to": "Frankfurt(Main)Hbf",
+            "date": "2025-11-16",
+            "departure": "15:14",
+            "arrival_date": "2025-11-16",
+            "arrival": "17:27",
+            "from_platform": null,
+            "to_platform": "2",
+            "reservation": null
+          },
+          {
+            "line": "ICE 725",
+            "product": "ICE",
+            "number": null,
+            "headsign": null,
+            "from": "Frankfurt(Main)Hbf",
+            "to": "Nürnberg Hbf",
+            "date": "2025-11-16",
+            "departure": "17:57",
+            "arrival_date": "2025-11-16",
+            "arrival": "20:40",
+            "from_platform": "8",
+            "to_platform": "9",
+            "reservation": null
+          },
+          {
+            "line": "ICE 700",
+            "product": "ICE",
+            "number": null,
+            "headsign": null,
+            "from": "Nürnberg Hbf",
+            "to": "Erlangen",
+            "date": "2025-11-16",
+            "departure": "21:05",
+            "arrival_date": "2025-11-16",
+            "arrival": "21:18",
+            "from_platform": "7",
+            "to_platform": "1",
+            "reservation": null
+          }
+        ],
+        "price_cents": 11740,
+        "price_scope": "booking",
+        "reservation": null
+      }
+    }
+  ],
+  "pdf": [
+    {
+      "name": "the synthetic PDF of the ticket text extracts to text that parses the same",
+      "file": "synthetic-ticket.pdf",
+      "same_as": "db-ticket-super-sparpreis-europa-return.txt"
+    }
+  ],
+  "fares": [
+    {
+      "name": "Flexpreis",
+      "fare_type": "flex",
+      "binding": false
+    },
+    {
+      "name": "Flexpreis Europa",
+      "fare_type": "flex",
+      "binding": false
+    },
+    {
+      "name": "Sparpreis",
+      "fare_type": "saver",
+      "binding": true
+    },
+    {
+      "name": "Super Sparpreis",
+      "fare_type": "saver",
+      "binding": true
+    },
+    {
+      "name": "Super Sparpreis Europa",
+      "fare_type": "saver",
+      "binding": true
+    },
+    {
+      "name": "Sparpreis Young",
+      "fare_type": "saver",
+      "binding": true
+    },
+    {
+      "name": "Deutschland-Ticket",
+      "fare_type": "deutschlandticket",
+      "binding": false
+    },
+    {
+      "name": "D-Ticket",
+      "fare_type": "deutschlandticket",
+      "binding": false
+    },
+    {
+      "name": "Quer-durchs-Land-Ticket",
+      "fare_type": "regional",
+      "binding": false
+    },
+    {
+      "name": "Bayern-Ticket",
+      "fare_type": "regional",
+      "binding": false
+    },
+    {
+      "name": "Schönes-Wochenende-Ticket",
+      "fare_type": "regional",
+      "binding": false
+    },
+    {
+      "name": "BahnCard 100",
+      "fare_type": "bahncard100",
+      "binding": false
+    },
+    {
+      "name": "Gruppen-Rabatt",
+      "fare_type": "other",
+      "binding": false
+    },
+    {
+      "name": null,
+      "fare_type": "other",
+      "binding": false
+    }
+  ],
+  "platforms": [
+    {
+      "value": "4",
+      "expect": "4"
+    },
+    {
+      "value": "4 C-F",
+      "expect": "4"
+    },
+    {
+      "value": "12a",
+      "expect": "12a"
+    },
+    {
+      "value": "101 A-C",
+      "expect": "101"
+    },
+    {
+      "value": "",
+      "expect": null
+    },
+    {
+      "value": null,
+      "expect": null
+    }
+  ],
+  "lines": [
+    {
+      "a": "RE19",
+      "b": "RE 19",
+      "same": true
+    },
+    {
+      "a": "ICE 728",
+      "b": "ICE728",
+      "same": true
+    },
+    {
+      "a": "ice 16",
+      "b": "ICE 16",
+      "same": true
+    },
+    {
+      "a": "IC 535",
+      "b": "ICE 535",
+      "same": false
+    },
+    {
+      "a": "S1",
+      "b": "S 11",
+      "same": false
+    }
+  ]
+}
