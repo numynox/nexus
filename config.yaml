@@ -1,4 +1,4 @@
-# Build-time configuration for all three apps.
+# Build-time configuration for all the apps.
 #
 # Read by packages/config (Node, at build time) — never shipped to the browser
 # as YAML. Each app's astro.config.mjs takes its base path and output directory

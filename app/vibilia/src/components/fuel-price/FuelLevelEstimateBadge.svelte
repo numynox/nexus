@@ -6,7 +6,7 @@
     type FuelLevelEstimate,
   } from "../../lib/data";
 
-  let { carId = null } = $props<{ carId?: string | null }>();
+  let { carId = null }: { carId?: string | null } = $props();
 
   let estimate = $state<FuelLevelEstimate | null>(null);
   let loadToken = 0;

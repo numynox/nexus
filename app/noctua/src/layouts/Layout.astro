@@ -85,21 +85,22 @@ const themeScript = themeBootstrapScript("noctua_theme");
     </script>
 
     <script is:inline>
+      // Register from the app's base, not relative to the page: GitHub Pages
+      // redirects /nexus/<app> to /nexus/<app>/, and a page-relative "sw.js"
+      // resolved before that redirect points one level too high and 404s.
       (function () {
         if (
           "serviceWorker" in navigator &&
           window.location.protocol !== "file:"
         ) {
+          var base = document.documentElement.dataset.baseUrl || "/";
+          if (!base.endsWith("/")) base += "/";
           window.addEventListener("load", function () {
-            try {
-              navigator.serviceWorker
-                .register(document.documentElement.dataset.baseUrl + "/sw.js")
-                .catch((e) => {
-                  console.error("Service worker registration failed:", e);
-                });
-            } catch (e) {
-              console.error("Service worker registration failed:", e);
-            }
+            navigator.serviceWorker
+              .register(base + "sw.js", { scope: base })
+              .catch(function (e) {
+                console.error("Service worker registration failed:", e);
+              });
           });
         }
       })();
