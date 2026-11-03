@@ -10,6 +10,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -26,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.DirectionsWalk
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ConfirmationNumber
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.ExpandLess
@@ -37,6 +40,7 @@ import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -74,6 +78,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.numynox.nexus.abeona.data.FareType
 import io.github.numynox.nexus.abeona.data.Leg
 import io.github.numynox.nexus.abeona.data.StopTime
 import io.github.numynox.nexus.abeona.data.Trip
@@ -99,9 +104,12 @@ import io.github.numynox.nexus.abeona.ui.common.OfflinePill
 import io.github.numynox.nexus.abeona.ui.common.PlatformBox
 import io.github.numynox.nexus.abeona.ui.common.StatusPill
 import io.github.numynox.nexus.abeona.ui.common.TimeWithDelay
+import io.github.numynox.nexus.abeona.ui.common.PickedFile
 import io.github.numynox.nexus.abeona.ui.common.TripFormat
+import io.github.numynox.nexus.abeona.ui.common.TripWarningsBanner
 import io.github.numynox.nexus.abeona.ui.common.containerViewModel
 import io.github.numynox.nexus.core.ui.Loadable
+import io.github.numynox.nexus.core.ui.components.ConnectedChoiceRow
 import io.github.numynox.nexus.core.ui.components.ErrorState
 import io.github.numynox.nexus.core.ui.components.NexusCard
 import io.github.numynox.nexus.core.ui.components.PlaceholderList
@@ -117,6 +125,7 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
     val application = context.applicationContext as android.app.Application
     val viewModel = containerViewModel(key = tripId) { TripViewModel(it, application, tripId) }
     val detail by viewModel.detail.collectAsStateWithLifecycle()
+    val people by viewModel.people.collectAsStateWithLifecycle()
     val companion by LiveCompanion.running.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -178,6 +187,9 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                 is Loadable.Failed -> ErrorState(state.message, onRetry = { viewModel.load() })
                 is Loadable.Ready -> TripContent(
                     detail = state.value,
+                    people = people,
+                    onToggleTraveller = { id -> viewModel.toggleTraveller(id) { scope.launch { snackbar.showSnackbar(it) } } },
+                    onDiscount = { value -> viewModel.setBahncardDiscount(value) { scope.launch { snackbar.showSnackbar(it) } } },
                     companionOn = companion == tripId,
                     onDbNavigator = { DbNavigator.open(context) },
                     onTicket = {
@@ -222,6 +234,9 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
 @Composable
 private fun TripContent(
     detail: TripDetail,
+    people: TripPeople?,
+    onToggleTraveller: (String) -> Unit,
+    onDiscount: (Int?) -> Unit,
     companionOn: Boolean,
     onDbNavigator: () -> Unit,
     onTicket: () -> Unit,
@@ -238,6 +253,9 @@ private fun TripContent(
         item(key = "header") { TripHeader(detail) }
         if (trainBindingLifted(trip.fareType, trip.trainBinding, arrivalDelay)) {
             item(key = "binding") { BindingLiftedBanner(arrivalDelay) }
+        }
+        if (!people?.warnings.isNullOrEmpty() && trip.expectedArrival.isAfter(java.time.Instant.now())) {
+            item(key = "warnings") { TripWarningsBanner(people.warnings) }
         }
         item(key = "actions") {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -278,8 +296,50 @@ private fun TripContent(
                 item(key = "leg-$index") { LegCard(leg) }
             }
         }
+        people?.let { item(key = "travellers") { TravellersCard(trip, it, onToggleTraveller, onDiscount) } }
     }
 }
+
+/** Who rides on this trip, and the BahnCard discount their fare was bought with. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TravellersCard(trip: Trip, people: TripPeople, onToggle: (String) -> Unit, onDiscount: (Int?) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+        SectionHeader("Travellers", supporting = "Who rides, and the BahnCard their fare counts on")
+        NexusCard(Modifier.fillMaxWidth()) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                people.travellers.forEach { traveller ->
+                    val on = traveller.id in people.onTrip
+                    FilterChip(
+                        selected = on,
+                        onClick = { onToggle(traveller.id) },
+                        label = { Text(traveller.name) },
+                        leadingIcon = if (on) {
+                            { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                        } else {
+                            null
+                        },
+                    )
+                }
+            }
+            Text("BahnCard discount", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
+            when (trip.fareType) {
+                FareType.BahnCard100 -> Text("Every traveller needs a BahnCard 100.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                FareType.Deutschlandticket -> Text("None with a Deutschlandticket.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                else -> ConnectedChoiceRow(
+                    options = BahnCardDiscounts,
+                    selected = trip.bahncardDiscount,
+                    onSelect = onDiscount,
+                    label = { it?.let { kind -> "BC $kind" } ?: "None" },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+    }
+}
+
+/** The discounts a fare can be bought with; a BahnCard 100 is a fare type of its own. */
+internal val BahnCardDiscounts: List<Int?> = listOf(null, 25, 50)
 
 private fun timelineSummary(trip: Trip): String {
     val rides = trip.legs.count { !it.isWalk }
@@ -287,7 +347,8 @@ private fun timelineSummary(trip: Trip): String {
     return listOf(
         TripFormat.duration(minutes),
         if (rides <= 1) "direct" else "${rides - 1} ${if (rides == 2) "change" else "changes"}",
-        "${trip.fareType.label}, ${if (trip.travelClass == 1) "1st" else "2nd"} class",
+        "${trip.fareType.label}, ${if (trip.travelClass == 1) "1st" else "2nd"} class" +
+            (trip.bahncardDiscount?.let { ", BahnCard $it" } ?: ""),
     ).joinToString(" · ")
 }
 

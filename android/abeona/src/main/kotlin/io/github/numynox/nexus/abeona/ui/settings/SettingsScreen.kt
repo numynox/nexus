@@ -56,9 +56,14 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.numynox.nexus.abeona.data.BahnCard
 import io.github.numynox.nexus.abeona.data.HouseholdMember
 import io.github.numynox.nexus.abeona.data.Traveller
 import io.github.numynox.nexus.abeona.ui.AppViewModel
+import io.github.numynox.nexus.abeona.ui.Navigator
+import io.github.numynox.nexus.abeona.ui.bahncards.BahnCardRow
+import io.github.numynox.nexus.abeona.ui.bahncards.BahnCardSheet
+import io.github.numynox.nexus.abeona.ui.common.DbNavigator
 import io.github.numynox.nexus.abeona.ui.common.containerViewModel
 import io.github.numynox.nexus.core.data.AuthState
 import io.github.numynox.nexus.core.ui.Loadable
@@ -75,11 +80,13 @@ import io.github.numynox.nexus.core.ui.settings.SettingSwitch
 private sealed interface Editing {
     data object Invite : Editing
     data class TravellerEdit(val traveller: Traveller?) : Editing
+    data class CardEdit(val traveller: Traveller, val card: BahnCard?) : Editing
 }
 
 @Composable
-fun SettingsScreen(app: AppViewModel) {
-    val viewModel = containerViewModel { SettingsViewModel(it) }
+fun SettingsScreen(app: AppViewModel, navigator: Navigator) {
+    val application = LocalContext.current.applicationContext as android.app.Application
+    val viewModel = containerViewModel { SettingsViewModel(it, application) }
     val settings by app.settings.collectAsStateWithLifecycle()
     val auth by app.auth.collectAsStateWithLifecycle()
     val update by app.update.collectAsStateWithLifecycle()
@@ -91,6 +98,11 @@ fun SettingsScreen(app: AppViewModel) {
     val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) app.setLiveCompanion(true)
     }
+    val reminderPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) app.setBahnCardReminder(true)
+    }
+    fun canNotify() = Build.VERSION.SDK_INT < 33 ||
+        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
     LaunchedEffect(viewModel) { viewModel.load() }
     LaunchedEffect(viewModel) { viewModel.messages.collect { snackbar.showSnackbar(it) } }
@@ -173,6 +185,44 @@ fun SettingsScreen(app: AppViewModel) {
                             }
                         }
                     }
+                    item {
+                        SectionHeader("BahnCards", supporting = "Checked against your trips; only DB Navigator's counts as proof")
+                    }
+                    item {
+                        NexusCard {
+                            state.value.travellers.forEachIndexed { index, traveller ->
+                                if (index > 0) HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(traveller.name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                                    TextButton(onClick = { editing = Editing.CardEdit(traveller, null) }) {
+                                        Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Text("Add BahnCard", modifier = Modifier.padding(start = 6.dp))
+                                    }
+                                }
+                                val cards = state.value.cardsOf(traveller)
+                                if (cards.isEmpty()) {
+                                    Text("No BahnCard", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                cards.forEach { card ->
+                                    BahnCardRow(
+                                        card,
+                                        onShow = { navigator.bahnCard(card.id) },
+                                        onEdit = { editing = Editing.CardEdit(traveller, card) },
+                                        onDbNavigator = { DbNavigator.open(context) },
+                                    )
+                                }
+                            }
+                            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                            SettingSwitch(
+                                title = "Remind me before a card renews",
+                                description = "Two weeks, one week, three days and a day before a subscription's cancellation deadline. Only this phone.",
+                                checked = settings.bahnCardReminder,
+                                onCheckedChange = { on ->
+                                    if (on && !canNotify()) reminderPermission.launch(Manifest.permission.POST_NOTIFICATIONS) else app.setBahnCardReminder(on)
+                                },
+                            )
+                        }
+                    }
                 }
             }
 
@@ -227,6 +277,16 @@ fun SettingsScreen(app: AppViewModel) {
                 editing = null
             },
             onDelete = current.traveller?.takeIf { it.userId == null }?.let { traveller -> { viewModel.deleteTraveller(traveller.id); editing = null } },
+            onDismiss = { editing = null },
+        )
+        is Editing.CardEdit -> BahnCardSheet(
+            traveller = current.traveller,
+            card = current.card,
+            onSave = { input, file, removeFile ->
+                viewModel.saveCard(input, current.card?.id, file, removeFile)
+                editing = null
+            },
+            onDelete = current.card?.let { card -> { viewModel.deleteCard(card); editing = null } },
             onDismiss = { editing = null },
         )
         null -> Unit

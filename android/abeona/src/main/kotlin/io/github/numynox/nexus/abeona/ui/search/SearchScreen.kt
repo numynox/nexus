@@ -54,6 +54,7 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -174,11 +175,15 @@ fun SearchScreen(app: AppViewModel, navigator: Navigator) {
     }
 
     saving?.let { journey ->
+        val travellers by viewModel.travellers.collectAsStateWithLifecycle()
+        LaunchedEffect(journey) { viewModel.loadTravellers() }
         SaveTripSheet(
             journey = journey,
-            onSave = { title, fare, binding, travelClass, price ->
+            travellers = travellers,
+            me = viewModel.userId,
+            onSave = { input ->
                 viewModel.save(
-                    journey, title, fare, binding, travelClass, price,
+                    journey, input,
                     onError = { message -> scope.launch { snackbar.showSnackbar(message) } },
                 ) { id ->
                     saving = null

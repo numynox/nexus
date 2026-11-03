@@ -3,10 +3,11 @@ package io.github.numynox.nexus.abeona.ui.search
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.numynox.nexus.abeona.AppContainer
-import io.github.numynox.nexus.abeona.data.FareType
 import io.github.numynox.nexus.abeona.data.Journey
 import io.github.numynox.nexus.abeona.data.ProductFilter
+import io.github.numynox.nexus.abeona.data.SaveTripInput
 import io.github.numynox.nexus.abeona.data.Station
+import io.github.numynox.nexus.abeona.data.Traveller
 import io.github.numynox.nexus.core.data.describe
 import io.github.numynox.nexus.core.ui.Loadable
 import io.github.numynox.nexus.core.ui.loadable
@@ -115,18 +116,18 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    fun save(
-        journey: Journey,
-        title: String,
-        fareType: FareType,
-        trainBinding: Boolean,
-        travelClass: Int,
-        priceCents: Int?,
-        onError: (String) -> Unit,
-        onSaved: (String) -> Unit,
-    ) {
+    /** The household's travellers, for "Who travels" in the save sheet; null until loaded. */
+    private val _travellers = MutableStateFlow<List<Traveller>?>(null)
+    val travellers: StateFlow<List<Traveller>?> = _travellers.asStateFlow()
+    val userId: String? get() = container.core.auth.currentUserId
+
+    fun loadTravellers() = viewModelScope.launch {
+        _travellers.value = runCatching { repository.travellers() }.getOrNull()
+    }
+
+    fun save(journey: Journey, input: SaveTripInput, onError: (String) -> Unit, onSaved: (String) -> Unit) {
         viewModelScope.launch {
-            runCatching { repository.saveTrip(journey, title, fareType, trainBinding, travelClass, priceCents) }
+            runCatching { repository.saveTrip(journey, input) }
                 .onSuccess(onSaved)
                 .onFailure { onError(it.describe()) }
         }

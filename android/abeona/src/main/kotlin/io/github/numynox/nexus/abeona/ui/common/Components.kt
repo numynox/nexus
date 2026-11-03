@@ -15,6 +15,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.DirectionsWalk
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.material.icons.rounded.CreditCard
+import androidx.compose.material.icons.rounded.EventBusy
 import androidx.compose.material.icons.rounded.DirectionsBus
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.SwapHoriz
@@ -36,9 +38,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import io.github.numynox.nexus.abeona.data.BahnCardDeadline
 import io.github.numynox.nexus.abeona.data.Leg
 import io.github.numynox.nexus.abeona.data.LegMode
+import io.github.numynox.nexus.abeona.data.TripWarning
 import io.github.numynox.nexus.abeona.domain.Confidence
+import io.github.numynox.nexus.abeona.reminders.BahnCardReminders
 import io.github.numynox.nexus.abeona.ui.AbeonaColors
 import io.github.numynox.nexus.abeona.ui.attention
 import io.github.numynox.nexus.abeona.ui.calm
@@ -258,6 +263,54 @@ fun BindingLiftedBanner(delay: Int, modifier: Modifier = Modifier) {
                 Text(
                     "Expected +$delay min at your destination. Your saver ticket is valid on other trains for this route.",
                     style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+    }
+}
+
+/** What is wrong with the BahnCards for a trip, in the database's own words (abeona_trip_warnings). */
+@Composable
+fun TripWarningsBanner(warnings: List<TripWarning>, modifier: Modifier = Modifier) {
+    if (warnings.isEmpty()) return
+    val colors = attention
+    Surface(color = colors.container, contentColor = colors.content, shape = RoundedCornerShape(20.dp), modifier = modifier.fillMaxWidth()) {
+        Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+            Icon(Icons.Rounded.CreditCard, contentDescription = null, modifier = Modifier.size(28.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("Check the BahnCards", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
+                warnings.forEach { Text(it.message, style = MaterialTheme.typography.bodySmall) }
+            }
+        }
+    }
+}
+
+/** Subscriptions to cancel soon (abeona_bahncard_deadlines), in amber; a tap leads to the cards. */
+@Composable
+fun DeadlineBanner(deadlines: List<BahnCardDeadline>, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    if (deadlines.isEmpty()) return
+    val colors = attention
+    Surface(
+        onClick = onClick,
+        color = colors.container,
+        contentColor = colors.content,
+        shape = RoundedCornerShape(20.dp),
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+            Icon(Icons.Rounded.EventBusy, contentDescription = null, modifier = Modifier.size(28.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    if (deadlines.size == 1) "A BahnCard renews soon" else "${deadlines.size} BahnCards renew soon",
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                )
+                deadlines.forEach { d ->
+                    Text("${d.travellerName}'s BahnCard ${d.kind}: ${BahnCardReminders.deadlineText(d)}", style = MaterialTheme.typography.bodySmall)
+                }
+                Text(
+                    "Already cancelled? Turn off \"Renews automatically\" on the card.",
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                    modifier = Modifier.padding(top = 4.dp),
                 )
             }
         }

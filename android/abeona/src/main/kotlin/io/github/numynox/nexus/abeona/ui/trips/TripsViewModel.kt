@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.numynox.nexus.abeona.AppContainer
+import io.github.numynox.nexus.abeona.data.BahnCardDeadline
 import io.github.numynox.nexus.abeona.data.Statistics
 import io.github.numynox.nexus.abeona.data.Trip
 import io.github.numynox.nexus.abeona.live.Background
@@ -35,6 +36,10 @@ class TripsViewModel(private val container: AppContainer, private val applicatio
     private val _history = MutableStateFlow<Statistics?>(null)
     val history: StateFlow<Statistics?> = _history.asStateFlow()
 
+    /** BahnCard subscriptions to cancel soon; empty while loading, offline, or when there are none. */
+    private val _deadlines = MutableStateFlow<List<BahnCardDeadline>>(emptyList())
+    val deadlines: StateFlow<List<BahnCardDeadline>> = _deadlines.asStateFlow()
+
     fun load(): Job = viewModelScope.launch {
         if (_trips.value !is Loadable.Ready) _trips.value = Loadable.Loading
         val loaded = loadable { container.trips.upcoming() }
@@ -46,6 +51,7 @@ class TripsViewModel(private val container: AppContainer, private val applicatio
         val state = _trips.value.valueOrNull ?: return@launch
         if (state.offlineSince == null) {
             launch { _history.value = runCatching { container.repository.statistics(LocalDate.now().year) }.getOrNull() }
+            launch { _deadlines.value = runCatching { container.repository.bahnCardDeadlines() }.getOrElse { _deadlines.value } }
             refreshNextIfSoon(state.trips)
             Background.scheduleAutostart(application, state.trips)
         }
