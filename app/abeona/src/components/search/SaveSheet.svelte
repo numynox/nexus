@@ -1,10 +1,12 @@
 <script lang="ts">
-  import { Check, X } from "lucide-svelte";
+  import { Check, FileText, X } from "lucide-svelte";
   import {
     describeError,
+    ensureHousehold,
     fetchTravellers,
     isPastJourney,
     saveTrip,
+    uploadTicket,
     type BahnCardKind,
     type FareTypeValue,
     type Traveller,
@@ -12,16 +14,21 @@
   import { BAHNCARD_DISCOUNTS, FARE_TYPES, formatDuration, formatLongDate, formatTime } from "../../lib/format";
   import { session } from "../../lib/stores";
   import { summarise } from "../../lib/journey";
+  import { halfOf, matchSummary, type IntakeDraft } from "../../lib/intake/intake";
   import type { Journey } from "../../lib/transit";
   import LegChip from "../common/LegChip.svelte";
 
   interface Props {
     journey: Journey | null;
+    /** Set when the journey came from a share text or a ticket: the fields start from what was read. */
+    intake?: IntakeDraft | null;
+    /** The ticket PDF the intake read; attached to the trip once it is saved. */
+    ticketFile?: File | null;
     onClose: () => void;
     onSaved: (tripId: string) => void;
   }
 
-  let { journey, onClose, onSaved }: Props = $props();
+  let { journey, intake = null, ticketFile = null, onClose, onSaved }: Props = $props();
 
   let dialog: HTMLDialogElement | undefined = $state();
   let title = $state("");
@@ -38,6 +45,33 @@
   /** For a journey that has already arrived: how late it really was, typed by hand. */
   let delay = $state("");
   let error = $state("");
+  /**
+   * For a ticket that prints the whole booking's price: null until the user
+   * says what this trip cost (half, all, or typed). Never halved silently.
+   */
+  let priceConfirmed = $state(true);
+  let fromIntake = false;
+
+  function euros(cents: number): string {
+    return (cents / 100).toFixed(2);
+  }
+
+  function applyIntake(draft: IntakeDraft | null) {
+    const p = draft?.prefill;
+    title = "";
+    fareType = p?.fare_type ?? "saver";
+    trainBinding = p?.train_binding ?? fareType === "saver";
+    bindingTouched = p?.train_binding != null;
+    travelClass = p?.travel_class ?? 2;
+    discount = p?.bahncard_discount ?? null;
+    price = p?.price_cents != null ? euros(p.price_cents) : "";
+    priceConfirmed = !(p?.price_cents != null && p.price_scope === "booking");
+  }
+
+  function choosePrice(cents: number) {
+    price = euros(cents);
+    priceConfirmed = true;
+  }
 
   const s = $derived(journey ? summarise(journey.legs) : null);
   const past = $derived(journey ? isPastJourney(journey) : false);
@@ -47,6 +81,9 @@
     if (journey && !dialog.open) {
       error = "";
       delay = "";
+      // A normal search keeps the last choices; an intake starts from what it read (and leaves none behind).
+      if (intake || fromIntake) applyIntake(intake);
+      fromIntake = !!intake;
       dialog.showModal();
       void loadTravellers();
     } else if (!journey && dialog.open) {
@@ -94,6 +131,10 @@
   async function save(event: Event) {
     event.preventDefault();
     if (!journey || saving) return;
+    if (!priceConfirmed) {
+      error = "Say what this trip cost: the ticket prints the whole booking's price.";
+      return;
+    }
     const cents = parsePrice(price);
     if (cents === "invalid") {
       error = "Enter the price as a number, e.g. 29.90.";
@@ -119,7 +160,12 @@
         price_cents: cents,
         bahncard_discount: showDiscount ? discount : null,
         ...(travellerIds ? { traveller_ids: [...travellerIds] } : {}),
+        ...(intake ? { source: intake.source } : {}),
       });
+      if (ticketFile) {
+        // The trip is saved either way; a failed upload leaves it without its ticket, to add by hand.
+        await uploadTicket({ id, household_id: await ensureHousehold(), ticket_path: null }, ticketFile).catch(() => {});
+      }
       onSaved(id);
     } catch (e) {
       error = describeError(e);
@@ -151,6 +197,20 @@
       </div>
 
       <div class="space-y-5 px-6 py-6">
+        {#if intake}
+          <div
+            class="rounded-2xl p-4 text-sm {intake.match.status === 'full' ? 'bg-mint text-primary' : 'bg-amber-soft text-amber-ink'}"
+            role="status"
+          >
+            <p class="font-semibold">
+              {intake.source === "pdf" ? "Read from your ticket" : "Read from DB Navigator"}
+            </p>
+            <p class="mt-1">{matchSummary(intake.match)}</p>
+            {#if ticketFile}
+              <p class="mt-2 inline-flex items-center gap-1.5"><FileText class="h-4 w-4" /> The PDF goes into the trip's ticket wallet.</p>
+            {/if}
+          </div>
+        {/if}
         {#if past}
           <div class="rounded-2xl bg-amber-soft p-4 text-amber-ink">
             <p class="font-semibold">A past trip</p>
@@ -214,10 +274,30 @@
             <span class="block px-1 pb-1 text-xs font-semibold uppercase tracking-wider text-base-content/55">Price <span class="normal-case font-normal tracking-normal">(optional)</span></span>
             <span class="input w-full rounded-2xl bg-card">
               <span class="text-base-content/50">€</span>
-              <input inputmode="decimal" placeholder="0.00" bind:value={price} class="tabular" />
+              <input inputmode="decimal" placeholder="0.00" bind:value={price} class="tabular" oninput={() => (priceConfirmed = true)} />
             </span>
           </label>
         </div>
+
+        {#if intake?.prefill.price_cents != null && intake.prefill.price_scope === "booking"}
+          {@const whole = intake.prefill.price_cents}
+          <div class="rounded-2xl p-4 text-sm {priceConfirmed ? 'bg-card' : 'bg-amber-soft text-amber-ink'}">
+            <p class="font-semibold">€{euros(whole)} is likely the whole booking</p>
+            <p class="mt-1">
+              This ticket is one direction of a return booking, and DB prints the booking's total. What did this trip cost?
+              Compensation is worked out from it.
+            </p>
+            <div class="mt-3 flex flex-wrap gap-2">
+              <button type="button" class="btn btn-sm rounded-full {priceConfirmed && price === euros(halfOf(whole)) ? 'btn-primary' : 'bg-card'}" onclick={() => choosePrice(halfOf(whole))}>
+                Half · €{euros(halfOf(whole))}
+              </button>
+              <button type="button" class="btn btn-sm rounded-full {priceConfirmed && price === euros(whole) ? 'btn-primary' : 'bg-card'}" onclick={() => choosePrice(whole)}>
+                All of it · €{euros(whole)}
+              </button>
+            </div>
+            <p class="mt-2 text-xs opacity-80">Or type the price above.</p>
+          </div>
+        {/if}
 
         {#if showDiscount}
           <fieldset>
@@ -237,7 +317,12 @@
 
         {#if travellers.length > 1}
           <fieldset>
-            <legend class="px-1 pb-2 text-xs font-semibold uppercase tracking-wider text-base-content/55">Who travels</legend>
+            <legend class="px-1 pb-2 text-xs font-semibold uppercase tracking-wider text-base-content/55">
+              Who travels
+              {#if intake?.prefill.travellers}
+                <span class="normal-case font-normal tracking-normal">· the ticket is for {intake.prefill.travellers === 1 ? "1 person" : `${intake.prefill.travellers} people`}</span>
+              {/if}
+            </legend>
             <div class="flex flex-wrap gap-2">
               {#each travellers as t (t.id)}
                 {@const on = travellerIds?.has(t.id) ?? false}

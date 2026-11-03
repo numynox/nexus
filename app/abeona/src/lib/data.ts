@@ -13,6 +13,7 @@ import type {
   Station,
   Stopover,
 } from "./transit";
+import type { TransitPort } from "./intake/match";
 
 /**
  * The only module that talks to Supabase. Re-exported so call sites keep
@@ -229,6 +230,8 @@ export interface SaveTripInput {
    * refreshed. The delay, in minutes at the destination, is entered by hand.
    */
   past?: { arrival_delay_minutes: number | null };
+  /** Where it came from when not the search: a DB Navigator share or a ticket PDF (intake). */
+  source?: "share" | "pdf";
 }
 
 export type BahnCardKind = 25 | 50 | 100;
@@ -559,7 +562,7 @@ export async function saveTrip(journey: Journey, input: SaveTripInput): Promise<
   const { data, error } = await sb.rpc("abeona_save_trip", {
     p_trip: {
       title: input.title?.trim() || null,
-      source: input.past ? "import" : "search",
+      source: input.past ? "import" : (input.source ?? "search"),
       ...(input.past && input.past.arrival_delay_minutes !== null
         ? { arrival_delay_minutes: input.past.arrival_delay_minutes }
         : {}),
@@ -855,6 +858,12 @@ export async function searchJourneys(request: JourneysRequest): Promise<Journeys
     previous_cursor: result.previous_cursor ?? null,
   };
 }
+
+/** The timetable as intake's matching asks it (intake/match.ts): station names, then journeys. */
+export const transitPort: TransitPort = {
+  stations: searchStations,
+  journeys: async (from, to, time) => (await searchJourneys({ from, to, time })).journeys,
+};
 
 /**
  * Connections from `from` (a stop id, else "lat,lon") to the trip's

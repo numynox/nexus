@@ -1,0 +1,123 @@
+<script lang="ts">
+  import { ClipboardPaste, FileText, Ticket } from "lucide-svelte";
+  import { onMount } from "svelte";
+  import { describeError, transitPort } from "../../lib/data";
+  import { parseDbTicket } from "../../lib/intake/dbTicket";
+  import { intake, parseText, type IntakeDraft } from "../../lib/intake/intake";
+  import { browserPdfText } from "../../lib/intake/pdfText";
+  import { takeSharedIntake } from "../../lib/intake/shared";
+
+  interface Props {
+    /** A share or ticket was read and looked up: open the save sheet with it. */
+    onDraft: (draft: IntakeDraft, file: File | null) => void;
+  }
+
+  let { onDraft }: Props = $props();
+
+  let text = $state("");
+  let busy = $state<"reading" | "matching" | null>(null);
+  let error = $state("");
+  let fileInput: HTMLInputElement | undefined = $state();
+
+  async function run(source: "share" | "pdf", read: () => Promise<ReturnType<typeof parseText>>, file: File | null) {
+    if (busy) return;
+    error = "";
+    busy = "reading";
+    try {
+      const parsed = await read();
+      if (!parsed || parsed.legs.length === 0) {
+        error =
+          source === "pdf"
+            ? "Abeona could not find a journey in this PDF. It reads DB Online-Tickets."
+            : "Abeona could not find a journey in this text. Paste what DB Navigator's \"Share\" gives you.";
+        return;
+      }
+      busy = "matching";
+      onDraft(await intake(parsed, source, transitPort), file);
+      text = "";
+    } catch (e) {
+      error = describeError(e);
+    } finally {
+      busy = null;
+    }
+  }
+
+  function readText(event?: Event) {
+    event?.preventDefault();
+    const value = text.trim();
+    if (value) void run("share", async () => parseText(value), null);
+  }
+
+  function readPdf(file: File) {
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      error = "Choose the ticket as a PDF.";
+      return;
+    }
+    void run(
+      "pdf",
+      async () => {
+        const extracted = await browserPdfText(file);
+        return parseDbTicket(extracted) ?? parseText(extracted);
+      },
+      file,
+    );
+  }
+
+  function onFile(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = "";
+    if (file) readPdf(file);
+  }
+
+  // Something shared to the installed app (Web Share Target, via the service worker).
+  onMount(() => {
+    void takeSharedIntake().then((shared) => {
+      if (!shared) return;
+      if (shared.file) readPdf(shared.file);
+      else if (shared.text) {
+        text = shared.text;
+        readText();
+      }
+    });
+  });
+</script>
+
+<section class="rounded-[2rem] bg-card p-5 shadow-card sm:p-7" aria-labelledby="intake-title">
+  <div class="flex items-start gap-3">
+    <span class="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-mint text-primary"><Ticket class="h-5 w-5" /></span>
+    <div>
+      <h2 id="intake-title" class="font-semibold text-ink">Add from a ticket or a share</h2>
+      <p class="mt-0.5 text-sm text-base-content/60">
+        Paste what DB Navigator's "Share" gives you, or choose a DB ticket PDF. It is read on this device.
+      </p>
+    </div>
+  </div>
+
+  <form class="mt-4 space-y-3" onsubmit={readText}>
+    <textarea
+      class="textarea min-h-24 w-full rounded-2xl bg-base-100 text-sm"
+      placeholder={"Erlangen → Leuven\nFr. 14.11.2025\n\nRE19 (4901)\nAb 06:29 Erlangen, Gleis 4\n…"}
+      bind:value={text}
+      aria-label="Share text from DB Navigator"
+    ></textarea>
+    <div class="flex flex-wrap items-center gap-2">
+      <button type="submit" class="btn btn-primary rounded-full" disabled={!text.trim() || busy !== null}>
+        {#if busy && text.trim()}<span class="loading loading-spinner loading-sm"></span>{:else}<ClipboardPaste class="h-4 w-4" />{/if}
+        Read the text
+      </button>
+      <button type="button" class="btn btn-ghost rounded-full text-primary" disabled={busy !== null} onclick={() => fileInput?.click()}>
+        {#if busy && !text.trim()}<span class="loading loading-spinner loading-sm"></span>{:else}<FileText class="h-4 w-4" />{/if}
+        Choose a ticket PDF
+      </button>
+      <input bind:this={fileInput} type="file" accept="application/pdf,.pdf" class="hidden" onchange={onFile} />
+      {#if busy === "matching"}
+        <span class="text-sm text-base-content/60" role="status">Looking up the connection…</span>
+      {/if}
+    </div>
+  </form>
+
+  {#if error}
+    <p class="mt-3 rounded-2xl bg-error/10 px-4 py-3 text-sm text-error" role="alert">{error}</p>
+  {/if}
+</section>
