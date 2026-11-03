@@ -50,6 +50,14 @@ data class Trip(
     val legs: List<Leg> = emptyList(),
     /** The BahnCard discount the fare was bought with (25, 50, 100); a BahnCard 100 is also a [FareType]. */
     val bahncardDiscount: Int? = null,
+    /** Set once the snapshot job froze every ride's actual values. */
+    val finalizedAt: String? = null,
+    /** The ride (index into [legs]) that was missed or cancelled under the traveller. */
+    val missedLegIdx: Int? = null,
+    /** The rides actually taken instead, in the contract's shape. */
+    val replacementLegs: List<Leg>? = null,
+    /** The delay was caused by extreme weather or a person on the track. */
+    val forceMajeure: Boolean = false,
 ) {
     val departureAt: Instant get() = plannedDeparture.toInstantOrNull() ?: Instant.EPOCH
     val arrivalAt: Instant get() = plannedArrival.toInstantOrNull() ?: Instant.EPOCH
@@ -85,6 +93,10 @@ internal data class TripRow(
     @SerialName("refresh_token") val refreshToken: String? = null,
     @SerialName("refreshed_at") val refreshedAt: String? = null,
     @SerialName("bahncard_discount") val bahncardDiscount: Int? = null,
+    @SerialName("finalized_at") val finalizedAt: String? = null,
+    @SerialName("missed_leg_idx") val missedLegIdx: Int? = null,
+    @SerialName("replacement_legs") val replacementLegs: List<Leg>? = null,
+    @SerialName("force_majeure") val forceMajeure: Boolean = false,
     @SerialName("abeona_legs") val legs: List<LegRow> = emptyList(),
 ) {
     fun toTrip() = Trip(
@@ -105,6 +117,10 @@ internal data class TripRow(
         refreshedAt = refreshedAt,
         legs = legs.sortedBy { it.idx }.map { it.toLeg() },
         bahncardDiscount = bahncardDiscount,
+        finalizedAt = finalizedAt,
+        missedLegIdx = missedLegIdx,
+        replacementLegs = replacementLegs,
+        forceMajeure = forceMajeure,
     )
 }
 
@@ -279,4 +295,67 @@ data class Statistics(
     @SerialName("top_station") val topStation: StationCount? = null,
     val products: Map<String, Int> = emptyMap(),
     @SerialName("by_month") val byMonth: List<MonthStat> = emptyList(),
+)
+
+/** abeona_compensation(trip_id); [reasons] and [hints] are English sentences, shown as is, the same on the web. */
+@Serializable
+data class Compensation(
+    @SerialName("trip_id") val tripId: String,
+    /** eligible, not_eligible, below_minimum, unknown_price, unknown_arrival. */
+    val verdict: String,
+    @SerialName("amount_cents") val amountCents: Int? = null,
+    val percent: Double? = null,
+    @SerialName("delay_minutes") val delayMinutes: Int? = null,
+    @SerialName("delay_source") val delaySource: String = "planned",
+    @SerialName("planned_arrival") val plannedArrival: String? = null,
+    @SerialName("actual_arrival") val actualArrival: String? = null,
+    @SerialName("threshold_minutes") val thresholdMinutes: Int? = null,
+    val reasons: List<String> = emptyList(),
+    val hints: List<String> = emptyList(),
+    /** yyyy-mm-dd, the last day to claim. */
+    val deadline: String,
+    @SerialName("deadline_passed") val deadlinePassed: Boolean = false,
+    val poolable: Boolean = false,
+    /** German text for DB's passenger-rights form; null when there is nothing to claim. */
+    @SerialName("summary_de") val summaryDe: String? = null,
+    @SerialName("claim_url") val claimUrl: String = "https://www.bahn.de/service/informationen-buchung/fahrgastrechte",
+)
+
+/** abeona_claims: one per trip, access follows the trip. Status is open, claimed, paid or rejected. */
+@Serializable
+data class Claim(
+    val id: String,
+    @SerialName("trip_id") val tripId: String,
+    val status: String = "open",
+    @SerialName("amount_cents") val amountCents: Int? = null,
+    @SerialName("claimed_at") val claimedAt: String? = null,
+    @SerialName("paid_at") val paidAt: String? = null,
+    val note: String? = null,
+)
+
+/** A row of the claims overview. */
+@Serializable
+data class ClaimEntry(
+    @SerialName("trip_id") val tripId: String,
+    val title: String? = null,
+    @SerialName("origin_name") val originName: String,
+    @SerialName("destination_name") val destinationName: String,
+    @SerialName("planned_departure") val plannedDeparture: String,
+    @SerialName("delay_minutes") val delayMinutes: Int? = null,
+    val verdict: String,
+    @SerialName("amount_cents") val amountCents: Int? = null,
+    val deadline: String,
+    @SerialName("days_left") val daysLeft: Int,
+    val status: String = "open",
+) {
+    val displayTitle: String get() = title?.takeIf { it.isNotBlank() } ?: "$originName → $destinationName"
+}
+
+/** abeona_claims_overview(year). */
+@Serializable
+data class ClaimsOverview(
+    @SerialName("to_claim") val toClaim: List<ClaimEntry> = emptyList(),
+    val waiting: List<ClaimEntry> = emptyList(),
+    @SerialName("earned_cents") val earnedCents: Int = 0,
+    val paid: Int = 0,
 )

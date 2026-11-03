@@ -28,6 +28,8 @@ data class AbeonaSettings(
     val liveCompanion: Boolean = false,
     /** Notify before a BahnCard subscription's cancellation deadline. Per phone and off by default. */
     val bahnCardReminder: Boolean = false,
+    /** Notify about compensation to claim, and before its deadline. Per phone and off by default. */
+    val claimReminder: Boolean = false,
     /** From the door to the platform: the time to leave is the first departure minus this. */
     val stationMinutes: Int = TravelDayRules.DEFAULT_STATION_MINUTES,
     /** Notify when it is time to leave for the next trip. Per phone and off by default. */
@@ -72,6 +74,7 @@ class AbeonaPreferences(private val context: Context) {
         val DynamicColor = booleanPreferencesKey("dynamic_color")
         val LiveCompanion = booleanPreferencesKey("live_companion")
         val BahnCardReminder = booleanPreferencesKey("bahncard_reminder")
+        val ClaimReminder = booleanPreferencesKey("claim_reminder")
         val StationMinutes = intPreferencesKey("station_minutes")
         val LeaveReminder = booleanPreferencesKey("leave_reminder")
         val AlertDelay = intPreferencesKey("alert_delay_minutes")
@@ -90,6 +93,7 @@ class AbeonaPreferences(private val context: Context) {
         dynamicColor = this[Keys.DynamicColor] ?: false,
         liveCompanion = this[Keys.LiveCompanion] ?: false,
         bahnCardReminder = this[Keys.BahnCardReminder] ?: false,
+        claimReminder = this[Keys.ClaimReminder] ?: false,
         stationMinutes = this[Keys.StationMinutes]?.takeIf { it in 0..180 } ?: TravelDayRules.DEFAULT_STATION_MINUTES,
         leaveReminder = this[Keys.LeaveReminder] ?: false,
         alerts = AlertSettings(
@@ -108,6 +112,7 @@ class AbeonaPreferences(private val context: Context) {
     suspend fun setDynamicColor(value: Boolean) = edit { it[Keys.DynamicColor] = value }
     suspend fun setLiveCompanion(value: Boolean) = edit { it[Keys.LiveCompanion] = value }
     suspend fun setBahnCardReminder(value: Boolean) = edit { it[Keys.BahnCardReminder] = value }
+    suspend fun setClaimReminder(value: Boolean) = edit { it[Keys.ClaimReminder] = value }
     suspend fun setStationMinutes(value: Int) = edit { it[Keys.StationMinutes] = value.coerceIn(0, 180) }
     suspend fun setLeaveReminder(value: Boolean) = edit { it[Keys.LeaveReminder] = value }
     suspend fun setAlerts(value: AlertSettings) = edit {
