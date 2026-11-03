@@ -27,7 +27,10 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import kotlin.random.Random
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.addJsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonArray
@@ -371,6 +374,20 @@ object FakeBackend {
                 }
             }
             path.endsWith("/functions/v1/abeona-transit") -> transit(NexusJson.decodeFromString(request.text()))
+            path.endsWith("/functions/v1/abeona-import") -> imported()
+            path.endsWith("/rpc/abeona_travel_map") -> travelMap()
+            path.endsWith("/rest/v1/abeona_share_links") && request.method == HttpMethod.Get -> buildJsonArray {
+                addJsonObject {
+                    put("token", "3f9c2a7e1b5d4c8a9e0f1a2b3c4d5e6f7a8b"); put("trip_id", NEXT); put("kind", "status")
+                    put("expires_at", at(60 * 30))
+                }
+            }
+            path.endsWith("/rest/v1/abeona_share_links") && request.method == HttpMethod.Post -> buildJsonObject {
+                val kind = if (request.text().contains("\"ics\"")) "ics" else "status"
+                put("token", "9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f"); put("trip_id", NEXT); put("kind", kind)
+                put("expires_at", at(60 * 24 * 32))
+            }
+            path.endsWith("/rest/v1/abeona_share_links") -> "[]"
             else -> null
         }
     }
@@ -438,6 +455,56 @@ object FakeBackend {
         }
     }
 
+    /** The year's map: a handful of stretches, the commute most often. */
+    private fun travelMap() = buildJsonArray {
+        fun line(a: Place, b: Place, count: Int, product: String, bend: Double = 0.0) = addJsonObject {
+            putJsonObject("from") { put("name", a.name); put("lat", a.lat); put("lon", a.lon) }
+            putJsonObject("to") { put("name", b.name); put("lat", b.lat); put("lon", b.lon) }
+            put("product", product); put("count", count)
+            putJsonArray("polyline") {
+                (0..12).forEach { i ->
+                    val t = i / 12.0
+                    val lift = bend * kotlin.math.sin(t * Math.PI)
+                    addJsonArray { add(a.lon + (b.lon - a.lon) * t); add(a.lat + (b.lat - a.lat) * t + lift) }
+                }
+            }
+        }
+        line(frankfurt, wuerzburg, 18, "ICE", 0.08)
+        line(wuerzburg, bamberg, 9, "RE", 0.05)
+        line(bamberg, nuernberg, 4, "RE", -0.03)
+        line(nuernberg, muenchen, 3, "ICE", 0.1)
+        line(frankfurt, koeln, 3, "ICE", 0.12)
+        line(frankfurt, berlin, 2, "ICE", 0.3)
+        line(berlin, hamburg, 1, "ICE", 0.1)
+        line(muenchen, Place("sbg", "Salzburg Hbf", 47.8131, 13.0458), 1, "RJX", 0.05)
+    }
+
+    /** Träwelling's check-ins as abeona-import answers them: two new trips, one saved already. */
+    private fun imported() = buildJsonObject {
+        fun ride(line: String, product: String, a: Place, b: Place, dep: Long, arr: Long, late: Long) = buildJsonObject {
+            put("mode", "train"); put("product", product); put("line_name", line)
+            putJsonObject("from") { put("name", a.name); put("lat", a.lat); put("lon", a.lon); put("planned", at(dep)); put("current", at(dep + 1)) }
+            putJsonObject("to") { put("name", b.name); put("lat", b.lat); put("lon", b.lon); put("planned", at(arr)); put("current", at(arr + late)) }
+            put("distance_km", 120.5)
+        }
+        fun trip(id: String, legs: List<JsonObject>, duplicate: Boolean, delay: Int?) = buildJsonObject {
+            put("external_id", "traewelling:$id")
+            put("origin", legs.first()["from"]!!.jsonObject["name"]!!.jsonPrimitive.content)
+            put("destination", legs.last()["to"]!!.jsonObject["name"]!!.jsonPrimitive.content)
+            put("planned_departure", legs.first()["from"]!!.jsonObject["planned"]!!.jsonPrimitive.content)
+            put("planned_arrival", legs.last()["to"]!!.jsonObject["planned"]!!.jsonPrimitive.content)
+            put("arrival_delay_minutes", delay)
+            put("legs", JsonArray(legs)); put("duplicate", duplicate)
+        }
+        val d = -60L * 24 * 40
+        putJsonArray("trips") {
+            add(trip("101,102", listOf(ride("ICE 25", "ICE", frankfurt, wuerzburg, d, d + 68, 0), ride("RE 10", "RE", wuerzburg, bamberg, d + 80, d + 140, 17)), false, 17))
+            add(trip("117", listOf(ride("ICE 597", "ICE", muenchen, nuernberg, d + 2900, d + 2962, 0)), false, null))
+            add(trip("120", listOf(ride("ICE 28", "ICE", wuerzburg, frankfurt, d + 4400, d + 4468, 4)), true, 4))
+        }
+        put("statuses", 4); put("skipped", 0); put("truncated", false)
+    }
+
     private fun statistics() = buildJsonObject {
         val month = LocalDate.now().monthValue
         put("trips", 38); put("km", 14210); put("minutes_on_train", 9420); put("rides", 61)
@@ -445,6 +512,10 @@ object FakeBackend {
         putJsonObject("top_route") { put("from", frankfurt.name); put("to", wuerzburg.name); put("count", 9) }
         putJsonObject("top_station") { put("name", frankfurt.name); put("count", 31) }
         putJsonObject("products") { put("ICE", 28); put("RE", 19); put("IC", 6); put("S", 5); put("RB", 3) }
+        put("co2_saved_kg", 1679.4); put("co2_train_kg", 679.5); put("co2_car_kg", 2358.9)
+        putJsonObject("co2_factors") { put("car", 166); put("source", "Umweltbundesamt (TREMOD), reference year 2022; approximate") }
+        putJsonArray("countries") { add("DE"); add("AT") }
+        putJsonObject("longest_trip") { put("trip_id", NEXT); put("from", berlin.name); put("to", muenchen.name); put("km", 812); put("date", "2026-07-18") }
         putJsonArray("by_month") {
             val trips = listOf(2, 3, 5, 3, 4, 6, 2, 4, 3, 5, 1, 0)
             (1..month).forEach { m ->
