@@ -14,6 +14,7 @@ dependencies {
     api(libs.supabase.auth)
     api(libs.supabase.postgrest)
     api(libs.supabase.functions)
+    api(libs.supabase.storage)
     implementation(libs.ktor.client.okhttp)
     api(libs.kotlinx.serialization.json)
     api(libs.kotlinx.coroutines.android)

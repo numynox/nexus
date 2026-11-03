@@ -15,14 +15,10 @@ import io.github.numynox.nexus.core.data.NexusJson
 import io.github.numynox.nexus.core.testing.FakeSupabase
 import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.engine.mock.MockEngine
-import io.ktor.client.engine.mock.respond
 import io.ktor.client.request.HttpRequestData
 import io.ktor.content.TextContent
-import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
-import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.OutgoingContent
-import io.ktor.http.headersOf
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.time.Instant
@@ -168,13 +164,7 @@ object FakeBackend {
             if (offline && (path.startsWith("/rest/") || path.startsWith("/functions/") || path.startsWith("/storage/"))) {
                 throw IOException("No network")
             }
-            if (path.startsWith("/storage/v1/object/") && request.method == HttpMethod.Get) {
-                respond(ticketPng, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "image/png"))
-            } else if (path.startsWith("/storage/")) {
-                respond("{\"Key\":\"ok\"}", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
-            } else {
-                handler(this, request)
-            }
+            handler(this, request)
         }
     }
 
@@ -183,6 +173,7 @@ object FakeBackend {
     private fun route(request: HttpRequestData, path: String): Any? {
         val params = request.url.parameters
         return when {
+            FakeSupabase.isDownload(request, path, "abeona-tickets") -> FakeSupabase.StorageFile(ticketPng, "image/png")
             path.endsWith("/rpc/abeona_ensure_household") -> "\"$HOUSEHOLD\""
             path.endsWith("/rpc/abeona_save_trip") -> "\"$SAVED\""
             path.endsWith("/rpc/abeona_list_household_members") -> buildJsonArray {

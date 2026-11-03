@@ -7,24 +7,12 @@ import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
+import io.github.jan.supabase.storage.storage
 import io.github.numynox.nexus.abeona.domain.applyRefresh
 import io.github.numynox.nexus.abeona.domain.liveUpdates
-import io.github.numynox.nexus.core.data.NexusConfig
 import io.github.numynox.nexus.core.data.NexusJson
-import io.ktor.client.HttpClient
-import io.ktor.client.request.delete
-import io.ktor.client.request.get
-import io.ktor.client.request.header
-import io.ktor.client.request.post
-import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
-import io.ktor.client.statement.readRawBytes
 import io.ktor.http.ContentType
-import io.ktor.http.HttpHeaders
-import io.ktor.http.contentType
-import io.ktor.http.encodeURLPathPart
-import io.ktor.http.isSuccess
-import java.io.IOException
 import java.time.Instant
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
@@ -35,24 +23,13 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.put
 
-/** A Storage request that did not work out, with what Storage said. */
-class StorageException(message: String) : IOException(message)
-
 /**
  * The Android counterpart of app/abeona/src/lib/data.ts: every query,
  * RPC, Edge Function call and Storage request Abeona makes, and the only code
  * that talks to Supabase. Everything is scoped to the caller's household
  * (decisions/2026-11-02-abeona-train-companion.md); RLS enforces it.
- *
- * Storage goes over [http], a plain Ktor client with the session's token:
- * core's Supabase client has no Storage plugin, and tickets are the only
- * files any app stores.
  */
-class AbeonaRepository(
-    private val supabase: SupabaseClient,
-    private val config: NexusConfig,
-    private val http: HttpClient,
-) {
+class AbeonaRepository(private val supabase: SupabaseClient) {
     // ── Household ───────────────────────────────────────────────────────────
 
     private val householdLock = Mutex()
@@ -164,7 +141,7 @@ class AbeonaRepository(
 
     suspend fun deleteTrip(trip: Trip) {
         supabase.from("abeona_trips").delete { filter { eq("id", trip.id) } }
-        trip.ticketPath?.let { path -> runCatching { deleteObject(path) } }
+        trip.ticketPath?.let { path -> runCatching { tickets.delete(path) } }
     }
 
     /**
@@ -246,15 +223,7 @@ class AbeonaRepository(
 
     // ── Tickets (Storage bucket abeona-tickets) ──────────────────────────────
 
-    private val bucket = "abeona-tickets"
-
-    private suspend fun token(): String {
-        supabase.auth.awaitInitialization()
-        return supabase.auth.currentAccessTokenOrNull() ?: throw StorageException("Not signed in.")
-    }
-
-    private fun objectUrl(path: String) =
-        "${config.supabaseUrl.trimEnd('/')}/storage/v1/object/$bucket/" + path.split('/').joinToString("/") { it.encodeURLPathPart() }
+    private val tickets get() = supabase.storage.from("abeona-tickets")
 
     /**
      * Uploads a ticket to `<household_id>/<trip_id>/<file>` (the path rule
@@ -263,38 +232,17 @@ class AbeonaRepository(
      */
     suspend fun uploadTicket(trip: Trip, fileName: String, mimeType: String, bytes: ByteArray): String {
         val path = "${trip.householdId}/${trip.id}/${safeFileName(fileName)}"
-        val response = http.post(objectUrl(path)) {
-            header(HttpHeaders.Authorization, "Bearer ${token()}")
-            header("apikey", config.supabaseAnonKey)
-            header("x-upsert", "true")
-            contentType(ContentType.parse(mimeType))
-            setBody(bytes)
+        tickets.upload(path, bytes) {
+            upsert = true
+            contentType = ContentType.parse(mimeType)
         }
-        if (!response.status.isSuccess()) throw StorageException(storageError(response.bodyAsText()))
         supabase.from("abeona_trips").update(buildJsonObject { put("ticket_path", path) }) { filter { eq("id", trip.id) } }
-        trip.ticketPath?.takeIf { it != path }?.let { old -> runCatching { deleteObject(old) } }
+        trip.ticketPath?.takeIf { it != path }?.let { old -> runCatching { tickets.delete(old) } }
         return path
     }
 
-    suspend fun downloadTicket(path: String): ByteArray {
-        val response = http.get(objectUrl(path)) {
-            header(HttpHeaders.Authorization, "Bearer ${token()}")
-            header("apikey", config.supabaseAnonKey)
-        }
-        if (!response.status.isSuccess()) throw StorageException(storageError(response.bodyAsText()))
-        return response.readRawBytes()
-    }
-
-    private suspend fun deleteObject(path: String) {
-        http.delete(objectUrl(path)) {
-            header(HttpHeaders.Authorization, "Bearer ${token()}")
-            header("apikey", config.supabaseAnonKey)
-        }
-    }
-
-    private fun storageError(body: String): String =
-        runCatching { NexusJson.decodeFromString<JsonObject>(body)["message"]?.toString()?.trim('"') }.getOrNull()
-            ?: "The ticket could not be stored."
+    /** With the session, never a signed URL (decisions/2026-11-02-abeona-ticket-storage.md). */
+    suspend fun downloadTicket(path: String): ByteArray = tickets.downloadAuthenticated(path)
 
     companion object {
         /** Letters, digits, dot, dash and underscore; Storage keys are picky, and so are people's file names. */

@@ -9,8 +9,11 @@ import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.request.HttpRequestData
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /**
  * The pieces of a fake Supabase every app's screenshot tests need: a config
@@ -45,25 +48,49 @@ object FakeSupabase {
 
     /**
      * An engine answering through [route], which returns a JSON body, a
-     * [Reply] when headers matter, or null for "not mine". GitHub (the update
-     * check) and auth are answered here.
+     * [Reply] when headers matter, a [StorageFile] for Storage downloads, or null
+     * for "not mine". GitHub (the update check) and auth are answered here,
+     * and so are Storage writes the route leaves alone: an upload answers
+     * with its key, a delete with nothing deleted.
      */
     fun engine(route: (request: HttpRequestData, path: String) -> Any?) = MockEngine { request ->
         val path = request.url.encodedPath
-        val reply = when {
+        val answer = when {
             request.url.host == "api.github.com" -> Reply("[]")
             path.startsWith("/auth/") -> Reply("{}")
-            else -> when (val answer = route(request, path)) {
-                is Reply -> answer
-                null -> Reply("[]")
-                else -> Reply(answer.toString())
-            }
+            else -> route(request, path) ?: storageWrite(request, path)
+        }
+        if (answer is StorageFile) {
+            return@MockEngine respond(answer.bytes, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, answer.contentType))
+        }
+        val reply = when (answer) {
+            is Reply -> answer
+            null -> Reply("[]")
+            else -> Reply(answer.toString())
         }
         val headers = headersOf(
             *(reply.headers + (HttpHeaders.ContentType to "application/json")).map { (key, value) -> key to listOf(value) }.toTypedArray(),
         )
         respond(reply.body, HttpStatusCode.OK, headers)
     }
+
+    private const val STORAGE_OBJECT = "/storage/v1/object/"
+
+    private fun storageWrite(request: HttpRequestData, path: String): Reply? = when {
+        !path.startsWith(STORAGE_OBJECT) -> null
+        request.method == HttpMethod.Post || request.method == HttpMethod.Put ->
+            Reply(buildJsonObject { put("Key", path.removePrefix(STORAGE_OBJECT)) }.toString())
+        request.method == HttpMethod.Delete -> Reply("[]")
+        else -> null
+    }
+
+    /** A Storage object as it downloads: its bytes and type. */
+    class StorageFile(val bytes: ByteArray, val contentType: String)
+
+    /** True for a Storage download, signed in or public, of any object in [bucket]. */
+    fun isDownload(request: HttpRequestData, path: String, bucket: String): Boolean =
+        request.method == HttpMethod.Get && path.startsWith(STORAGE_OBJECT) &&
+            path.removePrefix(STORAGE_OBJECT).removePrefix("authenticated/").removePrefix("public/").startsWith("$bucket/")
 
     /** A response with headers — e.g. PostgREST's `Content-Range`, which carries a count. */
     data class Reply(val body: String, val headers: Map<String, String> = emptyMap())

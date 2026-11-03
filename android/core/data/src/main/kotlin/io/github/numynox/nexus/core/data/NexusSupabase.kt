@@ -13,6 +13,8 @@ import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.functions.Functions
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.serializer.KotlinXSerializer
+import io.github.jan.supabase.storage.Storage
+import io.github.jan.supabase.storage.resumable.MemoryResumableCache
 import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.api.Send
@@ -72,6 +74,12 @@ fun createNexusSupabaseClient(
         }
         install(Postgrest)
         install(Functions)
+        install(Storage) {
+            // The default cache for resumable uploads keeps its state through
+            // supabase-kt's App Startup hook, which these apps do not use; and
+            // no app uploads anything big enough to resume.
+            resumable { cache = MemoryResumableCache() }
+        }
     }.also { created = it }
 }
 
@@ -82,7 +90,7 @@ private val SessionWait = 15.seconds
 class SessionUnavailableException : IOException("Could not reach the server to renew your session.")
 
 /**
- * Holds every data request — PostgREST and Edge Functions, not sign-in —
+ * Holds every data request — PostgREST, Edge Functions and Storage, not sign-in —
  * until the session is usable, and sends it with the token current then.
  *
  * While a stored session is being loaded, or an expired one refreshed after a
@@ -96,7 +104,7 @@ private fun sessionGate(client: () -> SupabaseClient?) = createClientPlugin("Nex
     on(Send) { request ->
         val supabase = client()
         val api = request.url.pathSegments.firstOrNull { it.isNotEmpty() }
-        if (supabase != null && (api == "rest" || api == "functions")) {
+        if (supabase != null && (api == "rest" || api == "functions" || api == "storage")) {
             val status = withTimeoutOrNull(SessionWait) {
                 supabase.auth.sessionStatus.first { it !is SessionStatus.Initializing && it !is SessionStatus.RefreshFailure }
             } ?: throw SessionUnavailableException()

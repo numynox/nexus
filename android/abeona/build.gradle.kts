@@ -15,9 +15,6 @@ android {
 }
 
 dependencies {
-    // Ticket upload and download: Storage's REST API over a plain Ktor client
-    // (core's Supabase client has no Storage plugin installed).
-    implementation(libs.ktor.client.okhttp)
     // The live companion's auto-start and the widget's periodic refresh.
     implementation(libs.androidx.work.runtime)
     // The home screen widget.
