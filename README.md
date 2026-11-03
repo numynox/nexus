@@ -210,6 +210,35 @@ npm run db:push               # apply to the linked project
 Pushing to the remote project is a production change — see `DEPLOYMENT.md`
 before doing it, and take a backup (`npm run db:backup`) first.
 
+### Importing past Abeona trips from a CSV file
+
+```bash
+npm run db:import:abeona -- trips.csv --user-email you@example.com            # dry run: what would be saved
+npm run db:import:abeona -- trips.csv --user-email you@example.com --write    # save
+npm run db:import:abeona:prod -- trips.csv --user-email you@example.com --write
+```
+
+A header row, comma or semicolon separated, one trip of one ride per row:
+
+| Column | |
+| :--- | :--- |
+| `date` | `2026-10-12` or `12.10.2026` |
+| `from`, `to` | station names |
+| `departure`, `arrival` | planned, `HH:MM`, Europe/Berlin; an arrival before the departure is the next day |
+| `actual_arrival` | optional, `HH:MM`: the real arrival, for the delay |
+| `train` | optional: `ICE 25`, `RE 10` |
+| `km` | optional: the distance, used when there are no coordinates |
+
+It needs `SUPABASE_SERVICE_KEY` and `PUBLIC_SUPABASE_ANON_KEY` in `.env`
+(`.env.prod` for `:prod`, which also passes `--confirm-prod`). The trips are
+saved **as that user** — an admin magic link is exchanged for a session, no
+mail is sent — through `abeona_save_trip`, so they land in their household,
+final and never refreshed. Rows the household already has (same origin and
+departure) are skipped. Add `--geocode` to look each station up once at
+Transitous, so the trips get coordinates and a country (the map and the
+year in review's countries). Träwelling check-ins are imported from the
+apps' Settings instead.
+
 ## Tests
 
 ```bash
@@ -299,7 +328,7 @@ else works in the emulator.
 | Link / migrate | `db:login`, `db:link`, `db:projects:list`, `db:migrations:list`, `db:migrations:up`, `db:push`, `db:push:dry-run`, `db:pull` |
 | Functions | `db:functions:deploy`, `db:functions:list` |
 | Backup / restore | `db:backup`, `db:restore:local`, `db:restore:remote` |
-| Seed / import | `db:seed:fuel-prices`, `db:seed:products`, `db:import:fuelio`, `db:import:fuelio:prod`, `db:backfill:off`, `db:backfill:off:prod` |
+| Seed / import | `db:seed:fuel-prices`, `db:seed:products`, `db:import:fuelio`, `db:import:fuelio:prod`, `db:import:abeona`, `db:import:abeona:prod`, `db:backfill:off`, `db:backfill:off:prod` |
 | Dumps | `db:dump:schema`, `db:dump:data` |
 
 See `package.json` for the exact commands.

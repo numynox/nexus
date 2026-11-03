@@ -229,10 +229,15 @@ npm run db:functions:list                        # what is deployed
 | `lookup-food-product` | Annona's browser UI | the signed-in user's JWT |
 | `abeona-transit` | both Abeona clients | the signed-in user's JWT |
 | `abeona-refresh-trips` | `pg_cron`, every 15 minutes | `ABEONA_REFRESH_INVOKE_SECRET`, bearer or `x-invoke-secret` |
+| `abeona-import` | both Abeona clients (Träwelling import) | the signed-in user's JWT |
+| `abeona-public` | anyone holding an Abeona share link | nothing: the token in the link (`verify_jwt = false`) |
 
 `supabase/config.toml` sets `verify_jwt = false` for the three scheduled functions
 — they are guarded by the shared secret instead, and must never be deployed
-without it configured. The ones called from a client verify JWTs.
+without it configured. The ones called from a client verify JWTs. The one
+exception is `abeona-public`, which is open on purpose: it answers only for a
+share link's unguessable token, through `abeona_shared_trip()`, and only with
+a trip's route and times (`.agents/brain/decisions/2026-11-04-abeona-share-links.md`).
 
 `lookup-food-product` needs no secret at all: Open Food Facts is public and
 identifies callers by User-Agent. Nor does `abeona-transit`: Transitous is
@@ -262,6 +267,29 @@ Abeona clients show in Settings.
 
 The job must run on the day: Transitous carries a day's realtime only until
 shortly after, so a trip the job missed keeps its last live values.
+
+**Abeona's history and polish release** (#38 phases 6–7) goes in this order:
+
+1. Push the migrations `20261104090000_abeona_history` up to
+   `20261104120000_abeona_orphaned_files`. Older APKs keep working: only
+   columns, fields and tables were added, and `abeona_save_trip` and
+   `abeona_statistics` kept their signatures.
+2. Deploy the functions: `abeona-transit` (the response cache and the stops'
+   country), `abeona-refresh-trips` (the cache, and it now removes up to 20
+   orphaned ticket or card files a run), and the two new ones,
+   `abeona-import` and `abeona-public`. `npm run db:functions:deploy` does all
+   of them. No new secrets: the service role key is injected by the
+   platform, and Träwelling tokens come from the user with each request.
+3. Merge the clients. The web's status page (`/nexus/abeona/status?t=…`) is
+   what status links point at, so it must be live before anyone shares one;
+   the Android app builds the same URL (`AbeonaRepository.STATUS_PAGE`). A
+   Pages URL other than `numynox.github.io/nexus` means changing that
+   constant too.
+
+Supabase rewrites `text/html` from Edge Functions to `text/plain` on its own
+domain, which is why the status page is a static page that fetches JSON from
+`abeona-public` rather than HTML served by the function. The `.ics` file is
+served by the function directly.
 
 ### Edge Function secrets
 
