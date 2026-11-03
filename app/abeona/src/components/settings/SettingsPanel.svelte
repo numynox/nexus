@@ -20,6 +20,7 @@
   import { bahnCardLabel } from "../../lib/format";
   import BahnCardItem from "../bahncards/BahnCardItem.svelte";
   import BahnCardSheet from "../bahncards/BahnCardSheet.svelte";
+  import ImportSection from "./ImportSection.svelte";
   import TicketViewer from "../trip/TicketViewer.svelte";
   import { DB_NAVIGATOR_HOME } from "../../lib/journey";
   import { session } from "../../lib/stores";
@@ -314,6 +315,8 @@
       </div>
     {/if}
   </section>
+
+  <ImportSection />
 
   <section class="scroll-mt-6 rounded-[2rem] bg-card p-6 shadow-card sm:p-8" id="device">
     <div class="flex items-center gap-2">
