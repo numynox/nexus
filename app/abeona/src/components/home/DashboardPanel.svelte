@@ -12,7 +12,7 @@
     type Statistics,
     type Trip,
   } from "../../lib/data";
-  import { hasArrived, isLiveWindow } from "../../lib/journey";
+  import { hasArrived, isLiveWindow, LIVE_REFRESH_MS } from "../../lib/journey";
   import Illustration from "../common/Illustration.svelte";
   import HistoryCard from "./HistoryCard.svelte";
   import TripHeroCard from "./TripHeroCard.svelte";
@@ -26,7 +26,8 @@
   let upcoming = $state<Trip[]>([]);
   let recent = $state<Trip[]>([]);
   let stats = $state<Statistics | null>(null);
-  let refreshing = $state(false);
+  /** Trips whose live values are being fetched right now. */
+  let refreshingIds = $state<ReadonlySet<string>>(new Set());
 
   const next = $derived(upcoming[0] ?? null);
   const later = $derived(upcoming.slice(1));
@@ -58,29 +59,42 @@
     } finally {
       loading = false;
     }
-    void refreshNext();
   }
 
-  // The hero trip gets fresh live values when it is today's; the rest keep
-  // what was last saved until they are opened.
-  async function refreshNext() {
-    const trip = upcoming[0];
-    if (!trip || !isLiveWindow(trip.legs)) return;
-    refreshing = true;
+  let refreshRunning = false;
+
+  // Every trip in its live window gets fresh live values, one after another:
+  // a handful of Edge Function calls every two minutes, never a burst. The
+  // rest keep what was last saved until they are opened.
+  async function refreshLive() {
+    if (refreshRunning) return;
+    refreshRunning = true;
     try {
-      if (await refreshTripLive(trip)) {
-        const fresh = await fetchTrip(trip.id);
-        if (fresh) upcoming = [fresh, ...upcoming.slice(1)];
+      for (const trip of upcoming.filter((t) => isLiveWindow(t.legs))) {
+        refreshingIds = new Set([...refreshingIds, trip.id]);
+        try {
+          if (await refreshTripLive(trip)) {
+            const fresh = await fetchTrip(trip.id);
+            if (fresh) upcoming = upcoming.map((t) => (t.id === fresh.id ? fresh : t));
+          }
+        } catch {
+          // Live values are a bonus here; the trip page shows refresh errors.
+        } finally {
+          refreshingIds = new Set([...refreshingIds].filter((id) => id !== trip.id));
+        }
       }
-    } catch {
-      // Live values are a bonus here; the trip page shows refresh errors.
     } finally {
-      refreshing = false;
+      refreshRunning = false;
     }
   }
 
   onMount(() => {
-    void load();
+    void load().then(refreshLive);
+    // Like the trip page: only while someone is looking.
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") void refreshLive();
+    }, LIVE_REFRESH_MS);
+    return () => clearInterval(timer);
   });
 </script>
 
@@ -100,7 +114,7 @@
   {#if error}
     <div class="flex items-center justify-between gap-4 rounded-2xl bg-error/10 px-5 py-4 text-sm text-error" role="alert">
       <span>{error}</span>
-      <button class="btn btn-sm rounded-full" onclick={load}>Try again</button>
+      <button class="btn btn-sm rounded-full" onclick={() => load().then(refreshLive)}>Try again</button>
     </div>
   {/if}
 
@@ -112,7 +126,7 @@
     </div>
   {:else if !error}
     {#if next}
-      <TripHeroCard trip={next} href={tripHref(next.id)} {refreshing} />
+      <TripHeroCard trip={next} href={tripHref(next.id)} refreshing={refreshingIds.has(next.id)} />
     {:else}
       <section class="grid items-center gap-8 rounded-[2rem] bg-card p-6 shadow-card sm:p-10 md:grid-cols-2">
         <Illustration name="empty-trips" class="w-full" />
