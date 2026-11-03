@@ -63,6 +63,7 @@ private fun inMinutes(minutes: Int?): String = TripFormat.relative((minutes ?: 0
 private fun eyebrow(day: TravelDay): String = when {
     day.source == TravelDaySource.Onboard -> "On board · from the train's Wi-Fi"
     day.missedChange -> "Looks like you missed it"
+    day.cancelled -> "Change of plan"
     else -> when (day.kind) {
         TravelDayKind.BeforeLeaving -> "Time to leave"
         TravelDayKind.AtStation -> if (day.source == TravelDaySource.Location) "Looks like you're at the station" else "Head to the platform"
@@ -108,7 +109,8 @@ fun TravelDayHero(
     val change = day.legIndex?.let { index ->
         transfers(legs).firstOrNull { if (day.kind == TravelDayKind.OnBoard) it.arriving == index else it.departing == index }
     }
-    Surface(color = container, shape = RoundedCornerShape(24.dp), modifier = modifier.fillMaxWidth()) {
+    // A translucent container has no matching content colour: say it.
+    Surface(color = container, contentColor = MaterialTheme.colorScheme.onSurface, shape = RoundedCornerShape(24.dp), modifier = modifier.fillMaxWidth()) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Surface(
@@ -224,7 +226,7 @@ private fun OnBoard(
         arrivalDelay(leg),
     )
     if (next != null && available != null && confidence != null) {
-        Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
+        Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f), contentColor = MaterialTheme.colorScheme.onSurface, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
             Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Icon(
                     if (walk > 0) Icons.AutoMirrored.Rounded.DirectionsWalk else Icons.Rounded.SwapHoriz,
@@ -279,7 +281,7 @@ private fun OnboardStrip(status: OnboardStatus) {
 
 @Composable
 private fun Fact(icon: ImageVector, text: String) {
-    Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f), shape = CircleShape) {
+    Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f), contentColor = MaterialTheme.colorScheme.onSurface, shape = CircleShape) {
         Row(Modifier.padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
             Text(text, style = MaterialTheme.typography.labelLarge.tabular())

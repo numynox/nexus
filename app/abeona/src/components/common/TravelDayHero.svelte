@@ -40,6 +40,7 @@
   const eyebrow = $derived.by(() => {
     if (day.source === "onboard") return "On board · from the train's Wi-Fi";
     if (day.missedChange) return "Looks like you missed it";
+    if (day.cancelled) return "Change of plan";
     switch (day.kind) {
       case "before_leaving":
         return "Time to leave";

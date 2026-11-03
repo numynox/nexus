@@ -70,7 +70,6 @@ import io.github.numynox.nexus.abeona.ui.common.DbNavigator
 import io.github.numynox.nexus.abeona.ui.common.containerViewModel
 import io.github.numynox.nexus.core.data.AuthState
 import io.github.numynox.nexus.core.ui.Loadable
-import io.github.numynox.nexus.core.ui.components.ConnectedChoiceRow
 import io.github.numynox.nexus.core.ui.components.LoadingState
 import io.github.numynox.nexus.core.ui.components.NexusCard
 import io.github.numynox.nexus.core.ui.components.SectionHeader
@@ -146,14 +145,7 @@ fun SettingsScreen(app: AppViewModel, navigator: Navigator) {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    ConnectedChoiceRow(
-                        options = STATION_MINUTES_CHOICES,
-                        selected = settings.stationMinutes,
-                        onSelect = app::setStationMinutes,
-                        label = { "$it" },
-                        showCheck = false,
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp),
-                    )
+                    ChoiceChips(STATION_MINUTES_CHOICES, settings.stationMinutes, { app.setStationMinutes(it) }) { "$it min" }
                     SettingSwitch(
                         title = "Time to leave reminder",
                         description = "A notification when it is time to leave for the next trip, moved if the train is late. Only this phone.",
@@ -179,14 +171,9 @@ fun SettingsScreen(app: AppViewModel, navigator: Navigator) {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    ConnectedChoiceRow(
-                        options = AlertSettings.DELAY_CHOICES,
-                        selected = alerts.delayMinutes,
-                        onSelect = { app.setAlerts(alerts.copy(delayMinutes = it)) },
-                        label = { if (it == 0) "Off" else "$it min" },
-                        showCheck = false,
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp),
-                    )
+                    ChoiceChips(AlertSettings.DELAY_CHOICES, alerts.delayMinutes, { app.setAlerts(alerts.copy(delayMinutes = it)) }) {
+                        if (it == 0) "Off" else "$it min"
+                    }
                     SettingSwitch(
                         title = "Connection at risk",
                         description = "A change gets too tight to make, or it looks like you missed it.",
@@ -439,6 +426,24 @@ private fun TextSheet(
                     Button(onClick = { onSave(value.trim()) }, enabled = value.isNotBlank()) { Text(confirm) }
                 }
             }
+        }
+    }
+}
+
+/** A short list of minutes as chips that wrap: seven choices do not fit one connected row. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun ChoiceChips(options: List<Int>, selected: Int, onSelect: (Int) -> Unit, label: (Int) -> String) {
+    androidx.compose.foundation.layout.FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp),
+    ) {
+        options.forEach { option ->
+            androidx.compose.material3.FilterChip(
+                selected = option == selected,
+                onClick = { onSelect(option) },
+                label = { Text(label(option)) },
+            )
         }
     }
 }
