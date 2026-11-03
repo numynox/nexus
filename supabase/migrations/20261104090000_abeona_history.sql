@@ -43,6 +43,7 @@ grant execute on function public.abeona_stop_country(text, text) to authenticate
 
 -- As in 20261103110000_abeona_bahncards, plus:
 -- - each leg's from.country / to.country (ISO alpha-2, else null);
+-- - each leg's distance_km, used when it has no route line;
 -- - p_trip.source = 'import' (a past trip, from the search, Träwelling or the
 --   CSV script): the legs are saved final and the trip finalized, so nothing
 --   refreshes them later; p_trip.arrival_delay_minutes, if given, sets the
@@ -143,15 +144,16 @@ begin
 
   for v_leg in select * from jsonb_array_elements(p_legs) loop
     v_km := public.abeona_polyline_km(v_leg->'polyline');
+    -- Without a route, a distance the source knows (Träwelling's along the
+    -- track, a CSV's column) beats the great-circle estimate.
+    if v_km is null and nullif(v_leg->>'distance_km', '') is not null then
+      v_km := greatest(0, (v_leg->>'distance_km')::double precision);
+    end if;
     if v_km is null and coalesce(v_leg->>'mode', 'train') <> 'walk' then
       v_km := 1.1 * public.abeona_haversine_km(
         (v_leg->'from'->>'lat')::double precision, (v_leg->'from'->>'lon')::double precision,
         (v_leg->'to'->>'lat')::double precision, (v_leg->'to'->>'lon')::double precision
       );
-    end if;
-    -- A user-entered km (CSV import) wins when there are no coordinates.
-    if v_km is null and nullif(v_leg->>'distance_km', '') is not null then
-      v_km := greatest(0, (v_leg->>'distance_km')::double precision);
     end if;
 
     v_arrival := (v_leg->'to'->>'current')::timestamptz;
