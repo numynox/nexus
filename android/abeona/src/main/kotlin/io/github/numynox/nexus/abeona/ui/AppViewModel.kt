@@ -9,6 +9,7 @@ import io.github.numynox.nexus.abeona.data.AlertSettings
 import io.github.numynox.nexus.abeona.reminders.LeaveReminder
 import io.github.numynox.nexus.abeona.live.Background
 import io.github.numynox.nexus.abeona.reminders.BahnCardReminders
+import io.github.numynox.nexus.abeona.reminders.ClaimReminders
 import io.github.numynox.nexus.core.data.AuthState
 import io.github.numynox.nexus.core.data.AvailableUpdate
 import io.github.numynox.nexus.core.ui.theme.ThemeMode
@@ -54,6 +55,10 @@ class AppViewModel(val container: AppContainer, private val application: Applica
                 .collect { BahnCardReminders.apply(application, it) }
         }
         viewModelScope.launch {
+            container.preferences.settings.map { it.claimReminder }.distinctUntilChanged().drop(1)
+                .collect { ClaimReminders.apply(application, it) }
+        }
+        viewModelScope.launch {
             auth.distinctUntilChanged { a, b -> a::class == b::class }.collect { state ->
                 if (state is AuthState.SignedIn) {
                     // Made on first use; every household-scoped query waits for it anyway.
@@ -81,6 +86,7 @@ class AppViewModel(val container: AppContainer, private val application: Applica
     }
 
     fun setBahnCardReminder(value: Boolean) = viewModelScope.launch { container.preferences.setBahnCardReminder(value) }
+    fun setClaimReminder(value: Boolean) = viewModelScope.launch { container.preferences.setClaimReminder(value) }
 
     fun setStationMinutes(value: Int) = viewModelScope.launch {
         container.preferences.setStationMinutes(value)
