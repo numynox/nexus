@@ -229,7 +229,7 @@
       />
     {/if}
 
-    {#if bindingLifted}
+    {#if bindingLifted && !arrived}
       <BindingBanner delay={s.arrivalDelay} />
     {/if}
 
