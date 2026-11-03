@@ -8,6 +8,7 @@ import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.storage.storage
+import io.github.numynox.nexus.abeona.domain.AlternativesOrigin
 import io.github.numynox.nexus.abeona.domain.applyRefresh
 import io.github.numynox.nexus.abeona.domain.liveUpdates
 import io.github.numynox.nexus.core.data.NexusJson
@@ -304,6 +305,30 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
             },
         ),
     )
+
+    /**
+     * Connections from [from] (a stop, by id else by position) to the trip's
+     * destination, marked by the Edge Function against what the ticket allows
+     * now. One request per refresh; save the live values first, since the
+     * allowance reads them.
+     */
+    suspend fun alternatives(trip: Trip, from: AlternativesOrigin): AlternativesResponse {
+        fun place(id: String?, lat: Double?, lon: Double?) = id ?: if (lat != null && lon != null) "$lat,$lon" else null
+        val origin = place(from.id, from.lat, from.lon)
+        val destination = trip.legs.lastOrNull()?.to?.let { place(it.id, it.lat, it.lon) }
+        if (origin == null || destination == null) error("This trip has no stop to search from.")
+        return NexusJson.decodeFromString(
+            transit(
+                buildJsonObject {
+                    put("action", "alternatives")
+                    put("trip_id", trip.id)
+                    put("from", origin)
+                    put("to", destination)
+                    put("time", from.time.toString())
+                },
+            ),
+        )
+    }
 
     // ── Tickets (Storage bucket abeona-tickets) ──────────────────────────────
 
