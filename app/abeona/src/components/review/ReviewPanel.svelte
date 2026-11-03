@@ -5,6 +5,7 @@
   import { describeError, fetchTripYears, fetchYearStatistics, type Statistics } from "../../lib/data";
   import { formatNumber } from "../../lib/format";
   import Illustration from "../common/Illustration.svelte";
+  import ClaimsSection from "./ClaimsSection.svelte";
   import MonthChart from "./MonthChart.svelte";
 
   const base = getBaseUrl();
@@ -224,6 +225,8 @@
       </div>
     </div>
   {/if}
+
+  <ClaimsSection {year} />
 </div>
 
 <style>
