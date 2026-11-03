@@ -11,13 +11,15 @@ import { ABEONA_THEMES } from "../lib/themes";
 interface Props {
   title?: string;
   description?: string;
+  /** Pages that only a link opens (the share status page) stay out of search engines. */
+  noindex?: boolean;
 }
 
 const baseUrl = getBaseUrl();
 const assetBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
 const siteTitle = getWebsiteTitle();
 const siteDescription = getWebsiteDescription();
-const { title = "", description = siteDescription } = Astro.props;
+const { title = "", description = siteDescription, noindex = false } = Astro.props;
 const themeColor = "#1f6f5c";
 const themeScript = themeBootstrapScript("abeona_theme", ABEONA_THEMES);
 ---
@@ -32,6 +34,7 @@ const themeScript = themeBootstrapScript("abeona_theme", ABEONA_THEMES);
   <head>
     <meta charset="UTF-8" />
     <meta name="description" content={description} />
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <link rel="manifest" href={assetBase + "manifest.webmanifest"} />
     <link rel="shortcut icon" href={`${assetBase}favicon.ico`} />

@@ -15,6 +15,7 @@
   import DisruptionCard from "./DisruptionCard.svelte";
   import Illustration from "../common/Illustration.svelte";
   import LegCard from "./LegCard.svelte";
+  import ShareCard from "./ShareCard.svelte";
   import TicketCard from "./TicketCard.svelte";
   import TicketViewer from "./TicketViewer.svelte";
   import TransferRow from "./TransferRow.svelte";
@@ -124,7 +125,8 @@
 
     let timer: ReturnType<typeof setInterval> | undefined;
     void load(id).then(() => {
-      if (!trip || !isLiveWindow(trip.legs)) return;
+      // Final trips (frozen by the job, or imported as past trips) never change again.
+      if (!trip || trip.finalized_at || !isLiveWindow(trip.legs)) return;
       void refresh();
       // While the page is open on the day of the trip, every two minutes —
       // the web has no background service, so this is all it can do.
@@ -287,6 +289,7 @@
             void loadWarnings(changed.id);
           }}
         />
+        <ShareCard {trip} />
         <button class="btn btn-ghost btn-sm w-full rounded-full text-error" onclick={() => confirmDialog?.showModal()}>
           <Trash2 class="h-4 w-4" /> Delete trip
         </button>
