@@ -144,6 +144,8 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
     val alternatives by viewModel.alternatives.collectAsStateWithLifecycle()
     val afterRide by viewModel.afterRide.collectAsStateWithLifecycle()
     val replacements by viewModel.replacements.collectAsStateWithLifecycle()
+    val shareLinks by viewModel.shareLinks.collectAsStateWithLifecycle()
+    val shareBusy by viewModel.shareBusy.collectAsStateWithLifecycle()
     var recording by rememberSaveable { mutableStateOf(false) }
     val onboard by LiveSignals.onboard.collectAsStateWithLifecycle()
     val fix by LiveSignals.fix.collectAsStateWithLifecycle()
@@ -243,6 +245,17 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                             onForceMajeure = { viewModel.setForceMajeure(it, showError) },
                             onRecord = { recording = true },
                             onClear = { viewModel.recordDisruption(null, null, showError) },
+                        )
+                    },
+                    share = shareLinks?.let { links ->
+                        ShareActions(
+                            links = links,
+                            busy = shareBusy,
+                            onCreate = { kind ->
+                                viewModel.createShareLink(kind, showError) { link -> shareLinkIntent(context, state.value.trip, link) }
+                            },
+                            onShare = { link -> shareLinkIntent(context, state.value.trip, link) },
+                            onRevoke = { link -> viewModel.revokeShareLink(link, showError) },
                         )
                     },
                     onToggleTraveller = { id -> viewModel.toggleTraveller(id) { scope.launch { snackbar.showSnackbar(it) } } },
@@ -347,6 +360,7 @@ private fun TripContent(
     onAlternatives: () -> Unit,
     people: TripPeople?,
     afterRide: AfterRideActions?,
+    share: ShareActions?,
     onToggleTraveller: (String) -> Unit,
     onDiscount: (Int?) -> Unit,
     companionOn: Boolean,
@@ -431,6 +445,7 @@ private fun TripContent(
             }
         }
         people?.let { item(key = "travellers") { TravellersCard(trip, it, onToggleTraveller, onDiscount) } }
+        share?.let { item(key = "share") { ShareCard(it) } }
     }
 }
 

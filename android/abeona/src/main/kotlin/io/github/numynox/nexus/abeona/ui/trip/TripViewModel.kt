@@ -10,6 +10,7 @@ import io.github.numynox.nexus.abeona.data.Claim
 import io.github.numynox.nexus.abeona.data.Compensation
 import io.github.numynox.nexus.abeona.data.Journey
 import io.github.numynox.nexus.abeona.data.Leg
+import io.github.numynox.nexus.abeona.data.ShareLink
 import io.github.numynox.nexus.abeona.data.Traveller
 import io.github.numynox.nexus.abeona.data.Trip
 import io.github.numynox.nexus.abeona.data.TripWarning
@@ -104,6 +105,14 @@ class TripViewModel(
     private val _replacements = MutableStateFlow<ReplacementSearch?>(null)
     val replacements: StateFlow<ReplacementSearch?> = _replacements.asStateFlow()
 
+    private val _shareLinks = MutableStateFlow<List<ShareLink>?>(null)
+    /** The trip's live share links; null until loaded, or offline. */
+    val shareLinks: StateFlow<List<ShareLink>?> = _shareLinks.asStateFlow()
+
+    private val _shareBusy = MutableStateFlow<String?>(null)
+    /** The kind of link being made or revoked right now. */
+    val shareBusy: StateFlow<String?> = _shareBusy.asStateFlow()
+
     private var auto: Job? = null
     private var probe: Job? = null
     private var searching: Job? = null
@@ -121,12 +130,44 @@ class TripViewModel(
             }
             _detail.value = Loadable.Ready(TripDetail(trip, fetched.offlineSince))
             if (fetched.offlineSince == null) launch { loadPeople() }
+            if (fetched.offlineSince == null) launch { loadShareLinks() }
             if (fetched.offlineSince == null && hasArrived(trip)) launch { loadAfterRide() }
-            if (fetched.offlineSince == null && !isOver(trip)) refreshNow()
+            // Final trips (frozen by the job, or imported as past trips) never change again.
+            if (fetched.offlineSince == null && !isOver(trip) && trip.finalizedAt == null) refreshNow()
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
             _detail.value = Loadable.Failed(e.describe())
+        }
+    }
+
+    private suspend fun loadShareLinks() {
+        _shareLinks.value = runCatching { container.repository.shareLinks(tripId) }.getOrElse { _shareLinks.value }
+    }
+
+    /** Makes a link of [kind] ("status" or "ics") and hands it to [onCreated], to share. */
+    fun createShareLink(kind: String, onError: (String) -> Unit, onCreated: (ShareLink) -> Unit) {
+        if (_shareBusy.value != null) return
+        _shareBusy.value = kind
+        viewModelScope.launch {
+            runCatching { container.repository.createShareLink(tripId, kind) }
+                .onSuccess { link ->
+                    _shareLinks.value = (_shareLinks.value.orEmpty().filter { it.kind != kind }) + link
+                    onCreated(link)
+                }
+                .onFailure { onError(it.describe()) }
+            _shareBusy.value = null
+        }
+    }
+
+    fun revokeShareLink(link: ShareLink, onError: (String) -> Unit) {
+        if (_shareBusy.value != null) return
+        _shareBusy.value = link.kind
+        viewModelScope.launch {
+            runCatching { container.repository.revokeShareLink(link.token) }
+                .onSuccess { _shareLinks.value = _shareLinks.value.orEmpty().filter { it.token != link.token } }
+                .onFailure { onError(it.describe()) }
+            _shareBusy.value = null
         }
     }
 
