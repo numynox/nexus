@@ -18,5 +18,6 @@ class ScreenshotApplication : AbeonaApplication() {
         runBlocking { FakeSupabase.signIn(container.core.supabase) }
     }
 
-    override fun createContainer(): AppContainer = AppContainer(this, FakeBackend.engine(), FakeBackend.config)
+    override fun createContainer(): AppContainer =
+        AppContainer(this, FakeBackend.engine(), FakeBackend.config, onboardSource = { FakeBackend.onboard })
 }
