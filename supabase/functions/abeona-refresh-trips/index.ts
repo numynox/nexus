@@ -6,9 +6,16 @@
 // (verify_jwt = false), and works with the service role: it reads every
 // household's trips that arrived 15 to 90 minutes ago, refreshes them through
 // Transitous once more and freezes the values (abeona_finalize_trip).
+//
+// After that, as a separate step whose failure does not touch the snapshot,
+// it removes a few files from abeona-tickets that no trip or BahnCard points
+// at any more (orphans.ts) — Postgres cannot delete Storage objects itself.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { databaseCache } from "../abeona-transit/cache.ts";
+import { useCache } from "../abeona-transit/transitous.ts";
 import { finalizeDueTrips } from "./finalize.ts";
+import { removeOrphanedFiles } from "./orphans.ts";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body) + "\n", {
@@ -32,11 +39,19 @@ Deno.serve(async (req) => {
 
   try {
     const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
+    useCache(databaseCache(supabase));
     const trips = await finalizeDueTrips(supabase);
+    let orphans: number | string;
+    try {
+      orphans = await removeOrphanedFiles(supabase, supabase.storage.from("abeona-tickets"));
+    } catch (error) {
+      orphans = error instanceof Error ? error.message : String(error);
+    }
     return json({
       trips: trips.length,
       finalized: trips.filter((t) => t.final).length,
       failed: trips.filter((t) => t.error).length,
+      orphaned_files_removed: orphans,
       results: trips,
     });
   } catch (error) {
