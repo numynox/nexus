@@ -8,6 +8,7 @@
 // (decisions/2026-11-02-abeona-transit-providers.md).
 
 import type { Journey, Leg, LegMode, Station, Stopover, StopTime } from "./contract.ts";
+import { cacheKey, type TransitCache, TTL_SECONDS } from "./cache.ts";
 import { decodePolyline, simplify } from "./polyline.ts";
 
 const BASE = "https://api.transitous.org";
@@ -34,7 +35,27 @@ export class ProviderError extends Error {
   }
 }
 
+let cache: TransitCache | null = null;
+
+/** Lets the function's entry point hand in the response cache (cache.ts); null turns it off. */
+export function useCache(next: TransitCache | null) {
+  cache = next;
+}
+
+/** A Transitous GET, answered from the cache while it is fresh. */
 async function get(path: string, params: Record<string, string | undefined>): Promise<Json> {
+  const ttl = TTL_SECONDS[path];
+  const key = cache && ttl ? await cacheKey(path, params) : null;
+  if (cache && key) {
+    const hit = await cache.get(key, ttl);
+    if (hit !== undefined) return hit;
+  }
+  const payload = await fetchJson(path, params);
+  if (cache && key) await cache.put(key, payload);
+  return payload;
+}
+
+async function fetchJson(path: string, params: Record<string, string | undefined>): Promise<Json> {
   const url = new URL(path, BASE);
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined) url.searchParams.set(key, value);
@@ -48,6 +69,17 @@ async function get(path: string, params: Record<string, string | undefined>): Pr
     });
     if (response.status === 404) throw new ProviderError("Not found", 404);
     if (response.status === 429) throw new ProviderError("Transitous is rate limiting, try again shortly", 429);
+    if (response.status === 400) {
+      const body = await response.json().catch(() => null);
+      const message = typeof body?.error === "string" ? body.error : "";
+      if (message.includes("outside of loaded timetable window")) {
+        throw new ProviderError(
+          "Transitous only has timetables from about a month ago onwards. Older trips can be imported from Träwelling or a CSV file.",
+          400,
+        );
+      }
+      throw new ProviderError(`Transitous refused the request${message ? `: ${message}` : ""}`, 400);
+    }
     if (!response.ok) throw new ProviderError(`Transitous answered HTTP ${response.status}`);
     return await response.json();
   } catch (error) {
@@ -89,6 +121,34 @@ function hasRealtime(reason: unknown): boolean {
   return typeof reason === "string" && reason !== "NO_RT_DATA" && reason !== "SCHEDULED";
 }
 
+// IANA zones of the countries Transitous covers around Abeona's, to their
+// ISO codes. A stop carries its zone (`tz`); that is the most reliable
+// country hint the plan answer has.
+const ZONE_COUNTRY: Record<string, string> = {
+  "Europe/Berlin": "DE", "Europe/Busingen": "DE", "Europe/Vienna": "AT", "Europe/Zurich": "CH",
+  "Europe/Vaduz": "LI", "Europe/Rome": "IT", "Europe/San_Marino": "SM", "Europe/Vatican": "VA",
+  "Europe/Copenhagen": "DK", "Europe/Paris": "FR", "Europe/Monaco": "MC", "Europe/Amsterdam": "NL",
+  "Europe/Brussels": "BE", "Europe/Luxembourg": "LU", "Europe/Prague": "CZ", "Europe/Warsaw": "PL",
+  "Europe/Budapest": "HU", "Europe/Bratislava": "SK", "Europe/Ljubljana": "SI", "Europe/Zagreb": "HR",
+  "Europe/Madrid": "ES", "Europe/Lisbon": "PT", "Europe/London": "GB", "Europe/Dublin": "IE",
+  "Europe/Oslo": "NO", "Europe/Stockholm": "SE", "Europe/Helsinki": "FI", "Europe/Belgrade": "RS",
+  "Europe/Bucharest": "RO", "Europe/Sofia": "BG", "Europe/Athens": "GR", "Europe/Tallinn": "EE",
+  "Europe/Riga": "LV", "Europe/Vilnius": "LT",
+};
+
+/**
+ * A stop's ISO country: from its time zone, else from the code inside its id
+ * (DELFI's "de:09162:100", "at:45:50002", "ch:1:sloid:10"), else null.
+ * Approximate at borders only where a feed names a foreign zone.
+ */
+export function countryOf(place: Json): string | null {
+  const zone = str(place?.tz);
+  if (zone && ZONE_COUNTRY[zone]) return ZONE_COUNTRY[zone];
+  const id = str(place?.parentId) ?? str(place?.stopId) ?? "";
+  const match = /([a-z]{2}):[0-9]+/.exec(id);
+  return match ? match[1].toUpperCase() : null;
+}
+
 function stopTime(place: Json, kind: "departure" | "arrival"): StopTime {
   const planned = kind === "departure"
     ? str(place?.scheduledDeparture) ?? str(place?.departure)
@@ -104,6 +164,7 @@ function stopTime(place: Json, kind: "departure" | "arrival"): StopTime {
     planned_platform: str(place?.scheduledTrack),
     platform: str(place?.track) ?? str(place?.scheduledTrack),
     cancelled: place?.cancelled === true,
+    country: countryOf(place),
   };
 }
 
