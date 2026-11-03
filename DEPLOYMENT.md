@@ -228,8 +228,9 @@ npm run db:functions:list                        # what is deployed
 | `fetch-nearby-fuel-prices` | Vibilia's browser UI | the signed-in user's JWT |
 | `lookup-food-product` | Annona's browser UI | the signed-in user's JWT |
 | `abeona-transit` | both Abeona clients | the signed-in user's JWT |
+| `abeona-refresh-trips` | `pg_cron`, every 15 minutes | `ABEONA_REFRESH_INVOKE_SECRET`, bearer or `x-invoke-secret` |
 
-`supabase/config.toml` sets `verify_jwt = false` for the two scheduled functions
+`supabase/config.toml` sets `verify_jwt = false` for the three scheduled functions
 — they are guarded by the shared secret instead, and must never be deployed
 without it configured. The ones called from a client verify JWTs.
 
@@ -243,6 +244,25 @@ Abeona clients show in Settings.
 `abeona-tickets` Storage bucket and its policies), then deploy
 `abeona-transit`, then merge the clients.
 
+**Abeona's after-the-ride release** (#38 phase 5) goes in this order:
+
+1. Push the migrations `20261103140000_abeona_final_actuals` up to
+   `20261103180000_abeona_refresh_trips_schedule` (one paste each works too).
+   The last one schedules `abeona-refresh-trips-every-15min`, which raises on
+   every tick until steps 2 and 3 are done; that is harmless.
+2. Set the function's secret and deploy it:
+   `npx supabase secrets set ABEONA_REFRESH_INVOKE_SECRET=<secret>` and
+   `npx supabase functions deploy abeona-refresh-trips`. Deploy
+   `abeona-transit` again too: it now imports its refresh from `refresh.ts`,
+   which the new function shares (`../abeona-transit/refresh.ts`).
+3. Create the two Vault secrets `ABEONA_REFRESH_INVOKE_SECRET` (the same value)
+   and `ABEONA_REFRESH_FUNCTION_URL` (below).
+4. Merge the clients. An older APK keeps working: nothing it reads was
+   renamed or dropped.
+
+The job must run on the day: Transitous carries a day's realtime only until
+shortly after, so a trip the job missed keeps its last live values.
+
 ### Edge Function secrets
 
 Dashboard → Project Settings → Edge Functions → Secrets, or:
@@ -251,6 +271,7 @@ Dashboard → Project Settings → Edge Functions → Secrets, or:
 npx supabase secrets set FETCH_RSS_INVOKE_SECRET=<secret> --project-ref <ref>
 npx supabase secrets set FUEL_PRICE_INVOKE_SECRET=<secret> --project-ref <ref>
 npx supabase secrets set FUEL_PRICE_API_KEY=<tankerkoenig-key> --project-ref <ref>
+npx supabase secrets set ABEONA_REFRESH_INVOKE_SECRET=<secret> --project-ref <ref>
 ```
 
 `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are injected
@@ -274,6 +295,8 @@ created per environment:
 | `FETCH_RSS_FUNCTION_URL` | `https://<ref>.supabase.co/functions/v1/fetch-rss` |
 | `FUEL_PRICE_INVOKE_SECRET` | the same secret as the function's |
 | `REFRESH_FUEL_PRICES_FUNCTION_URL` | `https://<ref>.supabase.co/functions/v1/refresh-fuel-prices` |
+| `ABEONA_REFRESH_INVOKE_SECRET` | the same secret as the function's |
+| `ABEONA_REFRESH_FUNCTION_URL` | `https://<ref>.supabase.co/functions/v1/abeona-refresh-trips` |
 
 Dashboard → Project Settings → Vault, or:
 
@@ -282,6 +305,8 @@ select vault.create_secret('<secret>', 'FETCH_RSS_INVOKE_SECRET');
 select vault.create_secret('https://<ref>.supabase.co/functions/v1/fetch-rss', 'FETCH_RSS_FUNCTION_URL');
 select vault.create_secret('<secret>', 'FUEL_PRICE_INVOKE_SECRET');
 select vault.create_secret('https://<ref>.supabase.co/functions/v1/refresh-fuel-prices', 'REFRESH_FUEL_PRICES_FUNCTION_URL');
+select vault.create_secret('<secret>', 'ABEONA_REFRESH_INVOKE_SECRET');
+select vault.create_secret('https://<ref>.supabase.co/functions/v1/abeona-refresh-trips', 'ABEONA_REFRESH_FUNCTION_URL');
 ```
 
 The Tankerkoenig key is deliberately **not** in Vault: only the Edge Functions
@@ -297,6 +322,7 @@ function's environment — or the job starts getting 401s.
 | `fetch-rss-hourly` | `0 * * * *` | `public.invoke_fetch_rss()` |
 | `refresh-fuel-prices-every-10min` | `7,17,27,37,47,57 * * * *` | `public.invoke_refresh_fuel_prices()` |
 | `nexus-maintenance-daily` | `20 3 * * *` | `public.run_nexus_maintenance()` |
+| `abeona-refresh-trips-every-15min` | `4,19,34,49 * * * *` | `public.invoke_abeona_refresh_trips()` |
 
 `nexus-maintenance-daily` never leaves the database — no Edge Function, no Vault
 secret — so unlike the other two it reports its own outcome. It returns a JSON
@@ -320,6 +346,11 @@ select * from cron.job_run_details order by start_time desc limit 20;
 when the Edge Function fails. To see what the function did, read its logs in the
 dashboard. To invoke either function by hand, use the Bruno collection in
 `.bruno/supabase/`.
+
+`abeona-refresh-trips` answers with a JSON summary (`trips`, `finalized`,
+`failed`, one result per trip), visible in the function's logs. Whether trips
+were frozen shows in the data too:
+`select count(*) from abeona_trips where finalized_at > now() - interval '1 day';`
 
 Nothing alerts on failure. If prices or articles look stale, check
 `cron.job_run_details` first, then the function logs.

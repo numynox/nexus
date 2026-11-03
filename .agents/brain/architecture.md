@@ -222,7 +222,7 @@ Annona namespaces everything with `annona_`. **New tables get a prefix.**
 | Noctua | `feeds`, `articles`, `sections`, `sections_feeds`, `article_reads`, `article_stars` |
 | Vibilia | `cars`, `car_access`, `refuel_events`, `car_expenses`, `fuel_stations`, `fuel_prices`, `fuel_prices_daily`, `vibilia_car_bluetooth_devices`, `vibilia_drive_intervals`, `vibilia_commutes` |
 | Annona | `annona_categories`, `annona_storage_locations`, `annona_products`, `annona_items`, `annona_item_log` |
-| Abeona | `abeona_households`, `abeona_household_members`, `abeona_travellers`, `abeona_trips`, `abeona_trip_travellers`, `abeona_legs`, `abeona_bahncards`, `abeona_fare_rules` (reference data); Storage bucket `abeona-tickets` (tickets and BahnCard files) |
+| Abeona | `abeona_households`, `abeona_household_members`, `abeona_travellers`, `abeona_trips`, `abeona_trip_travellers`, `abeona_legs`, `abeona_bahncards`, `abeona_fare_rules` and `abeona_compensation_rules` (reference data), `abeona_claims`; Storage bucket `abeona-tickets` (tickets and BahnCard files) |
 
 `profiles` is the one genuinely shared table: `id` matches `auth.users.id`, and
 `on_auth_user_created → public.handle_new_user_profile()` fills it on signup.
@@ -244,7 +244,7 @@ access. All four apps share one user pool, but they scope data differently:
 | Noctua | per-user | `sections` and `article_reads` are filtered by `auth.uid()`. `feeds` is readable by any authenticated user — the catalogue is common property — but `articles` is **not**: a row is visible only while some section *you* own contains its feed. Unsubscribe from a feed and its articles disappear from your queries |
 | Vibilia | per-car ACL | `cars.owner_id` plus rows in `car_access`, both funnelled through `public.user_can_access_car(car_id, user_id)`; every policy on refuel events and expenses defers to that helper |
 | Annona | shared household | any authenticated user may read and write everything; `annona_item_log.user_id` records who did what (`decisions/2026-04-30-annona-shared-household-data.md`) |
-| Abeona | bounded household | `abeona_households` with members; every trip, traveller and ticket object carries a household, and every policy defers to `public.abeona_user_in_household(household_id, user_id)`. BahnCards carry none: they belong to a traveller and follow its household. Storage objects follow the row their path names — a ticket its trip, a card file its card (`abeona_user_in_household_path`, `decisions/2026-11-03-abeona-bahncard-files-follow-the-card.md`). Unlike Annona, strangers see nothing (`decisions/2026-11-02-abeona-train-companion.md`, `decisions/2026-11-02-abeona-ticket-storage.md`). The one exception is `abeona_fare_rules`, reference data every signed-in user reads and nobody writes through the API |
+| Abeona | bounded household | `abeona_households` with members; every trip, traveller and ticket object carries a household, and every policy defers to `public.abeona_user_in_household(household_id, user_id)`. BahnCards carry none: they belong to a traveller and follow its household. Storage objects follow the row their path names — a ticket its trip, a card file its card (`abeona_user_in_household_path`, `decisions/2026-11-03-abeona-bahncard-files-follow-the-card.md`). Unlike Annona, strangers see nothing (`decisions/2026-11-02-abeona-train-companion.md`, `decisions/2026-11-02-abeona-ticket-storage.md`). The exceptions are `abeona_fare_rules` and `abeona_compensation_rules`, reference data every signed-in user reads and nobody writes through the API. Claims carry no household either: they follow their trip |
 
 Because there is no server, **RLS is the whole authorization story.** The anon
 key is public by design; a policy gap is a data leak. Treat every new table's
@@ -285,9 +285,15 @@ Anything aggregating, joining or crossing a permission boundary is a
   messages are written in SQL so both clients say the same), `abeona_statistics` (history card and year in review),
   `abeona_train_binding_lifted` (also mirrored in both clients), `abeona_allowed_products`
   (what a trip's ticket covers now, from the rows of `abeona_fare_rules`; as the caller),
-  and the distance helpers `abeona_haversine_km` / `abeona_polyline_km`.
+  the distance helpers `abeona_haversine_km` / `abeona_polyline_km`, and after the ride
+  `abeona_trip_arrival` (the real arrival: replacement, final, live or planned),
+  `abeona_compensation` (the verdict from `abeona_compensation_rules`, with the German
+  form text) and `abeona_claims_overview` (all as the caller), plus the snapshot job's
+  `abeona_trips_to_finalize` / `abeona_finalize_trip` (service role only;
+  `decisions/2026-11-03-abeona-final-snapshot-job.md`,
+  `decisions/2026-11-03-abeona-compensation-rules-as-data.md`).
 - Operational: `reassign_profile_user`, `invoke_fetch_rss`,
-  `invoke_refresh_fuel_prices`, `nexus_time_zone`,
+  `invoke_refresh_fuel_prices`, `invoke_abeona_refresh_trips`, `nexus_time_zone`,
   `rollup_fuel_prices_daily`, `prune_fuel_prices_raw`,
   `prune_articles_unread`, `prune_net_http_response`,
   `prune_cron_job_run_details`, `run_nexus_maintenance`
@@ -308,12 +314,13 @@ Deno, in `supabase/functions/`, deployed manually. Two authentication styles:
 | `fetch-nearby-fuel-prices` | called from Vibilia's UI | the end user's JWT, verified with `auth.getUser()` | radius search against Tankerkoenig for the nearby view |
 | `lookup-food-product` | called from Annona's scanner | the end user's JWT, verified with `auth.getUser()` | asks Open Food Facts about a barcode Annona has no product for (`decisions/2026-09-05-open-food-facts-lookup.md`) |
 | `abeona-transit` | called from both Abeona clients | the end user's JWT, verified with `auth.getUser()` | station search, journey search, live refresh and alternatives (marked against `abeona_allowed_products`, asked as the caller; `validity.ts`) against Transitous, normalised to `contract.ts`, which both clients mirror by hand; writes nothing (`decisions/2026-11-02-abeona-transit-providers.md`, `decisions/2026-11-03-abeona-fare-rules-and-device-signals.md`) |
+| `abeona-refresh-trips` | `pg_cron`, every 15 min | shared secret (bearer or `x-invoke-secret`) | refreshes trips that arrived 15–90 min ago through `abeona-transit/refresh.ts` (imported by relative path) and freezes their legs (`abeona_finalize_trip`); at most 10 trips a run (`decisions/2026-11-03-abeona-final-snapshot-job.md`) |
 
-The first two use the service-role key and must never be reachable without the
+The scheduled ones (`fetch-rss`, `refresh-fuel-prices`, `abeona-refresh-trips`) use the service-role key and must never be reachable without the
 secret. The last two run as the caller and validate their own inputs (lat/lng
 bounds, radius 0.1–25 km, fuel type allow-list; barcode digits and length)
-because the requests come from a browser. `supabase/config.toml` declares them all: `verify_jwt = false` for the two
-guarded by a shared secret, `true` for the one called from a browser.
+because the requests come from a browser. `supabase/config.toml` declares them all: `verify_jwt = false` for the three
+guarded by a shared secret, `true` for those called from a client.
 
 ### Scheduling
 
@@ -324,6 +331,8 @@ via `pg_net`
 
 - `fetch-rss-hourly` — `0 * * * *`
 - `refresh-fuel-prices-every-10min` — `7,17,27,37,47,57 * * * *`
+- `abeona-refresh-trips-every-15min` — `4,19,34,49 * * * *`, Abeona's final
+  snapshot; must run on the day, as Transitous forgets realtime soon after
 - `nexus-maintenance-daily` — `20 3 * * *`, calling
   `public.run_nexus_maintenance()` (see *Retention* below). Unlike the other
   two it stays inside Postgres; no Edge Function, no Vault secret.
@@ -466,7 +475,9 @@ Things that differ from the web on purpose:
 - **Abeona** — Trips (a BahnCard deadline banner, next trip hero, upcoming,
   a history card), Search, Review (the year in review as a pager), Settings
   (live companion, time to the station, time-to-leave reminder, location,
-  alerts, household, travellers, their BahnCards). A BahnCard opens
+  alerts, household, travellers, their BahnCards, compensation claims and
+  their reminder). After a trip, its screen shows Compensation and What
+  happened; the claims list opens from a bar under the year in review. A BahnCard opens
   like a ticket (`ui/bahncards/`), with "Open in DB Navigator" beside it; the
   cards and their files are kept on the phone like the trip pack
   (`files/offline/bahncards.json`, `files/bahncards/<card_id>/`). The
