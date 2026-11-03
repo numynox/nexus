@@ -2,7 +2,7 @@
   import { ArrowLeft, ExternalLink, RefreshCw, Ticket, Trash2 } from "lucide-svelte";
   import { onMount } from "svelte";
   import { getBaseUrl } from "../../lib/config";
-  import { deleteTrip, describeError, fetchTrip, refreshTripLive, type Trip } from "../../lib/data";
+  import { deleteTrip, describeError, fetchTrip, fetchTripWarnings, refreshTripLive, type Trip, type TripWarning } from "../../lib/data";
   import { fareLabel, formatLongDate, formatPrice, formatTime } from "../../lib/format";
   import { dbNavigatorUrl, hasArrived, isLiveWindow, LIVE_REFRESH_MS, summarise } from "../../lib/journey";
   import { trainBindingLifted, transfers } from "../../lib/transfer";
@@ -12,6 +12,8 @@
   import TicketCard from "./TicketCard.svelte";
   import TicketViewer from "./TicketViewer.svelte";
   import TransferRow from "./TransferRow.svelte";
+  import TravellersCard from "./TravellersCard.svelte";
+  import TripWarnings from "./TripWarnings.svelte";
   import TripMap from "./TripMap.svelte";
   import WalkRow from "./WalkRow.svelte";
 
@@ -26,6 +28,7 @@
   let deleting = $state(false);
   let confirmDialog: HTMLDialogElement | undefined = $state();
   let ticketCard: ReturnType<typeof TicketCard> | undefined = $state();
+  let warnings = $state<TripWarning[]>([]);
 
   const legs = $derived(trip?.legs ?? []);
   const s = $derived(legs.length > 0 ? summarise(legs) : null);
@@ -42,11 +45,17 @@
     try {
       trip = await fetchTrip(id);
       if (!trip) error = "This trip does not exist, or it belongs to another household.";
+      else void loadWarnings(trip.id);
     } catch (e) {
       error = describeError(e);
     } finally {
       loading = false;
     }
+  }
+
+  async function loadWarnings(id: string) {
+    // Warnings are advice: a failure leaves the trip page as it is.
+    warnings = await fetchTripWarnings(id).catch(() => warnings);
   }
 
   async function refresh() {
@@ -150,6 +159,9 @@
         {#if trip.price_cents !== null}
           <span class="tabular rounded-full bg-card px-3 py-1 text-ink">{formatPrice(trip.price_cents)}</span>
         {/if}
+        {#if trip.bahncard_discount}
+          <span class="rounded-full bg-card px-3 py-1 text-ink">BahnCard {trip.bahncard_discount} discount</span>
+        {/if}
         {#if trip.train_binding}
           <span class="rounded-full bg-card px-3 py-1 text-ink">Train-bound</span>
         {/if}
@@ -188,6 +200,10 @@
       <BindingBanner delay={s.arrivalDelay} />
     {/if}
 
+    {#if warnings.length > 0 && !arrived}
+      <TripWarnings {warnings} settingsHref={`${base}/settings#bahncards`} />
+    {/if}
+
     <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
       <section aria-label="Journey" class="space-y-1">
         {#each legs as leg, i (i)}
@@ -212,6 +228,13 @@
           {trip}
           onChanged={(path) => trip && (trip = { ...trip, ticket_path: path })}
           onShow={() => (showTicket = true)}
+        />
+        <TravellersCard
+          {trip}
+          onChanged={(changed) => {
+            trip = changed;
+            void loadWarnings(changed.id);
+          }}
         />
         <button class="btn btn-ghost btn-sm w-full rounded-full text-error" onclick={() => confirmDialog?.showModal()}>
           <Trash2 class="h-4 w-4" /> Delete trip
