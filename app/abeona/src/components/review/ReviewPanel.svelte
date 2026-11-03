@@ -192,7 +192,7 @@
                 <p class="tabular mt-1 text-xl font-semibold">{formatNumber(stats.co2_car_kg)} kg</p>
               </div>
             </div>
-            <p class="mt-3 text-xs text-base-content/60">Approximate, per traveller. {stats.co2_source ?? ""}</p>
+            <p class="mt-3 text-xs text-base-content/60">Per traveller. {stats.co2_source ?? "Approximate."}</p>
           </article>
         {/if}
 
