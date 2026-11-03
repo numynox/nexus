@@ -7,9 +7,11 @@ import { test } from "node:test";
 import { lineKey, platformOf } from "./common.ts";
 import { isDbTicket, parseDbTicket } from "./dbTicket.ts";
 import { fareOf } from "./fare.ts";
+import { localToInstant, matchConnection, type TransitPort } from "./match.ts";
 import type { ParsedShare, ParsedTicket } from "./parsed.ts";
 import { pdfText, type PdfJsLike } from "./pdfText.ts";
 import { isShareText, parseShareText } from "./shareText.ts";
+import type { Journey, Station } from "../transit.ts";
 
 interface Fixtures {
   share: { name: string; file: string; expect: ParsedShare }[];
@@ -18,6 +20,24 @@ interface Fixtures {
   fares: { name: string | null; fare_type: string; binding: boolean }[];
   platforms: { value: string | null; expect: string | null }[];
   lines: { a: string; b: string; same: boolean }[];
+  zones: { date: string; time: string; expect: string }[];
+  matching: {
+    name: string;
+    share: string;
+    stations: Record<string, string>;
+    journeys: Record<string, Journey[]>;
+    expect: {
+      status: string;
+      matched: number;
+      refresh_token: string | null;
+      trip_refs: (string | null)[];
+      from_names: string[];
+      from_platforms: (string | null)[];
+      first_departure: string;
+      last_arrival: string;
+      legs?: number;
+    };
+  }[];
 }
 
 const dir = new URL("./fixtures/", import.meta.url);
@@ -72,3 +92,34 @@ test("platforms drop their sectors", () => {
 test("line names compare without spaces or case", () => {
   for (const c of fixtures.lines) assert.equal(lineKey(c.a) === lineKey(c.b), c.same, `${c.a} / ${c.b}`);
 });
+
+test("local times are read in Europe/Berlin", () => {
+  for (const c of fixtures.zones) assert.equal(localToInstant(c.date, c.time), c.expect, `${c.date} ${c.time}`);
+});
+
+for (const c of fixtures.matching) {
+  test(`matching: ${c.name}`, async () => {
+    const parsed = parseShareText(read(c.share))!;
+    const port: TransitPort = {
+      async stations(query: string): Promise<Station[]> {
+        const id = c.stations[query];
+        return id ? [{ id, name: query, lat: 0, lon: 0, country: null }] : [];
+      },
+      async journeys(from: string, to: string, time: string): Promise<Journey[]> {
+        return c.journeys[`${from}>${to}@${time}`] ?? [];
+      },
+    };
+    const result = await matchConnection(parsed.legs, port);
+    const rides = result.journey.legs.filter((l) => l.mode !== "walk");
+    assert.equal(result.status, c.expect.status);
+    assert.equal(result.matched, c.expect.matched);
+    assert.equal(result.total, parsed.legs.length);
+    assert.equal(result.journey.refresh_token, c.expect.refresh_token);
+    assert.deepEqual(rides.map((l) => l.trip_ref ?? null), c.expect.trip_refs);
+    assert.deepEqual(rides.map((l) => l.from.name), c.expect.from_names);
+    assert.deepEqual(rides.map((l) => l.from.planned_platform ?? null), c.expect.from_platforms);
+    assert.equal(new Date(rides[0].from.planned!).toISOString(), c.expect.first_departure);
+    assert.equal(new Date(rides[rides.length - 1].to.planned!).toISOString(), c.expect.last_arrival);
+    if (c.expect.legs !== undefined) assert.equal(result.journey.legs.length, c.expect.legs);
+  });
+}
