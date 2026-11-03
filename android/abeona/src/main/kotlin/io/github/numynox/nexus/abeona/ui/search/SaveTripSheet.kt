@@ -32,6 +32,9 @@ import io.github.numynox.nexus.abeona.data.FareType
 import io.github.numynox.nexus.abeona.data.Journey
 import io.github.numynox.nexus.abeona.data.SaveTripInput
 import io.github.numynox.nexus.abeona.data.Traveller
+import androidx.compose.material3.Surface
+import io.github.numynox.nexus.abeona.ui.AbeonaColors
+import java.time.Instant
 import io.github.numynox.nexus.core.ui.components.ConnectedChoiceRow
 import io.github.numynox.nexus.core.ui.settings.SettingSwitch
 
@@ -61,14 +64,38 @@ fun SaveTripSheet(
     val origin = journey.legs.firstOrNull()?.from?.name.orEmpty()
     val destination = journey.legs.lastOrNull()?.to?.name.orEmpty()
     val priceCents = price.replace(',', '.').toDoubleOrNull()?.let { Math.round(it * 100).toInt() }
+    // A journey that has already arrived is saved as a past trip: final, never refreshed.
+    val past = remember(journey) { journey.legs.lastOrNull()?.to?.expectedAt?.isBefore(Instant.now()) == true }
+    var delay by remember { mutableStateOf("") }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(
             Modifier.padding(horizontal = 24.dp).navigationBarsPadding().imePadding().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("Save trip", style = MaterialTheme.typography.headlineSmall)
+            Text(if (past) "Save past trip" else "Save trip", style = MaterialTheme.typography.headlineSmall)
             JourneyCard(journey, onClick = null)
+            if (past) {
+                Surface(color = AbeonaColors.Amber.copy(alpha = 0.22f), shape = MaterialTheme.shapes.large) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("A past trip", style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            "It is saved as it happened and not followed live. Say how late you arrived, if you were.",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        OutlinedTextField(
+                            value = delay,
+                            onValueChange = { delay = it.filter(Char::isDigit).take(4) },
+                            label = { Text("Arrived late by (optional)") },
+                            suffix = { Text("min") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            shape = MaterialTheme.shapes.medium,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+            }
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
@@ -157,11 +184,13 @@ fun SaveTripSheet(
                                 priceCents = priceCents,
                                 bahncardDiscount = discount.takeIf { fare != FareType.BahnCard100 && fare != FareType.Deutschlandticket },
                                 travellerIds = chosen?.toList(),
+                                past = past,
+                                arrivalDelayMinutes = delay.toIntOrNull()?.coerceIn(0, 1440),
                             ),
                         )
                     },
                     enabled = !saving,
-                ) { Text("Save trip") }
+                ) { Text(if (past) "Save past trip" else "Save trip") }
             }
         }
     }
