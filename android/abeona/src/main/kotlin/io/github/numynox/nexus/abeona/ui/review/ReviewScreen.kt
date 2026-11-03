@@ -1,5 +1,10 @@
 package io.github.numynox.nexus.abeona.ui.review
 
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.Euro
+import io.github.numynox.nexus.abeona.data.ClaimsOverview
+import io.github.numynox.nexus.abeona.ui.Navigator
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -76,9 +81,14 @@ class ReviewViewModel(private val container: AppContainer) : ViewModel() {
     private val _stats = MutableStateFlow<Loadable<Statistics>>(Loadable.Loading)
     val stats: StateFlow<Loadable<Statistics>> = _stats.asStateFlow()
 
+    private val _claims = MutableStateFlow<ClaimsOverview?>(null)
+    /** This year's claims, for the bar under the stories; null until loaded or when it could not load. */
+    val claims: StateFlow<ClaimsOverview?> = _claims.asStateFlow()
+
     fun load(year: Int = _year.value) = viewModelScope.launch {
         _year.value = year
         _stats.value = Loadable.Loading
+        launch { _claims.value = runCatching { container.repository.claimsOverview(LocalDate.now().year) }.getOrNull() }
         _stats.value = loadable { container.repository.statistics(year) }
     }
 }
@@ -97,10 +107,11 @@ private const val HAMBURG_MUNICH_KM = 775.0
 
 /** The year on rails as a deck of story cards, swiped through one at a time. */
 @Composable
-fun ReviewScreen(app: AppViewModel) {
+fun ReviewScreen(app: AppViewModel, navigator: Navigator) {
     val viewModel = containerViewModel { ReviewViewModel(it) }
     val year by viewModel.year.collectAsStateWithLifecycle()
     val stats by viewModel.stats.collectAsStateWithLifecycle()
+    val claims by viewModel.claims.collectAsStateWithLifecycle()
     val version by app.dataVersion.collectAsStateWithLifecycle()
     val thisYear = LocalDate.now().year
 
@@ -123,12 +134,15 @@ fun ReviewScreen(app: AppViewModel) {
             )
         },
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
-            when (val state = stats) {
-                Loadable.Loading -> LoadingState(Modifier.fillMaxSize())
-                is Loadable.Failed -> ErrorState(state.message, onRetry = { viewModel.load() })
-                is Loadable.Ready -> StoryPager(state.value, year)
+        Column(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                when (val state = stats) {
+                    Loadable.Loading -> LoadingState(Modifier.fillMaxSize())
+                    is Loadable.Failed -> ErrorState(state.message, onRetry = { viewModel.load() })
+                    is Loadable.Ready -> StoryPager(state.value, year)
+                }
             }
+            claims?.let { ClaimsBar(it, onClick = navigator::claims) }
         }
     }
 }
@@ -332,5 +346,32 @@ private fun ColumnScope.MonthChart(stats: Statistics, year: Int) {
             includeZero = true,
             modifier = Modifier.fillMaxSize().padding(12.dp),
         ) }
+    }
+}
+
+/** Under the stories: what came back this year and what is still to claim; opens the claims list. */
+@Composable
+private fun ClaimsBar(overview: ClaimsOverview, onClick: () -> Unit) {
+    androidx.compose.material3.Surface(
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp).clickable(onClick = onClick),
+    ) {
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Rounded.Euro, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                Text("Compensation", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    listOfNotNull(
+                        "${io.github.numynox.nexus.abeona.ui.common.TripFormat.price(overview.earnedCents)} earned back",
+                        overview.toClaim.size.takeIf { it > 0 }?.let { "$it to claim" },
+                        overview.waiting.size.takeIf { it > 0 }?.let { "$it waiting" },
+                    ).joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null)
+        }
     }
 }
