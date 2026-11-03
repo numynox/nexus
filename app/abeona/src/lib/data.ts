@@ -46,6 +46,8 @@ export interface Trip {
   train_binding: boolean;
   travel_class: 1 | 2;
   price_cents: number | null;
+  /** The BahnCard discount the fare was bought with; a BahnCard 100 is a fare_type. */
+  bahncard_discount: BahnCardKind | null;
   ticket_path: string | null;
   refreshed_at: string | null;
   created_at: string;
@@ -129,6 +131,59 @@ export interface SaveTripInput {
   train_binding: boolean;
   travel_class: 1 | 2;
   price_cents?: number | null;
+  bahncard_discount?: BahnCardKind | null;
+  /** Who travels. Left out, the trip gets the caller's own traveller. */
+  traveller_ids?: string[];
+}
+
+export type BahnCardKind = 25 | 50 | 100;
+
+/** abeona_bahncards: belongs to a traveller, and through them to a household. */
+export interface BahnCard {
+  id: string;
+  traveller_id: string;
+  kind: BahnCardKind;
+  travel_class: 1 | 2;
+  /** yyyy-mm-dd */
+  valid_from: string;
+  /** yyyy-mm-dd, the last day it is valid. */
+  valid_to: string;
+  card_number: string | null;
+  /** Renews unless cancelled notice_weeks before valid_to. */
+  subscription: boolean;
+  notice_weeks: number;
+  file_path: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type BahnCardInput = Pick<
+  BahnCard,
+  "traveller_id" | "kind" | "travel_class" | "valid_from" | "valid_to" | "card_number" | "subscription" | "notice_weeks"
+>;
+
+/** A row of abeona_bahncard_deadlines(). */
+export interface BahnCardDeadline {
+  card_id: string;
+  traveller_id: string;
+  traveller_name: string;
+  kind: BahnCardKind;
+  travel_class: 1 | 2;
+  valid_to: string;
+  notice_weeks: number;
+  /** yyyy-mm-dd: valid_to minus the notice period. */
+  deadline: string;
+  /** Negative once the deadline has passed. */
+  days_left: number;
+}
+
+/** A row of abeona_trip_warnings(); the message is shown as is. */
+export interface TripWarning {
+  kind: "no_travellers" | "no_card" | "expired" | "not_yet_valid" | "class";
+  traveller_id: string | null;
+  traveller_name: string | null;
+  card_id: string | null;
+  message: string;
 }
 
 // ── Auth ───────────────────────────────────────────────────────────
@@ -349,6 +404,8 @@ export async function saveTrip(journey: Journey, input: SaveTripInput): Promise<
       train_binding: input.train_binding,
       travel_class: input.travel_class,
       price_cents: input.price_cents ?? null,
+      bahncard_discount: input.bahncard_discount ?? null,
+      ...(input.traveller_ids ? { traveller_ids: input.traveller_ids } : {}),
     },
     // The contract's Leg is exactly what the RPC reads.
     p_legs: journey.legs,
@@ -366,6 +423,121 @@ export async function deleteTrip(trip: Pick<Trip, "id" | "ticket_path">): Promis
   const { error } = await sb.from("abeona_trips").delete().eq("id", trip.id);
   if (error) throw error;
 }
+
+/** The BahnCard discount of the trip's fare; null for none. */
+export async function setTripBahncardDiscount(tripId: string, discount: BahnCardKind | null): Promise<void> {
+  const sb = getSupabaseClient();
+  const { error } = await sb
+    .from("abeona_trips")
+    .update({ bahncard_discount: discount, updated_at: new Date().toISOString() })
+    .eq("id", tripId);
+  if (error) throw error;
+}
+
+/** The ids of the travellers on a trip. */
+export async function fetchTripTravellerIds(tripId: string): Promise<string[]> {
+  const sb = getSupabaseClient();
+  const { data, error } = await sb.from("abeona_trip_travellers").select("traveller_id").eq("trip_id", tripId);
+  if (error) throw error;
+  return ((data ?? []) as { traveller_id: string }[]).map((r) => r.traveller_id);
+}
+
+export async function setTripTravellers(tripId: string, travellerIds: string[]): Promise<void> {
+  const sb = getSupabaseClient();
+  const { error } = await sb.rpc("abeona_set_trip_travellers", { p_trip_id: tripId, p_traveller_ids: travellerIds });
+  if (error) throw error;
+}
+
+/** What is wrong with the trip's BahnCards; the same rows the app shows. */
+export async function fetchTripWarnings(tripId: string): Promise<TripWarning[]> {
+  const sb = getSupabaseClient();
+  const { data, error } = await sb.rpc("abeona_trip_warnings", { p_trip_id: tripId });
+  if (error) throw error;
+  return (data ?? []) as TripWarning[];
+}
+
+// ── BahnCards ──────────────────────────────────────────────────────
+
+/** Every card of the household's travellers, soonest-ending last. */
+export async function fetchBahnCards(): Promise<BahnCard[]> {
+  const household = await ensureHousehold();
+  const sb = getSupabaseClient();
+  const { data, error } = await sb
+    .from("abeona_bahncards")
+    .select("*, abeona_travellers!inner(household_id)")
+    .eq("abeona_travellers.household_id", household)
+    .order("valid_to", { ascending: false });
+  if (error) throw error;
+  return ((data ?? []) as (BahnCard & { abeona_travellers?: unknown })[]).map(({ abeona_travellers: _, ...card }) => card);
+}
+
+/** Inserts a card, or updates it when an id is given. */
+export async function saveBahnCard(input: BahnCardInput, id?: string): Promise<BahnCard> {
+  const sb = getSupabaseClient();
+  const row = { ...input, card_number: input.card_number?.trim() || null };
+  const query = id
+    ? sb.from("abeona_bahncards").update({ ...row, updated_at: new Date().toISOString() }).eq("id", id)
+    : sb.from("abeona_bahncards").insert(row);
+  const { data, error } = await query.select().single();
+  if (error) throw error;
+  return data as BahnCard;
+}
+
+export async function deleteBahnCard(card: Pick<BahnCard, "id" | "file_path">): Promise<void> {
+  const sb = getSupabaseClient();
+  const { error } = await sb.from("abeona_bahncards").delete().eq("id", card.id);
+  if (error) throw error;
+  if (card.file_path) {
+    await sb.storage.from(TICKET_BUCKET).remove([card.file_path]).catch(() => {});
+  }
+}
+
+/**
+ * Uploads the card's PDF or image to <household_id>/bahncards/<card_id>/<file>
+ * and links it to the card. Access follows the card, so the household prefix
+ * only matters until the card row exists.
+ */
+export async function uploadBahnCardFile(card: Pick<BahnCard, "id" | "file_path">, file: File): Promise<string> {
+  checkTicketFile(file);
+  const household = await ensureHousehold();
+  const sb = getSupabaseClient();
+  const path = `${household}/bahncards/${card.id}/${Date.now()}-${safeFileName(file.name)}`;
+  const { error: uploadError } = await sb.storage
+    .from(TICKET_BUCKET)
+    .upload(path, file, { contentType: file.type, upsert: false });
+  if (uploadError) throw uploadError;
+
+  const { error } = await sb.from("abeona_bahncards").update({ file_path: path, updated_at: new Date().toISOString() }).eq("id", card.id);
+  if (error) {
+    await sb.storage.from(TICKET_BUCKET).remove([path]).catch(() => {});
+    throw error;
+  }
+  if (card.file_path && card.file_path !== path) {
+    await sb.storage.from(TICKET_BUCKET).remove([card.file_path]).catch(() => {});
+  }
+  return path;
+}
+
+export async function removeBahnCardFile(card: Pick<BahnCard, "id" | "file_path">): Promise<void> {
+  const sb = getSupabaseClient();
+  const { error } = await sb.from("abeona_bahncards").update({ file_path: null, updated_at: new Date().toISOString() }).eq("id", card.id);
+  if (error) throw error;
+  if (card.file_path) {
+    await sb.storage.from(TICKET_BUCKET).remove([card.file_path]).catch(() => {});
+  }
+}
+
+/** Subscriptions whose cancellation deadline is at most withinDays away, or passed while the card runs. */
+export async function fetchBahnCardDeadlines(withinDays = BAHNCARD_DEADLINE_DAYS): Promise<BahnCardDeadline[]> {
+  await ensureHousehold();
+  const sb = getSupabaseClient();
+  const { data, error } = await sb.rpc("abeona_bahncard_deadlines", { p_within_days: withinDays });
+  if (error) throw error;
+  return ((data ?? []) as BahnCardDeadline[]).map((d) => ({ ...d, days_left: Number(d.days_left) }));
+}
+
+/** How far ahead the dashboard and the Android reminder look. */
+export const BAHNCARD_DEADLINE_DAYS = 14;
 
 // ── Live values ────────────────────────────────────────────────────
 
@@ -520,10 +692,14 @@ function safeFileName(name: string): string {
   return cleaned || "ticket";
 }
 
+function checkTicketFile(file: File) {
+  if (!TICKET_TYPES.includes(file.type)) throw new Error("The file must be a PDF, PNG or JPEG.");
+  if (file.size > TICKET_MAX_BYTES) throw new Error("The file may be at most 10 MB.");
+}
+
 /** Uploads the ticket file to <household_id>/<trip_id>/<file> and links it to the trip. */
 export async function uploadTicket(trip: Pick<Trip, "id" | "household_id" | "ticket_path">, file: File): Promise<string> {
-  if (!TICKET_TYPES.includes(file.type)) throw new Error("A ticket must be a PDF, PNG or JPEG file.");
-  if (file.size > TICKET_MAX_BYTES) throw new Error("A ticket file may be at most 10 MB.");
+  checkTicketFile(file);
 
   const sb = getSupabaseClient();
   const path = `${trip.household_id}/${trip.id}/${Date.now()}-${safeFileName(file.name)}`;
@@ -544,6 +720,7 @@ export async function uploadTicket(trip: Pick<Trip, "id" | "household_id" | "tic
   return path;
 }
 
+/** Downloads a ticket or BahnCard file (both live in the same bucket). */
 export async function downloadTicket(path: string): Promise<Blob> {
   const sb = getSupabaseClient();
   const { data, error } = await sb.storage.from(TICKET_BUCKET).download(path);

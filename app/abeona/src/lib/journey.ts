@@ -73,6 +73,9 @@ export function hasArrived(legs: Leg[], now = Date.now()): boolean {
   return arrival > 0 && arrival < now;
 }
 
+/** bahn.de, which DB Navigator opens when installed: for proofs with no connection, like a BahnCard. */
+export const DB_NAVIGATOR_HOME = "https://www.bahn.de/";
+
 /**
  * The connection in DB's own search, which DB Navigator opens when it is
  * installed (bahn.de links are app links on Android); some ticket proofs only
@@ -81,7 +84,7 @@ export function hasArrived(legs: Leg[], now = Date.now()): boolean {
 export function dbNavigatorUrl(legs: Leg[], travelClass: 1 | 2 = 2): string {
   const first = legs[0];
   const last = legs[legs.length - 1];
-  if (!first || !last) return "https://www.bahn.de/";
+  if (!first || !last) return DB_NAVIGATOR_HOME;
   const when = first.from.planned ? new Date(first.from.planned) : new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
   const local = `${when.getFullYear()}-${pad(when.getMonth() + 1)}-${pad(when.getDate())}T${pad(when.getHours())}:${pad(when.getMinutes())}:00`;

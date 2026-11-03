@@ -127,3 +127,42 @@ export function formatPrice(cents: number | null | undefined): string {
 export function formatNumber(value: number, digits = 0): string {
   return value.toLocaleString(LOCALE, { maximumFractionDigits: digits, minimumFractionDigits: digits });
 }
+
+/** A yyyy-mm-dd date (no time, no zone) as a local Date at midnight. */
+export function parseDay(day: string): Date {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(y!, (m ?? 1) - 1, d ?? 1);
+}
+
+/** yyyy-mm-dd → "12 Mar 2027" */
+export function formatDay(day: string | null | undefined): string {
+  if (!day) return "";
+  return parseDay(day).toLocaleDateString(LOCALE, { day: "numeric", month: "short", year: "numeric" });
+}
+
+/** A local Date → yyyy-mm-dd, for date inputs. */
+export function toDay(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+/** "BahnCard 50 · 2nd class" */
+export function bahnCardLabel(card: { kind: number; travel_class: number }): string {
+  return `BahnCard ${card.kind} · ${card.travel_class === 1 ? "1st" : "2nd"} class`;
+}
+
+/** When a subscription has to be cancelled by: "Cancel by 14 Feb 2027 (in 9 days)". */
+export function deadlineText(deadline: { deadline: string; days_left: number }): string {
+  const days = deadline.days_left;
+  const when =
+    days < 0 ? `${-days} ${-days === 1 ? "day" : "days"} ago` : days === 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`;
+  return days < 0
+    ? `The cancellation deadline was ${formatDay(deadline.deadline)} (${when})`
+    : `Cancel by ${formatDay(deadline.deadline)} (${when})`;
+}
+
+export const BAHNCARD_DISCOUNTS = [
+  { value: null, label: "None" },
+  { value: 25, label: "BahnCard 25" },
+  { value: 50, label: "BahnCard 50" },
+] as const;
