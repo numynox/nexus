@@ -58,6 +58,6 @@ class HistoryScreenshots {
             }
         }
         compose.waitForIdle()
-        captureScreenRoboImage("build/outputs/roborazzi/app/47-save-past-trip.png")
+        captureScreenRoboImage("build/outputs/roborazzi/app/70-save-past-trip.png")
     }
 }
