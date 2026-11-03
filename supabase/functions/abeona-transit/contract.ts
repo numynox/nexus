@@ -70,6 +70,47 @@ export interface Journey {
   legs: Leg[];
 }
 
+/**
+ * What a trip's ticket covers right now: abeona_allowed_products(trip_id),
+ * from the rules in abeona_fare_rules and the trip's last saved live values.
+ */
+export interface Allowance {
+  trip_id: string;
+  fare_type: string;
+  /** False when Abeona has no rule for the fare type: every alternative is "check". */
+  known: boolean;
+  /** IC, ICE, EC and the like are covered at all. */
+  long_distance: boolean;
+  /** Products never covered, e.g. ["ICE", "IC", "FLX"]. */
+  excluded_products: string[];
+  /** The train binding holds: only the booked trains count. */
+  train_bound: boolean;
+  /** The ticket was bound and DB has lifted the binding (delay or cancellation). */
+  binding_lifted: boolean;
+  arrival_delay_minutes: number;
+  /** The trip's rides' line names, e.g. ["ICE 25", "RE 10"]. */
+  booked_lines: string[];
+  /** English, shown as is next to the alternatives; it ends in "check the terms". */
+  hint: string;
+}
+
+/** valid: the ticket covers it · check: Abeona cannot tell · invalid: needs another ticket. */
+export type Validity = "valid" | "check" | "invalid";
+
+/** A connection that could replace the rest of a trip, marked against its ticket. */
+export interface Alternative extends Journey {
+  validity: Validity;
+  /** Why, in English, shown as is ("Not covered: ICE 597"). */
+  validity_note: string;
+}
+
+export interface AlternativesResponse {
+  /** Null when the trip is not visible to the caller; every alternative is then "check". */
+  allowance: Allowance | null;
+  /** Ranked by arrival, then by number of changes. */
+  alternatives: Alternative[];
+}
+
 export type Request =
   | { action: "locations"; query: string }
   | {
@@ -83,6 +124,20 @@ export type Request =
     products?: "all" | "regional";
     /** Opaque, from a previous answer's next/previous cursor. */
     cursor?: string;
+  }
+  | {
+    /**
+     * Connections from where the traveller is (the current train's next stop
+     * or the current station) to the trip's destination, marked by whether
+     * the trip's ticket covers them.
+     */
+    action: "alternatives";
+    trip_id: string;
+    /** A stop id, or "lat,lon". */
+    from: string;
+    to: string;
+    /** ISO instant; defaults to now. */
+    time?: string;
   }
   | {
     action: "refresh";

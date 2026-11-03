@@ -1,5 +1,6 @@
 // Abeona's only door to timetable and realtime data: station search, journey
-// search, and refreshing a saved journey's live values.
+// search, refreshing a saved journey's live values, and alternatives for the
+// rest of a trip, marked against its ticket.
 //
 // It runs as an Edge Function, not in the browser, so the provider can change
 // without a client release (an installed APK lags behind) and so every client
@@ -7,9 +8,10 @@
 // clients save trips and live values through RPCs, under RLS, as the caller.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import type { Journey, Leg, Request } from "./contract.ts";
+import type { Allowance, AlternativesResponse, Journey, Leg, Request } from "./contract.ts";
 import * as transitous from "./transitous.ts";
 import { ProviderError } from "./transitous.ts";
+import { mark, rank } from "./validity.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -78,6 +80,35 @@ async function refresh(request: Extract<Request, { action: "refresh" }>) {
   return { journey: null, legs };
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Connections from where the traveller is to the destination, marked against
+ * the ticket. The allowance comes from abeona_allowed_products, asked as the
+ * caller, so RLS decides whether the trip is theirs; the timetable is one
+ * Transitous plan request, the same as a journey search. A ticket that never
+ * covers long-distance trains is searched for regional trains only, so its
+ * few valid connections are not crowded out.
+ */
+async function alternatives(
+  request: Extract<Request, { action: "alternatives" }>,
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  time: string,
+): Promise<AlternativesResponse> {
+  const { data, error } = await supabase.rpc("abeona_allowed_products", { p_trip_id: request.trip_id });
+  const allowance: Allowance | null = error ? null : (data as Allowance | null);
+  const result = await transitous.journeys({
+    from: request.from,
+    to: request.to,
+    time,
+    arriveBy: false,
+    products: allowance && allowance.known && !allowance.long_distance ? "regional" : "all",
+    count: 8,
+  });
+  return { allowance, alternatives: rank(result.journeys.map((j) => mark(j, allowance))) };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -131,6 +162,18 @@ Deno.serve(async (req) => {
           cursor: isId(request.cursor) ? request.cursor : undefined,
         });
         return json(result);
+      }
+
+      case "alternatives": {
+        if (typeof request.trip_id !== "string" || !UUID.test(request.trip_id)) {
+          return json({ error: "trip_id must be a trip's id" }, 400);
+        }
+        if (!isId(request.from) || !isId(request.to)) {
+          return json({ error: "Both from and to are required" }, 400);
+        }
+        const time = isoOrNow(request.time);
+        if (!time) return json({ error: "time must be an ISO date within a year of today" }, 400);
+        return json(await alternatives(request, supabase, time));
       }
 
       case "refresh":
