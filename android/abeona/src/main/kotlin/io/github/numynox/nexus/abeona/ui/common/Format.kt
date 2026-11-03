@@ -36,6 +36,9 @@ object TripFormat {
     fun longDay(instant: Instant): String =
         DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.ENGLISH).format(instant.atZone(zone))
 
+    /** "12 Mar 2027": a card's validity, which has no time and no zone. */
+    fun date(date: LocalDate): String = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH).format(date)
+
     /** "2 h 05 min", "45 min". */
     fun duration(minutes: Long): String {
         val h = minutes / 60

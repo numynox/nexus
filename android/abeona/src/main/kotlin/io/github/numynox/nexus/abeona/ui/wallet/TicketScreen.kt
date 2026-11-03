@@ -69,6 +69,7 @@ import io.github.numynox.nexus.abeona.ui.AppViewModel
 import io.github.numynox.nexus.abeona.ui.Navigator
 import io.github.numynox.nexus.abeona.ui.common.DbNavigator
 import io.github.numynox.nexus.abeona.ui.common.OfflinePill
+import io.github.numynox.nexus.abeona.ui.common.PickedFile
 import io.github.numynox.nexus.abeona.ui.common.TripFormat
 import io.github.numynox.nexus.abeona.ui.common.containerViewModel
 import io.github.numynox.nexus.core.data.describe
@@ -133,13 +134,8 @@ class TicketViewModel(private val container: AppContainer, private val tripId: S
         val trip = (_ticket.value as? Loadable.Ready)?.value?.trip ?: return
         viewModelScope.launch {
             runCatching {
-                val resolver = application.contentResolver
-                val name = resolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
-                    if (c.moveToFirst()) c.getString(0) else null
-                } ?: "ticket.pdf"
-                val bytes = withContext(Dispatchers.IO) { resolver.openInputStream(uri)?.use { it.readBytes() } } ?: error("The file could not be read.")
-                val mime = resolver.getType(uri) ?: "application/pdf"
-                container.trips.attachTicket(trip, name, mime, bytes)
+                val file = PickedFile.read(application, uri, "ticket.pdf")
+                container.trips.attachTicket(trip, file.name, file.mimeType, file.bytes)
             }.onSuccess { load() }.onFailure { onError(it.describe()) }
         }
     }
@@ -200,7 +196,7 @@ fun TicketScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
             TicketFooter(
                 fareType = (ticket as? Loadable.Ready)?.value?.trip?.fareType,
                 onDbNavigator = { DbNavigator.open(context) },
-                onReplace = { replace.launch(arrayOf("application/pdf", "image/png", "image/jpeg")) },
+                onReplace = { replace.launch(PickedFile.TYPES) },
             )
         }
     }
@@ -208,7 +204,7 @@ fun TicketScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
 
 /** Pinch to zoom, drag to move, double tap to go back to fit. */
 @Composable
-private fun ZoomablePages(pages: List<Bitmap>) {
+internal fun ZoomablePages(pages: List<Bitmap>, description: String = "Ticket page") {
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     val transform = rememberTransformableState { zoom, pan, _ ->
@@ -227,7 +223,7 @@ private fun ZoomablePages(pages: List<Bitmap>) {
         pages.forEach { page ->
             Image(
                 bitmap = page.asImageBitmap(),
-                contentDescription = "Ticket page",
+                contentDescription = description,
                 contentScale = ContentScale.FillWidth,
                 modifier = Modifier.fillMaxWidth().graphicsLayer {
                     scaleX = scale; scaleY = scale
@@ -274,7 +270,7 @@ private fun TicketFooter(fareType: FareType?, onDbNavigator: () -> Unit, onRepla
 
 /** The window at full brightness and kept awake while the ticket is shown; restored after. */
 @Composable
-private fun FullBrightness() {
+internal fun FullBrightness() {
     val activity = LocalContext.current as? Activity ?: return
     DisposableEffect(activity) {
         val window = activity.window

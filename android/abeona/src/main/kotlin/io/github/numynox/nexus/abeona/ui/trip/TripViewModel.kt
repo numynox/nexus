@@ -2,11 +2,13 @@ package io.github.numynox.nexus.abeona.ui.trip
 
 import android.app.Application
 import android.net.Uri
-import android.provider.OpenableColumns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.numynox.nexus.abeona.AppContainer
+import io.github.numynox.nexus.abeona.data.Traveller
 import io.github.numynox.nexus.abeona.data.Trip
+import io.github.numynox.nexus.abeona.data.TripWarning
+import io.github.numynox.nexus.abeona.ui.common.PickedFile
 import io.github.numynox.nexus.abeona.widget.NextTripWidget
 import io.github.numynox.nexus.core.data.describe
 import io.github.numynox.nexus.core.ui.Loadable
@@ -17,6 +19,8 @@ import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,6 +37,13 @@ data class TripDetail(
     val refreshError: String? = null,
 )
 
+/** Who travels on the trip, everyone who could, and what is wrong with their BahnCards. */
+data class TripPeople(
+    val travellers: List<Traveller>,
+    val onTrip: Set<String>,
+    val warnings: List<TripWarning>,
+)
+
 class TripViewModel(
     private val container: AppContainer,
     private val application: Application,
@@ -42,6 +53,10 @@ class TripViewModel(
 
     private val _detail = MutableStateFlow<Loadable<TripDetail>>(Loadable.Loading)
     val detail: StateFlow<Loadable<TripDetail>> = _detail.asStateFlow()
+
+    private val _people = MutableStateFlow<TripPeople?>(null)
+    /** Null while loading, offline, or when it could not load: the section then stays away. */
+    val people: StateFlow<TripPeople?> = _people.asStateFlow()
 
     private var auto: Job? = null
 
@@ -55,11 +70,53 @@ class TripViewModel(
                 return@launch
             }
             _detail.value = Loadable.Ready(TripDetail(trip, fetched.offlineSince))
+            if (fetched.offlineSince == null) launch { loadPeople() }
             if (fetched.offlineSince == null && !isOver(trip)) refreshNow()
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
             _detail.value = Loadable.Failed(e.describe())
+        }
+    }
+
+    private suspend fun loadPeople() {
+        val repository = container.repository
+        _people.value = runCatching {
+            coroutineScope {
+                val travellers = async { repository.travellers() }
+                val onTrip = async { repository.tripTravellerIds(tripId) }
+                val warnings = async { repository.tripWarnings(tripId) }
+                TripPeople(travellers.await(), onTrip.await().toSet(), warnings.await())
+            }
+        }.getOrElse { _people.value }
+    }
+
+    /** Puts a traveller on the trip or takes them off; the warnings follow. */
+    fun toggleTraveller(id: String, onError: (String) -> Unit) {
+        val current = _people.value ?: return
+        val next = if (id in current.onTrip) current.onTrip - id else current.onTrip + id
+        _people.value = current.copy(onTrip = next)
+        viewModelScope.launch {
+            runCatching { container.repository.setTripTravellers(tripId, next.toList()) }
+                .onSuccess { loadPeople() }
+                .onFailure { _people.value = current; onError(it.describe()) }
+        }
+    }
+
+    /** The BahnCard discount of the fare (25, 50 or null); the warnings follow. */
+    fun setBahncardDiscount(discount: Int?, onError: (String) -> Unit) {
+        val detail = _detail.value.valueOrNull ?: return
+        if (detail.trip.bahncardDiscount == discount) return
+        _detail.value = Loadable.Ready(detail.copy(trip = detail.trip.copy(bahncardDiscount = discount)))
+        viewModelScope.launch {
+            runCatching { container.repository.setBahncardDiscount(tripId, discount) }
+                .onSuccess { loadPeople() }
+                .onFailure {
+                    _detail.value.valueOrNull?.let { latest ->
+                        _detail.value = Loadable.Ready(latest.copy(trip = latest.trip.copy(bahncardDiscount = detail.trip.bahncardDiscount)))
+                    }
+                    onError(it.describe())
+                }
         }
     }
 
@@ -113,17 +170,8 @@ class TripViewModel(
         val trip = _detail.value.valueOrNull?.trip ?: return
         viewModelScope.launch {
             runCatching {
-                val resolver = application.contentResolver
-                val (name, bytes) = withContext(Dispatchers.IO) {
-                    val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-                        if (cursor.moveToFirst()) cursor.getString(0) else null
-                    } ?: "ticket.pdf"
-                    val bytes = resolver.openInputStream(uri)?.use { it.readBytes() } ?: error("The file could not be read.")
-                    name to bytes
-                }
-                require(bytes.size <= MAX_TICKET_BYTES) { "Tickets can be at most 10 MB." }
-                val mime = resolver.getType(uri) ?: if (name.endsWith(".pdf", true)) "application/pdf" else "image/jpeg"
-                store.attachTicket(trip, name, mime, bytes)
+                val file = PickedFile.read(application, uri, "ticket.pdf")
+                store.attachTicket(trip, file.name, file.mimeType, file.bytes)
             }.onSuccess { updated ->
                 val latest = _detail.value.valueOrNull ?: return@onSuccess
                 _detail.value = Loadable.Ready(latest.copy(trip = updated))
@@ -142,6 +190,5 @@ class TripViewModel(
 
     private companion object {
         const val REFRESH_EVERY = 120_000L
-        const val MAX_TICKET_BYTES = 10 * 1024 * 1024
     }
 }
