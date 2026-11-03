@@ -38,9 +38,12 @@ import kotlinx.coroutines.launch
 /**
  * The live companion: during a trip, the phone itself polls the Edge Function
  * every two minutes, writes the live values back, and keeps one ongoing
- * notification current — with a heads-up for news (platform change,
- * cancellation, a change at risk, the train binding lifted). There is no
- * server-side monitoring (decisions/2026-11-02-abeona-train-companion.md).
+ * notification current with the travel day — with a heads-up for the news
+ * the alert settings ask for (delay, platform change, cancellation, a change
+ * at risk or missed, the train binding lifted). Every 30 seconds it also
+ * looks at the train's Wi-Fi and, if allowed, the phone's position. There is
+ * no server-side monitoring (decisions/2026-11-02-abeona-train-companion.md,
+ * decisions/2026-11-03-abeona-fare-rules-and-device-signals.md).
  */
 object LiveCompanion {
     internal const val CHANNEL_LIVE = "live"
@@ -51,6 +54,8 @@ object LiveCompanion {
     private const val EXTRA_TRIP = "trip_id"
 
     val REFRESH_EVERY: Duration = Duration.ofMinutes(2)
+    /** How often the signals (on-board Wi-Fi, position) and the notification are looked at between refreshes. */
+    val TICK: Duration = Duration.ofSeconds(30)
     /** How long after the final arrival the companion stays, for a late train's last minutes. */
     val LINGER: Duration = Duration.ofMinutes(15)
 
@@ -150,6 +155,7 @@ class LiveCompanionService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var following: Job? = null
     private val posted = mutableSetOf<String>()
+    private val location by lazy { TripLocation(this) }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -161,39 +167,71 @@ class LiveCompanionService : Service() {
             return START_NOT_STICKY
         }
         // Foreground first: Android allows a few seconds from startForegroundService.
-        ServiceCompat.startForeground(
-            this,
-            LiveCompanion.ONGOING_ID,
-            LiveCompanion.ongoing(this, tripId, CompanionStatus("Abeona", "Following your trip…", false), null),
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
-        )
+        val placeholder = LiveCompanion.ongoing(this, tripId, CompanionStatus("Abeona", "Following your trip…", false), null)
+        val withLocation = wantsLocation() && runCatching {
+            ServiceCompat.startForeground(
+                this,
+                LiveCompanion.ONGOING_ID,
+                placeholder,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION,
+            )
+        }.isSuccess
+        // Started from the background (the auto-start), Android refuses the
+        // location type: follow the trip without the position then.
+        if (!withLocation) {
+            ServiceCompat.startForeground(this, LiveCompanion.ONGOING_ID, placeholder, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        }
         LiveCompanion.setRunning(tripId)
         posted.clear()
         following?.cancel()
+        location.stop()
+        if (withLocation) location.start()
         following = scope.launch { follow(tripId) }
         return START_REDELIVER_INTENT
     }
 
+    /** The setting is on and the permission granted; read once per start. */
+    private fun wantsLocation(): Boolean {
+        val container = (application as AbeonaApplication).container
+        val on = kotlinx.coroutines.runBlocking { container.preferences.current().tripLocation }
+        return on && location.hasPermission()
+    }
+
+    /**
+     * Every [LiveCompanion.TICK]: the on-board Wi-Fi and the position into
+     * the notification; every [LiveCompanion.REFRESH_EVERY]: the live values,
+     * with alerts for what changed, as far as the alert settings ask.
+     */
     private suspend fun follow(tripId: String) {
         val container = (application as AbeonaApplication).container
         container.core.auth.awaitUserId() ?: return finish()
         var trip = runCatching { container.trips.trip(tripId).value }.getOrNull() ?: return finish()
         var updated: Instant? = null
+        var refreshedAt: Instant? = null
         while (scope.isActive) {
-            val fresh = runCatching { container.trips.refresh(trip) }.getOrNull()
-            val now = Instant.now()
-            if (fresh != null) {
-                if (updated != null) companionAlerts(trip, fresh, now).filter { posted.add(it.key) }.forEach { post(tripId, it) }
-                trip = fresh
-                updated = now
-                NextTripWidget.refresh(this)
+            val settings = container.preferences.current()
+            var now = Instant.now()
+            if (refreshedAt == null || !now.isBefore(refreshedAt.plus(LiveCompanion.REFRESH_EVERY))) {
+                refreshedAt = now
+                val fresh = runCatching { container.trips.refresh(trip) }.getOrNull()
+                now = Instant.now()
+                if (fresh != null) {
+                    if (updated != null) companionAlerts(trip, fresh, now, settings.alerts).filter { posted.add(it.key) }.forEach { post(tripId, it) }
+                    trip = fresh
+                    updated = now
+                    NextTripWidget.refresh(this)
+                }
             }
-            val status = companionStatus(trip, now)
+            val onboard = runCatching { container.onboard.status() }.getOrNull()
+            LiveSignals.setOnboard(onboard)
+            val signals = LiveSignals.forTrip(trip, now)
+            missedAlert(trip, now, settings.stationMinutes, signals, settings.alerts)?.takeIf { posted.add(it.key) }?.let { post(tripId, it) }
+            val status = companionStatus(trip, now, settings.stationMinutes, signals, LiveSignals.onboardFor(trip, now))
             if (LiveCompanion.canNotify(this)) {
                 NotificationManagerCompat.from(this).notify(LiveCompanion.ONGOING_ID, LiveCompanion.ongoing(this, tripId, status, updated))
             }
             if (status.finished && now.isAfter(trip.expectedArrival.plus(LiveCompanion.LINGER))) return finish()
-            delay(LiveCompanion.REFRESH_EVERY.toMillis())
+            delay(LiveCompanion.TICK.toMillis())
         }
     }
 
@@ -203,6 +241,8 @@ class LiveCompanionService : Service() {
     }
 
     private fun finish() {
+        location.stop()
+        LiveSignals.clear()
         LiveCompanion.setRunning(null)
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -214,6 +254,7 @@ class LiveCompanionService : Service() {
     }
 
     override fun onDestroy() {
+        location.stop()
         LiveCompanion.setRunning(null)
         scope.cancel()
         super.onDestroy()

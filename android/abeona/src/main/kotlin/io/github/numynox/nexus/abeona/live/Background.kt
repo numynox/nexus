@@ -13,6 +13,7 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import io.github.numynox.nexus.abeona.AbeonaApplication
 import io.github.numynox.nexus.abeona.data.Trip
+import io.github.numynox.nexus.abeona.reminders.LeaveReminder
 import io.github.numynox.nexus.abeona.widget.NextTripWidget
 import io.github.numynox.nexus.core.data.isNetworkFailure
 import java.time.Duration
@@ -24,7 +25,7 @@ import java.time.ZoneId
  * What runs without the app open: a half-hourly job that keeps the next trip's
  * live values and the widget current, and — when "Live companion" is on in
  * Settings — a job half an hour before the next departure that starts the
- * companion.
+ * companion. The time-to-leave reminder is set from here too.
  */
 object Background {
     private const val PERIODIC = "abeona-next-trip"
@@ -41,12 +42,17 @@ object Background {
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(PERIODIC, ExistingPeriodicWorkPolicy.KEEP, request)
     }
 
-    /** Sets the companion's start for the next trip, or cancels it when the setting is off. */
+    /**
+     * Sets the companion's start for the next trip, or cancels it when the
+     * setting is off; and the time-to-leave reminder, likewise.
+     */
     suspend fun scheduleAutostart(context: Context, trips: List<Trip>, now: Instant = Instant.now()) {
         val container = (context.applicationContext as AbeonaApplication).container
+        val settings = container.preferences.current()
+        LeaveReminder.schedule(context, trips, settings.leaveReminder, settings.stationMinutes, now)
         val work = WorkManager.getInstance(context)
         val next = trips.firstOrNull { it.expectedDeparture.isAfter(now) }
-        if (!container.preferences.current().liveCompanion || next == null || next.departureAt.isAfter(now.plus(Duration.ofDays(7)))) {
+        if (!settings.liveCompanion || next == null || next.departureAt.isAfter(now.plus(Duration.ofDays(7)))) {
             work.cancelUniqueWork(AUTOSTART)
             return
         }

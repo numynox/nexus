@@ -1,16 +1,22 @@
 package io.github.numynox.nexus.abeona.live
 
+import io.github.numynox.nexus.abeona.data.AlertSettings
+import io.github.numynox.nexus.abeona.data.Leg
 import io.github.numynox.nexus.abeona.data.Trip
 import io.github.numynox.nexus.abeona.domain.Confidence
+import io.github.numynox.nexus.abeona.domain.TravelDayKind
+import io.github.numynox.nexus.abeona.domain.TravelDayRules
+import io.github.numynox.nexus.abeona.domain.TravelSignals
 import io.github.numynox.nexus.abeona.domain.arrivalDelay
 import io.github.numynox.nexus.abeona.domain.departureDelay
 import io.github.numynox.nexus.abeona.domain.finalArrivalDelay
 import io.github.numynox.nexus.abeona.domain.normalisePlatform
 import io.github.numynox.nexus.abeona.domain.trainBindingLifted
 import io.github.numynox.nexus.abeona.domain.transfers
+import io.github.numynox.nexus.abeona.domain.travelDay
 import io.github.numynox.nexus.abeona.ui.common.TripFormat
-import java.time.Duration
 import java.time.Instant
+import kotlin.math.roundToInt
 
 /** What the ongoing notification says: one line, the next thing to do. */
 data class CompanionStatus(val title: String, val text: String, val finished: Boolean)
@@ -18,70 +24,87 @@ data class CompanionStatus(val title: String, val text: String, val finished: Bo
 /** Something worth a heads-up: the platform moved, a train was cancelled, a change is at risk. */
 data class CompanionAlert(val key: String, val title: String, val text: String)
 
-private fun minutesUntil(now: Instant, then: Instant): Long =
-    Math.ceil(Duration.between(now, then).toMillis() / 60_000.0).toLong().coerceAtLeast(0)
-
 /**
- * The line for the ongoing notification, e.g.
+ * The line for the ongoing notification, from the travel day (domain/TravelDay.kt), e.g.
  * "Tight · change in 12 min · RE 4 → Frankfurt Hbf · Pl. 7".
- * Before a ride: its platform and when it leaves. On board before a change:
- * how the change looks and when it comes first, since a narrow notification
- * cuts the tail, then where to get off and the next train's platform. On the
- * last ride: where and when it arrives. Finished once the last ride has
- * arrived.
+ * Before leaving: when to leave, then the first ride's platform and
+ * departure. At the station or changing: the ride to catch, its platform and
+ * when it leaves. On board before a change: how the change looks and when it
+ * comes first, since a narrow notification cuts the tail, then where to get
+ * off and the next train's platform. On the last ride: where and when it
+ * arrives, and the train's speed when its Wi-Fi says. A missed change leads
+ * with "Looks like". Finished once the last ride has arrived.
  */
-fun companionStatus(trip: Trip, now: Instant): CompanionStatus {
+fun companionStatus(
+    trip: Trip,
+    now: Instant,
+    stationMinutes: Int = TravelDayRules.DEFAULT_STATION_MINUTES,
+    signals: TravelSignals = TravelSignals(),
+    onboard: OnboardStatus? = null,
+): CompanionStatus {
     val title = trip.displayTitle
-    val rides = trip.legs.withIndex().filter { !it.value.isWalk }
-    val current = rides.firstOrNull { (_, leg) -> leg.to.expectedAt?.isAfter(now) ?: false }
-        ?: return CompanionStatus(title, "Arrived at ${trip.destinationName}", finished = true)
-    val (index, leg) = current
+    val day = travelDay(trip.legs, now, stationMinutes, signals)
+    val index = day.legIndex
+    if (day.kind == TravelDayKind.Arrived || index == null) {
+        return CompanionStatus(title, "Arrived at ${trip.destinationName}", finished = true)
+    }
+    val leg = trip.legs[index]
     val parts = mutableListOf("${leg.label} → ${leg.to.name}")
+    if (day.missedChange && day.kind != TravelDayKind.OnBoard) {
+        return CompanionStatus(title, "Looks like you missed the ${leg.label} · see alternatives in Abeona", finished = false)
+    }
     if (leg.cancelled) {
         parts += "cancelled"
         return CompanionStatus(title, parts.joinToString(" · "), finished = false)
     }
-    val departure = leg.from.expectedAt
-    if (departure != null && departure.isAfter(now)) {
-        TripFormat.platform(leg.from.shownPlatform)?.let { parts += it }
-        parts += "departs ${TripFormat.relative(minutesUntil(now, departure))}"
-        departureDelay(leg).takeIf { it > 0 }?.let { parts += "+$it" }
-    } else {
-        val change = transfers(trip.legs).firstOrNull { it.arriving == index }
-        if (change != null) {
-            // The confidence first: a narrow notification cuts the tail.
-            val head = listOfNotNull(
-                change.confidence.label,
-                leg.to.expectedAt?.let { "change ${TripFormat.relative(minutesUntil(now, it))}" },
-            )
-            parts.addAll(0, head)
-            TripFormat.platform(trip.legs[change.departing].from.shownPlatform)?.let { parts += it }
-        } else {
-            TripFormat.platform(leg.to.shownPlatform)?.let { parts += it }
-            parts += "arrives ${TripFormat.time(leg.to.expectedAt)}"
-            arrivalDelay(leg).takeIf { it > 0 }?.let { parts += "+$it" }
+    when (day.kind) {
+        TravelDayKind.BeforeLeaving, TravelDayKind.AtStation, TravelDayKind.Changing -> {
+            TripFormat.platform(leg.from.shownPlatform)?.let { parts += it }
+            parts += "departs ${TripFormat.relative((day.minutesToDeparture ?: 0).toLong())}"
+            departureDelay(leg).takeIf { it > 0 }?.let { parts += "+$it" }
+            if (day.kind == TravelDayKind.BeforeLeaving) parts.add(0, "Leave ${TripFormat.relative((day.minutesToLeave ?: 0).toLong())}")
+        }
+        else -> {
+            val change = transfers(trip.legs).firstOrNull { it.arriving == index }
+            if (change != null) {
+                // The confidence first: a narrow notification cuts the tail.
+                parts.addAll(0, listOf(change.confidence.label, "change ${TripFormat.relative((day.minutesToArrival ?: 0).toLong())}"))
+                TripFormat.platform(trip.legs[change.departing].from.shownPlatform)?.let { parts += it }
+            } else {
+                TripFormat.platform(leg.to.shownPlatform)?.let { parts += it }
+                parts += "arrives ${TripFormat.time(leg.to.expectedAt)}"
+                arrivalDelay(leg).takeIf { it > 0 }?.let { parts += "+$it" }
+            }
+            onboard?.speedKmh?.takeIf { it >= 1 }?.let { parts += "${it.roundToInt()} km/h" }
+            if (day.missedChange) parts.add(0, "Looks like you missed your change")
         }
     }
     return CompanionStatus(title, parts.joinToString(" · "), finished = false)
 }
 
+/** The delay that matters for a ride now: its departure until it has left, then its arrival. */
+private fun liveDelay(leg: Leg, now: Instant): Int =
+    if (leg.from.expectedAt?.isAfter(now) == true) departureDelay(leg) else arrivalDelay(leg)
+
 /**
  * What changed between two refreshes that someone on the platform needs to
- * know now. Only news: a platform that was already changed is not repeated.
- * Each alert has a [CompanionAlert.key], so the same news is posted once.
+ * know now, as far as [settings] asks for it. Only news: a platform that was
+ * already changed is not repeated. Each alert has a [CompanionAlert.key], so
+ * the same news is posted once; a delay alerts when it reaches the threshold
+ * and again each time it grows by as much.
  */
-fun companionAlerts(before: Trip, after: Trip, now: Instant): List<CompanionAlert> {
+fun companionAlerts(before: Trip, after: Trip, now: Instant, settings: AlertSettings = AlertSettings()): List<CompanionAlert> {
     val alerts = mutableListOf<CompanionAlert>()
     after.legs.forEachIndexed { index, leg ->
         val old = before.legs.getOrNull(index) ?: return@forEachIndexed
         if (leg.isWalk) return@forEachIndexed
-        if (leg.cancelled && !old.cancelled) {
-            alerts += CompanionAlert("cancel-$index", "${leg.label} is cancelled", "It was to leave ${leg.from.name} at ${TripFormat.time(leg.from.plannedAt)}. Check DB Navigator for alternatives.")
+        if (settings.cancellation && leg.cancelled && !old.cancelled) {
+            alerts += CompanionAlert("cancel-$index", "${leg.label} is cancelled", "It was to leave ${leg.from.name} at ${TripFormat.time(leg.from.plannedAt)}. Abeona shows alternatives on the trip.")
         }
         val departed = leg.from.expectedAt?.isBefore(now) ?: false
         val oldPlatform = normalisePlatform(old.from.shownPlatform)
         val newPlatform = normalisePlatform(leg.from.shownPlatform)
-        if (!departed && newPlatform != null && oldPlatform != null && newPlatform != oldPlatform) {
+        if (settings.platformChange && !departed && newPlatform != null && oldPlatform != null && newPlatform != oldPlatform) {
             alerts += CompanionAlert(
                 "platform-$index-$newPlatform",
                 "Platform change: ${leg.label} now from Pl. ${leg.from.shownPlatform}",
@@ -89,16 +112,18 @@ fun companionAlerts(before: Trip, after: Trip, now: Instant): List<CompanionAler
             )
         }
     }
-    val oldChanges = transfers(before.legs).associateBy { it.departing }
-    transfers(after.legs).forEach { change ->
-        val was = oldChanges[change.departing]?.confidence
-        if (change.confidence == Confidence.AT_RISK && was != Confidence.AT_RISK) {
-            val station = after.legs[change.departing].from.name
-            alerts += CompanionAlert(
-                "risk-${change.departing}",
-                "Your change at $station is at risk",
-                "${change.availableMinutes} min to change, about ${change.requiredMinutes} needed. ${after.legs[change.departing].label} leaves ${TripFormat.time(after.legs[change.departing].from.expectedAt)}.",
-            )
+    if (settings.connectionAtRisk) {
+        val oldChanges = transfers(before.legs).associateBy { it.departing }
+        transfers(after.legs).forEach { change ->
+            val was = oldChanges[change.departing]?.confidence
+            if (change.confidence == Confidence.AT_RISK && was != Confidence.AT_RISK) {
+                val station = after.legs[change.departing].from.name
+                alerts += CompanionAlert(
+                    "risk-${change.departing}",
+                    "Your change at $station is at risk",
+                    "${change.availableMinutes} min to change, about ${change.requiredMinutes} needed. ${after.legs[change.departing].label} leaves ${TripFormat.time(after.legs[change.departing].from.expectedAt)}.",
+                )
+            }
         }
     }
     val delay = finalArrivalDelay(after.legs)
@@ -111,5 +136,45 @@ fun companionAlerts(before: Trip, after: Trip, now: Instant): List<CompanionAler
             "Expected +$delay min at ${after.destinationName}: your ticket is valid on other trains for this route.",
         )
     }
+    val step = settings.delayMinutes
+    if (step > 0) {
+        // The ride that matters now: the first one that has not arrived.
+        val index = after.legs.indices.firstOrNull { !after.legs[it].isWalk && after.legs[it].to.expectedAt?.isAfter(now) == true }
+        val leg = index?.let { after.legs[it] }
+        val old = index?.let { before.legs.getOrNull(it) }
+        if (leg != null && old != null && !leg.cancelled) {
+            val now1 = liveDelay(leg, now)
+            val was = liveDelay(old, now).coerceAtLeast(0)
+            if (now1 >= step && now1 / step > was / step) {
+                val leaving = leg.from.expectedAt?.isAfter(now) == true
+                alerts += CompanionAlert(
+                    "delay-$index-${now1 / step}",
+                    "${leg.label} is now +$now1",
+                    if (leaving) {
+                        "Leaves ${leg.from.name} at ${TripFormat.time(leg.from.expectedAt)} instead of ${TripFormat.time(leg.from.plannedAt)}."
+                    } else {
+                        "Arrives at ${leg.to.name} at ${TripFormat.time(leg.to.expectedAt)} instead of ${TripFormat.time(leg.to.plannedAt)}."
+                    },
+                )
+            }
+        }
+    }
     return alerts
+}
+
+/** A heads-up when a signal says the traveller missed a change (or the first train): once per ride. */
+fun missedAlert(trip: Trip, now: Instant, stationMinutes: Int, signals: TravelSignals, settings: AlertSettings): CompanionAlert? {
+    if (!settings.connectionAtRisk) return null
+    val day = travelDay(trip.legs, now, stationMinutes, signals)
+    if (!day.missedChange) return null
+    val missed = when (day.kind) {
+        TravelDayKind.OnBoard -> trip.legs.indices.firstOrNull { it > (day.legIndex ?: return null) && !trip.legs[it].isWalk }
+        else -> day.legIndex
+    } ?: return null
+    val leg = trip.legs[missed]
+    return CompanionAlert(
+        "missed-$missed",
+        "Looks like you missed the ${leg.label}",
+        "It left ${leg.from.name} at ${TripFormat.time(leg.from.expectedAt)}. Abeona shows alternatives your ticket covers.",
+    )
 }
