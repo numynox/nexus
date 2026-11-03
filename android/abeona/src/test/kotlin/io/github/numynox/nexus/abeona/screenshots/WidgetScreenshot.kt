@@ -18,6 +18,7 @@ import io.github.numynox.nexus.abeona.reminders.LeaveReminder
 import io.github.numynox.nexus.abeona.live.companionAlerts
 import io.github.numynox.nexus.abeona.live.companionStatus
 import io.github.numynox.nexus.abeona.reminders.BahnCardReminders
+import io.github.numynox.nexus.abeona.reminders.ClaimReminders
 import io.github.numynox.nexus.abeona.widget.NextTripContent
 import io.github.numynox.nexus.abeona.widget.NextTripState
 import io.github.numynox.nexus.abeona.widget.NextTripWidget
@@ -100,6 +101,14 @@ class WidgetScreenshot {
         val deadlines = runBlocking { (context.applicationContext as AbeonaApplication).container.repository.bahnCardDeadlines() }
         val (title, lines) = BahnCardReminders.message(deadlines.map { it.copy(daysLeft = 7) })!!
         shotNotification(BahnCardReminders.build(context, title, lines), "46-notification-bahncard")
+    }
+
+    /** The compensation reminder, built from what abeona_claims_overview returns. */
+    @Test
+    fun claimReminder() {
+        val overview = runBlocking { (context.applicationContext as AbeonaApplication).container.repository.claimsOverview(java.time.LocalDate.now().year) }
+        val (title, lines) = ClaimReminders.message(overview.toClaim.map { it.copy(daysLeft = 7) })!!
+        shotNotification(ClaimReminders.build(context, title, lines), "49-notification-claim")
     }
 
     private fun shotNotification(notification: Notification, name: String) {
