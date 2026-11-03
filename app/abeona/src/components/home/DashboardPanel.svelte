@@ -15,6 +15,8 @@
     type Trip,
   } from "../../lib/data";
   import { hasArrived, isLiveWindow, LIVE_REFRESH_MS } from "../../lib/journey";
+  import { getStationMinutes } from "../../lib/storage";
+  import { travelDay } from "../../lib/travelday";
   import Illustration from "../common/Illustration.svelte";
   import DeadlineBanner from "./DeadlineBanner.svelte";
   import HistoryCard from "./HistoryCard.svelte";
@@ -34,6 +36,10 @@
   let refreshingIds = $state<ReadonlySet<string>>(new Set());
 
   const next = $derived(upcoming[0] ?? null);
+  /** Ticks every half minute, so the travel day's countdowns move. */
+  let now = $state(Date.now());
+  let stationMinutes = $state(15);
+  const day = $derived(next && isLiveWindow(next.legs, now) ? travelDay(next.legs, now, stationMinutes) : null);
   const later = $derived(upcoming.slice(1));
 
   const tripHref = (id: string) => `${base}/trip?id=${encodeURIComponent(id)}`;
@@ -96,12 +102,17 @@
   }
 
   onMount(() => {
+    stationMinutes = getStationMinutes();
+    const tick = setInterval(() => (now = Date.now()), 30_000);
     void load().then(refreshLive);
     // Like the trip page: only while someone is looking.
     const timer = setInterval(() => {
       if (document.visibilityState === "visible") void refreshLive();
     }, LIVE_REFRESH_MS);
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      clearInterval(tick);
+    };
   });
 </script>
 
@@ -137,7 +148,7 @@
     {/if}
 
     {#if next}
-      <TripHeroCard trip={next} href={tripHref(next.id)} refreshing={refreshingIds.has(next.id)} />
+      <TripHeroCard trip={next} href={tripHref(next.id)} refreshing={refreshingIds.has(next.id)} {day} {stationMinutes} />
     {:else}
       <section class="grid items-center gap-8 rounded-[2rem] bg-card p-6 shadow-card sm:p-10 md:grid-cols-2">
         <Illustration name="empty-trips" class="w-full" />

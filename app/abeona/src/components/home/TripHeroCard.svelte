@@ -11,6 +11,8 @@
   } from "../../lib/format";
   import { summarise } from "../../lib/journey";
   import { trainBindingLifted } from "../../lib/transfer";
+  import type { TravelDay } from "../../lib/travelday";
+  import TravelDayHero from "../common/TravelDayHero.svelte";
   import BindingBanner from "../common/BindingBanner.svelte";
   import ConfidenceChip from "../common/ConfidenceChip.svelte";
   import DelayBadge from "../common/DelayBadge.svelte";
@@ -21,15 +23,18 @@
     trip: Trip;
     href: string;
     refreshing?: boolean;
+    /** Where the traveller is on the trip, while it is live. */
+    day?: TravelDay | null;
+    stationMinutes?: number;
   }
 
-  let { trip, href, refreshing = false }: Props = $props();
+  let { trip, href, refreshing = false, day = null, stationMinutes = 15 }: Props = $props();
 
   const s = $derived(summarise(trip.legs));
   const firstRide = $derived(s.rides[0] ?? trip.legs[0]);
   const platform = $derived(firstRide ? displayPlatform(firstRide.from) : null);
   const bindingLifted = $derived(trainBindingLifted(trip.fare_type, trip.train_binding, s.arrivalDelay));
-  const day = $derived(formatRelativeDay(trip.planned_departure));
+  const dayName = $derived(formatRelativeDay(trip.planned_departure));
   const date = $derived(formatShortDate(trip.planned_departure));
 </script>
 
@@ -40,7 +45,7 @@
   <div class="relative z-10 p-6 sm:p-8">
     <div class="flex flex-wrap items-center justify-between gap-2">
       <p class="text-xs font-semibold sm:text-sm uppercase tracking-[0.12em] text-primary">
-        Next trip · {day}{day !== date ? `, ${date}` : ""}
+        Next trip · {dayName}{dayName !== date ? `, ${date}` : ""}
       </p>
       <div class="flex items-center gap-2">
         {#if refreshing}
@@ -62,6 +67,10 @@
 
     {#if trip.title}
       <h2 class="mt-2 text-lg font-semibold">{trip.title}</h2>
+    {/if}
+
+    {#if day}
+      <div class="mt-5"><TravelDayHero legs={trip.legs} {day} {stationMinutes} /></div>
     {/if}
 
     <div class="mt-6 grid grid-cols-[1fr_auto_1fr] items-start gap-3 sm:gap-6">

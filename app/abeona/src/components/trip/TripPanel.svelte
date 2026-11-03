@@ -5,8 +5,12 @@
   import { deleteTrip, describeError, fetchTrip, fetchTripWarnings, refreshTripLive, type Trip, type TripWarning } from "../../lib/data";
   import { fareLabel, formatLongDate, formatPrice, formatTime } from "../../lib/format";
   import { dbNavigatorUrl, hasArrived, isLiveWindow, LIVE_REFRESH_MS, summarise } from "../../lib/journey";
+  import { getStationMinutes } from "../../lib/storage";
   import { trainBindingLifted, transfers } from "../../lib/transfer";
+  import { alternativesOrigin, alternativesReason, travelDay } from "../../lib/travelday";
   import BindingBanner from "../common/BindingBanner.svelte";
+  import TravelDayHero from "../common/TravelDayHero.svelte";
+  import AlternativesSection from "./AlternativesSection.svelte";
   import Illustration from "../common/Illustration.svelte";
   import LegCard from "./LegCard.svelte";
   import TicketCard from "./TicketCard.svelte";
@@ -29,6 +33,10 @@
   let confirmDialog: HTMLDialogElement | undefined = $state();
   let ticketCard: ReturnType<typeof TicketCard> | undefined = $state();
   let warnings = $state<TripWarning[]>([]);
+  let alternativesSection: ReturnType<typeof AlternativesSection> | undefined = $state();
+  /** Ticks every half minute, so the travel day's countdowns move. */
+  let now = $state(Date.now());
+  let stationMinutes = $state(15);
 
   const legs = $derived(trip?.legs ?? []);
   const s = $derived(legs.length > 0 ? summarise(legs) : null);
@@ -40,6 +48,12 @@
   );
   const navigatorUrl = $derived(dbNavigatorUrl(legs, trip?.travel_class ?? 2));
   const arrived = $derived(legs.length > 0 && hasArrived(legs));
+  // The travel day only while the trip is live: from a day before it leaves
+  // until shortly after it arrives.
+  const live = $derived(legs.length > 0 && isLiveWindow(legs, now));
+  const day = $derived(live ? travelDay(legs, now, stationMinutes) : null);
+  const reason = $derived(day ? alternativesReason(legs, day) : null);
+  const origin = $derived(day ? alternativesOrigin(legs, day, now) : null);
 
   async function load(id: string) {
     try {
@@ -96,11 +110,13 @@
   }
 
   onMount(() => {
+    stationMinutes = getStationMinutes();
+    const tick = setInterval(() => (now = Date.now()), 30_000);
     const id = new URLSearchParams(window.location.search).get("id");
     if (!id) {
       error = "No trip selected.";
       loading = false;
-      return;
+      return () => clearInterval(tick);
     }
 
     let timer: ReturnType<typeof setInterval> | undefined;
@@ -119,7 +135,10 @@
       }, LIVE_REFRESH_MS);
     });
 
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      clearInterval(tick);
+    };
   });
 </script>
 
@@ -196,12 +215,27 @@
       <p class="rounded-2xl bg-error/10 px-4 py-3 text-sm text-error" role="alert">Could not update live times: {refreshError}</p>
     {/if}
 
+    {#if day}
+      <TravelDayHero
+        {legs}
+        {day}
+        {stationMinutes}
+        {reason}
+        settingsHref={`${base}/settings#device`}
+        onAlternatives={() => alternativesSection?.reveal()}
+      />
+    {/if}
+
     {#if bindingLifted}
       <BindingBanner delay={s.arrivalDelay} />
     {/if}
 
     {#if warnings.length > 0 && !arrived}
       <TripWarnings {warnings} settingsHref={`${base}/settings#bahncards`} />
+    {/if}
+
+    {#if day && origin}
+      <AlternativesSection bind:this={alternativesSection} {trip} {origin} {reason} refreshKey={trip.refreshed_at} />
     {/if}
 
     <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
