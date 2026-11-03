@@ -389,7 +389,8 @@ android/
   build-logic/  convention plugins: nexus.android.application (SDKs, version,
                 signing, Supabase BuildConfig, config.yaml access) and
                 nexus.android.library
-  core/data     NexusCore (Supabase client, session, AuthRepository, UpdateChecker),
+  core/data     NexusCore (Supabase client with Auth, Postgrest, Functions and
+                Storage; session, AuthRepository, UpdateChecker),
                 error wording, NexusConfig, date serializers
   core/ui       NexusTheme (palette per app, wallpaper colours optional), NexusApp
                 (theme + session gate + sign-in), Loadable, formatting, components,
@@ -475,11 +476,13 @@ Things that differ from the web on purpose:
   then posts a "tap to follow it live" notification instead; Android 15's
   six-hour daily dataSync limit makes it stop itself. The **Next trip** Glance
   widget keeps the last good trip without its route and computes delays and
-  confidence when it draws. Storage is reached with a plain Ktor client
-  (session token and anon key) because core's Supabase client has no Storage
-  plugin; it still lives only in `AbeonaRepository`. The rules shared with the
-  web (`domain/Transfer.kt`, `app/abeona/src/lib/transfer.ts`) round minutes
-  half up like `Math.round`, and must change together.
+  confidence when it draws. Tickets go through supabase-kt's Storage plugin,
+  installed on core's shared client (with an in-memory resumable-upload cache,
+  since the default one needs App Startup). The rules shared with the web
+  (`domain/Transfer.kt`, `app/abeona/src/lib/transfer.ts`) round minutes half
+  up like `Math.round`, leave out a change whose time is unknown, and must
+  change together; `transfer.fixtures.json` beside the web copy holds the
+  cases both test suites run.
 
 The web shows what the phone records where it can, and hides what it cannot
 do: the drive-based fuel estimate and day-accurate monthly chart come from
@@ -547,7 +550,11 @@ them fail.
 
 Abeona's shared rules also have a web test (`npm run test:abeona`, plain
 `node --test` on `.ts` files through Node 22's type stripping, so
-`transfer.ts` may only have `import type` imports) and `abeona.test.sql`
+`transfer.ts` may only have `import type` imports), run from
+`app/abeona/src/lib/transfer.fixtures.json`; the Android unit tests run the
+same file (`TransferFixturesTest`; `android/abeona/build.gradle.kts` copies it
+onto the test classpath). Add a case there once, not to either test. Then
+`abeona.test.sql`
 (household scoping, the merge on invite, distances, statistics, the binding
 rule, ticket storage paths).
 
