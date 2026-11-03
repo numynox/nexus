@@ -22,13 +22,17 @@ dependencies {
     implementation(libs.androidx.glance.material3)
     // The trip map.
     implementation(libs.maplibre.android)
+    // Reads the text layer of a ticket PDF on the phone, never on a server (intake).
+    implementation(libs.pdfbox.android)
 
     testImplementation(libs.androidx.work.testing)
 }
 
-// The shared rules' cases (transfer.fixtures.json, travelday.fixtures.json)
-// live with the web's copy of the rules, so both test suites read one file. Only the fixtures are copied
-// onto the unit tests' classpath, not the TypeScript beside them.
+// The shared rules' cases (transfer.fixtures.json, travelday.fixtures.json,
+// intake.fixtures.json) live with the web's copy of the rules, so both test
+// suites read one file. Only the fixtures are copied onto the unit tests'
+// classpath, not the TypeScript beside them — plus intake's samples (the real,
+// anonymised share texts and ticket text, and the synthetic PDF), flat.
 abstract class CopyFixtures : DefaultTask() {
     @get:InputFiles
     abstract val fixtures: ConfigurableFileCollection
@@ -46,7 +50,10 @@ abstract class CopyFixtures : DefaultTask() {
 }
 
 val transferFixtures = tasks.register<CopyFixtures>("transferFixtures") {
-    fixtures.from(rootDir.resolve("../app/abeona/src/lib").listFiles { file -> file.name.endsWith(".fixtures.json") })
+    val lib = rootDir.resolve("../app/abeona/src/lib")
+    fixtures.from(lib.listFiles { file -> file.name.endsWith(".fixtures.json") })
+    fixtures.from(lib.resolve("intake").listFiles { file -> file.name.endsWith(".fixtures.json") })
+    fixtures.from(lib.resolve("intake/fixtures").listFiles { file -> file.extension in setOf("txt", "pdf") })
 }
 
 androidComponents {
