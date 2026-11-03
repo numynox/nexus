@@ -270,7 +270,6 @@ export function travelDay(
       if (near(position, leg.from)) return { ...day, source: "location" };
       return day;
   }
-  return day;
 }
 
 /** Where an alternatives search starts: a stop, and when the traveller can be there. */

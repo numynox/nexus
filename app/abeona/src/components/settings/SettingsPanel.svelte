@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ThemePicker } from "@nexus/ui";
-  import { Check, CreditCard, LogOut, Palette, Pencil, Plus, Trash2, UserPlus, Users, X } from "lucide-svelte";
+  import { Check, CreditCard, DoorOpen, LogOut, Palette, Pencil, Plus, Trash2, UserPlus, Users, X } from "lucide-svelte";
   import { onMount } from "svelte";
   import {
     addTraveller,
@@ -23,8 +23,15 @@
   import TicketViewer from "../trip/TicketViewer.svelte";
   import { DB_NAVIGATOR_HOME } from "../../lib/journey";
   import { session } from "../../lib/stores";
-  import { getTheme, setTheme } from "../../lib/storage";
+  import { getStationMinutes, getTheme, setStationMinutes, setTheme, STATION_MINUTES_CHOICES } from "../../lib/storage";
   import { ABEONA_THEMES } from "../../lib/themes";
+
+  let stationMinutes = $state(getStationMinutes());
+
+  function chooseStationMinutes(minutes: number) {
+    stationMinutes = minutes;
+    setStationMinutes(minutes);
+  }
 
   let members = $state<HouseholdMember[]>([]);
   let travellers = $state<Traveller[]>([]);
@@ -306,6 +313,28 @@
         {/each}
       </div>
     {/if}
+  </section>
+
+  <section class="scroll-mt-6 rounded-[2rem] bg-card p-6 shadow-card sm:p-8" id="device">
+    <div class="flex items-center gap-2">
+      <DoorOpen class="h-5 w-5 text-primary" />
+      <h2 class="text-lg font-semibold text-ink">Time to the station</h2>
+    </div>
+    <p class="mt-1 mb-5 text-sm text-base-content/60">
+      From your door to the platform. On the day of a trip, the trip shows when to leave. Stored on this device only.
+    </p>
+    <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="Time to the station">
+      {#each STATION_MINUTES_CHOICES as minutes (minutes)}
+        <button
+          role="radio"
+          aria-checked={stationMinutes === minutes}
+          class="btn btn-sm rounded-full {stationMinutes === minutes ? 'btn-primary' : 'border-base-300 bg-card'}"
+          onclick={() => chooseStationMinutes(minutes)}
+        >
+          {minutes} min
+        </button>
+      {/each}
+    </div>
   </section>
 
   <section class="rounded-[2rem] bg-card p-6 shadow-card sm:p-8">
