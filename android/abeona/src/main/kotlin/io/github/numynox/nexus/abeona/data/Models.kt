@@ -197,6 +197,8 @@ data class SaveTripInput(
      */
     val past: Boolean = false,
     val arrivalDelayMinutes: Int? = null,
+    /** "share" or "pdf" when it came through intake; the search otherwise. */
+    val source: String? = null,
 )
 
 /**

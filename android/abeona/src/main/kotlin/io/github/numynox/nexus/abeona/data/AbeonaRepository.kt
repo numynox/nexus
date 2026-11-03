@@ -10,6 +10,7 @@ import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.storage.storage
 import io.github.numynox.nexus.abeona.domain.AlternativesOrigin
 import io.github.numynox.nexus.abeona.domain.applyRefresh
+import io.github.numynox.nexus.abeona.domain.intake.TransitPort
 import io.github.numynox.nexus.abeona.domain.liveUpdates
 import io.github.numynox.nexus.core.data.NexusJson
 import io.ktor.client.statement.bodyAsText
@@ -120,7 +121,7 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
         householdId()
         val trip = buildJsonObject {
             put("title", input.title?.trim()?.takeIf { it.isNotEmpty() })
-            put("source", if (input.past) "import" else "search")
+            put("source", if (input.past) "import" else input.source ?: "search")
             if (input.past) input.arrivalDelayMinutes?.let { put("arrival_delay_minutes", it) }
             put("provider", journey.provider)
             put("refresh_token", journey.refreshToken)
@@ -493,6 +494,36 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
         supabase.from("abeona_trips").update(buildJsonObject { put("ticket_path", path) }) { filter { eq("id", trip.id) } }
         trip.ticketPath?.takeIf { it != path }?.let { old -> runCatching { tickets.delete(old) } }
         return path
+    }
+
+    /** Attaches a ticket to a trip just saved (intake), whose row the caller does not hold yet. */
+    suspend fun attachTicket(tripId: String, fileName: String, mimeType: String, bytes: ByteArray): String {
+        val path = "${householdId()}/$tripId/${safeFileName(fileName)}"
+        tickets.upload(path, bytes) {
+            upsert = true
+            contentType = ContentType.parse(mimeType)
+        }
+        supabase.from("abeona_trips").update(buildJsonObject { put("ticket_path", path) }) { filter { eq("id", tripId) } }
+        return path
+    }
+
+    /** The timetable as intake's matching asks it (domain/intake/Match.kt). */
+    val intakePort: TransitPort = object : TransitPort {
+        override suspend fun stations(query: String): List<Station> = this@AbeonaRepository.stations(query)
+
+        override suspend fun journeys(from: String, to: String, time: Instant): List<Journey> =
+            NexusJson.decodeFromString<JourneysResponse>(
+                transit(
+                    buildJsonObject {
+                        put("action", "journeys")
+                        put("from", from)
+                        put("to", to)
+                        put("time", time.toString())
+                        put("arrive_by", false)
+                        put("products", ProductFilter.All.wire)
+                    },
+                ),
+            ).journeys
     }
 
     /** A ticket or BahnCard file, with the session, never a signed URL (decisions/2026-11-02-abeona-ticket-storage.md). */
