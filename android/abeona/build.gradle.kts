@@ -26,8 +26,8 @@ dependencies {
     testImplementation(libs.androidx.work.testing)
 }
 
-// The shared rules' cases (transfer.fixtures.json) live with the web's copy of
-// the rules, so both test suites read one file. Only the fixtures are copied
+// The shared rules' cases (transfer.fixtures.json, travelday.fixtures.json)
+// live with the web's copy of the rules, so both test suites read one file. Only the fixtures are copied
 // onto the unit tests' classpath, not the TypeScript beside them.
 abstract class CopyFixtures : DefaultTask() {
     @get:InputFiles
