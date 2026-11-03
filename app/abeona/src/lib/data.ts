@@ -51,6 +51,14 @@ export interface Trip {
   bahncard_discount: BahnCardKind | null;
   ticket_path: string | null;
   refreshed_at: string | null;
+  /** Set once the snapshot job froze every ride's actual values. */
+  finalized_at: string | null;
+  /** The ride (index into legs) the traveller missed or that was cancelled under them. */
+  missed_leg_idx: number | null;
+  /** The rides actually taken instead, in the contract's shape. */
+  replacement_legs: Leg[] | null;
+  /** The delay was caused by extreme weather or a person on the track. */
+  force_majeure: boolean;
   created_at: string;
   updated_at: string;
   /** Ordered by idx, in the transit contract's shape. */
@@ -185,6 +193,66 @@ export interface TripWarning {
   traveller_name: string | null;
   card_id: string | null;
   message: string;
+}
+
+export type CompensationVerdict = "eligible" | "not_eligible" | "below_minimum" | "unknown_price" | "unknown_arrival";
+
+/** abeona_compensation(trip_id): reasons and hints are English sentences, shown as is. */
+export interface Compensation {
+  trip_id: string;
+  verdict: CompensationVerdict;
+  amount_cents: number | null;
+  percent: number | null;
+  delay_minutes: number | null;
+  delay_source: "replacement" | "final" | "live" | "planned" | "unknown";
+  planned_arrival: string | null;
+  actual_arrival: string | null;
+  threshold_minutes: number | null;
+  reasons: string[];
+  hints: string[];
+  /** yyyy-mm-dd, the last day to claim. */
+  deadline: string;
+  deadline_passed: boolean;
+  poolable: boolean;
+  /** German text for DB's passenger-rights form; null when there is nothing to claim. */
+  summary_de: string | null;
+  claim_url: string;
+}
+
+export type ClaimStatus = "open" | "claimed" | "paid" | "rejected";
+
+/** abeona_claims: one per trip, access follows the trip. */
+export interface Claim {
+  id: string;
+  trip_id: string;
+  status: ClaimStatus;
+  amount_cents: number | null;
+  claimed_at: string | null;
+  paid_at: string | null;
+  note: string | null;
+}
+
+/** A row of the claims overview. */
+export interface ClaimEntry {
+  trip_id: string;
+  title: string | null;
+  origin_name: string;
+  destination_name: string;
+  planned_departure: string;
+  delay_minutes: number | null;
+  verdict: CompensationVerdict;
+  amount_cents: number | null;
+  deadline: string;
+  days_left: number;
+  status: ClaimStatus;
+}
+
+/** abeona_claims_overview(year). */
+export interface ClaimsOverview {
+  to_claim: ClaimEntry[];
+  waiting: ClaimEntry[];
+  earned_cents: number;
+  paid: number;
 }
 
 // ── Auth ───────────────────────────────────────────────────────────
@@ -539,6 +607,95 @@ export async function fetchBahnCardDeadlines(withinDays = BAHNCARD_DEADLINE_DAYS
 
 /** How far ahead the dashboard and the Android reminder look. */
 export const BAHNCARD_DEADLINE_DAYS = 14;
+
+// ── After the ride ─────────────────────────────────────────────────
+
+/** What the trip's delay is worth, by the rules in abeona_compensation_rules. */
+export async function fetchCompensation(tripId: string): Promise<Compensation | null> {
+  const sb = getSupabaseClient();
+  const { data, error } = await sb.rpc("abeona_compensation", { p_trip_id: tripId });
+  if (error) throw error;
+  if (!data) return null;
+  const c = data as Compensation;
+  return { ...c, reasons: c.reasons ?? [], hints: c.hints ?? [] };
+}
+
+/** The trip's claim, if one was started. */
+export async function fetchClaim(tripId: string): Promise<Claim | null> {
+  const sb = getSupabaseClient();
+  const { data, error } = await sb.from("abeona_claims").select("*").eq("trip_id", tripId).maybeSingle();
+  if (error) throw error;
+  return (data as Claim | null) ?? null;
+}
+
+/**
+ * Moves the trip's claim to a status, creating it on first use. Claimed and
+ * paid stamp their date; going back to open clears both.
+ */
+export async function setClaimStatus(tripId: string, status: ClaimStatus, amountCents: number | null): Promise<Claim> {
+  const sb = getSupabaseClient();
+  const now = new Date().toISOString();
+  const existing = await fetchClaim(tripId);
+  const row = {
+    trip_id: tripId,
+    status,
+    amount_cents: amountCents,
+    claimed_at: status === "open" ? null : existing?.claimed_at ?? now,
+    paid_at: status === "paid" ? existing?.paid_at ?? now : null,
+    updated_at: now,
+  };
+  const { data, error } = await sb.from("abeona_claims").upsert(row, { onConflict: "trip_id" }).select().single();
+  if (error) throw error;
+  return data as Claim;
+}
+
+export async function setTripPrice(tripId: string, priceCents: number | null): Promise<void> {
+  const sb = getSupabaseClient();
+  const { error } = await sb
+    .from("abeona_trips")
+    .update({ price_cents: priceCents, updated_at: new Date().toISOString() })
+    .eq("id", tripId);
+  if (error) throw error;
+}
+
+export async function setForceMajeure(tripId: string, value: boolean): Promise<void> {
+  const sb = getSupabaseClient();
+  const { error } = await sb
+    .from("abeona_trips")
+    .update({ force_majeure: value, updated_at: new Date().toISOString() })
+    .eq("id", tripId);
+  if (error) throw error;
+}
+
+/** Records the ride that was missed and what was taken instead; nulls clear it. */
+export async function recordDisruption(tripId: string, missedLegIdx: number | null, replacement: Leg[] | null): Promise<void> {
+  const sb = getSupabaseClient();
+  const { error } = await sb
+    .from("abeona_trips")
+    .update({
+      missed_leg_idx: missedLegIdx,
+      replacement_legs: replacement && replacement.length > 0 ? replacement : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", tripId);
+  if (error) throw error;
+}
+
+/** Claims to send, claims waiting for an answer, and what was earned back in a year. */
+export async function fetchClaimsOverview(year: number): Promise<ClaimsOverview> {
+  await ensureHousehold();
+  const sb = getSupabaseClient();
+  const { data, error } = await sb.rpc("abeona_claims_overview", { p_year: year });
+  if (error) throw error;
+  const o = (data ?? {}) as Partial<ClaimsOverview>;
+  const rows = (list: ClaimEntry[] | undefined) => (list ?? []).map((r) => ({ ...r, days_left: Number(r.days_left) }));
+  return {
+    to_claim: rows(o.to_claim),
+    waiting: rows(o.waiting),
+    earned_cents: Number(o.earned_cents ?? 0),
+    paid: Number(o.paid ?? 0),
+  };
+}
 
 // ── Live values ────────────────────────────────────────────────────
 
