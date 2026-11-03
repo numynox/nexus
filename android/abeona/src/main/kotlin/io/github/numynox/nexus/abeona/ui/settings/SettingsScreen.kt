@@ -56,7 +56,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.numynox.nexus.abeona.data.AlertSettings
 import io.github.numynox.nexus.abeona.data.BahnCard
+import io.github.numynox.nexus.abeona.data.STATION_MINUTES_CHOICES
+import io.github.numynox.nexus.abeona.live.TripLocation
 import io.github.numynox.nexus.abeona.data.HouseholdMember
 import io.github.numynox.nexus.abeona.data.Traveller
 import io.github.numynox.nexus.abeona.ui.AppViewModel
@@ -67,6 +70,7 @@ import io.github.numynox.nexus.abeona.ui.common.DbNavigator
 import io.github.numynox.nexus.abeona.ui.common.containerViewModel
 import io.github.numynox.nexus.core.data.AuthState
 import io.github.numynox.nexus.core.ui.Loadable
+import io.github.numynox.nexus.core.ui.components.ConnectedChoiceRow
 import io.github.numynox.nexus.core.ui.components.LoadingState
 import io.github.numynox.nexus.core.ui.components.NexusCard
 import io.github.numynox.nexus.core.ui.components.SectionHeader
@@ -101,6 +105,13 @@ fun SettingsScreen(app: AppViewModel, navigator: Navigator) {
     val reminderPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) app.setBahnCardReminder(true)
     }
+    val leavePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) app.setLeaveReminder(true)
+    }
+    val locationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        app.setTripLocation(granted.values.any { it })
+    }
+    val location = remember { TripLocation(context) }
     fun canNotify() = Build.VERSION.SDK_INT < 33 ||
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
@@ -127,6 +138,72 @@ fun SettingsScreen(app: AppViewModel, navigator: Navigator) {
                                 ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
                             if (on && !allowed) notifications.launch(Manifest.permission.POST_NOTIFICATIONS) else app.setLiveCompanion(on)
                         },
+                    )
+                    HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                    Text("Time to the station", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        "From your door to the platform, in minutes. On the day, the trip says when to leave.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    ConnectedChoiceRow(
+                        options = STATION_MINUTES_CHOICES,
+                        selected = settings.stationMinutes,
+                        onSelect = app::setStationMinutes,
+                        label = { "$it" },
+                        showCheck = false,
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp),
+                    )
+                    SettingSwitch(
+                        title = "Time to leave reminder",
+                        description = "A notification when it is time to leave for the next trip, moved if the train is late. Only this phone.",
+                        checked = settings.leaveReminder,
+                        onCheckedChange = { on -> if (on && !canNotify()) leavePermission.launch(Manifest.permission.POST_NOTIFICATIONS) else app.setLeaveReminder(on) },
+                    )
+                    SettingSwitch(
+                        title = "Use location during a trip",
+                        description = "While the live companion runs, your position tells it whether you are at the station, on board or have missed a change. It never leaves this phone.",
+                        checked = settings.tripLocation && location.hasPermission(),
+                        onCheckedChange = { on -> if (on && !location.hasPermission()) locationPermission.launch(TripLocation.PERMISSIONS) else app.setTripLocation(on) },
+                    )
+                }
+            }
+
+            item { SectionHeader("Alerts", supporting = "What the live companion tells you at once") }
+            item {
+                NexusCard {
+                    val alerts = settings.alerts
+                    Text("Delays", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        "When your train is this late, and again each time it is as much later.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    ConnectedChoiceRow(
+                        options = AlertSettings.DELAY_CHOICES,
+                        selected = alerts.delayMinutes,
+                        onSelect = { app.setAlerts(alerts.copy(delayMinutes = it)) },
+                        label = { if (it == 0) "Off" else "$it min" },
+                        showCheck = false,
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp),
+                    )
+                    SettingSwitch(
+                        title = "Connection at risk",
+                        description = "A change gets too tight to make, or it looks like you missed it.",
+                        checked = alerts.connectionAtRisk,
+                        onCheckedChange = { app.setAlerts(alerts.copy(connectionAtRisk = it)) },
+                    )
+                    SettingSwitch(
+                        title = "Platform change",
+                        description = "Your train leaves from another platform.",
+                        checked = alerts.platformChange,
+                        onCheckedChange = { app.setAlerts(alerts.copy(platformChange = it)) },
+                    )
+                    SettingSwitch(
+                        title = "Cancellation",
+                        description = "A train on your trip is cancelled.",
+                        checked = alerts.cancellation,
+                        onCheckedChange = { app.setAlerts(alerts.copy(cancellation = it)) },
                     )
                 }
             }

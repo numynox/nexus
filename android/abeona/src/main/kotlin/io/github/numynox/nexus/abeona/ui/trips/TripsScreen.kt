@@ -62,7 +62,15 @@ import io.github.numynox.nexus.abeona.ui.common.PlatformBox
 import io.github.numynox.nexus.abeona.ui.common.StatusPill
 import io.github.numynox.nexus.abeona.ui.common.TripFormat
 import io.github.numynox.nexus.abeona.ui.common.confidenceSummary
+import io.github.numynox.nexus.abeona.ui.common.TravelDayHero
 import io.github.numynox.nexus.abeona.ui.common.containerViewModel
+import io.github.numynox.nexus.abeona.ui.common.isLiveDay
+import io.github.numynox.nexus.abeona.ui.common.rememberTicker
+import io.github.numynox.nexus.abeona.domain.TravelDay
+import io.github.numynox.nexus.abeona.domain.TravelDayRules
+import io.github.numynox.nexus.abeona.domain.travelDay
+import io.github.numynox.nexus.abeona.live.LiveSignals
+import io.github.numynox.nexus.abeona.live.OnboardStatus
 import io.github.numynox.nexus.core.ui.Loadable
 import io.github.numynox.nexus.core.ui.NexusFormat
 import io.github.numynox.nexus.core.ui.components.ErrorState
@@ -86,6 +94,10 @@ fun TripsScreen(app: AppViewModel, navigator: Navigator) {
     val deadlines by viewModel.deadlines.collectAsStateWithLifecycle()
     val version by app.dataVersion.collectAsStateWithLifecycle()
     val update by app.update.collectAsStateWithLifecycle()
+    val settings by app.settings.collectAsStateWithLifecycle()
+    val onboard by LiveSignals.onboard.collectAsStateWithLifecycle()
+    val fix by LiveSignals.fix.collectAsStateWithLifecycle()
+    val now by rememberTicker()
     val pull = rememberPullRefresh(viewModel::load)
     val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
@@ -114,7 +126,6 @@ fun TripsScreen(app: AppViewModel, navigator: Navigator) {
                 Loadable.Loading -> PlaceholderList(count = 3, modifier = Modifier.padding(horizontal = 16.dp), lines = 3)
                 is Loadable.Failed -> ErrorState(state.message, onRetry = { viewModel.load() })
                 is Loadable.Ready -> {
-                    val now = Instant.now()
                     val upcoming = state.value.trips.filter { it.expectedArrival.isAfter(now) }
                     LazyColumn(
                         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 32.dp),
@@ -128,7 +139,14 @@ fun TripsScreen(app: AppViewModel, navigator: Navigator) {
                         if (upcoming.isEmpty()) {
                             item(key = "empty") { EmptyTrips(onPlan = navigator::search) }
                         } else {
-                            item(key = "next") { NextTripCard(upcoming.first(), now, onClick = { navigator.trip(upcoming.first().id) }) }
+                            item(key = "next") {
+                                val next = upcoming.first()
+                                val day = if (isLiveDay(next, now)) travelDay(next.legs, now, settings.stationMinutes, LiveSignals.forTrip(next, now, onboard, fix)) else null
+                                NextTripCard(
+                                    next, now, onClick = { navigator.trip(next.id) },
+                                    day = day, stationMinutes = settings.stationMinutes, onboard = LiveSignals.onboardFor(next, now, onboard),
+                                )
+                            }
                             if (upcoming.size > 1) {
                                 item(key = "upcoming-head") { SectionHeader("Upcoming", supporting = "${upcoming.size - 1} more planned") }
                                 items(upcoming.drop(1), key = { it.id }) { trip ->
@@ -168,7 +186,15 @@ private fun EmptyTrips(onPlan: () -> Unit) {
 
 /** The one hero of the screen: when to be where, and whether anything has changed. */
 @Composable
-fun NextTripCard(trip: Trip, now: Instant, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun NextTripCard(
+    trip: Trip,
+    now: Instant,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    day: TravelDay? = null,
+    stationMinutes: Int = TravelDayRules.DEFAULT_STATION_MINUTES,
+    onboard: OnboardStatus? = null,
+) {
     val first = trip.legs.firstOrNull { !it.isWalk }
     val delay = first?.let(::departureDelay) ?: 0
     val arrivalDelay = finalArrivalDelay(trip.legs)
@@ -209,6 +235,7 @@ fun NextTripCard(trip: Trip, now: Instant, onClick: () -> Unit, modifier: Modifi
                     )
                 }
             }
+            day?.let { TravelDayHero(trip, it, stationMinutes, onboard = onboard) }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Departure", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

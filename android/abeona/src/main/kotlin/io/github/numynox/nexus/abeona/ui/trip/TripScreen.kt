@@ -35,7 +35,9 @@ import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.NotificationsOff
+import androidx.compose.material.icons.rounded.MyLocation
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -91,7 +93,18 @@ import io.github.numynox.nexus.abeona.domain.finalArrivalDelay
 import io.github.numynox.nexus.abeona.domain.platformChanged
 import io.github.numynox.nexus.abeona.domain.trainBindingLifted
 import io.github.numynox.nexus.abeona.domain.transfers
+import io.github.numynox.nexus.abeona.domain.AlternativesReason
+import io.github.numynox.nexus.abeona.domain.TravelDay
+import io.github.numynox.nexus.abeona.domain.TravelDayKind
+import io.github.numynox.nexus.abeona.domain.alternativesReason
+import io.github.numynox.nexus.abeona.domain.travelDay
 import io.github.numynox.nexus.abeona.live.LiveCompanion
+import io.github.numynox.nexus.abeona.live.LiveSignals
+import io.github.numynox.nexus.abeona.live.OnboardStatus
+import io.github.numynox.nexus.abeona.live.TripLocation
+import io.github.numynox.nexus.abeona.ui.common.TravelDayHero
+import io.github.numynox.nexus.abeona.ui.common.isLiveDay
+import io.github.numynox.nexus.abeona.ui.common.rememberTicker
 import io.github.numynox.nexus.abeona.ui.AppViewModel
 import io.github.numynox.nexus.abeona.ui.Navigator
 import io.github.numynox.nexus.abeona.ui.danger
@@ -127,6 +140,12 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
     val detail by viewModel.detail.collectAsStateWithLifecycle()
     val people by viewModel.people.collectAsStateWithLifecycle()
     val companion by LiveCompanion.running.collectAsStateWithLifecycle()
+    val settings by app.settings.collectAsStateWithLifecycle()
+    val alternatives by viewModel.alternatives.collectAsStateWithLifecycle()
+    val onboard by LiveSignals.onboard.collectAsStateWithLifecycle()
+    val fix by LiveSignals.fix.collectAsStateWithLifecycle()
+    val now by rememberTicker()
+    var showAlternatives by rememberSaveable { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val pull = rememberPullRefresh(viewModel::refresh)
@@ -163,6 +182,15 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
         // The companion runs either way; without the permission its notification is just hidden.
         LiveCompanion.start(context, tripId)
     }
+    val locationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        if (granted.values.any { it }) {
+            app.setTripLocation(true)
+            // A running companion picks the position up when it starts again.
+            if (companion == tripId) LiveCompanion.start(context, tripId)
+        } else {
+            app.dismissLocationPrompt()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -187,6 +215,21 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                 is Loadable.Failed -> ErrorState(state.message, onRetry = { viewModel.load() })
                 is Loadable.Ready -> TripContent(
                     detail = state.value,
+                    live = state.value.trip.let { trip ->
+                        if (!isLiveDay(trip, now)) {
+                            null
+                        } else {
+                            val day = travelDay(trip.legs, now, settings.stationMinutes, LiveSignals.forTrip(trip, now, onboard, fix))
+                            LiveDay(day, settings.stationMinutes, LiveSignals.onboardFor(trip, now, onboard), alternativesReason(trip.legs, day))
+                        }
+                    },
+                    askLocation = !settings.tripLocation && !settings.locationAsked,
+                    onAllowLocation = { locationPermission.launch(TripLocation.PERMISSIONS) },
+                    onDismissLocation = app::dismissLocationPrompt,
+                    onAlternatives = {
+                        showAlternatives = true
+                        if (alternatives?.result == null && alternatives?.loading != true) viewModel.findAlternatives()
+                    },
                     people = people,
                     onToggleTraveller = { id -> viewModel.toggleTraveller(id) { scope.launch { snackbar.showSnackbar(it) } } },
                     onDiscount = { value -> viewModel.setBahncardDiscount(value) { scope.launch { snackbar.showSnackbar(it) } } },
@@ -212,6 +255,20 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
         }
     }
 
+    if (showAlternatives) {
+        val trip = (detail as? Loadable.Ready)?.value?.trip
+        val reason = trip?.let { t ->
+            if (isLiveDay(t, now)) alternativesReason(t.legs, travelDay(t.legs, now, settings.stationMinutes, LiveSignals.forTrip(t, now, onboard, fix))) else null
+        }
+        AlternativesSheet(
+            state = alternatives,
+            reason = reason,
+            destination = trip?.destinationName.orEmpty(),
+            onSearchAgain = { viewModel.findAlternatives() },
+            onDismiss = { showAlternatives = false },
+        )
+    }
+
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
@@ -231,9 +288,22 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
     }
 }
 
+/** The travel day as the trip screen shows it, while the trip is live. */
+private data class LiveDay(
+    val day: TravelDay,
+    val stationMinutes: Int,
+    val onboard: OnboardStatus?,
+    val reason: AlternativesReason?,
+)
+
 @Composable
 private fun TripContent(
     detail: TripDetail,
+    live: LiveDay?,
+    askLocation: Boolean,
+    onAllowLocation: () -> Unit,
+    onDismissLocation: () -> Unit,
+    onAlternatives: () -> Unit,
     people: TripPeople?,
     onToggleTraveller: (String) -> Unit,
     onDiscount: (Int?) -> Unit,
@@ -251,6 +321,14 @@ private fun TripContent(
         modifier = Modifier.fillMaxSize(),
     ) {
         item(key = "header") { TripHeader(detail) }
+        live?.let { l ->
+            item(key = "travel-day") {
+                TravelDayHero(trip, l.day, l.stationMinutes, onboard = l.onboard, reason = l.reason, onAlternatives = onAlternatives)
+            }
+            if (askLocation && l.day.kind != TravelDayKind.Arrived) {
+                item(key = "location") { LocationPrompt(onAllow = onAllowLocation, onDismiss = onDismissLocation) }
+            }
+        }
         if (trainBindingLifted(trip.fareType, trip.trainBinding, arrivalDelay)) {
             item(key = "binding") { BindingLiftedBanner(arrivalDelay) }
         }
@@ -269,16 +347,25 @@ private fun TripContent(
                         Text(if (trip.ticketPath != null) "Ticket" else "Add ticket", modifier = Modifier.padding(start = 8.dp))
                     }
                 }
-                OutlinedButton(onClick = onCompanion, modifier = Modifier.fillMaxWidth()) {
-                    Icon(
-                        if (companionOn) Icons.Rounded.NotificationsOff else Icons.Rounded.NotificationsActive,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Text(
-                        if (companionOn) "Stop live companion" else "Start live companion",
-                        modifier = Modifier.padding(start = 8.dp),
-                    )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = onCompanion, modifier = Modifier.weight(1f)) {
+                        Icon(
+                            if (companionOn) Icons.Rounded.NotificationsOff else Icons.Rounded.NotificationsActive,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Text(
+                            if (companionOn) "Stop live companion" else "Start live companion",
+                            modifier = Modifier.padding(start = 8.dp),
+                            maxLines = 1,
+                        )
+                    }
+                    if (live != null && live.day.kind != TravelDayKind.Arrived) {
+                        OutlinedButton(onClick = onAlternatives) {
+                            Icon(Icons.Rounded.Shuffle, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Text("Alternatives", modifier = Modifier.padding(start = 8.dp), maxLines = 1)
+                        }
+                    }
                 }
             }
         }
@@ -297,6 +384,33 @@ private fun TripContent(
             }
         }
         people?.let { item(key = "travellers") { TravellersCard(trip, it, onToggleTraveller, onDiscount) } }
+    }
+}
+
+/**
+ * Asks once, on a live trip, whether the companion may use the position:
+ * what it is for, and that it stays on the phone. The permission prompt
+ * follows only after "Use location".
+ */
+@Composable
+private fun LocationPrompt(onAllow: () -> Unit, onDismiss: () -> Unit) {
+    NexusCard(Modifier.fillMaxWidth(), containerColor = MaterialTheme.colorScheme.secondaryContainer) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+            Icon(Icons.Rounded.MyLocation, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.padding(top = 2.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Know where you are on the trip", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                Text(
+                    "With your location, the live companion can tell whether you are at the station, on board, or have missed a change. " +
+                        "Only while it runs, and it never leaves this phone.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
+                    Button(onClick = onAllow) { Text("Use location") }
+                    TextButton(onClick = onDismiss) { Text("Not now") }
+                }
+            }
+        }
     }
 }
 
