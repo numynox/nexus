@@ -11,6 +11,9 @@ import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
+/** The table has a `$comment` the tests do not read. */
+private val FixtureJson = Json { ignoreUnknownKeys = true }
+
 /**
  * The shared rules against app/abeona/src/lib/transfer.fixtures.json — the
  * same file the web's transfer.test.ts runs. Gradle copies it into the test
@@ -69,7 +72,7 @@ class TransferFixturesTest {
         val trainBindingLifted: List<BindingCase>,
     )
 
-    private val fixtures: Fixtures = Json { ignoreUnknownKeys = true }.decodeFromString(
+    private val fixtures: Fixtures = FixtureJson.decodeFromString(
         checkNotNull(javaClass.getResource("/transfer.fixtures.json")) { "transfer.fixtures.json is not on the test classpath" }.readText(),
     )
 
