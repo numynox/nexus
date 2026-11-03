@@ -1,6 +1,7 @@
 <script lang="ts">
   import "leaflet/dist/leaflet.css";
   import { onMount } from "svelte";
+  import { basemap, cssColor } from "../../lib/basemap";
   import { productFamily } from "../../lib/format";
   import type { Leg } from "../../lib/transit";
 
@@ -14,32 +15,6 @@
   let leaflet: typeof import("leaflet") | null = null;
   let map: import("leaflet").Map | null = null;
   let layer: import("leaflet").LayerGroup | null = null;
-
-  // Same basemap choice as Vibilia (decisions/2026-09-05-carto-basemap-api-key.md):
-  // CARTO with the public build-time key, OpenStreetMap without one.
-  function basemap() {
-    const cartoKey = import.meta.env.PUBLIC_CARTO_API_KEY;
-    if (cartoKey) {
-      return {
-        url: `https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=${cartoKey}`,
-        attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: "abcd",
-        maxZoom: 20,
-      };
-    }
-    return {
-      url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      subdomains: "abc",
-      maxZoom: 19,
-    };
-  }
-
-  function cssColor(name: string, fallback: string): string {
-    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-    return value || fallback;
-  }
 
   /** The leg's line: its route, else straight through its stops. */
   function pointsOf(leg: Leg): [number, number][] {
