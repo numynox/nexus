@@ -191,6 +191,12 @@ data class SaveTripInput(
     val bahncardDiscount: Int? = null,
     /** Who travels; null leaves it to the database, which puts the caller's own traveller on. */
     val travellerIds: List<String>? = null,
+    /**
+     * A journey that already arrived: saved as source "import", final, never
+     * refreshed; [arrivalDelayMinutes] is the delay typed by hand.
+     */
+    val past: Boolean = false,
+    val arrivalDelayMinutes: Int? = null,
 )
 
 /**
@@ -295,6 +301,93 @@ data class Statistics(
     @SerialName("top_station") val topStation: StationCount? = null,
     val products: Map<String, Int> = emptyMap(),
     @SerialName("by_month") val byMonth: List<MonthStat> = emptyList(),
+    /** CO₂ the rides saved against the car, one traveller, kg; approximate (abeona_co2_factors). */
+    @SerialName("co2_saved_kg") val co2SavedKg: Double = 0.0,
+    @SerialName("co2_train_kg") val co2TrainKg: Double = 0.0,
+    @SerialName("co2_car_kg") val co2CarKg: Double = 0.0,
+    @SerialName("co2_factors") val co2Factors: Co2Factors? = null,
+    /** ISO codes of the countries ridden from or to, most often first. */
+    val countries: List<String> = emptyList(),
+    @SerialName("longest_trip") val longestTrip: LongestTrip? = null,
+)
+
+/** Where the CO₂ figures come from (abeona_co2_factors), g CO₂e per passenger-km. */
+@Serializable
+data class Co2Factors(val car: Double = 0.0, val source: String? = null)
+
+@Serializable
+data class LongestTrip(
+    @SerialName("trip_id") val tripId: String,
+    val from: String,
+    val to: String,
+    val km: Double = 0.0,
+    /** yyyy-mm-dd */
+    val date: String? = null,
+)
+
+/** A station on the travel map. */
+@Serializable
+data class MapStop(val name: String, val lat: Double, val lon: Double)
+
+/** One line of the map of everything travelled (abeona_travel_map): a pair of stations, either way. */
+@Serializable
+data class TravelMapLine(
+    val from: MapStop,
+    val to: MapStop,
+    val product: String? = null,
+    val count: Int = 1,
+    /** [[lon, lat], …], thinned. */
+    val polyline: List<List<Double>> = emptyList(),
+) {
+    /** As a leg, so the trip map draws it. */
+    fun toLeg(): Leg = Leg(
+        mode = LegMode.Train,
+        product = product,
+        from = StopTime(name = from.name, lat = from.lat, lon = from.lon),
+        to = StopTime(name = to.name, lat = to.lat, lon = to.lon),
+        polyline = polyline,
+    )
+}
+
+/** abeona_share_links: the token is the whole credential; revoking deletes the row. */
+@Serializable
+data class ShareLink(
+    val token: String,
+    @SerialName("trip_id") val tripId: String,
+    /** "ics" or "status". */
+    val kind: String,
+    @SerialName("expires_at") val expiresAt: String,
+)
+
+/** A trip abeona-import read from Träwelling, not saved yet. */
+@Serializable
+data class ImportedTrip(
+    @SerialName("external_id") val externalId: String,
+    val origin: String,
+    val destination: String,
+    @SerialName("planned_departure") val plannedDeparture: String,
+    @SerialName("planned_arrival") val plannedArrival: String,
+    @SerialName("arrival_delay_minutes") val arrivalDelayMinutes: Int? = null,
+    val legs: List<kotlinx.serialization.json.JsonObject> = emptyList(),
+    /** A trip with the same origin and departure is saved already. */
+    val duplicate: Boolean = false,
+) {
+    /** "ICE 25, RE 10" */
+    val lines: String get() = legs.joinToString(", ") {
+        (it["line_name"] as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNullSafe()
+            ?: (it["product"] as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNullSafe() ?: "?"
+    }
+}
+
+private fun kotlinx.serialization.json.JsonPrimitive.contentOrNullSafe(): String? =
+    if (this is kotlinx.serialization.json.JsonNull) null else content
+
+@Serializable
+data class ImportResult(
+    val trips: List<ImportedTrip> = emptyList(),
+    val statuses: Int = 0,
+    val skipped: Int = 0,
+    val truncated: Boolean = false,
 )
 
 /** abeona_compensation(trip_id); [reasons] and [hints] are English sentences, shown as is, the same on the web. */
