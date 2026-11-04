@@ -61,3 +61,12 @@ Vibilia's cars) and a shared household (like Annona, but bounded).
 - Distances are measured in SQL from the saved, thinned route line, or 1.1 ×
   the great-circle distance without one. That is accurate enough for totals,
   not for fares.
+- (2026-11-04) The companion holds a **partial wake lock** while it follows a
+  trip, capped at six hours. Without it the phone dozed with the screen off,
+  the 30-second ticks stopped, and the notification froze until the screen
+  came on. Its notification is a **Live Update** on Android 16+
+  (`setRequestPromotedOngoing`, `POST_PROMOTED_NOTIFICATIONS`): pinned at the
+  top, on the lock screen, with a status bar chip (`CompanionStatus.chip`:
+  "12 min", "Pl. 7", "Missed"). Older Android shows it as an ordinary ongoing
+  notification. The user can turn Live Updates off per app in Android's
+  settings.

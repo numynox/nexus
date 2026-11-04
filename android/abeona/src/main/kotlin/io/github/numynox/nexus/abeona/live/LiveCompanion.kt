@@ -11,6 +11,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.IBinder
+import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
@@ -58,6 +59,8 @@ object LiveCompanion {
     val TICK: Duration = Duration.ofSeconds(30)
     /** How long after the final arrival the companion stays, for a late train's last minutes. */
     val LINGER: Duration = Duration.ofMinutes(15)
+    /** The longest the companion keeps the CPU awake; Android 15 stops a dataSync service after six hours anyway. */
+    val MAX_AWAKE: Duration = Duration.ofHours(6)
 
     private val _running = MutableStateFlow<String?>(null)
     /** The trip being followed, if any; the trip screen shows "Stop" for it. */
@@ -112,6 +115,10 @@ object LiveCompanion {
             .setOnlyAlertOnce(true)
             .setSilent(true)
             .setCategory(NotificationCompat.CATEGORY_NAVIGATION)
+            // A Live Update on Android 16+: kept at the top of the shade, on the
+            // lock screen, and as a chip in the status bar, like a navigation app's.
+            .setRequestPromotedOngoing(true)
+            .setShortCriticalText(status.chip)
             .setContentIntent(openTrip(context, tripId))
             .addAction(0, "Stop", stop)
             .build()
@@ -153,6 +160,17 @@ object LiveCompanion {
 
 class LiveCompanionService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    /**
+     * Keeps the CPU on while a trip is followed: without it the phone dozes
+     * with the screen off, the 30-second ticks stop, and the notification
+     * freezes until the screen comes on. Partial only (the screen may sleep),
+     * and capped, in case the companion never stops.
+     */
+    private val wakeLock by lazy {
+        getSystemService(PowerManager::class.java)
+            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "abeona:live-companion")
+            .apply { setReferenceCounted(false) }
+    }
     private var following: Job? = null
     private val posted = mutableSetOf<String>()
     private val location by lazy { TripLocation(this) }
@@ -182,6 +200,7 @@ class LiveCompanionService : Service() {
             ServiceCompat.startForeground(this, LiveCompanion.ONGOING_ID, placeholder, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         }
         LiveCompanion.setRunning(tripId)
+        wakeLock.acquire(LiveCompanion.MAX_AWAKE.toMillis())
         posted.clear()
         following?.cancel()
         location.stop()
@@ -241,6 +260,7 @@ class LiveCompanionService : Service() {
     }
 
     private fun finish() {
+        releaseWakeLock()
         location.stop()
         LiveSignals.clear()
         LiveCompanion.setRunning(null)
@@ -253,7 +273,12 @@ class LiveCompanionService : Service() {
         finish()
     }
 
+    private fun releaseWakeLock() {
+        if (wakeLock.isHeld) wakeLock.release()
+    }
+
     override fun onDestroy() {
+        releaseWakeLock()
         location.stop()
         LiveCompanion.setRunning(null)
         scope.cancel()
