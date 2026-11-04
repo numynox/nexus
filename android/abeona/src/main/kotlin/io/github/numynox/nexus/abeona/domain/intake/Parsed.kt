@@ -54,13 +54,6 @@ data class ParsedShare(
     val vbid: String? = null,
 ) : Parsed
 
-/** Whose price a ticket prints: "booking" is one direction of a return booking, the user confirms. */
-@Serializable
-enum class PriceScope {
-    @SerialName("trip") Trip,
-    @SerialName("booking") Booking,
-}
-
 /** A DB Online-Ticket (the PDF's text layer). */
 @Serializable
 data class ParsedTicket(
@@ -85,6 +78,5 @@ data class ParsedTicket(
     val date: String? = null,
     override val legs: List<ParsedLeg>,
     @SerialName("price_cents") val priceCents: Int? = null,
-    @SerialName("price_scope") val priceScope: PriceScope,
     val reservation: String? = null,
 ) : Parsed

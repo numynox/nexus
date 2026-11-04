@@ -14,8 +14,6 @@ data class Prefill(
     /** How many people the ticket is for: a hint next to "Who travels". */
     val travellers: Int? = null,
     val priceCents: Int? = null,
-    /** Booking: the printed price is the whole booking; the sheet asks before saving it. */
-    val priceScope: PriceScope = PriceScope.Trip,
 )
 
 enum class IntakeSource(val wire: String) { Share("share"), Pdf("pdf") }
@@ -48,12 +46,8 @@ fun prefillOf(parsed: Parsed): Prefill = when (parsed) {
         discounts = parsed.discounts,
         travellers = parsed.travellers,
         priceCents = parsed.priceCents,
-        priceScope = parsed.priceScope,
     )
 }
-
-/** Half a booking's price, to the cent: offered by the sheet, never applied by itself. */
-fun halfOf(cents: Int): Int = Math.round(cents / 2.0).toInt()
 
 suspend fun intake(parsed: Parsed, source: IntakeSource, port: TransitPort, ticket: TicketFile? = null): IntakeDraft {
     require(parsed.legs.isNotEmpty()) { "No rides were found in it." }

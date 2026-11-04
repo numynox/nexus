@@ -238,7 +238,6 @@
           }
         ],
         "price_cents": 11740,
-        "price_scope": "booking",
         "reservation": null
       }
     },
@@ -330,7 +329,6 @@
           }
         ],
         "price_cents": 11740,
-        "price_scope": "booking",
         "reservation": null
       }
     }

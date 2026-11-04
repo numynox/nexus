@@ -6,7 +6,7 @@
 import { isDbTicket, parseDbTicket } from "./dbTicket.ts";
 import type { FareTypeValue } from "./fare.ts";
 import { matchConnection, type MatchResult, type TransitPort } from "./match.ts";
-import type { Parsed, ParsedTicket, PriceScope } from "./parsed.ts";
+import type { Parsed, ParsedTicket } from "./parsed.ts";
 import { isShareText, parseShareText } from "./shareText.ts";
 
 /** What the save sheet starts with; the user can change every field. */
@@ -19,8 +19,6 @@ export interface Prefill {
   /** How many people the ticket is for: a hint next to "Who travels". */
   travellers: number | null;
   price_cents: number | null;
-  /** "booking": the printed price is the whole booking; the sheet asks before saving it. */
-  price_scope: PriceScope;
 }
 
 export interface IntakeDraft {
@@ -47,7 +45,6 @@ export function prefillOf(parsed: Parsed): Prefill {
       discounts: [],
       travellers: null,
       price_cents: null,
-      price_scope: "trip",
     };
   }
   const t: ParsedTicket = parsed;
@@ -58,13 +55,7 @@ export function prefillOf(parsed: Parsed): Prefill {
     discounts: t.discounts,
     travellers: t.travellers,
     price_cents: t.price_cents,
-    price_scope: t.price_scope,
   };
-}
-
-/** Half of a booking's price, rounded to the cent: what the sheet offers, never applies by itself. */
-export function halfOf(cents: number): number {
-  return Math.round(cents / 2);
 }
 
 export async function intake(parsed: Parsed, source: "share" | "pdf", port: TransitPort): Promise<IntakeDraft> {

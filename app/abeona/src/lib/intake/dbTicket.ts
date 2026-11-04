@@ -207,8 +207,6 @@ export function parseDbTicket(text: string): ParsedTicket | null {
     date: legs[0]?.date ?? tableDate ?? bindingDate,
     legs,
     price_cents: price,
-    // One half of a return booking prints the booking's total: the user says what this trip cost.
-    price_scope: direction ? "booking" : "trip",
     reservation: reservations.length > 0 ? reservations.join("; ") : null,
   };
 }

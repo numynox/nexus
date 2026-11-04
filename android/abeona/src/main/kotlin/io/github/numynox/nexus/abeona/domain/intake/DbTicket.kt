@@ -164,8 +164,6 @@ fun parseDbTicket(text: String): ParsedTicket? {
         date = legs.firstOrNull()?.date ?: tableDate ?: bindingDate,
         legs = legs,
         priceCents = price,
-        // One half of a return booking prints the booking's total: the user says what this trip cost.
-        priceScope = if (direction != null) PriceScope.Booking else PriceScope.Trip,
         reservation = reservations.takeIf { it.isNotEmpty() }?.joinToString("; "),
     )
 }

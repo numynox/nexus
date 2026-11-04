@@ -53,13 +53,6 @@ export interface ParsedShare {
   vbid: string | null;
 }
 
-/**
- * Whose price the ticket prints. `booking`: one direction of a return
- * booking, whose "Gesamtpreis" is very likely the whole booking — the user
- * confirms what this trip cost; Abeona never halves it by itself.
- */
-export type PriceScope = "trip" | "booking";
-
 /** A DB Online-Ticket (the PDF's text layer). */
 export interface ParsedTicket {
   kind: "ticket";
@@ -88,8 +81,8 @@ export interface ParsedTicket {
   /** Local date of the first departure. */
   date: string | null;
   legs: ParsedLeg[];
+  /** "Gesamtpreis": what this ticket cost, also when it is one direction of a return booking. */
   price_cents: number | null;
-  price_scope: PriceScope;
   /** Seat reservations as printed, one per ride that has one. */
   reservation: string | null;
 }

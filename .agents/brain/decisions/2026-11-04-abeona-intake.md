@@ -11,8 +11,8 @@ ticket holds a name and an order number that have no business on a server.
 The user supplied real samples (two shares, one ticket), anonymised, which
 showed three things the guesses would have missed: regional lines print their
 train number in brackets ("RE19 (4901)"), one share has no platforms at all,
-and the ticket is the return half of a booking whose "Gesamtpreis" is very
-likely the whole booking's.
+and the ticket is the return half of a booking (whose "Gesamtpreis" was at
+first taken for the whole booking's; see below).
 
 ## Decision
 - **Parsing happens on the device, never in an Edge Function.** Twin parsers
@@ -41,13 +41,14 @@ likely the whole booking's.
   migration), or 'import' when the trip is already over. A ticket PDF is
   attached to the trip's wallet after the save; a failed upload leaves the
   trip without it.
-- **The price is confirmed, never halved.** A ticket that is one direction of
-  a return booking ("(Rückfahrt)"/"(Hinfahrt)") carries `price_scope =
-  booking`; the save sheet shows the printed total and offers "Half" or "All
-  of it" (or typing), and will not save until one is chosen. The stored
-  `price_cents` is always this trip's price, as the compensation reads it, so
-  no column was added. The ticket's traveller count is a hint beside "Who
-  travels", not a selection.
+- **The price is the ticket's own.** A ticket's "Gesamtpreis" is what that
+  ticket cost, also when it is one direction of a return booking: DB issues
+  one ticket per direction, each with its own price. It goes into
+  `price_cents` as printed. (At first a return half was taken to print the
+  whole booking, and the sheet asked "Half or all of it?" before saving; the
+  user, who books these, corrected that on 2026-11-04 and the question was
+  removed.) The ticket's traveller count is a hint beside "Who travels", not a
+  selection.
 - **Entry points:** Android takes `ACTION_SEND` for `text/plain` and
   `application/pdf`, and Search has "Add from a ticket or share". The web has
   the same card on the search page and a Web Share Target: the manifest POSTs

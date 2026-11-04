@@ -16,7 +16,7 @@
   import { FARE_TYPES, formatDuration, formatLongDate, formatTime } from "../../lib/format";
   import { session } from "../../lib/stores";
   import { summarise } from "../../lib/journey";
-  import { halfOf, matchSummary, type IntakeDraft } from "../../lib/intake/intake";
+  import { matchSummary, type IntakeDraft } from "../../lib/intake/intake";
   import type { Journey } from "../../lib/transit";
   import LegChip from "../common/LegChip.svelte";
   import { nextDiscount } from "../../lib/travellers";
@@ -50,11 +50,6 @@
   /** For a journey that has already arrived: how late it really was, typed by hand. */
   let delay = $state("");
   let error = $state("");
-  /**
-   * For a ticket that prints the whole booking's price: null until the user
-   * says what this trip cost (half, all, or typed). Never halved silently.
-   */
-  let priceConfirmed = $state(true);
   let fromIntake = false;
 
   function euros(cents: number): string {
@@ -69,12 +64,6 @@
     bindingTouched = p?.train_binding != null;
     travelClass = p?.travel_class ?? 2;
     price = p?.price_cents != null ? euros(p.price_cents) : "";
-    priceConfirmed = !(p?.price_cents != null && p.price_scope === "booking");
-  }
-
-  function choosePrice(cents: number) {
-    price = euros(cents);
-    priceConfirmed = true;
   }
 
   const s = $derived(journey ? summarise(journey.legs) : null);
@@ -161,10 +150,6 @@
   async function save(event: Event) {
     event.preventDefault();
     if (!journey || saving) return;
-    if (!priceConfirmed) {
-      error = "Say what this trip cost: the ticket prints the whole booking's price.";
-      return;
-    }
     const cents = parsePrice(price);
     if (cents === "invalid") {
       error = "Enter the price as a number, e.g. 29.90.";
@@ -305,30 +290,10 @@
             <span class="block px-1 pb-1 text-xs font-semibold uppercase tracking-wider text-base-content/55">Price <span class="normal-case font-normal tracking-normal">(optional)</span></span>
             <span class="input w-full rounded-2xl bg-card">
               <span class="text-base-content/50">€</span>
-              <input inputmode="decimal" placeholder="0.00" bind:value={price} class="tabular" oninput={() => (priceConfirmed = true)} />
+              <input inputmode="decimal" placeholder="0.00" bind:value={price} class="tabular" />
             </span>
           </label>
         </div>
-
-        {#if intake?.prefill.price_cents != null && intake.prefill.price_scope === "booking"}
-          {@const whole = intake.prefill.price_cents}
-          <div class="rounded-2xl p-4 text-sm {priceConfirmed ? 'bg-card' : 'bg-amber-soft text-amber-ink'}">
-            <p class="font-semibold">€{euros(whole)} is likely the whole booking</p>
-            <p class="mt-1">
-              This ticket is one direction of a return booking, and DB prints the booking's total. What did this trip cost?
-              Compensation is worked out from it.
-            </p>
-            <div class="mt-3 flex flex-wrap gap-2">
-              <button type="button" class="btn btn-sm rounded-full {priceConfirmed && price === euros(halfOf(whole)) ? 'btn-primary' : 'bg-card'}" onclick={() => choosePrice(halfOf(whole))}>
-                Half · €{euros(halfOf(whole))}
-              </button>
-              <button type="button" class="btn btn-sm rounded-full {priceConfirmed && price === euros(whole) ? 'btn-primary' : 'bg-card'}" onclick={() => choosePrice(whole)}>
-                All of it · €{euros(whole)}
-              </button>
-            </div>
-            <p class="mt-2 text-xs opacity-80">Or type the price above.</p>
-          </div>
-        {/if}
 
         {#if selected && (travellers.length > 1 || showDiscount)}
           <fieldset>

@@ -40,8 +40,6 @@ import io.github.numynox.nexus.abeona.ui.common.TravellerPicker
 import io.github.numynox.nexus.abeona.domain.intake.IntakeDraft
 import io.github.numynox.nexus.abeona.domain.intake.ParsedTicket
 import io.github.numynox.nexus.abeona.domain.intake.MatchStatus
-import io.github.numynox.nexus.abeona.domain.intake.PriceScope
-import io.github.numynox.nexus.abeona.domain.intake.halfOf
 import io.github.numynox.nexus.abeona.domain.intake.matchSummary
 import androidx.compose.material3.Surface
 import io.github.numynox.nexus.abeona.ui.AbeonaColors
@@ -94,9 +92,6 @@ fun SaveTripSheet(
     var binding by remember { mutableStateOf(prefill?.trainBinding ?: (fare == FareType.Saver)) }
     var travelClass by remember { mutableStateOf(prefill?.travelClass ?: 2) }
     var price by remember { mutableStateOf(prefill?.priceCents?.let(::euros).orEmpty()) }
-    // A ticket that prints a return booking's total: the user says what this trip cost. Never halved silently.
-    val wholeBooking = prefill?.priceCents?.takeIf { prefill.priceScope == PriceScope.Booking }
-    var priceConfirmed by remember { mutableStateOf(wholeBooking == null) }
     // The kinds of BahnCard each traveller holds on the day of the journey.
     val held = remember(cards, journey) {
         val day = journey.legs.firstOrNull()?.from?.plannedAt?.atZone(java.time.ZoneId.systemDefault())?.toLocalDate()?.toString().orEmpty()
@@ -223,7 +218,6 @@ fun SaveTripSheet(
                 value = price,
                 onValueChange = {
                     price = it.filter { c -> c.isDigit() || c == ',' || c == '.' }.take(8)
-                    priceConfirmed = true
                 },
                 label = { Text("Price (optional)") },
                 suffix = { Text("€") },
@@ -232,33 +226,6 @@ fun SaveTripSheet(
                 shape = MaterialTheme.shapes.medium,
                 modifier = Modifier.fillMaxWidth(),
             )
-            wholeBooking?.let { whole ->
-                Surface(
-                    color = if (priceConfirmed) MaterialTheme.colorScheme.surfaceContainerHigh else AbeonaColors.Amber.copy(alpha = 0.22f),
-                    shape = MaterialTheme.shapes.large,
-                ) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("€${euros(whole)} is likely the whole booking", style = MaterialTheme.typography.titleSmall)
-                        Text(
-                            "This ticket is one direction of a return booking, and DB prints the booking's total. What did this trip cost? Compensation is worked out from it.",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilterChip(
-                                selected = priceConfirmed && price == euros(halfOf(whole)),
-                                onClick = { price = euros(halfOf(whole)); priceConfirmed = true },
-                                label = { Text("Half · €${euros(halfOf(whole))}") },
-                            )
-                            FilterChip(
-                                selected = priceConfirmed && price == euros(whole),
-                                onClick = { price = euros(whole); priceConfirmed = true },
-                                label = { Text("All of it · €${euros(whole)}") },
-                            )
-                        }
-                        Text("Or type the price above.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
             Row(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 16.dp), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = onDismiss) { Text("Cancel") }
                 Button(
@@ -280,7 +247,7 @@ fun SaveTripSheet(
                             ),
                         )
                     },
-                    enabled = !saving && priceConfirmed,
+                    enabled = !saving,
                 ) { Text(if (past) "Save past trip" else "Save trip") }
             }
         }

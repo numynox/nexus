@@ -101,10 +101,8 @@ class IntakeScreenshots {
         share(Intent(Intent.ACTION_SEND).setType("application/pdf").putExtra(Intent.EXTRA_STREAM, uri))
         waitForText("Read from your ticket")
         shot("82-intake-ticket")
-        scrollIntoView("Or type the price above.")
-        shot("83-intake-ticket-price-scope")
-        tap("Half · €58.70")
-        shot("84-intake-ticket-price-chosen")
+        scrollIntoView("Price (optional)")
+        shot("83-intake-ticket-price")
     }
 
     @Test

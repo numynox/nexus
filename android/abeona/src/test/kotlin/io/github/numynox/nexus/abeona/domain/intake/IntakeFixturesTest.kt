@@ -145,13 +145,4 @@ class IntakeFixturesTest {
         assertEquals(c.name, Instant.parse(c.expect.lastArrival), rides.last().to.plannedAt)
         c.expect.legs?.let { assertEquals(c.name, it, result.journey.legs.size) }
     }
-
-    @Test
-    fun priceOfAReturnBookingIsOnlyOffered() {
-        val ticket = fixtures.ticket.first().expect
-        val prefill = prefillOf(ticket)
-        assertEquals(PriceScope.Booking, prefill.priceScope)
-        assertEquals(ticket.priceCents, prefill.priceCents)
-        assertEquals(5870, halfOf(11740))
-    }
 }
