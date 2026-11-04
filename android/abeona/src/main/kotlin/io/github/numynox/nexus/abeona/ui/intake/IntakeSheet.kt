@@ -47,7 +47,6 @@ fun IntakeSheet(
 ) {
     var text by remember { mutableStateOf("") }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(onReadPdf) }
-    val working = state is IntakeState.Working
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(
@@ -55,6 +54,22 @@ fun IntakeSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text("Add from a ticket or share", style = MaterialTheme.typography.headlineSmall)
+            if (state is IntakeState.Working) {
+                // Reading or looking up: nothing to type or choose until it is done.
+                Column(
+                    Modifier.fillMaxWidth().padding(vertical = 32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    LoadingIndicator(Modifier.size(48.dp))
+                    Text(
+                        if (state.matching) "Looking up the connection…" else "Reading…",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                return@Column
+            }
             Text(
                 "Share a connection from DB Navigator to Abeona, or paste it here. A ticket PDF is read on this phone and goes into the trip's wallet.",
                 style = MaterialTheme.typography.bodyMedium,
@@ -71,26 +86,17 @@ fun IntakeSheet(
                 modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Button(onClick = { onReadText(text) }, enabled = text.isNotBlank() && !working) {
+                Button(onClick = { onReadText(text) }, enabled = text.isNotBlank()) {
                     Icon(Icons.Rounded.ContentPaste, contentDescription = null, modifier = Modifier.size(18.dp))
                     Text("Read the text", modifier = Modifier.padding(start = 8.dp))
                 }
-                OutlinedButton(onClick = { pick.launch(arrayOf("application/pdf")) }, enabled = !working) {
+                OutlinedButton(onClick = { pick.launch(arrayOf("application/pdf")) }) {
                     Icon(Icons.Rounded.PictureAsPdf, contentDescription = null, modifier = Modifier.size(18.dp))
                     Text("Ticket PDF", modifier = Modifier.padding(start = 8.dp))
                 }
             }
-            when (state) {
-                is IntakeState.Working -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    LoadingIndicator(Modifier.size(32.dp))
-                    Text(
-                        if (state.matching) "Looking up the connection…" else "Reading…",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                is IntakeState.Failed -> Text(state.message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
-                else -> Unit
+            if (state is IntakeState.Failed) {
+                Text(state.message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
             }
         }
     }

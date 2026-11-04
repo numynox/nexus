@@ -94,28 +94,33 @@
     </div>
   </div>
 
-  <form class="mt-4 space-y-3" onsubmit={readText}>
-    <textarea
-      class="textarea min-h-24 w-full rounded-2xl bg-base-100 text-sm"
-      placeholder={"Erlangen → Leuven\nFr. 14.11.2025\n\nRE19 (4901)\nAb 06:29 Erlangen, Gleis 4\n…"}
-      bind:value={text}
-      aria-label="Share text from DB Navigator"
-    ></textarea>
-    <div class="flex flex-wrap items-center gap-2">
-      <button type="submit" class="btn btn-primary rounded-full" disabled={!text.trim() || busy !== null}>
-        {#if busy && text.trim()}<span class="loading loading-spinner loading-sm"></span>{:else}<ClipboardPaste class="h-4 w-4" />{/if}
-        Read the text
-      </button>
-      <button type="button" class="btn btn-ghost rounded-full text-primary" disabled={busy !== null} onclick={() => fileInput?.click()}>
-        {#if busy && !text.trim()}<span class="loading loading-spinner loading-sm"></span>{:else}<FileText class="h-4 w-4" />{/if}
-        Choose a ticket PDF
-      </button>
-      <input bind:this={fileInput} type="file" accept="application/pdf,.pdf" class="hidden" onchange={onFile} />
-      {#if busy === "matching"}
-        <span class="text-sm text-base-content/60" role="status">Looking up the connection…</span>
-      {/if}
+  {#if busy}
+    <!-- Reading or looking up: nothing to type or choose until it is done. -->
+    <div class="mt-6 flex flex-col items-center gap-3 py-6" role="status">
+      <span class="loading loading-spinner loading-lg text-primary"></span>
+      <span class="text-sm text-base-content/60">{busy === "matching" ? "Looking up the connection…" : "Reading…"}</span>
     </div>
-  </form>
+  {:else}
+    <form class="mt-4 space-y-3" onsubmit={readText}>
+      <textarea
+        class="textarea min-h-24 w-full rounded-2xl bg-base-100 text-sm"
+        placeholder={"Erlangen → Leuven\nFr. 14.11.2025\n\nRE19 (4901)\nAb 06:29 Erlangen, Gleis 4\n…"}
+        bind:value={text}
+        aria-label="Share text from DB Navigator"
+      ></textarea>
+      <div class="flex flex-wrap items-center gap-2">
+        <button type="submit" class="btn btn-primary rounded-full" disabled={!text.trim()}>
+          <ClipboardPaste class="h-4 w-4" />
+          Read the text
+        </button>
+        <button type="button" class="btn btn-ghost rounded-full text-primary" onclick={() => fileInput?.click()}>
+          <FileText class="h-4 w-4" />
+          Choose a ticket PDF
+        </button>
+      </div>
+    </form>
+  {/if}
+  <input bind:this={fileInput} type="file" accept="application/pdf,.pdf" class="hidden" onchange={onFile} />
 
   {#if error}
     <p class="mt-3 rounded-2xl bg-error/10 px-4 py-3 text-sm text-error" role="alert">{error}</p>
