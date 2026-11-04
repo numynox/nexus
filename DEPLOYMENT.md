@@ -143,6 +143,21 @@ keytool -genkeypair -v -keystore release.jks -alias nexus \
   -keyalg RSA -keysize 4096 -validity 10000
 ```
 
+To sign a release build on your own machine with the same key, set the four
+variables above (`ANDROID_KEYSTORE_PATH` in place of the base64 one), or put
+them in the gitignored `android/keystore.properties`; a variable wins over the
+file:
+
+```properties
+storeFile=/path/to/release.jks
+storePassword=…
+keyAlias=nexus
+keyPassword=…
+```
+
+A relative `storeFile` is resolved against `android/`. Pass
+`NEXUS_VERSION_CODE` above the installed version, or Android refuses the update.
+
 **Back the keystore up outside GitHub.** Android installs an update only if it
 is signed with the same key as the installed app; without the key, every phone
 has to uninstall (losing local settings) and install afresh. One key signs all

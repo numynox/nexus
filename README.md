@@ -283,6 +283,10 @@ left out: Vibilia's map is drawn schematically (MapLibre's native library
 cannot load), images are flat colours, Annona's scanner shows its camera
 prompt. A screen that needs new data needs it in `FakeBackend` too.
 
+A local `assembleRelease` is debug-signed unless it finds the release key, in
+`android/keystore.properties` or the environment (`DEPLOYMENT.md`, "Required
+configuration"); only then does it update an installed release.
+
 Debug builds install beside a release build (`.debug` suffix). Drive tracking
 needs a real phone paired with a car and Annona's scanner a camera; everything
 else works in the emulator.
