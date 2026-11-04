@@ -203,7 +203,7 @@
             role="status"
           >
             <p class="font-semibold">
-              {intake.source === "pdf" ? "Read from your ticket" : "Read from DB Navigator"}
+              {intake.parsed.kind === "ticket" ? "Read from your ticket" : "Read from DB Navigator"}
             </p>
             <p class="mt-1">{matchSummary(intake.match)}</p>
             {#if ticketFile}

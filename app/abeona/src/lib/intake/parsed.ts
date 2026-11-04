@@ -1,7 +1,7 @@
 /**
  * What intake reads out of a DB Navigator share text or a DB ticket's text
  * layer, before anything is looked up. Parsing happens on the device only —
- * never in an Edge Function (decisions/2026-11-05-abeona-intake.md).
+ * never in an Edge Function (decisions/2026-11-04-abeona-intake.md).
  *
  * The Kotlin copy is android/abeona/.../domain/intake/Parsed.kt. Both run the
  * cases in intake.fixtures.json; change the shapes together.
