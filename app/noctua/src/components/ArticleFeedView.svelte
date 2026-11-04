@@ -90,8 +90,6 @@
     );
   });
 
-  let SectionIcon = $derived(getSectionIconComponent(sectionIcon));
-
   let sectionIcon = $derived.by(() => {
     if (!selectedSectionId) return "newspaper";
     return (
@@ -99,6 +97,8 @@
       "newspaper"
     );
   });
+
+  let SectionIcon = $derived(getSectionIconComponent(sectionIcon));
 
   let selectedFeedTitle = $derived.by(() => {
     if (!selectedSectionId || !selectedFeedId) return null;

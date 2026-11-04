@@ -70,10 +70,10 @@
   let pieChartInst: Chart<"doughnut"> | null = null;
   let barChartInst: Chart<"bar"> | null = null;
 
-  onMount(async () => {
-    const s = $session;
-    if (!s?.user) return;
-    await loadData();
+  // Not async: Svelte only runs a cleanup that onMount returns synchronously,
+  // so an async callback's cleanup was dropped and the charts never destroyed.
+  onMount(() => {
+    if ($session?.user) void loadData();
     return () => {
       pieChartInst?.destroy();
       barChartInst?.destroy();

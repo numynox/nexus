@@ -4,7 +4,7 @@
   "version": "0.0.1",
   "scripts": {
     "dev": "astro dev --port 4323",
-    "build": "astro check && astro build",
+    "build": "astro check && svelte-check --tsconfig ./tsconfig.json && astro build",
     "preview": "astro preview",
     "astro": "astro"
   },
@@ -23,5 +23,8 @@
     "svelte": "^5.55.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "svelte-check": "^4.7.8"
   }
 }
