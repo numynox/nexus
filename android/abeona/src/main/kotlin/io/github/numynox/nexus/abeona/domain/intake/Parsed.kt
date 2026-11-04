@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 
 // What intake reads out of a DB Navigator share text or a DB ticket's text
 // layer, before anything is looked up. Parsing happens on the phone only,
-// never in an Edge Function (decisions/2026-11-05-abeona-intake.md).
+// never in an Edge Function (decisions/2026-11-04-abeona-intake.md).
 //
 // This mirrors app/abeona/src/lib/intake/parsed.ts; both run the cases in
 // intake.fixtures.json, so the field names are the JSON's. Times are local
