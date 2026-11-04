@@ -285,6 +285,13 @@ shortly after, so a trip the job missed keeps its last live values.
    Pages URL other than `numynox.github.io/nexus` means changing that
    constant too.
 
+**Abeona's per-traveller BahnCard discount** needs
+`20261104130000_abeona_traveller_discounts` pushed before the clients merge:
+they call `abeona_save_trip_travellers` and send `p_trip.travellers`. Older
+APKs keep working; the migration only adds a column, a trigger and functions,
+and redefines three functions with their signatures unchanged
+(`.agents/brain/decisions/2026-11-04-abeona-discount-per-traveller.md`).
+
 Supabase rewrites `text/html` from Edge Functions to `text/plain` on its own
 domain, which is why the status page is a static page that fetches JSON from
 `abeona-public` rather than HTML served by the function. The `.ics` file is
