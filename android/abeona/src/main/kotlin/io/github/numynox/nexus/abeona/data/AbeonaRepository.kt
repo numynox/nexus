@@ -10,6 +10,7 @@ import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.storage.storage
 import io.github.numynox.nexus.abeona.domain.AlternativesOrigin
 import io.github.numynox.nexus.abeona.domain.applyRefresh
+import io.github.numynox.nexus.abeona.domain.intake.TransitPort
 import io.github.numynox.nexus.abeona.domain.liveUpdates
 import io.github.numynox.nexus.core.data.NexusJson
 import io.ktor.client.statement.bodyAsText
@@ -21,7 +22,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.addJsonObject
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.put
@@ -109,6 +111,20 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
         }.decodeList<TripRow>().map { it.toTrip() }
     }
 
+    /** Trips that have arrived, newest first: [limit] of them departing before [before]. */
+    suspend fun pastTrips(before: Instant, limit: Int, now: Instant = Instant.now()): List<Trip> {
+        val household = householdId()
+        return supabase.from("abeona_trips").select(tripColumns) {
+            filter {
+                eq("household_id", household)
+                lt("planned_arrival", now.toString())
+                lt("planned_departure", before.toString())
+            }
+            order("planned_departure", Order.DESCENDING)
+            limit(limit.toLong())
+        }.decodeList<TripRow>().map { it.toTrip() }
+    }
+
     suspend fun trip(id: String): Trip? {
         householdId()
         return supabase.from("abeona_trips").select(tripColumns) { filter { eq("id", id) } }
@@ -120,7 +136,7 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
         householdId()
         val trip = buildJsonObject {
             put("title", input.title?.trim()?.takeIf { it.isNotEmpty() })
-            put("source", if (input.past) "import" else "search")
+            put("source", if (input.past) "import" else input.source ?: "search")
             if (input.past) input.arrivalDelayMinutes?.let { put("arrival_delay_minutes", it) }
             put("provider", journey.provider)
             put("refresh_token", journey.refreshToken)
@@ -128,8 +144,8 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
             put("train_binding", input.trainBinding)
             put("travel_class", input.travelClass)
             put("price_cents", input.priceCents)
-            put("bahncard_discount", input.bahncardDiscount)
-            input.travellerIds?.let { ids -> put("traveller_ids", JsonArray(ids.map(::JsonPrimitive))) }
+            // Each traveller's own discount; the RPC keeps the shared one on the trip for older APKs.
+            input.travellers?.let { put("travellers", travellersJson(it)) }
         }
         val params = buildJsonObject {
             put("p_trip", trip)
@@ -138,24 +154,29 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
         return NexusJson.decodeFromString<String>(supabase.postgrest.rpc("abeona_save_trip", params).data)
     }
 
-    /** The BahnCard discount of the trip's fare; null for none. */
-    suspend fun setBahncardDiscount(tripId: String, discount: Int?) {
-        supabase.from("abeona_trips").update(buildJsonObject { put("bahncard_discount", discount) }) { filter { eq("id", tripId) } }
-    }
+    /** Who travels on a trip, and with which discount. */
+    suspend fun tripTravellers(tripId: String): List<TripTraveller> =
+        supabase.from("abeona_trip_travellers").select(Columns.list("traveller_id", "bahncard_discount")) { filter { eq("trip_id", tripId) } }
+            .decodeList<TripTraveller>()
 
-    /** The ids of the travellers on a trip. */
-    suspend fun tripTravellerIds(tripId: String): List<String> =
-        supabase.from("abeona_trip_travellers").select(Columns.list("traveller_id")) { filter { eq("trip_id", tripId) } }
-            .decodeList<TripTravellerRow>().map { it.travellerId }
-
-    suspend fun setTripTravellers(tripId: String, travellerIds: List<String>) {
+    /** Replaces who travels on a trip and with which discount, in one call. */
+    suspend fun saveTripTravellers(tripId: String, travellers: List<TripTraveller>) {
         supabase.postgrest.rpc(
-            "abeona_set_trip_travellers",
+            "abeona_save_trip_travellers",
             buildJsonObject {
                 put("p_trip_id", tripId)
-                put("p_traveller_ids", JsonArray(travellerIds.map(::JsonPrimitive)))
+                put("p_travellers", travellersJson(travellers))
             },
         )
+    }
+
+    private fun travellersJson(travellers: List<TripTraveller>) = buildJsonArray {
+        travellers.forEach { t ->
+            addJsonObject {
+                put("id", t.travellerId)
+                put("bahncard_discount", t.bahncardDiscount)
+            }
+        }
     }
 
     /** What is wrong with the trip's BahnCards: the same rows, and words, as on the web. */
@@ -493,6 +514,36 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
         supabase.from("abeona_trips").update(buildJsonObject { put("ticket_path", path) }) { filter { eq("id", trip.id) } }
         trip.ticketPath?.takeIf { it != path }?.let { old -> runCatching { tickets.delete(old) } }
         return path
+    }
+
+    /** Attaches a ticket to a trip just saved (intake), whose row the caller does not hold yet. */
+    suspend fun attachTicket(tripId: String, fileName: String, mimeType: String, bytes: ByteArray): String {
+        val path = "${householdId()}/$tripId/${safeFileName(fileName)}"
+        tickets.upload(path, bytes) {
+            upsert = true
+            contentType = ContentType.parse(mimeType)
+        }
+        supabase.from("abeona_trips").update(buildJsonObject { put("ticket_path", path) }) { filter { eq("id", tripId) } }
+        return path
+    }
+
+    /** The timetable as intake's matching asks it (domain/intake/Match.kt). */
+    val intakePort: TransitPort = object : TransitPort {
+        override suspend fun stations(query: String): List<Station> = this@AbeonaRepository.stations(query)
+
+        override suspend fun journeys(from: String, to: String, time: Instant): List<Journey> =
+            NexusJson.decodeFromString<JourneysResponse>(
+                transit(
+                    buildJsonObject {
+                        put("action", "journeys")
+                        put("from", from)
+                        put("to", to)
+                        put("time", time.toString())
+                        put("arrive_by", false)
+                        put("products", ProductFilter.All.wire)
+                    },
+                ),
+            ).journeys
     }
 
     /** A ticket or BahnCard file, with the session, never a signed URL (decisions/2026-11-02-abeona-ticket-storage.md). */

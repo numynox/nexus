@@ -530,6 +530,12 @@ Things that differ from the web on purpose:
   its delay; the trip screen makes, shares (Android's share sheet) and revokes
   share links; Settings imports from Träwelling. The web has all four, and the
   share links' status page (`/status`) lives only there.
+  **Intake** (`domain/intake/`, `ui/intake/`): a share from DB Navigator or a
+  ticket PDF arrives by `ACTION_SEND` (or "Add from a ticket or share" on
+  Search), is read on the phone (PdfBox-Android for the PDF), matched against
+  the timetable and opens the save sheet filled from it. The web has the same
+  in `lib/intake/` and `IntakeCard.svelte`, plus a Web Share Target whose POST
+  the service worker receives (`decisions/2026-11-04-abeona-intake.md`).
   The trip screen offers **alternatives** in a sheet, by itself once per
   refresh when a change is at risk or missed or a train cancelled
   (`decisions/2026-11-03-abeona-fare-rules-and-device-signals.md`). The web
@@ -614,7 +620,10 @@ it with its `.ts` extension), run from
 `app/abeona/src/lib/transfer.fixtures.json` and `travelday.fixtures.json`; the
 Android unit tests run the same files (`TransferFixturesTest`,
 `TravelDayFixturesTest`; `android/abeona/build.gradle.kts` copies every
-`*.fixtures.json` onto the test classpath). Add a case there once, not to
+`*.fixtures.json` onto the test classpath). Intake works the same way:
+`lib/intake/intake.fixtures.json` and the real, anonymised samples in
+`lib/intake/fixtures/` (plus a synthetic PDF) run in `intake.test.ts` and
+`IntakeFixturesTest` / `PdfTextTest`. Add a case there once, not to
 either test. Then
 `abeona.test.sql`
 (household scoping, the merge on invite, distances, statistics, the binding

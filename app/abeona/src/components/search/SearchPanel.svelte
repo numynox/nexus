@@ -4,8 +4,10 @@
   import { describeError, searchJourneys } from "../../lib/data";
   import { formatLongDate } from "../../lib/format";
   import { getSavedSearch, setSavedSearch } from "../../lib/storage";
+  import type { IntakeDraft } from "../../lib/intake/intake";
   import type { Journey } from "../../lib/transit";
   import Illustration from "../common/Illustration.svelte";
+  import IntakeCard from "./IntakeCard.svelte";
   import JourneyCard from "./JourneyCard.svelte";
   import SaveSheet from "./SaveSheet.svelte";
   import StationInput from "./StationInput.svelte";
@@ -35,6 +37,21 @@
   let searched = $state(false);
   let error = $state("");
   let chosen = $state<Journey | null>(null);
+  /** Set while the save sheet shows a share or ticket that was read (intake). */
+  let draft = $state<IntakeDraft | null>(null);
+  let draftFile = $state<File | null>(null);
+
+  function openDraft(next: IntakeDraft, file: File | null) {
+    draft = next;
+    draftFile = file;
+    chosen = next.match.journey;
+  }
+
+  function closeSheet() {
+    chosen = null;
+    draft = null;
+    draftFile = null;
+  }
 
   const canSearch = $derived(!!from && !!to && from.id !== to.id && !!date && !!time);
 
@@ -167,6 +184,8 @@
     <p class="rounded-2xl bg-error/10 px-5 py-4 text-sm text-error" role="alert">{error}</p>
   {/if}
 
+  <IntakeCard onDraft={openDraft} />
+
   {#if searching && journeys.length === 0}
     <div class="space-y-3" aria-busy="true">
       {#each [0, 1, 2, 3] as i (i)}<div class="h-32 animate-pulse rounded-3xl bg-base-200"></div>{/each}
@@ -212,4 +231,4 @@
   {/if}
 </div>
 
-<SaveSheet journey={chosen} onClose={() => (chosen = null)} {onSaved} />
+<SaveSheet journey={chosen} intake={draft} ticketFile={draftFile} onClose={closeSheet} {onSaved} />

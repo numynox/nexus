@@ -1,9 +1,8 @@
 <script lang="ts">
-  import "leaflet/dist/leaflet.css";
-  import { onMount } from "svelte";
-  import { basemap, cssColor } from "../../lib/basemap";
+  import { cssColor } from "../../lib/basemap";
   import { productFamily } from "../../lib/format";
   import type { Leg } from "../../lib/transit";
+  import MapFrame from "../MapFrame.svelte";
 
   interface Props {
     legs: Leg[];
@@ -11,10 +10,10 @@
 
   let { legs }: Props = $props();
 
-  let container: HTMLDivElement | undefined = $state();
   let leaflet: typeof import("leaflet") | null = null;
   let map: import("leaflet").Map | null = null;
   let layer: import("leaflet").LayerGroup | null = null;
+  let bounds: import("leaflet").LatLngBounds | null = null;
 
   /** The leg's line: its route, else straight through its stops. */
   function pointsOf(leg: Leg): [number, number][] {
@@ -34,7 +33,7 @@
     const ink = cssColor("--color-neutral", "#12313a");
     const card = cssColor("--ab-card", "#ffffff");
     const amber = "#f2b84b";
-    const bounds = L.latLngBounds([]);
+    const drawn = L.latLngBounds([]);
 
     for (const leg of legs) {
       const pts = pointsOf(leg);
@@ -53,7 +52,7 @@
         lineCap: "round",
         lineJoin: "round",
       }).addTo(layer);
-      pts.forEach((p) => bounds.extend(p));
+      pts.forEach((p) => drawn.extend(p));
 
       for (const stop of leg.stopovers) {
         if (typeof stop.lat !== "number" || typeof stop.lon !== "number") continue;
@@ -88,33 +87,26 @@
       })
         .bindTooltip(p.name, { direction: "top", offset: [0, -6], className: "abeona-map-label" })
         .addTo(layer);
-      bounds.extend([p.lat, p.lon]);
+      drawn.extend([p.lat, p.lon]);
     }
 
-    if (bounds.isValid()) map.fitBounds(bounds, { padding: [36, 36], maxZoom: 13 });
+    // Only the first drawing moves the camera: a live redraw keeps where the
+    // user panned to.
+    const first = bounds === null;
+    bounds = drawn.isValid() ? drawn : null;
+    if (first) fit();
   }
 
-  onMount(() => {
-    let disposed = false;
-    void (async () => {
-      const L = await import("leaflet");
-      if (disposed || !container || map) return;
-      leaflet = L;
-      map = L.map(container, { zoomControl: false, scrollWheelZoom: false, attributionControl: true });
-      L.control.zoom({ position: "topright" }).addTo(map);
-      const b = basemap();
-      L.tileLayer(b.url, { attribution: b.attribution, subdomains: b.subdomains, maxZoom: b.maxZoom }).addTo(map);
-      layer = L.layerGroup().addTo(map);
-      draw();
-    })();
-    return () => {
-      disposed = true;
-      map?.remove();
-      map = null;
-      layer = null;
-      leaflet = null;
-    };
-  });
+  function fit() {
+    if (map && bounds) map.fitBounds(bounds, { padding: [36, 36], maxZoom: 13 });
+  }
+
+  function ready(L: typeof import("leaflet"), created: import("leaflet").Map) {
+    leaflet = L;
+    map = created;
+    layer = L.layerGroup().addTo(created);
+    draw();
+  }
 
   $effect(() => {
     // Redraw when live values change the legs (cancellations).
@@ -123,33 +115,4 @@
   });
 </script>
 
-<div class="trip-map relative h-72 overflow-hidden rounded-3xl bg-base-200 shadow-card sm:h-80" bind:this={container}></div>
-
-<style>
-  .trip-map :global(.leaflet-container) {
-    font: inherit;
-    background: var(--color-base-200);
-  }
-  .trip-map :global(.abeona-map-label) {
-    border: none;
-    border-radius: 999px;
-    padding: 2px 10px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--color-base-content);
-    background: var(--ab-card);
-    box-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
-  }
-  .trip-map :global(.abeona-map-label::before) {
-    display: none;
-  }
-  .trip-map :global(.leaflet-control-zoom a) {
-    border-radius: 999px;
-  }
-  .trip-map :global(.leaflet-control-zoom) {
-    border: none;
-    box-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
-    border-radius: 999px;
-    overflow: hidden;
-  }
-</style>
+<MapFrame class="h-72 rounded-3xl shadow-card sm:h-80" label="the trip's map" onready={ready} {fit} />

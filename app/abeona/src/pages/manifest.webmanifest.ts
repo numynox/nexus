@@ -21,6 +21,20 @@ export async function GET() {
     display: "standalone",
     background_color: "#f7f8f5",
     theme_color: themeColor,
+    // "Share" from DB Navigator, or a ticket PDF from mail or files, opens the
+    // intake on the search page. The service worker (public/sw.js) receives
+    // the POST; Chrome offers this only once the app is installed.
+    share_target: {
+      action: `${base}/share-target`,
+      method: "POST",
+      enctype: "multipart/form-data",
+      params: {
+        title: "title",
+        text: "text",
+        url: "url",
+        files: [{ name: "ticket", accept: ["application/pdf", ".pdf"] }],
+      },
+    },
     icons: [
       {
         src: `${base}/android-chrome-192x192.png`,

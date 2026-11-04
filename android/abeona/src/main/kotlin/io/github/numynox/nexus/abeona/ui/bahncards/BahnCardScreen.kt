@@ -47,7 +47,9 @@ import io.github.numynox.nexus.abeona.ui.common.TripFormat
 import io.github.numynox.nexus.abeona.ui.common.containerViewModel
 import io.github.numynox.nexus.abeona.ui.wallet.FullBrightness
 import io.github.numynox.nexus.abeona.ui.wallet.TicketRenderer
-import io.github.numynox.nexus.abeona.ui.wallet.ZoomablePages
+import io.github.numynox.nexus.abeona.ui.wallet.DocumentView
+import io.github.numynox.nexus.abeona.ui.wallet.TicketCode
+import io.github.numynox.nexus.abeona.ui.wallet.TicketDocument
 import io.github.numynox.nexus.core.data.describe
 import io.github.numynox.nexus.core.ui.Loadable
 import io.github.numynox.nexus.core.ui.components.LoadingState
@@ -60,9 +62,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** A BahnCard ready to show: its file as images, and whose it is. */
-data class BahnCardPages(val card: BahnCard, val owner: String?, val pages: List<Bitmap>, val offlineSince: Instant?)
+data class BahnCardPages(val card: BahnCard, val owner: String?, val pages: List<Bitmap>, val code: Bitmap?, val offlineSince: Instant?)
 
-class BahnCardViewModel(private val container: AppContainer, private val cardId: String) : ViewModel() {
+class BahnCardViewModel(
+    private val container: AppContainer,
+    private val cardId: String,
+    private val context: android.content.Context,
+) : ViewModel() {
     private val _card = MutableStateFlow<Loadable<BahnCardPages>>(Loadable.Loading)
     val card: StateFlow<Loadable<BahnCardPages>> = _card.asStateFlow()
 
@@ -77,9 +83,9 @@ class BahnCardViewModel(private val container: AppContainer, private val cardId:
                 null
             }
             val file = container.trips.bahnCardFile(card)
-            val pages = withContext(Dispatchers.Default) { TicketRenderer.render(file) }
+            val (pages, code) = withContext(Dispatchers.Default) { TicketRenderer.render(file) to TicketCode.extract(context, file) }
             if (pages.isEmpty()) error("This file could not be opened.")
-            Loadable.Ready(BahnCardPages(card, owner, pages, fetched.offlineSince))
+            Loadable.Ready(BahnCardPages(card, owner, pages, code, fetched.offlineSince))
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -96,7 +102,7 @@ class BahnCardViewModel(private val container: AppContainer, private val cardId:
 @Composable
 fun BahnCardScreen(app: AppViewModel, cardId: String, navigator: Navigator) {
     val context = LocalContext.current
-    val viewModel = containerViewModel(key = "bahncard-$cardId") { BahnCardViewModel(it, cardId) }
+    val viewModel = containerViewModel(key = "bahncard-$cardId") { BahnCardViewModel(it, cardId, context.applicationContext) }
     val state by viewModel.card.collectAsStateWithLifecycle()
 
     LaunchedEffect(cardId) { viewModel.load() }
@@ -135,7 +141,10 @@ fun BahnCardScreen(app: AppViewModel, cardId: String, navigator: Navigator) {
                         Text(current.message, color = AbeonaColors.Ink)
                         TextButton(onClick = { viewModel.load() }) { Text("Try again") }
                     }
-                    is Loadable.Ready -> ZoomablePages(current.value.pages, description = "BahnCard")
+                    is Loadable.Ready -> DocumentView(
+                        TicketDocument(current.value.card.id, current.value.card.label, current.value.pages, current.value.code),
+                        description = "BahnCard",
+                    )
                 }
             }
             Surface(color = AbeonaColors.Mint, contentColor = AbeonaColors.Ink, modifier = Modifier.fillMaxWidth()) {

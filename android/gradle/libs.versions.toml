@@ -19,6 +19,7 @@ maplibre = "13.7.1"
 material3 = "1.5.0-beta01"
 materialIconsExtended = "1.7.8"
 navigation3 = "1.2.0"
+pdfboxAndroid = "2.0.27.0"
 robolectric = "4.17"
 roborazzi = "1.76.0"
 serialization = "1.11.0"
@@ -72,6 +73,8 @@ kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
 ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
 ktor-client-mock = { module = "io.ktor:ktor-client-mock", version.ref = "ktor" }
+# Text extraction from ticket PDFs on the device (Abeona's intake).
+pdfbox-android = { module = "com.tom-roush:pdfbox-android", version.ref = "pdfboxAndroid" }
 maplibre-android = { module = "org.maplibre.gl:android-sdk", version.ref = "maplibre" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 roborazzi = { module = "io.github.takahirom.roborazzi:roborazzi", version.ref = "roborazzi" }

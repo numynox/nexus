@@ -8,4 +8,5 @@
     <string name="leave_channel">Time to leave</string>
     <string name="widget_name">Next trip</string>
     <string name="widget_description">Your next departure, platform and delay</string>
+    <string name="share_label">Add to Abeona</string>
 </resources>

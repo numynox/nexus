@@ -1,0 +1,1162 @@
+{
+  "$comment": "Intake's shared cases: the web (intake.test.ts) and Android (IntakeFixturesTest) both run every one. The files in fixtures/ are real DB Navigator shares and a real ticket's `pdftotext -layout` text, anonymised (name, order number, ticket code replaced); synthetic-ticket.pdf is generated from that text by fixtures/make-synthetic-pdf.mjs. Add a case here, not to either test.",
+  "share": [
+    {
+      "name": "outward, 4 rides, bracketed train number, headsigns, platforms with sectors, last ride without headsign",
+      "file": "db-navigator-share-4-legs.txt",
+      "expect": {
+        "kind": "share",
+        "origin": "Erlangen",
+        "destination": "Leuven",
+        "date": "2025-11-14",
+        "legs": [
+          {
+            "line": "RE19",
+            "product": "RE",
+            "number": "4901",
+            "headsign": "Nürnberg Hbf",
+            "from": "Erlangen",
+            "to": "Nürnberg Hbf",
+            "date": "2025-11-14",
+            "departure": "06:29",
+            "arrival_date": "2025-11-14",
+            "arrival": "06:48",
+            "from_platform": "4",
+            "to_platform": "4",
+            "reservation": null
+          },
+          {
+            "line": "ICE 728",
+            "product": "ICE",
+            "number": null,
+            "headsign": "Essen Hbf",
+            "from": "Nürnberg Hbf",
+            "to": "Frankfurt(Main)Hbf",
+            "date": "2025-11-14",
+            "departure": "07:13",
+            "arrival_date": "2025-11-14",
+            "arrival": "10:00",
+            "from_platform": "7",
+            "to_platform": "7",
+            "reservation": null
+          },
+          {
+            "line": "ICE 16",
+            "product": "ICE",
+            "number": null,
+            "headsign": "Bruxelles Midi",
+            "from": "Frankfurt(Main)Hbf",
+            "to": "Liège-Guillemins",
+            "date": "2025-11-14",
+            "departure": "10:34",
+            "arrival_date": "2025-11-14",
+            "arrival": "12:43",
+            "from_platform": "2",
+            "to_platform": "3",
+            "reservation": null
+          },
+          {
+            "line": "IC 535",
+            "product": "IC",
+            "number": null,
+            "headsign": null,
+            "from": "Liège-Guillemins",
+            "to": "Leuven",
+            "date": "2025-11-14",
+            "departure": "13:02",
+            "arrival_date": "2025-11-14",
+            "arrival": "13:32",
+            "from_platform": "3",
+            "to_platform": "1",
+            "reservation": null
+          }
+        ],
+        "link": "https://www.bahn.de/buchung/start?vbid=00000000-0000-4000-8000-000000000000",
+        "vbid": "00000000-0000-4000-8000-000000000000"
+      }
+    },
+    {
+      "name": "return, 4 rides, no platforms and no headsigns",
+      "file": "db-navigator-share-return-no-platforms.txt",
+      "expect": {
+        "kind": "share",
+        "origin": "Leuven",
+        "destination": "Erlangen",
+        "date": "2025-11-16",
+        "legs": [
+          {
+            "line": "IC 512",
+            "product": "IC",
+            "number": null,
+            "headsign": null,
+            "from": "Leuven",
+            "to": "Liège-Guillemins",
+            "date": "2025-11-16",
+            "departure": "14:27",
+            "arrival_date": "2025-11-16",
+            "arrival": "14:59",
+            "from_platform": null,
+            "to_platform": null,
+            "reservation": null
+          },
+          {
+            "line": "ICE 17",
+            "product": "ICE",
+            "number": null,
+            "headsign": null,
+            "from": "Liège-Guillemins",
+            "to": "Frankfurt(Main)Hbf",
+            "date": "2025-11-16",
+            "departure": "15:14",
+            "arrival_date": "2025-11-16",
+            "arrival": "17:27",
+            "from_platform": null,
+            "to_platform": null,
+            "reservation": null
+          },
+          {
+            "line": "ICE 725",
+            "product": "ICE",
+            "number": null,
+            "headsign": null,
+            "from": "Frankfurt(Main)Hbf",
+            "to": "Nürnberg Hbf",
+            "date": "2025-11-16",
+            "departure": "17:57",
+            "arrival_date": "2025-11-16",
+            "arrival": "20:40",
+            "from_platform": null,
+            "to_platform": null,
+            "reservation": null
+          },
+          {
+            "line": "ICE 700",
+            "product": "ICE",
+            "number": null,
+            "headsign": null,
+            "from": "Nürnberg Hbf",
+            "to": "Erlangen",
+            "date": "2025-11-16",
+            "departure": "21:05",
+            "arrival_date": "2025-11-16",
+            "arrival": "21:18",
+            "from_platform": null,
+            "to_platform": null,
+            "reservation": null
+          }
+        ],
+        "link": "https://www.bahn.de/buchung/start?vbid=00000000-0000-4000-8000-000000000001",
+        "vbid": "00000000-0000-4000-8000-000000000001"
+      }
+    }
+  ],
+  "ticket": [
+    {
+      "name": "Super Sparpreis Europa, return half of a booking, 2 travellers with 2 BC25, binding, stop table",
+      "file": "db-ticket-super-sparpreis-europa-return.txt",
+      "expect": {
+        "kind": "ticket",
+        "operator": "db",
+        "fare_name": "Super Sparpreis Europa",
+        "fare_type": "saver",
+        "direction": "return",
+        "travel_class": 2,
+        "travellers": 2,
+        "discounts": [
+          25,
+          25
+        ],
+        "train_binding": true,
+        "booked_lines": [
+          "ICE 17",
+          "ICE 725",
+          "ICE 700"
+        ],
+        "origin": "Leuven",
+        "destination": "Erlangen",
+        "date": "2025-11-16",
+        "legs": [
+          {
+            "line": "IC 512",
+            "product": "IC",
+            "number": null,
+            "headsign": null,
+            "from": "Leuven",
+            "to": "Liège-Guillemins",
+            "date": "2025-11-16",
+            "departure": "14:27",
+            "arrival_date": "2025-11-16",
+            "arrival": "14:59",
+            "from_platform": "3",
+            "to_platform": "1",
+            "reservation": null
+          },
+          {
+            "line": "ICE 17",
+            "product": "ICE",
+            "number": null,
+            "headsign": null,
+            "from": "Liège-Guillemins",
+            "to": "Frankfurt(Main)Hbf",
+            "date": "2025-11-16",
+            "departure": "15:14",
+            "arrival_date": "2025-11-16",
+            "arrival": "17:27",
+            "from_platform": null,
+            "to_platform": "2",
+            "reservation": null
+          },
+          {
+            "line": "ICE 725",
+            "product": "ICE",
+            "number": null,
+            "headsign": null,
+            "from": "Frankfurt(Main)Hbf",
+            "to": "Nürnberg Hbf",
+            "date": "2025-11-16",
+            "departure": "17:57",
+            "arrival_date": "2025-11-16",
+            "arrival": "20:40",
+            "from_platform": "8",
+            "to_platform": "9",
+            "reservation": null
+          },
+          {
+            "line": "ICE 700",
+            "product": "ICE",
+            "number": null,
+            "headsign": null,
+            "from": "Nürnberg Hbf",
+            "to": "Erlangen",
+            "date": "2025-11-16",
+            "departure": "21:05",
+            "arrival_date": "2025-11-16",
+            "arrival": "21:18",
+            "from_platform": "7",
+            "to_platform": "1",
+            "reservation": null
+          }
+        ],
+        "price_cents": 11740,
+        "reservation": null
+      }
+    },
+    {
+      "name": "constructed from the return ticket: 3 travellers, one each with BC25, BC50 and none",
+      "file": "db-ticket-mixed-bahncards.txt",
+      "expect": {
+        "kind": "ticket",
+        "operator": "db",
+        "fare_name": "Super Sparpreis Europa",
+        "fare_type": "saver",
+        "direction": "return",
+        "travel_class": 2,
+        "travellers": 3,
+        "discounts": [
+          25,
+          50,
+          null
+        ],
+        "train_binding": true,
+        "booked_lines": [
+          "ICE 17",
+          "ICE 725",
+          "ICE 700"
+        ],
+        "origin": "Leuven",
+        "destination": "Erlangen",
+        "date": "2025-11-16",
+        "legs": [
+          {
+            "line": "IC 512",
+            "product": "IC",
+            "number": null,
+            "headsign": null,
+            "from": "Leuven",
+            "to": "Liège-Guillemins",
+            "date": "2025-11-16",
+            "departure": "14:27",
+            "arrival_date": "2025-11-16",
+            "arrival": "14:59",
+            "from_platform": "3",
+            "to_platform": "1",
+            "reservation": null
+          },
+          {
+            "line": "ICE 17",
+            "product": "ICE",
+            "number": null,
+            "headsign": null,
+            "from": "Liège-Guillemins",
+            "to": "Frankfurt(Main)Hbf",
+            "date": "2025-11-16",
+            "departure": "15:14",
+            "arrival_date": "2025-11-16",
+            "arrival": "17:27",
+            "from_platform": null,
+            "to_platform": "2",
+            "reservation": null
+          },
+          {
+            "line": "ICE 725",
+            "product": "ICE",
+            "number": null,
+            "headsign": null,
+            "from": "Frankfurt(Main)Hbf",
+            "to": "Nürnberg Hbf",
+            "date": "2025-11-16",
+            "departure": "17:57",
+            "arrival_date": "2025-11-16",
+            "arrival": "20:40",
+            "from_platform": "8",
+            "to_platform": "9",
+            "reservation": null
+          },
+          {
+            "line": "ICE 700",
+            "product": "ICE",
+            "number": null,
+            "headsign": null,
+            "from": "Nürnberg Hbf",
+            "to": "Erlangen",
+            "date": "2025-11-16",
+            "departure": "21:05",
+            "arrival_date": "2025-11-16",
+            "arrival": "21:18",
+            "from_platform": "7",
+            "to_platform": "1",
+            "reservation": null
+          }
+        ],
+        "price_cents": 11740,
+        "reservation": null
+      }
+    }
+  ],
+  "pdf": [
+    {
+      "name": "the synthetic PDF of the ticket text extracts to text that parses the same",
+      "file": "synthetic-ticket.pdf",
+      "same_as": "db-ticket-super-sparpreis-europa-return.txt"
+    }
+  ],
+  "fares": [
+    {
+      "name": "Flexpreis",
+      "fare_type": "flex",
+      "binding": false
+    },
+    {
+      "name": "Flexpreis Europa",
+      "fare_type": "flex",
+      "binding": false
+    },
+    {
+      "name": "Sparpreis",
+      "fare_type": "saver",
+      "binding": true
+    },
+    {
+      "name": "Super Sparpreis",
+      "fare_type": "saver",
+      "binding": true
+    },
+    {
+      "name": "Super Sparpreis Europa",
+      "fare_type": "saver",
+      "binding": true
+    },
+    {
+      "name": "Sparpreis Young",
+      "fare_type": "saver",
+      "binding": true
+    },
+    {
+      "name": "Deutschland-Ticket",
+      "fare_type": "deutschlandticket",
+      "binding": false
+    },
+    {
+      "name": "D-Ticket",
+      "fare_type": "deutschlandticket",
+      "binding": false
+    },
+    {
+      "name": "Quer-durchs-Land-Ticket",
+      "fare_type": "regional",
+      "binding": false
+    },
+    {
+      "name": "Bayern-Ticket",
+      "fare_type": "regional",
+      "binding": false
+    },
+    {
+      "name": "Schönes-Wochenende-Ticket",
+      "fare_type": "regional",
+      "binding": false
+    },
+    {
+      "name": "BahnCard 100",
+      "fare_type": "bahncard100",
+      "binding": false
+    },
+    {
+      "name": "Gruppen-Rabatt",
+      "fare_type": "other",
+      "binding": false
+    },
+    {
+      "name": null,
+      "fare_type": "other",
+      "binding": false
+    }
+  ],
+  "platforms": [
+    {
+      "value": "4",
+      "expect": "4"
+    },
+    {
+      "value": "4 C-F",
+      "expect": "4"
+    },
+    {
+      "value": "12a",
+      "expect": "12a"
+    },
+    {
+      "value": "101 A-C",
+      "expect": "101"
+    },
+    {
+      "value": "",
+      "expect": null
+    },
+    {
+      "value": null,
+      "expect": null
+    }
+  ],
+  "lines": [
+    {
+      "a": "RE19",
+      "b": "RE 19",
+      "same": true
+    },
+    {
+      "a": "ICE 728",
+      "b": "ICE728",
+      "same": true
+    },
+    {
+      "a": "ice 16",
+      "b": "ICE 16",
+      "same": true
+    },
+    {
+      "a": "IC 535",
+      "b": "ICE 535",
+      "same": false
+    },
+    {
+      "a": "S1",
+      "b": "S 11",
+      "same": false
+    }
+  ],
+  "matching": [
+    {
+      "name": "outward: Transitous changes at Frankfurt Flughafen, so the rides are found one by one",
+      "share": "db-navigator-share-4-legs.txt",
+      "stations": {
+        "Erlangen": "de:erlangen",
+        "Nürnberg Hbf": "de:nuernberg",
+        "Frankfurt(Main)Hbf": "de:frankfurt",
+        "Liège-Guillemins": "be:liege",
+        "Leuven": "be:leuven"
+      },
+      "journeys": {
+        "de:erlangen>be:leuven@2025-11-14T05:29:00.000Z": [
+          {
+            "provider": "transitous",
+            "refresh_token": "itinerary-airport",
+            "legs": [
+              {
+                "mode": "train",
+                "line_name": "RE19",
+                "product": "RE",
+                "trip_ref": "re19",
+                "from": {
+                  "id": null,
+                  "name": "Erlangen",
+                  "planned": "2025-11-14T05:29:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": null,
+                  "name": "Nürnberg Hbf",
+                  "planned": "2025-11-14T05:48:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": [
+                  [
+                    11,
+                    49.6
+                  ],
+                  [
+                    11.08,
+                    49.45
+                  ]
+                ]
+              },
+              {
+                "mode": "walk",
+                "line_name": null,
+                "product": null,
+                "trip_ref": null,
+                "from": {
+                  "id": null,
+                  "name": "Nürnberg Hbf",
+                  "planned": "2025-11-14T05:48:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": null,
+                  "name": "Nürnberg Hbf",
+                  "planned": "2025-11-14T05:53:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": null
+              },
+              {
+                "mode": "train",
+                "line_name": "ICE 728",
+                "product": "ICE",
+                "trip_ref": "ice728",
+                "from": {
+                  "id": null,
+                  "name": "Nürnberg Hbf",
+                  "planned": "2025-11-14T06:13:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": null,
+                  "name": "Frankfurt (Main) Flughafen Fernbahnhof",
+                  "planned": "2025-11-14T09:19:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": [
+                  [
+                    11,
+                    49.6
+                  ],
+                  [
+                    11.08,
+                    49.45
+                  ]
+                ]
+              },
+              {
+                "mode": "train",
+                "line_name": "ICE 16",
+                "product": "ICE",
+                "trip_ref": "ice16",
+                "from": {
+                  "id": null,
+                  "name": "Frankfurt (Main) Flughafen Fernbahnhof",
+                  "planned": "2025-11-14T09:48:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": null,
+                  "name": "Liège, Guillemins Bf",
+                  "planned": "2025-11-14T11:43:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": [
+                  [
+                    11,
+                    49.6
+                  ],
+                  [
+                    11.08,
+                    49.45
+                  ]
+                ]
+              },
+              {
+                "mode": "train",
+                "line_name": "IC 535",
+                "product": "IC",
+                "trip_ref": "ic535",
+                "from": {
+                  "id": null,
+                  "name": "Liège-Guillemins",
+                  "planned": "2025-11-14T12:02:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": null,
+                  "name": "Louvain",
+                  "planned": "2025-11-14T12:32:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": [
+                  [
+                    11,
+                    49.6
+                  ],
+                  [
+                    11.08,
+                    49.45
+                  ]
+                ]
+              }
+            ]
+          }
+        ],
+        "de:nuernberg>de:frankfurt@2025-11-14T06:13:00.000Z": [
+          {
+            "provider": "transitous",
+            "refresh_token": "x",
+            "legs": [
+              {
+                "mode": "train",
+                "line_name": "ICE 728",
+                "product": "ICE",
+                "trip_ref": "ice728",
+                "from": {
+                  "id": null,
+                  "name": "Nürnberg Hbf",
+                  "planned": "2025-11-14T06:13:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": null,
+                  "name": "Frankfurt (Main) Hauptbahnhof",
+                  "planned": "2025-11-14T09:00:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": [
+                  [
+                    11,
+                    49.6
+                  ],
+                  [
+                    11.08,
+                    49.45
+                  ]
+                ]
+              }
+            ]
+          }
+        ],
+        "de:frankfurt>be:liege@2025-11-14T09:34:00.000Z": [
+          {
+            "provider": "transitous",
+            "refresh_token": "y",
+            "legs": [
+              {
+                "mode": "train",
+                "line_name": "ICE 16",
+                "product": "ICE",
+                "trip_ref": "ice16",
+                "from": {
+                  "id": null,
+                  "name": "Frankfurt (Main) Hauptbahnhof",
+                  "planned": "2025-11-14T09:34:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": null,
+                  "name": "Liège, Guillemins Bf",
+                  "planned": "2025-11-14T11:43:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": [
+                  [
+                    11,
+                    49.6
+                  ],
+                  [
+                    11.08,
+                    49.45
+                  ]
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "status": "full",
+        "matched": 4,
+        "refresh_token": null,
+        "trip_refs": [
+          "re19",
+          "ice728",
+          "ice16",
+          "ic535"
+        ],
+        "from_names": [
+          "Erlangen",
+          "Nürnberg Hbf",
+          "Frankfurt (Main) Hauptbahnhof",
+          "Liège-Guillemins"
+        ],
+        "from_platforms": [
+          "4",
+          "7",
+          "2",
+          "3"
+        ],
+        "first_departure": "2025-11-14T05:29:00.000Z",
+        "last_arrival": "2025-11-14T12:32:00.000Z"
+      }
+    },
+    {
+      "name": "return: the whole journey matches and is kept with its walks and refresh token",
+      "share": "db-navigator-share-return-no-platforms.txt",
+      "stations": {
+        "Erlangen": "de:erlangen",
+        "Nürnberg Hbf": "de:nuernberg",
+        "Frankfurt(Main)Hbf": "de:frankfurt",
+        "Liège-Guillemins": "be:liege",
+        "Leuven": "be:leuven"
+      },
+      "journeys": {
+        "be:leuven>de:erlangen@2025-11-16T13:27:00.000Z": [
+          {
+            "provider": "transitous",
+            "refresh_token": "itinerary-earlier",
+            "legs": [
+              {
+                "mode": "train",
+                "line_name": "IC 2812",
+                "product": "IC",
+                "trip_ref": "ic2812",
+                "from": {
+                  "id": null,
+                  "name": "Louvain",
+                  "planned": "2025-11-16T12:56:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": null,
+                  "name": "Liège-Guillemins",
+                  "planned": "2025-11-16T13:33:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": [
+                  [
+                    11,
+                    49.6
+                  ],
+                  [
+                    11.08,
+                    49.45
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "provider": "transitous",
+            "refresh_token": "itinerary-return",
+            "legs": [
+              {
+                "mode": "train",
+                "line_name": "IC 512",
+                "product": "IC",
+                "trip_ref": "ic512",
+                "from": {
+                  "id": null,
+                  "name": "Louvain",
+                  "planned": "2025-11-16T13:27:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": null,
+                  "name": "Liège-Guillemins",
+                  "planned": "2025-11-16T13:59:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": [
+                  [
+                    11,
+                    49.6
+                  ],
+                  [
+                    11.08,
+                    49.45
+                  ]
+                ]
+              },
+              {
+                "mode": "walk",
+                "line_name": null,
+                "product": null,
+                "trip_ref": null,
+                "from": {
+                  "id": null,
+                  "name": "Liège-Guillemins",
+                  "planned": "2025-11-16T13:59:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": null,
+                  "name": "Liège-Guillemins",
+                  "planned": "2025-11-16T14:04:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": null
+              },
+              {
+                "mode": "train",
+                "line_name": "ICE 17",
+                "product": "ICE",
+                "trip_ref": "ice17",
+                "from": {
+                  "id": null,
+                  "name": "Liège, Guillemins Bf",
+                  "planned": "2025-11-16T14:14:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": null,
+                  "name": "Frankfurt (Main) Hauptbahnhof",
+                  "planned": "2025-11-16T16:27:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": [
+                  [
+                    11,
+                    49.6
+                  ],
+                  [
+                    11.08,
+                    49.45
+                  ]
+                ]
+              },
+              {
+                "mode": "train",
+                "line_name": "ICE 725",
+                "product": "ICE",
+                "trip_ref": "ice725",
+                "from": {
+                  "id": null,
+                  "name": "Frankfurt (Main) Hauptbahnhof",
+                  "planned": "2025-11-16T16:57:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": null,
+                  "name": "Nürnberg Hbf",
+                  "planned": "2025-11-16T19:40:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": [
+                  [
+                    11,
+                    49.6
+                  ],
+                  [
+                    11.08,
+                    49.45
+                  ]
+                ]
+              },
+              {
+                "mode": "train",
+                "line_name": "ICE 700",
+                "product": "ICE",
+                "trip_ref": "ice700",
+                "from": {
+                  "id": null,
+                  "name": "Nürnberg Hbf",
+                  "planned": "2025-11-16T20:05:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": null,
+                  "name": "Erlangen",
+                  "planned": "2025-11-16T20:18:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": [
+                  [
+                    11,
+                    49.6
+                  ],
+                  [
+                    11.08,
+                    49.45
+                  ]
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "status": "full",
+        "matched": 4,
+        "refresh_token": "itinerary-return",
+        "trip_refs": [
+          "ic512",
+          "ice17",
+          "ice725",
+          "ice700"
+        ],
+        "from_names": [
+          "Louvain",
+          "Liège, Guillemins Bf",
+          "Frankfurt (Main) Hauptbahnhof",
+          "Nürnberg Hbf"
+        ],
+        "from_platforms": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "first_departure": "2025-11-16T13:27:00.000Z",
+        "last_arrival": "2025-11-16T20:18:00.000Z",
+        "legs": 5
+      }
+    },
+    {
+      "name": "return: only the last ride is in the timetable",
+      "share": "db-navigator-share-return-no-platforms.txt",
+      "stations": {
+        "Erlangen": "de:erlangen",
+        "Nürnberg Hbf": "de:nuernberg",
+        "Frankfurt(Main)Hbf": "de:frankfurt",
+        "Liège-Guillemins": "be:liege",
+        "Leuven": "be:leuven"
+      },
+      "journeys": {
+        "de:nuernberg>de:erlangen@2025-11-16T20:05:00.000Z": [
+          {
+            "provider": "transitous",
+            "refresh_token": "z",
+            "legs": [
+              {
+                "mode": "train",
+                "line_name": "ICE 700",
+                "product": "ICE",
+                "trip_ref": "ice700",
+                "from": {
+                  "id": null,
+                  "name": "Nürnberg Hbf",
+                  "planned": "2025-11-16T20:05:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": null,
+                  "name": "Erlangen",
+                  "planned": "2025-11-16T20:18:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": [
+                  [
+                    11,
+                    49.6
+                  ],
+                  [
+                    11.08,
+                    49.45
+                  ]
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "status": "partial",
+        "matched": 1,
+        "refresh_token": null,
+        "trip_refs": [
+          null,
+          null,
+          null,
+          "ice700"
+        ],
+        "from_names": [
+          "Leuven",
+          "Liège-Guillemins",
+          "Frankfurt(Main)Hbf",
+          "Nürnberg Hbf"
+        ],
+        "from_platforms": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "first_departure": "2025-11-16T13:27:00.000Z",
+        "last_arrival": "2025-11-16T20:18:00.000Z"
+      }
+    },
+    {
+      "name": "outward: no station is known (outside the timetable or abroad), so the parsed rides are saved",
+      "share": "db-navigator-share-4-legs.txt",
+      "stations": {},
+      "journeys": {},
+      "expect": {
+        "status": "none",
+        "matched": 0,
+        "refresh_token": null,
+        "trip_refs": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "from_names": [
+          "Erlangen",
+          "Nürnberg Hbf",
+          "Frankfurt(Main)Hbf",
+          "Liège-Guillemins"
+        ],
+        "from_platforms": [
+          "4",
+          "7",
+          "2",
+          "3"
+        ],
+        "first_departure": "2025-11-14T05:29:00.000Z",
+        "last_arrival": "2025-11-14T12:32:00.000Z"
+      }
+    }
+  ],
+  "zones": [
+    {
+      "date": "2025-11-14",
+      "time": "06:29",
+      "expect": "2025-11-14T05:29:00.000Z"
+    },
+    {
+      "date": "2026-07-01",
+      "time": "06:29",
+      "expect": "2026-07-01T04:29:00.000Z"
+    },
+    {
+      "date": "2026-03-29",
+      "time": "03:30",
+      "expect": "2026-03-29T01:30:00.000Z"
+    },
+    {
+      "date": "2026-10-25",
+      "time": "12:00",
+      "expect": "2026-10-25T11:00:00.000Z"
+    }
+  ],
+  "discounts": [
+    {
+      "name": "a card holder gets the discount their card matches",
+      "ticket": [
+        25,
+        50,
+        null
+      ],
+      "given": [],
+      "held": [
+        50
+      ],
+      "expect": 50
+    },
+    {
+      "name": "someone without a card takes the person without one",
+      "ticket": [
+        25,
+        50,
+        null
+      ],
+      "given": [],
+      "held": [],
+      "expect": null
+    },
+    {
+      "name": "a card that matches nothing left takes what is printed first",
+      "ticket": [
+        25,
+        50,
+        null
+      ],
+      "given": [
+        25,
+        null
+      ],
+      "held": [
+        25
+      ],
+      "expect": 50
+    },
+    {
+      "name": "without a person to spare, a traveller without a card still takes what is left",
+      "ticket": [
+        25,
+        25
+      ],
+      "given": [
+        25
+      ],
+      "held": [],
+      "expect": 25
+    },
+    {
+      "name": "once everybody on the ticket is given away, none",
+      "ticket": [
+        25
+      ],
+      "given": [
+        25
+      ],
+      "held": [
+        25
+      ],
+      "expect": null
+    },
+    {
+      "name": "a share names nobody: none",
+      "ticket": [],
+      "given": [],
+      "held": [
+        50
+      ],
+      "expect": null
+    }
+  ]
+}

@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.numynox.nexus.abeona.AppContainer
+import io.github.numynox.nexus.abeona.ui.intake.IncomingShare
 import io.github.numynox.nexus.abeona.data.AbeonaSettings
 import io.github.numynox.nexus.abeona.data.AlertSettings
 import io.github.numynox.nexus.abeona.reminders.LeaveReminder
@@ -43,6 +44,9 @@ class AppViewModel(val container: AppContainer, private val application: Applica
     val dataVersion: StateFlow<Int> = _dataVersion.asStateFlow()
 
     /** One-line confirmations ("Trip saved") for whichever screen is showing. */
+    /** A share waiting for the search screen to read it (intake). */
+    val share = MutableStateFlow<IncomingShare?>(null)
+
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val messages: SharedFlow<String> = _messages.asSharedFlow()
 

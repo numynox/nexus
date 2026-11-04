@@ -285,7 +285,8 @@ export interface AlternativesOrigin {
 /**
  * Before leaving, at the station or changing: the stop of the ride to catch,
  * from now. On board: the train's next stop (the first stopover still ahead,
- * else where the ride ends), from its arrival there. Arrived: none.
+ * else where the ride ends), from its arrival there; none when that is the
+ * destination. Arrived: none.
  */
 export function alternativesOrigin(legs: DayLeg[], day: TravelDay, now: number): AlternativesOrigin | null {
   if (day.kind === "arrived" || day.legIndex === null) return null;
@@ -300,6 +301,11 @@ export function alternativesOrigin(legs: DayLeg[], day: TravelDay, now: number):
       return { id: stop.id, name: stop.name, lat: stop.lat, lon: stop.lon, time: new Date(at).toISOString() };
     }
   }
+  // Where the ride ends. When that is the destination there is nothing left
+  // to find another way to.
+  const destination = legs[legs.length - 1].to;
+  const same = leg.to.id && destination.id ? leg.to.id === destination.id : leg.to.name === destination.name;
+  if (same) return null;
   const end = ms(effectiveTime(leg.to));
   return {
     id: leg.to.id,

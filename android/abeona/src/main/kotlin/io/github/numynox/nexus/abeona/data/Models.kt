@@ -187,16 +187,19 @@ data class SaveTripInput(
     val trainBinding: Boolean,
     val travelClass: Int,
     val priceCents: Int?,
-    /** 25, 50 or null; a BahnCard 100 is a [FareType]. */
-    val bahncardDiscount: Int? = null,
-    /** Who travels; null leaves it to the database, which puts the caller's own traveller on. */
-    val travellerIds: List<String>? = null,
+    /**
+     * Who travels, each with the BahnCard discount of their share; null leaves
+     * it to the database, which puts the caller's own traveller on.
+     */
+    val travellers: List<TripTraveller>? = null,
     /**
      * A journey that already arrived: saved as source "import", final, never
      * refreshed; [arrivalDelayMinutes] is the delay typed by hand.
      */
     val past: Boolean = false,
     val arrivalDelayMinutes: Int? = null,
+    /** "share" or "pdf" when it came through intake; the search otherwise. */
+    val source: String? = null,
 )
 
 /**
@@ -263,8 +266,16 @@ data class TripWarning(
     val message: String,
 )
 
+/**
+ * abeona_trip_travellers: someone on a trip, with the BahnCard discount (25, 50
+ * or null) their share of the fare was bought with. A BahnCard 100 is a
+ * [FareType] and needs nothing here.
+ */
 @Serializable
-internal data class TripTravellerRow(@SerialName("traveller_id") val travellerId: String)
+data class TripTraveller(
+    @SerialName("traveller_id") val travellerId: String,
+    @SerialName("bahncard_discount") val bahncardDiscount: Int? = null,
+)
 
 @Serializable
 data class HouseholdMember(

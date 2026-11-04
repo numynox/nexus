@@ -2,12 +2,24 @@
   import { ArrowLeft, ExternalLink, RefreshCw, Ticket, Trash2 } from "lucide-svelte";
   import { onMount } from "svelte";
   import { getBaseUrl } from "../../lib/config";
-  import { deleteTrip, describeError, fetchTrip, fetchTripWarnings, refreshTripLive, type Trip, type TripWarning } from "../../lib/data";
+  import {
+    deleteTrip,
+    describeError,
+    fetchBahnCards,
+    fetchTravellers,
+    fetchTrip,
+    fetchTripTravellers,
+    fetchTripWarnings,
+    refreshTripLive,
+    type Trip,
+    type TripWarning,
+  } from "../../lib/data";
   import { fareLabel, formatLongDate, formatPrice, formatTime } from "../../lib/format";
   import { dbNavigatorUrl, hasArrived, isLiveWindow, LIVE_REFRESH_MS, summarise } from "../../lib/journey";
   import { getStationMinutes } from "../../lib/storage";
   import { trainBindingLifted, transfers } from "../../lib/transfer";
   import { alternativesOrigin, alternativesReason, travelDay } from "../../lib/travelday";
+  import { cardsForTrip } from "../../lib/travellers";
   import BindingBanner from "../common/BindingBanner.svelte";
   import TravelDayHero from "../common/TravelDayHero.svelte";
   import AlternativesSection from "./AlternativesSection.svelte";
@@ -56,14 +68,18 @@
   // until shortly after it arrives.
   const live = $derived(legs.length > 0 && isLiveWindow(legs, now));
   const day = $derived(live ? travelDay(legs, now, stationMinutes) : null);
-  const reason = $derived(day ? alternativesReason(legs, day) : null);
+  // No origin once the only stop left is the destination: then nothing is offered.
   const origin = $derived(day ? alternativesOrigin(legs, day, now) : null);
+  const reason = $derived(day && origin ? alternativesReason(legs, day) : null);
 
   async function load(id: string) {
     try {
       trip = await fetchTrip(id);
       if (!trip) error = "This trip does not exist, or it belongs to another household.";
-      else void loadWarnings(trip.id);
+      else {
+        void loadWarnings(trip.id);
+        void loadTicketCards(trip);
+      }
     } catch (e) {
       error = describeError(e);
     } finally {
@@ -102,6 +118,28 @@
       error = describeError(e);
       deleting = false;
       confirmDialog?.close();
+    }
+  }
+
+  /** The travellers' BahnCards to show with the ticket, one tap apart in the viewer. */
+  let ticketCards = $state<{ key: string; label: string; path: string }[]>([]);
+
+  async function loadTicketCards(t: Trip) {
+    try {
+      const [cards, riders, people] = await Promise.all([
+        fetchBahnCards(),
+        fetchTripTravellers(t.id).catch(() => null),
+        fetchTravellers().catch(() => []),
+      ]);
+      const day = new Date(t.planned_departure).toLocaleDateString("sv-SE");
+      const names = new Map(people.map((p) => [p.id, p.name]));
+      ticketCards = cardsForTrip(cards, riders, day).map((c) => ({
+        key: c.id,
+        label: [names.get(c.traveller_id), `BahnCard ${c.kind}`].filter(Boolean).join(" · "),
+        path: c.file_path as string,
+      }));
+    } catch {
+      ticketCards = [];
     }
   }
 
@@ -302,6 +340,7 @@
       path={trip.ticket_path}
       title={trip.title ?? `${trip.origin_name} → ${trip.destination_name}`}
       {navigatorUrl}
+      extras={ticketCards}
       onClose={() => (showTicket = false)}
     />
   {/if}

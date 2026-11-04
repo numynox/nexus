@@ -12,6 +12,7 @@ import io.github.numynox.nexus.abeona.data.Journey
 import io.github.numynox.nexus.abeona.data.Leg
 import io.github.numynox.nexus.abeona.data.ShareLink
 import io.github.numynox.nexus.abeona.data.Traveller
+import io.github.numynox.nexus.abeona.data.TripTraveller
 import io.github.numynox.nexus.abeona.data.Trip
 import io.github.numynox.nexus.abeona.data.TripWarning
 import io.github.numynox.nexus.abeona.domain.AlternativesOrigin
@@ -76,7 +77,8 @@ data class ReplacementSearch(
 /** Who travels on the trip, everyone who could, and what is wrong with their BahnCards. */
 data class TripPeople(
     val travellers: List<Traveller>,
-    val onTrip: Set<String>,
+    /** Who travels, each with the discount of their share. */
+    val onTrip: List<TripTraveller>,
     val warnings: List<TripWarning>,
 )
 
@@ -176,39 +178,40 @@ class TripViewModel(
         _people.value = runCatching {
             coroutineScope {
                 val travellers = async { repository.travellers() }
-                val onTrip = async { repository.tripTravellerIds(tripId) }
+                val onTrip = async { repository.tripTravellers(tripId) }
                 val warnings = async { repository.tripWarnings(tripId) }
-                TripPeople(travellers.await(), onTrip.await().toSet(), warnings.await())
+                TripPeople(travellers.await(), onTrip.await(), warnings.await())
             }
         }.getOrElse { _people.value }
     }
 
-    /** Puts a traveller on the trip or takes them off; the warnings follow. */
+    /** Puts a traveller on the trip, without a discount until one is chosen, or takes them off; the warnings follow. */
     fun toggleTraveller(id: String, onError: (String) -> Unit) {
         val current = _people.value ?: return
-        val next = if (id in current.onTrip) current.onTrip - id else current.onTrip + id
-        _people.value = current.copy(onTrip = next)
-        viewModelScope.launch {
-            runCatching { container.repository.setTripTravellers(tripId, next.toList()) }
-                .onSuccess { loadPeople() }
-                .onFailure { _people.value = current; onError(it.describe()) }
+        val next = if (current.onTrip.any { it.travellerId == id }) {
+            current.onTrip.filter { it.travellerId != id }
+        } else {
+            current.onTrip + TripTraveller(id)
         }
+        saveTravellers(current, next, onError)
     }
 
-    /** The BahnCard discount of the fare (25, 50 or null); the warnings follow. */
-    fun setBahncardDiscount(discount: Int?, onError: (String) -> Unit) {
-        val detail = _detail.value.valueOrNull ?: return
-        if (detail.trip.bahncardDiscount == discount) return
-        _detail.value = Loadable.Ready(detail.copy(trip = detail.trip.copy(bahncardDiscount = discount)))
+    /** The BahnCard discount of one traveller's share (25, 50 or null); the warnings follow. */
+    fun setDiscount(id: String, discount: Int?, onError: (String) -> Unit) {
+        val current = _people.value ?: return
+        if (current.onTrip.firstOrNull { it.travellerId == id }?.bahncardDiscount == discount) return
+        saveTravellers(current, current.onTrip.map { if (it.travellerId == id) it.copy(bahncardDiscount = discount) else it }, onError)
+    }
+
+    private fun saveTravellers(current: TripPeople, next: List<TripTraveller>, onError: (String) -> Unit) {
+        _people.value = current.copy(onTrip = next)
+        // The trip keeps the discount everybody shares, as the database does.
+        val shared = next.map { it.bahncardDiscount }.distinct().singleOrNull()
+        _detail.value.valueOrNull?.let { _detail.value = Loadable.Ready(it.copy(trip = it.trip.copy(bahncardDiscount = shared))) }
         viewModelScope.launch {
-            runCatching { container.repository.setBahncardDiscount(tripId, discount) }
+            runCatching { container.repository.saveTripTravellers(tripId, next) }
                 .onSuccess { loadPeople() }
-                .onFailure {
-                    _detail.value.valueOrNull?.let { latest ->
-                        _detail.value = Loadable.Ready(latest.copy(trip = latest.trip.copy(bahncardDiscount = detail.trip.bahncardDiscount)))
-                    }
-                    onError(it.describe())
-                }
+                .onFailure { _people.value = current; onError(it.describe()) }
         }
     }
 

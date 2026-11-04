@@ -11,9 +11,24 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.material.icons.rounded.PictureAsPdf
+import androidx.compose.material.icons.rounded.QrCode2
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.rememberTransformableState
-import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +40,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.material.icons.rounded.ConfirmationNumber
+import androidx.compose.material3.FilterChip
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
@@ -84,8 +102,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** A ticket ready to show: its pages as images, for the trip it belongs to. */
-data class TicketPages(val trip: Trip, val pages: List<Bitmap>, val offlineSince: Instant?)
+/**
+ * A ticket ready to show: its pages as images and, when the PDF embeds one,
+ * its barcode on its own, for the trip it belongs to.
+ */
+data class TicketPages(val trip: Trip, val pages: List<Bitmap>, val code: Bitmap?, val offlineSince: Instant?)
+
+/** Something else to show at the gate with the ticket: a traveller's BahnCard, its file as pages and its code. */
+data class TicketDocument(val key: String, val label: String, val pages: List<Bitmap>, val code: Bitmap?)
 
 /** Draws PDF pages, or decodes an image, at a width sharp enough to scan. */
 object TicketRenderer {
@@ -110,9 +134,46 @@ object TicketRenderer {
         }
 }
 
-class TicketViewModel(private val container: AppContainer, private val tripId: String) : ViewModel() {
+class TicketViewModel(
+    private val container: AppContainer,
+    private val tripId: String,
+    private val context: android.content.Context,
+) : ViewModel() {
     private val _ticket = MutableStateFlow<Loadable<TicketPages>>(Loadable.Loading)
     val ticket: StateFlow<Loadable<TicketPages>> = _ticket.asStateFlow()
+
+    /** The BahnCards of the trip's travellers that have a file, loaded after the ticket. */
+    private val _cards = MutableStateFlow<List<TicketDocument>>(emptyList())
+    val cards: StateFlow<List<TicketDocument>> = _cards.asStateFlow()
+
+    /**
+     * One card per traveller on the trip: valid on the day, and of at least
+     * their discount when they have one. Offline, without the trip's
+     * travellers, every card valid on the day. A card that fails to load is
+     * left out; the ticket stands on its own.
+     */
+    private suspend fun loadCards(trip: Trip) {
+        val cards = runCatching { container.trips.bahnCards().value }.getOrDefault(emptyList()).filter { it.filePath != null }
+        if (cards.isEmpty()) return
+        val day = trip.departureAt.atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+        val riders = runCatching { container.repository.tripTravellers(trip.id) }.getOrNull()
+        val names = runCatching { container.repository.travellers().associate { it.id to it.name } }.getOrDefault(emptyMap())
+        val chosen = cards
+            .filter { !it.from.isAfter(day) && !it.to.isBefore(day) }
+            .filter { card -> riders == null || riders.any { it.travellerId == card.travellerId } }
+            .groupBy { it.travellerId }
+            .mapNotNull { (traveller, own) ->
+                val need = riders?.firstOrNull { it.travellerId == traveller }?.bahncardDiscount ?: 0
+                own.filter { it.kind >= need }.maxByOrNull { it.kind } ?: own.maxByOrNull { it.kind }
+            }
+        _cards.value = chosen.mapNotNull { card ->
+            runCatching {
+                val file = container.trips.bahnCardFile(card)
+                val (pages, code) = withContext(Dispatchers.Default) { TicketRenderer.render(file) to TicketCode.extract(context, file) }
+                TicketDocument(card.id, listOfNotNull(names[card.travellerId], "BahnCard ${card.kind}").joinToString(" · "), pages, code)
+            }.getOrNull()?.takeIf { it.pages.isNotEmpty() }
+        }
+    }
 
     fun load() = viewModelScope.launch {
         _ticket.value = Loadable.Loading
@@ -120,9 +181,10 @@ class TicketViewModel(private val container: AppContainer, private val tripId: S
             val fetched = container.trips.trip(tripId)
             val trip = fetched.value ?: error("This trip no longer exists.")
             val file = container.trips.ticket(trip)
-            val pages = withContext(Dispatchers.Default) { TicketRenderer.render(file) }
+            val (pages, code) = withContext(Dispatchers.Default) { TicketRenderer.render(file) to TicketCode.extract(context, file) }
             if (pages.isEmpty()) error("This ticket could not be opened.")
-            Loadable.Ready(TicketPages(trip, pages, fetched.offlineSince))
+            viewModelScope.launch { loadCards(trip) }
+            Loadable.Ready(TicketPages(trip, pages, code, fetched.offlineSince))
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -148,11 +210,16 @@ class TicketViewModel(private val container: AppContainer, private val tripId: S
 @Composable
 fun TicketScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
     val context = LocalContext.current
-    val viewModel = containerViewModel(key = "ticket-$tripId") { TicketViewModel(it, tripId) }
+    val viewModel = containerViewModel(key = "ticket-$tripId") { TicketViewModel(it, tripId, context.applicationContext) }
     val ticket by viewModel.ticket.collectAsStateWithLifecycle()
     val replace = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) viewModel.replace(uri, context.applicationContext as android.app.Application) { app.say(it) }
     }
+
+    val cards by viewModel.cards.collectAsStateWithLifecycle()
+    // The ticket first, then the BahnCards to show with it, one tap apart.
+    val documents = (ticket as? Loadable.Ready)?.value?.let { listOf(TicketDocument(TICKET, "Ticket", it.pages, it.code)) + cards }.orEmpty()
+    var shown by rememberSaveable { mutableStateOf(TICKET) }
 
     LaunchedEffect(tripId) { viewModel.load() }
     FullBrightness()
@@ -183,6 +250,27 @@ fun TicketScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                     (ticket as? Loadable.Ready)?.value?.offlineSince?.let { OfflinePill(it, Modifier.padding(top = 4.dp)) }
                 }
             }
+            if (documents.size > 1) {
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    documents.forEach { document ->
+                        FilterChip(
+                            selected = document.key == shown,
+                            onClick = { shown = document.key },
+                            label = { Text(document.label) },
+                            leadingIcon = {
+                                Icon(
+                                    if (document.key == TICKET) Icons.Rounded.ConfirmationNumber else Icons.Rounded.Badge,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            },
+                        )
+                    }
+                }
+            }
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (val state = ticket) {
                     Loadable.Loading -> LoadingState(Modifier.fillMaxSize())
@@ -190,7 +278,10 @@ fun TicketScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                         Text(state.message, color = AbeonaColors.Ink)
                         TextButton(onClick = { viewModel.load() }) { Text("Try again") }
                     }
-                    is Loadable.Ready -> ZoomablePages(state.value.pages)
+                    is Loadable.Ready -> {
+                        val document = documents.firstOrNull { it.key == shown } ?: documents.first()
+                        DocumentView(document, description = if (document.key == TICKET) "Ticket page" else "BahnCard")
+                    }
                 }
             }
             TicketFooter(
@@ -202,34 +293,134 @@ fun TicketScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
     }
 }
 
-/** Pinch to zoom, drag to move, double tap to go back to fit. */
+/**
+ * Pinch to zoom around the fingers, drag to move while zoomed, double tap to
+ * zoom in there or back out. One transform for all pages, kept inside the
+ * content, so zooming out always ends back at the fit. At fit size the pages
+ * scroll as usual.
+ */
 @Composable
 internal fun ZoomablePages(pages: List<Bitmap>, description: String = "Ticket page") {
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
-    val transform = rememberTransformableState { zoom, pan, _ ->
-        scale = (scale * zoom).coerceIn(1f, 5f)
-        offset = if (scale == 1f) Offset.Zero else offset + pan
+    var size by remember { mutableStateOf(IntSize.Zero) }
+
+    // Content point p is drawn at p * scale + offset (origin top left), so the
+    // offset may range from size - size * scale up to zero.
+    fun clamp(value: Offset, at: Float) = Offset(
+        value.x.coerceIn(size.width * (1 - at), 0f),
+        value.y.coerceIn(size.height * (1 - at), 0f),
+    )
+    fun zoomTo(target: Float, focus: Offset) {
+        val next = target.coerceIn(1f, 5f)
+        offset = clamp(focus - (focus - offset) * (next / scale), next)
+        scale = next
     }
-    Column(
+
+    Box(
         Modifier
             .fillMaxSize()
-            .pointerInput(Unit) { detectTapGestures(onDoubleTap = { scale = 1f; offset = Offset.Zero }) }
-            .transformable(transform)
-            .verticalScroll(rememberScrollState(), enabled = scale == 1f)
-            .padding(horizontal = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .clipToBounds()
+            .onSizeChanged { size = it }
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                    do {
+                        // Initial pass: ahead of the page scroll, which only
+                        // gets the gesture when this leaves it alone.
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        val fingers = event.changes.count { it.pressed }
+                        if (fingers >= 2 || scale > 1f) {
+                            val zoom = event.calculateZoom()
+                            val pan = event.calculatePan()
+                            if (zoom != 1f) zoomTo(scale * zoom, event.calculateCentroid(useCurrent = true))
+                            if (pan != Offset.Zero && scale > 1f) offset = clamp(offset + pan, scale)
+                            event.changes.forEach { if (it.positionChanged()) it.consume() }
+                        }
+                    } while (event.changes.any { it.pressed })
+                }
+            }
+            .pointerInput(Unit) {
+                detectTapGestures(onDoubleTap = { at -> if (scale > 1f) zoomTo(1f, at) else zoomTo(2.5f, at) })
+            },
     ) {
-        pages.forEach { page ->
-            Image(
-                bitmap = page.asImageBitmap(),
-                contentDescription = description,
-                contentScale = ContentScale.FillWidth,
-                modifier = Modifier.fillMaxWidth().graphicsLayer {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    transformOrigin = TransformOrigin(0f, 0f)
                     scaleX = scale; scaleY = scale
                     translationX = offset.x; translationY = offset.y
-                },
-            )
+                }
+                .verticalScroll(rememberScrollState(), enabled = scale == 1f)
+                .padding(horizontal = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            pages.forEach { page ->
+                Image(
+                    bitmap = page.asImageBitmap(),
+                    contentDescription = description,
+                    contentScale = ContentScale.FillWidth,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+    }
+}
+
+private const val TICKET = "ticket"
+
+/**
+ * A ticket or a BahnCard at the gate: its code first, when the file has one,
+ * the whole file on request; and back.
+ */
+@Composable
+internal fun DocumentView(document: TicketDocument, description: String) {
+    var showPdf by rememberSaveable(document.key) { mutableStateOf(document.code == null) }
+    val code = document.code
+    Box(Modifier.fillMaxSize()) {
+        if (code != null && !showPdf) {
+            TicketCodeView(code, onShowPdf = { showPdf = true })
+        } else {
+            ZoomablePages(document.pages, description = description)
+            if (code != null) {
+                FilledTonalButton(
+                    onClick = { showPdf = false },
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp),
+                ) {
+                    Icon(Icons.Rounded.QrCode2, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text("Show code", modifier = Modifier.padding(start = 8.dp))
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The ticket's barcode alone, as large as the screen allows, with the white
+ * margin scanners need. Drawn without smoothing, so every module stays sharp.
+ */
+@Composable
+private fun TicketCodeView(code: Bitmap, onShowPdf: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Image(
+            bitmap = code.asImageBitmap(),
+            contentDescription = "Ticket barcode",
+            contentScale = ContentScale.Fit,
+            filterQuality = FilterQuality.None,
+            modifier = Modifier.fillMaxWidth().aspectRatio(code.width.toFloat() / code.height).background(Color.White).padding(16.dp),
+        )
+        OutlinedButton(
+            onClick = onShowPdf,
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = AbeonaColors.Ink),
+            modifier = Modifier.padding(top = 24.dp),
+        ) {
+            Icon(Icons.Rounded.PictureAsPdf, contentDescription = null, modifier = Modifier.size(18.dp))
+            Text("Show PDF", modifier = Modifier.padding(start = 8.dp))
         }
     }
 }

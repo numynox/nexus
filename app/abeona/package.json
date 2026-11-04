@@ -6,7 +6,7 @@
     "dev": "astro dev --port 4324",
     "build": "astro check && svelte-check --tsconfig ./tsconfig.json && astro build",
     "preview": "astro preview",
-    "test": "node --test src/lib/*.test.ts",
+    "test": "node --test src/lib/*.test.ts src/lib/intake/*.test.ts",
     "astro": "astro"
   },
   "dependencies": {

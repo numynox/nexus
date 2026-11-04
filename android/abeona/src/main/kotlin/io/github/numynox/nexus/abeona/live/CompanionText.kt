@@ -18,8 +18,18 @@ import io.github.numynox.nexus.abeona.ui.common.TripFormat
 import java.time.Instant
 import kotlin.math.roundToInt
 
-/** What the ongoing notification says: one line, the next thing to do. */
-data class CompanionStatus(val title: String, val text: String, val finished: Boolean)
+/**
+ * What the ongoing notification says: one line, the next thing to do. [chip]
+ * is the few characters Android 16+ shows in the status bar for a Live Update
+ * ("12 min", "Pl. 7"); null when there is nothing to count down.
+ */
+data class CompanionStatus(val title: String, val text: String, val finished: Boolean, val chip: String? = null)
+
+/** "4 min", "1 h 05": short enough for the status bar chip. */
+internal fun chipMinutes(minutes: Int?): String? {
+    val m = minutes?.coerceAtLeast(0) ?: return null
+    return if (m < 60) "$m min" else "${m / 60} h ${"%02d".format(m % 60)}"
+}
 
 /** Something worth a heads-up: the platform moved, a train was cancelled, a change is at risk. */
 data class CompanionAlert(val key: String, val title: String, val text: String)
@@ -51,11 +61,19 @@ fun companionStatus(
     val leg = trip.legs[index]
     val parts = mutableListOf("${leg.label} → ${leg.to.name}")
     if (day.missedChange && day.kind != TravelDayKind.OnBoard) {
-        return CompanionStatus(title, "Looks like you missed the ${leg.label} · see alternatives in Abeona", finished = false)
+        return CompanionStatus(title, "Looks like you missed the ${leg.label} · see alternatives in Abeona", finished = false, chip = "Missed")
     }
     if (leg.cancelled) {
         parts += "cancelled"
-        return CompanionStatus(title, parts.joinToString(" · "), finished = false)
+        return CompanionStatus(title, parts.joinToString(" · "), finished = false, chip = "Cancelled")
+    }
+    // Before leaving: until it is time to go. At the station: the platform to
+    // find, else the departure. On board: the next change or the arrival.
+    val chip = when (day.kind) {
+        TravelDayKind.BeforeLeaving -> chipMinutes(day.minutesToLeave)
+        TravelDayKind.AtStation, TravelDayKind.Changing ->
+            TripFormat.platform(leg.from.shownPlatform) ?: chipMinutes(day.minutesToDeparture)
+        else -> chipMinutes(day.minutesToArrival)
     }
     when (day.kind) {
         TravelDayKind.BeforeLeaving, TravelDayKind.AtStation, TravelDayKind.Changing -> {
@@ -79,7 +97,7 @@ fun companionStatus(
             if (day.missedChange) parts.add(0, "Looks like you missed your change")
         }
     }
-    return CompanionStatus(title, parts.joinToString(" · "), finished = false)
+    return CompanionStatus(title, parts.joinToString(" · "), finished = false, chip = if (day.missedChange) "Missed" else chip)
 }
 
 /** The delay that matters for a ride now: its departure until it has left, then its arrival. */

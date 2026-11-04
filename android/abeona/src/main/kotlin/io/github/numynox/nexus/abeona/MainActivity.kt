@@ -6,6 +6,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import io.github.numynox.nexus.abeona.ui.AbeonaApp
+import io.github.numynox.nexus.abeona.ui.intake.IncomingShare
 import io.github.numynox.nexus.abeona.widget.NextTripWidget
 import io.github.numynox.nexus.core.ui.app.startNexusActivity
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,17 +16,29 @@ class MainActivity : ComponentActivity() {
     /** A trip to open, from the widget or a notification; consumed by the navigation. */
     private val openTrip = MutableStateFlow<String?>(null)
 
+    /** A share from DB Navigator or a ticket PDF (the share sheet); consumed by the search screen. */
+    private val incoming = MutableStateFlow<IncomingShare?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val container = (application as AbeonaApplication).container
         startNexusActivity(container.core)
         super.onCreate(savedInstanceState)
-        if (savedInstanceState == null) openTrip.value = intent.getStringExtra(EXTRA_TRIP_ID)
-        setContent { AbeonaApp(container, openTrip) }
+        if (savedInstanceState == null) {
+            openTrip.value = intent.getStringExtra(EXTRA_TRIP_ID)
+            receive(intent)
+        }
+        setContent { AbeonaApp(container, openTrip, incoming) }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         intent.getStringExtra(EXTRA_TRIP_ID)?.let { openTrip.value = it }
+        receive(intent)
+    }
+
+    /** Takes a share (ACTION_SEND) to the intake; anything else is ignored. */
+    fun receive(intent: Intent) {
+        IncomingShare.from(intent)?.let { incoming.value = it }
     }
 
     /** Leaving the app is when the home screen shows again: bring the widget up to date. */

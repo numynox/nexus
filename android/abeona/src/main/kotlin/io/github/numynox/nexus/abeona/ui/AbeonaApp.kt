@@ -8,11 +8,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.numynox.nexus.abeona.AppContainer
 import io.github.numynox.nexus.abeona.R
 import io.github.numynox.nexus.abeona.ui.common.containerViewModel
+import io.github.numynox.nexus.abeona.ui.intake.IncomingShare
 import io.github.numynox.nexus.core.ui.app.NexusApp
 import kotlinx.coroutines.flow.MutableStateFlow
 
 @Composable
-fun AbeonaApp(container: AppContainer, openTrip: MutableStateFlow<String?>) {
+fun AbeonaApp(container: AppContainer, openTrip: MutableStateFlow<String?>, incoming: MutableStateFlow<IncomingShare?>) {
     val application = LocalContext.current.applicationContext as android.app.Application
     val app = containerViewModel { AppViewModel(it, application) }
     val settings by app.settings.collectAsStateWithLifecycle()
@@ -27,6 +28,6 @@ fun AbeonaApp(container: AppContainer, openTrip: MutableStateFlow<String?>) {
         tagline = "Your trains, your tickets, and every change on time.",
         logo = { painterResource(R.drawable.abeona_logo) },
     ) {
-        MainScaffold(app, openTrip)
+        MainScaffold(app, openTrip, incoming)
     }
 }

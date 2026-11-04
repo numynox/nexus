@@ -13,6 +13,7 @@ import type {
   Station,
   Stopover,
 } from "./transit";
+import type { TransitPort } from "./intake/match";
 
 /**
  * The only module that talks to Supabase. Re-exported so call sites keep
@@ -22,13 +23,9 @@ export { describeError };
 
 // ── Types ──────────────────────────────────────────────────────────
 
-export type FareTypeValue =
-  | "flex"
-  | "saver"
-  | "regional"
-  | "deutschlandticket"
-  | "bahncard100"
-  | "other";
+/** abeona_trips.fare_type; defined with the fare names intake reads (intake/fare.ts). */
+export type { FareTypeValue } from "./intake/fare";
+import type { FareTypeValue } from "./intake/fare";
 
 export interface Trip {
   id: string;
@@ -225,14 +222,15 @@ export interface SaveTripInput {
   train_binding: boolean;
   travel_class: 1 | 2;
   price_cents?: number | null;
-  bahncard_discount?: BahnCardKind | null;
-  /** Who travels. Left out, the trip gets the caller's own traveller. */
-  traveller_ids?: string[];
+  /** Who travels, each with the BahnCard discount of their share. Left out, the trip gets the caller's own traveller. */
+  travellers?: TripTraveller[];
   /**
    * A trip that already happened: saved as source "import", final, never
    * refreshed. The delay, in minutes at the destination, is entered by hand.
    */
   past?: { arrival_delay_minutes: number | null };
+  /** Where it came from when not the search: a DB Navigator share or a ticket PDF (intake). */
+  source?: "share" | "pdf";
 }
 
 export type BahnCardKind = 25 | 50 | 100;
@@ -527,16 +525,17 @@ export async function fetchUpcomingTrips(): Promise<Trip[]> {
 }
 
 /** The most recent trips that have already arrived, newest first. */
-export async function fetchPastTrips(limit = 5): Promise<Trip[]> {
+export async function fetchPastTrips(limit = 5, before?: string): Promise<Trip[]> {
   const household = await ensureHousehold();
   const sb = getSupabaseClient();
-  const { data, error } = await sb
+  let query = sb
     .from("abeona_trips")
     .select(TRIP_SELECT)
     .eq("household_id", household)
-    .lt("planned_arrival", new Date().toISOString())
-    .order("planned_departure", { ascending: false })
-    .limit(limit);
+    .lt("planned_arrival", new Date().toISOString());
+  // The next page: older than the oldest shown.
+  if (before) query = query.lt("planned_departure", before);
+  const { data, error } = await query.order("planned_departure", { ascending: false }).limit(limit);
   if (error) throw error;
   return ((data ?? []) as TripRow[]).map(tripFromRow);
 }
@@ -563,7 +562,7 @@ export async function saveTrip(journey: Journey, input: SaveTripInput): Promise<
   const { data, error } = await sb.rpc("abeona_save_trip", {
     p_trip: {
       title: input.title?.trim() || null,
-      source: input.past ? "import" : "search",
+      source: input.past ? "import" : (input.source ?? "search"),
       ...(input.past && input.past.arrival_delay_minutes !== null
         ? { arrival_delay_minutes: input.past.arrival_delay_minutes }
         : {}),
@@ -573,8 +572,10 @@ export async function saveTrip(journey: Journey, input: SaveTripInput): Promise<
       train_binding: input.train_binding,
       travel_class: input.travel_class,
       price_cents: input.price_cents ?? null,
-      bahncard_discount: input.bahncard_discount ?? null,
-      ...(input.traveller_ids ? { traveller_ids: input.traveller_ids } : {}),
+      // Each traveller's own discount; the RPC keeps the shared one on the trip for older APKs.
+      ...(input.travellers
+        ? { travellers: input.travellers.map((t) => ({ id: t.traveller_id, bahncard_discount: t.bahncard_discount })) }
+        : {}),
     },
     // The contract's Leg is exactly what the RPC reads.
     p_legs: journey.legs,
@@ -593,27 +594,30 @@ export async function deleteTrip(trip: Pick<Trip, "id" | "ticket_path">): Promis
   if (error) throw error;
 }
 
-/** The BahnCard discount of the trip's fare; null for none. */
-export async function setTripBahncardDiscount(tripId: string, discount: BahnCardKind | null): Promise<void> {
-  const sb = getSupabaseClient();
-  const { error } = await sb
-    .from("abeona_trips")
-    .update({ bahncard_discount: discount, updated_at: new Date().toISOString() })
-    .eq("id", tripId);
-  if (error) throw error;
+/** abeona_trip_travellers: someone on a trip, with the BahnCard discount their share was bought with. */
+export interface TripTraveller {
+  traveller_id: string;
+  bahncard_discount: BahnCardKind | null;
 }
 
-/** The ids of the travellers on a trip. */
-export async function fetchTripTravellerIds(tripId: string): Promise<string[]> {
+/** Who travels on a trip, and with which discount. */
+export async function fetchTripTravellers(tripId: string): Promise<TripTraveller[]> {
   const sb = getSupabaseClient();
-  const { data, error } = await sb.from("abeona_trip_travellers").select("traveller_id").eq("trip_id", tripId);
+  const { data, error } = await sb
+    .from("abeona_trip_travellers")
+    .select("traveller_id, bahncard_discount")
+    .eq("trip_id", tripId);
   if (error) throw error;
-  return ((data ?? []) as { traveller_id: string }[]).map((r) => r.traveller_id);
+  return (data ?? []) as TripTraveller[];
 }
 
-export async function setTripTravellers(tripId: string, travellerIds: string[]): Promise<void> {
+/** Replaces who travels on a trip and with which discount, in one call. */
+export async function saveTripTravellers(tripId: string, travellers: TripTraveller[]): Promise<void> {
   const sb = getSupabaseClient();
-  const { error } = await sb.rpc("abeona_set_trip_travellers", { p_trip_id: tripId, p_traveller_ids: travellerIds });
+  const { error } = await sb.rpc("abeona_save_trip_travellers", {
+    p_trip_id: tripId,
+    p_travellers: travellers.map((t) => ({ id: t.traveller_id, bahncard_discount: t.bahncard_discount })),
+  });
   if (error) throw error;
 }
 
@@ -859,6 +863,12 @@ export async function searchJourneys(request: JourneysRequest): Promise<Journeys
     previous_cursor: result.previous_cursor ?? null,
   };
 }
+
+/** The timetable as intake's matching asks it (intake/match.ts): station names, then journeys. */
+export const transitPort: TransitPort = {
+  stations: searchStations,
+  journeys: async (from, to, time) => (await searchJourneys({ from, to, time })).journeys,
+};
 
 /**
  * Connections from `from` (a stop id, else "lat,lon") to the trip's

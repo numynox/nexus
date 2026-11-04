@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.ConfirmationNumber
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Place
@@ -63,6 +64,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -81,6 +83,9 @@ import io.github.numynox.nexus.abeona.ui.common.DelayBadge
 import io.github.numynox.nexus.abeona.ui.common.LegChips
 import io.github.numynox.nexus.abeona.ui.common.TripFormat
 import io.github.numynox.nexus.abeona.ui.common.containerViewModel
+import io.github.numynox.nexus.abeona.ui.intake.IntakeSheet
+import io.github.numynox.nexus.abeona.ui.intake.IntakeState
+import io.github.numynox.nexus.abeona.ui.intake.IntakeViewModel
 import io.github.numynox.nexus.core.ui.Loadable
 import io.github.numynox.nexus.core.ui.components.ConnectedChoiceRow
 import io.github.numynox.nexus.core.ui.components.EmptyState
@@ -103,6 +108,19 @@ private enum class Picking { From, To }
 @Composable
 fun SearchScreen(app: AppViewModel, navigator: Navigator) {
     val viewModel = containerViewModel { SearchViewModel(it) }
+    val application = LocalContext.current.applicationContext as android.app.Application
+    val intake = containerViewModel { IntakeViewModel(it, application) }
+    val intakeState by intake.state.collectAsStateWithLifecycle()
+    var intakeOpen by remember { mutableStateOf(false) }
+    // A share from DB Navigator or a PDF from another app (MainActivity → AppViewModel).
+    val shared by app.share.collectAsStateWithLifecycle()
+    LaunchedEffect(shared) {
+        shared?.let {
+            app.share.value = null
+            intakeOpen = true
+            intake.receive(it)
+        }
+    }
     val form by viewModel.form.collectAsStateWithLifecycle()
     val results by viewModel.results.collectAsStateWithLifecycle()
     var picking by remember { mutableStateOf<Picking?>(null) }
@@ -112,7 +130,19 @@ fun SearchScreen(app: AppViewModel, navigator: Navigator) {
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Search") }) }, snackbarHost = { SnackbarHost(snackbar) }) { padding ->
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Search") },
+                actions = {
+                    IconButton(onClick = { intakeOpen = true }) {
+                        Icon(Icons.Rounded.ConfirmationNumber, contentDescription = "Add from a ticket or share")
+                    }
+                },
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbar) },
+    ) { padding ->
         LazyColumn(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 4.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -132,6 +162,7 @@ fun SearchScreen(app: AppViewModel, navigator: Navigator) {
                     onSearch = viewModel::search,
                 )
             }
+            item(key = "intake") { IntakeEntry(onClick = { intakeOpen = true }) }
             when (val state = results) {
                 null -> Unit
                 Loadable.Loading -> item(key = "loading") { PlaceholderList(count = 4, lines = 2) }
@@ -161,6 +192,39 @@ fun SearchScreen(app: AppViewModel, navigator: Navigator) {
         }
     }
 
+    val draft = (intakeState as? IntakeState.Ready)?.draft
+    if (intakeOpen && draft == null) {
+        IntakeSheet(
+            state = intakeState,
+            onReadText = intake::readText,
+            onReadPdf = intake::readPdf,
+            onDismiss = { intakeOpen = false; if (intakeState !is IntakeState.Working) intake.dismiss() },
+        )
+    }
+    draft?.let { ready ->
+        val travellers by viewModel.travellers.collectAsStateWithLifecycle()
+        val cards by viewModel.cards.collectAsStateWithLifecycle()
+        LaunchedEffect(ready) { viewModel.loadTravellers() }
+        SaveTripSheet(
+            journey = ready.match.journey,
+            travellers = travellers,
+            cards = cards,
+            me = viewModel.userId,
+            intake = ready,
+            onSave = { input ->
+                intake.save(
+                    ready, input,
+                    onError = { message -> scope.launch { snackbar.showSnackbar(message) } },
+                ) { id ->
+                    intakeOpen = false
+                    app.changed("Trip saved")
+                    navigator.savedTrip(id)
+                }
+            },
+            onDismiss = { intakeOpen = false; intake.dismiss() },
+        )
+    }
+
     picking?.let { which ->
         StationSheet(
             title = if (which == Picking.From) "From" else "To",
@@ -176,10 +240,12 @@ fun SearchScreen(app: AppViewModel, navigator: Navigator) {
 
     saving?.let { journey ->
         val travellers by viewModel.travellers.collectAsStateWithLifecycle()
+        val cards by viewModel.cards.collectAsStateWithLifecycle()
         LaunchedEffect(journey) { viewModel.loadTravellers() }
         SaveTripSheet(
             journey = journey,
             travellers = travellers,
+            cards = cards,
             me = viewModel.userId,
             onSave = { input ->
                 viewModel.save(
@@ -288,6 +354,24 @@ private fun SearchFormCard(
         Button(onClick = onSearch, enabled = form.complete, modifier = Modifier.fillMaxWidth().padding(top = 16.dp).height(52.dp)) {
             Icon(Icons.Rounded.Search, contentDescription = null, modifier = Modifier.size(20.dp))
             Text("Search connections", modifier = Modifier.padding(start = 8.dp), style = MaterialTheme.typography.titleSmall)
+        }
+    }
+}
+
+/** The way in to intake, under the search form. */
+@Composable
+private fun IntakeEntry(onClick: () -> Unit) {
+    NexusCard(onClick = onClick, containerColor = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.ConfirmationNumber, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+            Column(Modifier.padding(start = 14.dp).weight(1f)) {
+                Text("Add from a ticket or share", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    "A DB Navigator share or a DB ticket PDF, read on this phone.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
