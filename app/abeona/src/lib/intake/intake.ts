@@ -14,7 +14,8 @@ export interface Prefill {
   fare_type: FareTypeValue | null;
   train_binding: boolean | null;
   travel_class: 1 | 2 | null;
-  bahncard_discount: 25 | 50 | null;
+  /** One discount per person the ticket prints (ParsedTicket.discounts); empty for a share. */
+  discounts: (25 | 50 | null)[];
   /** How many people the ticket is for: a hint next to "Who travels". */
   travellers: number | null;
   price_cents: number | null;
@@ -43,7 +44,7 @@ export function prefillOf(parsed: Parsed): Prefill {
       fare_type: null,
       train_binding: null,
       travel_class: null,
-      bahncard_discount: null,
+      discounts: [],
       travellers: null,
       price_cents: null,
       price_scope: "trip",
@@ -54,7 +55,7 @@ export function prefillOf(parsed: Parsed): Prefill {
     fare_type: t.fare_type,
     train_binding: t.train_binding,
     travel_class: t.travel_class,
-    bahncard_discount: t.bahncard_discount,
+    discounts: t.discounts,
     travellers: t.travellers,
     price_cents: t.price_cents,
     price_scope: t.price_scope,

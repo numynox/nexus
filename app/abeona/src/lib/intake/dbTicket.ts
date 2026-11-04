@@ -17,7 +17,7 @@ import type { ParsedLeg, ParsedTicket } from "./parsed.ts";
 const CLASS = /\b([12])\.\s*Klasse\b/;
 const TRAVELLERS = /^Reisende\b(.*)$/i;
 const PERSONS = /(\d+)\s+(?:Person|Personen|Erwachsene|Erwachsener|Reisende)\b/i;
-const BAHNCARD = /(?:(\d+)\s*x?\s*)?(?:BC|BahnCard)\s?(25|50|100)\b/i;
+const BAHNCARD = /(?:(\d+)\s*x?\s*)?(?:BC|BahnCard)\s?(25|50|100)\b/gi;
 const BINDING_START = /^Zugbindung\b/i;
 const BOUND_TRAIN = /([A-Z]{1,5}\s?\d{1,6}),\s*(\d{1,2}:\d{2})\s*Uhr(?:\s+am\s+(\d{1,2})\.(\d{1,2})\.(\d{4}))?/g;
 const PRICE = /(?:Gesamtpreis|Summe|Endpreis)\s*:?\s*(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})\s*(?:€|EUR)/i;
@@ -77,18 +77,20 @@ export function parseDbTicket(text: string): ParsedTicket | null {
   const travelClass = classMatch ? (Number(classMatch[1]) as 1 | 2) : null;
 
   let travellers: number | null = null;
-  let discount: 25 | 50 | null = null;
-  let cardCount: number | null = null;
+  const discounts: (25 | 50 | null)[] = [];
   const travellersLine = all.map((l) => TRAVELLERS.exec(l)).find(Boolean);
   if (travellersLine) {
     const rest = travellersLine[1];
     const persons = PERSONS.exec(rest);
     travellers = persons ? Number(persons[1]) : null;
-    const card = BAHNCARD.exec(rest);
-    if (card && card[2] !== "100") {
-      discount = Number(card[2]) as 25 | 50;
-      cardCount = card[1] ? Number(card[1]) : 1;
+    // "mit 1 BC25, 1 BC50": every group, in print order. A BahnCard 100 is a
+    // fare of its own, not a discount.
+    for (const card of rest.matchAll(BAHNCARD)) {
+      if (card[2] === "100") continue;
+      const count = card[1] ? Number(card[1]) : 1;
+      for (let i = 0; i < count; i++) discounts.push(Number(card[2]) as 25 | 50);
     }
+    while (travellers !== null && discounts.length < travellers) discounts.push(null);
   }
 
   // "Zugbindung  ICE 17, 15:14 Uhr am 16.11.2025" and the lines below it.
@@ -197,8 +199,7 @@ export function parseDbTicket(text: string): ParsedTicket | null {
     direction: direction ? (direction.toLowerCase() === "hinfahrt" ? "outward" : "return") : null,
     travel_class: travelClass,
     travellers,
-    bahncard_discount: discount,
-    bahncard_count: cardCount,
+    discounts,
     train_binding: booked.length > 0 || fare.binding,
     booked_lines: booked,
     origin: legs[0]?.from ?? null,

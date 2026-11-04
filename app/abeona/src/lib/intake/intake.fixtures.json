@@ -162,8 +162,102 @@
         "direction": "return",
         "travel_class": 2,
         "travellers": 2,
-        "bahncard_discount": 25,
-        "bahncard_count": 2,
+        "discounts": [
+          25,
+          25
+        ],
+        "train_binding": true,
+        "booked_lines": [
+          "ICE 17",
+          "ICE 725",
+          "ICE 700"
+        ],
+        "origin": "Leuven",
+        "destination": "Erlangen",
+        "date": "2025-11-16",
+        "legs": [
+          {
+            "line": "IC 512",
+            "product": "IC",
+            "number": null,
+            "headsign": null,
+            "from": "Leuven",
+            "to": "Liège-Guillemins",
+            "date": "2025-11-16",
+            "departure": "14:27",
+            "arrival_date": "2025-11-16",
+            "arrival": "14:59",
+            "from_platform": "3",
+            "to_platform": "1",
+            "reservation": null
+          },
+          {
+            "line": "ICE 17",
+            "product": "ICE",
+            "number": null,
+            "headsign": null,
+            "from": "Liège-Guillemins",
+            "to": "Frankfurt(Main)Hbf",
+            "date": "2025-11-16",
+            "departure": "15:14",
+            "arrival_date": "2025-11-16",
+            "arrival": "17:27",
+            "from_platform": null,
+            "to_platform": "2",
+            "reservation": null
+          },
+          {
+            "line": "ICE 725",
+            "product": "ICE",
+            "number": null,
+            "headsign": null,
+            "from": "Frankfurt(Main)Hbf",
+            "to": "Nürnberg Hbf",
+            "date": "2025-11-16",
+            "departure": "17:57",
+            "arrival_date": "2025-11-16",
+            "arrival": "20:40",
+            "from_platform": "8",
+            "to_platform": "9",
+            "reservation": null
+          },
+          {
+            "line": "ICE 700",
+            "product": "ICE",
+            "number": null,
+            "headsign": null,
+            "from": "Nürnberg Hbf",
+            "to": "Erlangen",
+            "date": "2025-11-16",
+            "departure": "21:05",
+            "arrival_date": "2025-11-16",
+            "arrival": "21:18",
+            "from_platform": "7",
+            "to_platform": "1",
+            "reservation": null
+          }
+        ],
+        "price_cents": 11740,
+        "price_scope": "booking",
+        "reservation": null
+      }
+    },
+    {
+      "name": "constructed from the return ticket: 3 travellers, one each with BC25, BC50 and none",
+      "file": "db-ticket-mixed-bahncards.txt",
+      "expect": {
+        "kind": "ticket",
+        "operator": "db",
+        "fare_name": "Super Sparpreis Europa",
+        "fare_type": "saver",
+        "direction": "return",
+        "travel_class": 2,
+        "travellers": 3,
+        "discounts": [
+          25,
+          50,
+          null
+        ],
         "train_binding": true,
         "booked_lines": [
           "ICE 17",
@@ -989,6 +1083,82 @@
       "date": "2026-10-25",
       "time": "12:00",
       "expect": "2026-10-25T11:00:00.000Z"
+    }
+  ],
+  "discounts": [
+    {
+      "name": "a card holder gets the discount their card matches",
+      "ticket": [
+        25,
+        50,
+        null
+      ],
+      "given": [],
+      "held": [
+        50
+      ],
+      "expect": 50
+    },
+    {
+      "name": "someone without a card takes the person without one",
+      "ticket": [
+        25,
+        50,
+        null
+      ],
+      "given": [],
+      "held": [],
+      "expect": null
+    },
+    {
+      "name": "a card that matches nothing left takes what is printed first",
+      "ticket": [
+        25,
+        50,
+        null
+      ],
+      "given": [
+        25,
+        null
+      ],
+      "held": [
+        25
+      ],
+      "expect": 50
+    },
+    {
+      "name": "without a person to spare, a traveller without a card still takes what is left",
+      "ticket": [
+        25,
+        25
+      ],
+      "given": [
+        25
+      ],
+      "held": [],
+      "expect": 25
+    },
+    {
+      "name": "once everybody on the ticket is given away, none",
+      "ticket": [
+        25
+      ],
+      "given": [
+        25
+      ],
+      "held": [
+        25
+      ],
+      "expect": null
+    },
+    {
+      "name": "a share names nobody: none",
+      "ticket": [],
+      "given": [],
+      "held": [
+        50
+      ],
+      "expect": null
     }
   ]
 }

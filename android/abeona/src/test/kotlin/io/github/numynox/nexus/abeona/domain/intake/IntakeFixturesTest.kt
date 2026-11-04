@@ -4,6 +4,7 @@ import io.github.numynox.nexus.abeona.data.FareType
 import io.github.numynox.nexus.abeona.data.Journey
 import io.github.numynox.nexus.abeona.data.LegMode
 import io.github.numynox.nexus.abeona.data.Station
+import io.github.numynox.nexus.abeona.domain.Travellers
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -68,6 +69,16 @@ class IntakeFixturesTest {
         val lines: List<LineCase>,
         val zones: List<ZoneCase>,
         val matching: List<MatchCase>,
+        val discounts: List<DiscountCase>,
+    )
+
+    @Serializable
+    private data class DiscountCase(
+        val name: String,
+        val ticket: List<Int?>,
+        val given: List<Int?>,
+        val held: List<Int>,
+        val expect: Int?,
     )
 
     private val fixtures: Fixtures = IntakeJson.decodeFromString(resourceText("intake.fixtures.json"))
@@ -104,6 +115,11 @@ class IntakeFixturesTest {
     @Test
     fun zones() = fixtures.zones.forEach { c ->
         assertEquals("${c.date} ${c.time}", Instant.parse(c.expect), localToInstant(c.date, c.time))
+    }
+
+    @Test
+    fun discounts() = fixtures.discounts.forEach { c ->
+        assertEquals(c.name, c.expect, Travellers.nextDiscount(c.ticket, c.given, c.held))
     }
 
     /** The key the fixtures use: the web's `toISOString()`, with milliseconds. */

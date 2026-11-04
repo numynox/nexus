@@ -12,6 +12,7 @@ import type { ParsedShare, ParsedTicket } from "./parsed.ts";
 import { pdfText, type PdfJsLike } from "./pdfText.ts";
 import { isShareText, parseShareText } from "./shareText.ts";
 import type { Journey, Station } from "../transit.ts";
+import { nextDiscount, type Discount } from "../travellers.ts";
 
 interface Fixtures {
   share: { name: string; file: string; expect: ParsedShare }[];
@@ -21,6 +22,7 @@ interface Fixtures {
   platforms: { value: string | null; expect: string | null }[];
   lines: { a: string; b: string; same: boolean }[];
   zones: { date: string; time: string; expect: string }[];
+  discounts: { name: string; ticket: Discount[]; given: Discount[]; held: number[]; expect: Discount }[];
   matching: {
     name: string;
     share: string;
@@ -91,6 +93,10 @@ test("platforms drop their sectors", () => {
 
 test("line names compare without spaces or case", () => {
   for (const c of fixtures.lines) assert.equal(lineKey(c.a) === lineKey(c.b), c.same, `${c.a} / ${c.b}`);
+});
+
+test("a ticket's discounts go to the travellers who hold the cards", () => {
+  for (const c of fixtures.discounts) assert.equal(nextDiscount(c.ticket, c.given, c.held), c.expect, c.name);
 });
 
 test("local times are read in Europe/Berlin", () => {

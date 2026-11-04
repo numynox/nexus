@@ -72,8 +72,12 @@ data class ParsedTicket(
     val direction: String? = null,
     @SerialName("travel_class") val travelClass: Int? = null,
     val travellers: Int? = null,
-    @SerialName("bahncard_discount") val bahncardDiscount: Int? = null,
-    @SerialName("bahncard_count") val bahncardCount: Int? = null,
+    /**
+     * One BahnCard discount per person the ticket prints, null for one
+     * without: "3 Personen … mit 1 BC25, 1 BC50" → [25, 50, null]. Which
+     * traveller holds which the save sheet works out (domain/Travellers.kt).
+     */
+    val discounts: List<Int?> = emptyList(),
     @SerialName("train_binding") val trainBinding: Boolean,
     @SerialName("booked_lines") val bookedLines: List<String>,
     val origin: String? = null,

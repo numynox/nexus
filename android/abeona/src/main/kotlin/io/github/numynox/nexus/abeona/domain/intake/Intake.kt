@@ -9,7 +9,8 @@ data class Prefill(
     val fareType: FareType? = null,
     val trainBinding: Boolean? = null,
     val travelClass: Int? = null,
-    val bahncardDiscount: Int? = null,
+    /** One discount per person the ticket prints ([ParsedTicket.discounts]); empty for a share. */
+    val discounts: List<Int?> = emptyList(),
     /** How many people the ticket is for: a hint next to "Who travels". */
     val travellers: Int? = null,
     val priceCents: Int? = null,
@@ -44,7 +45,7 @@ fun prefillOf(parsed: Parsed): Prefill = when (parsed) {
         fareType = parsed.fareType,
         trainBinding = parsed.trainBinding,
         travelClass = parsed.travelClass,
-        bahncardDiscount = parsed.bahncardDiscount,
+        discounts = parsed.discounts,
         travellers = parsed.travellers,
         priceCents = parsed.priceCents,
         priceScope = parsed.priceScope,

@@ -72,10 +72,13 @@ export interface ParsedTicket {
   travel_class: 1 | 2 | null;
   /** "2 Personen" → 2. A hint for "Who travels", not a list of names. */
   travellers: number | null;
-  /** "2 BC25" → 25 … */
-  bahncard_discount: 25 | 50 | null;
-  /** … and 2. */
-  bahncard_count: number | null;
+  /**
+   * One BahnCard discount per person the ticket prints, null for one without:
+   * "3 Personen … mit 1 BC25, 1 BC50" → [25, 50, null]. Empty when the ticket
+   * names no travellers. Persons are not names: which traveller holds which
+   * the save sheet works out (lib/travellers.ts).
+   */
+  discounts: (25 | 50 | null)[];
   /** Bound to the trains in `booked_lines`. */
   train_binding: boolean;
   /** "ICE 17", … from the "Zugbindung" lines, in order. */

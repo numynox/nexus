@@ -62,16 +62,16 @@ fun parseDbTicket(text: String): ParsedTicket? {
     val travelClass = classMatch?.groupValues?.get(1)?.toInt()
 
     var travellers: Int? = null
-    var discount: Int? = null
-    var cardCount: Int? = null
+    val discounts = mutableListOf<Int?>()
     all.firstNotNullOfOrNull { TravellersRe.find(it) }?.let { line ->
         val rest = line.groupValues[1]
         travellers = Persons.find(rest)?.groupValues?.get(1)?.toInt()
-        val card = BahnCardRe.find(rest)
-        if (card != null && card.groupValues[2] != "100") {
-            discount = card.groupValues[2].toInt()
-            cardCount = card.groupValues[1].toIntOrNull() ?: 1
+        // "mit 1 BC25, 1 BC50": every group, in print order. A BahnCard 100 is
+        // a fare of its own, not a discount.
+        BahnCardRe.findAll(rest).filter { it.groupValues[2] != "100" }.forEach { card ->
+            repeat(card.groupValues[1].toIntOrNull() ?: 1) { discounts += card.groupValues[2].toInt() }
         }
+        travellers?.let { n -> while (discounts.size < n) discounts += null }
     }
 
     // "Zugbindung  ICE 17, 15:14 Uhr am 16.11.2025" and the lines below it.
@@ -156,8 +156,7 @@ fun parseDbTicket(text: String): ParsedTicket? {
         direction = direction?.let { if (it.equals("hinfahrt", ignoreCase = true)) "outward" else "return" },
         travelClass = travelClass,
         travellers = travellers,
-        bahncardDiscount = discount,
-        bahncardCount = cardCount,
+        discounts = discounts,
         trainBinding = booked.isNotEmpty() || fare.binding,
         bookedLines = booked,
         origin = legs.firstOrNull()?.from,
