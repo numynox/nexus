@@ -4,7 +4,7 @@
   import { getBaseUrl } from "../../lib/config";
   import { deleteTrip, describeError, fetchTrip, refreshTripLive, type Trip } from "../../lib/data";
   import { fareLabel, formatLongDate, formatPrice, formatTime } from "../../lib/format";
-  import { dbNavigatorUrl, hasArrived, isLiveWindow, summarise } from "../../lib/journey";
+  import { dbNavigatorUrl, hasArrived, isLiveWindow, LIVE_REFRESH_MS, summarise } from "../../lib/journey";
   import { trainBindingLifted, transfers } from "../../lib/transfer";
   import BindingBanner from "../common/BindingBanner.svelte";
   import Illustration from "../common/Illustration.svelte";
@@ -16,7 +16,6 @@
   import WalkRow from "./WalkRow.svelte";
 
   const base = getBaseUrl();
-  const REFRESH_EVERY_MS = 2 * 60_000;
 
   let trip = $state<Trip | null>(null);
   let loading = $state(true);
@@ -108,7 +107,7 @@
           return;
         }
         void refresh();
-      }, REFRESH_EVERY_MS);
+      }, LIVE_REFRESH_MS);
     });
 
     return () => clearInterval(timer);

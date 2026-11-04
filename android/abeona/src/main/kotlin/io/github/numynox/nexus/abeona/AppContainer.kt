@@ -7,9 +7,7 @@ import io.github.numynox.nexus.abeona.data.OfflinePack
 import io.github.numynox.nexus.abeona.data.TripStore
 import io.github.numynox.nexus.core.data.NexusConfig
 import io.github.numynox.nexus.core.data.NexusCore
-import io.ktor.client.HttpClient
 import io.ktor.client.engine.HttpClientEngine
-import io.ktor.client.engine.okhttp.OkHttp
 
 /** Every long-lived object, wired by hand like the other apps'. [httpEngine] replaces the network in screenshot tests. */
 class AppContainer(
@@ -31,11 +29,7 @@ class AppContainer(
         httpEngine,
     )
     val preferences = AbeonaPreferences(context)
-    val repository = AbeonaRepository(
-        core.supabase,
-        core.config,
-        httpEngine?.let { HttpClient(it) } ?: HttpClient(OkHttp),
-    )
+    val repository = AbeonaRepository(core.supabase)
     val pack = OfflinePack(context)
     val trips = TripStore(repository, pack, core.scope)
 }

@@ -1,0 +1,303 @@
+{
+  "$comment": "The shared rules' cases, run by both clients: app/abeona/src/lib/transfer.test.ts (npm run test:abeona) and android/abeona's TransferFixturesTest (copied into its test resources by Gradle). Change a rule in transfer.ts and domain/Transfer.kt together, and the case here once. Stops: omitted fields are null. Legs: mode defaults to train, cancelled to false.",
+  "delayMinutes": [
+    { "name": "no current time", "planned": "2026-11-03T10:00:00Z", "current": null, "expect": 0 },
+    { "name": "no planned time", "planned": null, "current": "2026-11-03T10:00:00Z", "expect": 0 },
+    { "name": "whole minutes", "planned": "2026-11-03T10:00:00Z", "current": "2026-11-03T10:07:00Z", "expect": 7 },
+    { "name": "30 seconds round up", "planned": "2026-11-03T10:00:00Z", "current": "2026-11-03T10:00:30Z", "expect": 1 },
+    { "name": "29 seconds round down", "planned": "2026-11-03T10:00:00Z", "current": "2026-11-03T10:00:29Z", "expect": 0 },
+    { "name": "early", "planned": "2026-11-03T10:00:00Z", "current": "2026-11-03T09:58:00Z", "expect": -2 },
+    { "name": "offsets are instants", "planned": "2026-11-03T11:00:00+01:00", "current": "2026-11-03T10:04:00Z", "expect": 4 }
+  ],
+  "normalisePlatform": [
+    { "value": " Gleis 7a ", "expect": "7A" },
+    { "value": "Platform 3", "expect": "3" },
+    { "value": "7", "expect": "7" },
+    { "value": "  ", "expect": null },
+    { "value": null, "expect": null }
+  ],
+  "transfers": [
+    {
+      "name": "same platform needs 2 minutes",
+      "legs": [
+        { "from": { "id": "A", "planned": "2026-11-03T10:00:00Z" }, "to": { "id": "X", "planned": "2026-11-03T11:00:00Z", "planned_platform": "Gleis 4" } },
+        { "from": { "id": "X", "planned": "2026-11-03T11:04:00Z", "planned_platform": "4" }, "to": { "id": "B", "planned": "2026-11-03T12:00:00Z" } }
+      ],
+      "expect": [{ "fromIndex": 0, "toIndex": 1, "availableMinutes": 4, "requiredMinutes": 2, "marginMinutes": 2, "walkMinutes": 0, "changesStation": false, "confidence": "tight" }],
+      "overall": "tight"
+    },
+    {
+      "name": "different platform needs 5 minutes",
+      "legs": [
+        { "from": { "id": "A", "planned": "2026-11-03T10:00:00Z" }, "to": { "id": "X", "planned": "2026-11-03T11:00:00Z", "planned_platform": "4" } },
+        { "from": { "id": "X", "planned": "2026-11-03T11:10:00Z", "planned_platform": "9" }, "to": { "id": "B", "planned": "2026-11-03T12:00:00Z" } }
+      ],
+      "expect": [{ "fromIndex": 0, "toIndex": 1, "availableMinutes": 10, "requiredMinutes": 5, "marginMinutes": 5, "walkMinutes": 0, "changesStation": false, "confidence": "safe" }],
+      "overall": "safe"
+    },
+    {
+      "name": "unknown platforms count as different: 5 minutes",
+      "legs": [
+        { "from": { "id": "A", "planned": "2026-11-03T10:00:00Z" }, "to": { "id": "X", "planned": "2026-11-03T11:00:00Z" } },
+        { "from": { "id": "X", "planned": "2026-11-03T11:10:00Z" }, "to": { "id": "B", "planned": "2026-11-03T12:00:00Z" } }
+      ],
+      "expect": [{ "fromIndex": 0, "toIndex": 1, "availableMinutes": 10, "requiredMinutes": 5, "marginMinutes": 5, "walkMinutes": 0, "changesStation": false, "confidence": "safe" }],
+      "overall": "safe"
+    },
+    {
+      "name": "one platform unknown counts as different: 5 minutes",
+      "legs": [
+        { "from": { "id": "A", "planned": "2026-11-03T10:00:00Z" }, "to": { "id": "X", "planned": "2026-11-03T11:00:00Z", "planned_platform": "4" } },
+        { "from": { "id": "X", "planned": "2026-11-03T11:07:00Z" }, "to": { "id": "B", "planned": "2026-11-03T12:00:00Z" } }
+      ],
+      "expect": [{ "fromIndex": 0, "toIndex": 1, "availableMinutes": 7, "requiredMinutes": 5, "marginMinutes": 2, "walkMinutes": 0, "changesStation": false, "confidence": "tight" }],
+      "overall": "tight"
+    },
+    {
+      "name": "current platforms win over planned ones",
+      "legs": [
+        { "from": { "id": "A", "planned": "2026-11-03T10:00:00Z" }, "to": { "id": "X", "planned": "2026-11-03T11:00:00Z", "planned_platform": "4", "platform": "6" } },
+        { "from": { "id": "X", "planned": "2026-11-03T11:05:00Z", "planned_platform": "9", "platform": "Gleis 6" }, "to": { "id": "B", "planned": "2026-11-03T12:00:00Z" } }
+      ],
+      "expect": [{ "fromIndex": 0, "toIndex": 1, "availableMinutes": 5, "requiredMinutes": 2, "marginMinutes": 3, "walkMinutes": 0, "changesStation": false, "confidence": "safe" }],
+      "overall": "safe"
+    },
+    {
+      "name": "current times win over planned ones",
+      "legs": [
+        { "from": { "id": "A", "planned": "2026-11-03T10:00:00Z" }, "to": { "id": "X", "planned": "2026-11-03T11:00:00Z", "current": "2026-11-03T11:12:00Z" } },
+        { "from": { "id": "X", "planned": "2026-11-03T11:15:00Z" }, "to": { "id": "B", "planned": "2026-11-03T12:00:00Z" } }
+      ],
+      "expect": [{ "fromIndex": 0, "toIndex": 1, "availableMinutes": 3, "requiredMinutes": 5, "marginMinutes": -2, "walkMinutes": 0, "changesStation": false, "confidence": "at_risk" }],
+      "overall": "at_risk"
+    },
+    {
+      "name": "a walk between the legs adds its planned minutes plus 3",
+      "legs": [
+        { "from": { "id": "A", "planned": "2026-11-03T10:00:00Z" }, "to": { "id": "X", "planned": "2026-11-03T11:00:00Z" } },
+        { "mode": "walk", "from": { "id": "X", "planned": "2026-11-03T11:00:00Z" }, "to": { "id": "Y", "planned": "2026-11-03T11:06:00Z" } },
+        { "mode": "bus", "from": { "id": "Y", "planned": "2026-11-03T11:12:00Z" }, "to": { "id": "B", "planned": "2026-11-03T12:00:00Z" } }
+      ],
+      "expect": [{ "fromIndex": 0, "toIndex": 2, "availableMinutes": 12, "requiredMinutes": 9, "marginMinutes": 3, "walkMinutes": 6, "changesStation": true, "confidence": "safe" }],
+      "overall": "safe"
+    },
+    {
+      "name": "several walks add up, each rounded half up",
+      "legs": [
+        { "from": { "id": "A", "planned": "2026-11-03T10:00:00Z" }, "to": { "id": "X", "planned": "2026-11-03T11:00:00Z" } },
+        { "mode": "walk", "from": { "id": "X", "planned": "2026-11-03T11:00:00Z" }, "to": { "id": "Y", "planned": "2026-11-03T11:02:30Z" } },
+        { "mode": "walk", "from": { "id": "Y", "planned": "2026-11-03T11:02:30Z" }, "to": { "id": "Z", "planned": "2026-11-03T11:06:30Z" } },
+        { "from": { "id": "Z", "planned": "2026-11-03T11:15:00Z" }, "to": { "id": "B", "planned": "2026-11-03T12:00:00Z" } }
+      ],
+      "expect": [{ "fromIndex": 0, "toIndex": 3, "availableMinutes": 15, "requiredMinutes": 10, "marginMinutes": 5, "walkMinutes": 7, "changesStation": true, "confidence": "safe" }],
+      "overall": "safe"
+    },
+    {
+      "name": "a walk without times counts 0 minutes",
+      "legs": [
+        { "from": { "id": "A", "planned": "2026-11-03T10:00:00Z" }, "to": { "id": "X", "planned": "2026-11-03T11:00:00Z" } },
+        { "mode": "walk", "from": { "id": "X" }, "to": { "id": "Y" } },
+        { "from": { "id": "Y", "planned": "2026-11-03T11:04:00Z" }, "to": { "id": "B", "planned": "2026-11-03T12:00:00Z" } }
+      ],
+      "expect": [{ "fromIndex": 0, "toIndex": 2, "availableMinutes": 4, "requiredMinutes": 3, "marginMinutes": 1, "walkMinutes": 0, "changesStation": true, "confidence": "tight" }],
+      "overall": "tight"
+    },
+    {
+      "name": "another stop without a walk needs 3 minutes",
+      "legs": [
+        { "from": { "id": "A", "planned": "2026-11-03T10:00:00Z" }, "to": { "id": "X", "planned": "2026-11-03T11:00:00Z", "planned_platform": "4" } },
+        { "from": { "id": "Z", "planned": "2026-11-03T11:05:00Z", "planned_platform": "4" }, "to": { "id": "B", "planned": "2026-11-03T12:00:00Z" } }
+      ],
+      "expect": [{ "fromIndex": 0, "toIndex": 1, "availableMinutes": 5, "requiredMinutes": 3, "marginMinutes": 2, "walkMinutes": 0, "changesStation": true, "confidence": "tight" }],
+      "overall": "tight"
+    },
+    {
+      "name": "a cancelled next leg puts the change at risk, however long it is",
+      "legs": [
+        { "from": { "id": "A", "planned": "2026-11-03T10:00:00Z" }, "to": { "id": "X", "planned": "2026-11-03T11:00:00Z" } },
+        { "cancelled": true, "from": { "id": "X", "planned": "2026-11-03T11:40:00Z" }, "to": { "id": "B", "planned": "2026-11-03T12:00:00Z" } }
+      ],
+      "expect": [{ "fromIndex": 0, "toIndex": 1, "availableMinutes": 40, "requiredMinutes": 5, "marginMinutes": 35, "walkMinutes": 0, "changesStation": false, "confidence": "at_risk" }],
+      "overall": "at_risk"
+    },
+    {
+      "name": "a cancelled arriving leg puts the change at risk",
+      "legs": [
+        { "cancelled": true, "from": { "id": "A", "planned": "2026-11-03T10:00:00Z" }, "to": { "id": "X", "planned": "2026-11-03T11:00:00Z" } },
+        { "from": { "id": "X", "planned": "2026-11-03T11:40:00Z" }, "to": { "id": "B", "planned": "2026-11-03T12:00:00Z" } }
+      ],
+      "expect": [{ "fromIndex": 0, "toIndex": 1, "availableMinutes": 40, "requiredMinutes": 5, "marginMinutes": 35, "walkMinutes": 0, "changesStation": false, "confidence": "at_risk" }],
+      "overall": "at_risk"
+    },
+    {
+      "name": "a missing arrival time skips the change: unknowable, not at risk",
+      "legs": [
+        { "from": { "id": "A", "planned": "2026-11-03T10:00:00Z" }, "to": { "id": "X" } },
+        { "from": { "id": "X", "planned": "2026-11-03T11:10:00Z" }, "to": { "id": "B", "planned": "2026-11-03T12:00:00Z" } }
+      ],
+      "expect": [],
+      "overall": null
+    },
+    {
+      "name": "a missing departure time skips only that change",
+      "legs": [
+        { "from": { "id": "A", "planned": "2026-11-03T10:00:00Z" }, "to": { "id": "X", "planned": "2026-11-03T11:00:00Z" } },
+        { "from": { "id": "X" }, "to": { "id": "Y", "planned": "2026-11-03T11:30:00Z", "planned_platform": "2" } },
+        { "from": { "id": "Y", "planned": "2026-11-03T11:33:00Z", "planned_platform": "2" }, "to": { "id": "B", "planned": "2026-11-03T12:00:00Z" } }
+      ],
+      "expect": [{ "fromIndex": 1, "toIndex": 2, "availableMinutes": 3, "requiredMinutes": 2, "marginMinutes": 1, "walkMinutes": 0, "changesStation": false, "confidence": "tight" }],
+      "overall": "tight"
+    },
+    {
+      "name": "a current time stands in for a missing planned one",
+      "legs": [
+        { "from": { "id": "A", "planned": "2026-11-03T10:00:00Z" }, "to": { "id": "X", "current": "2026-11-03T11:02:00Z" } },
+        { "from": { "id": "X", "planned": "2026-11-03T11:10:00Z" }, "to": { "id": "B", "planned": "2026-11-03T12:00:00Z" } }
+      ],
+      "expect": [{ "fromIndex": 0, "toIndex": 1, "availableMinutes": 8, "requiredMinutes": 5, "marginMinutes": 3, "walkMinutes": 0, "changesStation": false, "confidence": "safe" }],
+      "overall": "safe"
+    },
+    {
+      "name": "rounding: 5 min 30 s rounds up to 6",
+      "legs": [
+        { "from": { "id": "A", "planned": "2026-11-03T10:00:00Z" }, "to": { "id": "X", "planned": "2026-11-03T11:00:00Z" } },
+        { "from": { "id": "X", "planned": "2026-11-03T11:05:30Z" }, "to": { "id": "B", "planned": "2026-11-03T12:00:00Z" } }
+      ],
+      "expect": [{ "fromIndex": 0, "toIndex": 1, "availableMinutes": 6, "requiredMinutes": 5, "marginMinutes": 1, "walkMinutes": 0, "changesStation": false, "confidence": "tight" }],
+      "overall": "tight"
+    },
+    {
+      "name": "rounding: 5 min 29 s rounds down to 5",
+      "legs": [
+        { "from": { "id": "A", "planned": "2026-11-03T10:00:00Z" }, "to": { "id": "X", "planned": "2026-11-03T11:00:00Z" } },
+        { "from": { "id": "X", "planned": "2026-11-03T11:05:29Z" }, "to": { "id": "B", "planned": "2026-11-03T12:00:00Z" } }
+      ],
+      "expect": [{ "fromIndex": 0, "toIndex": 1, "availableMinutes": 5, "requiredMinutes": 5, "marginMinutes": 0, "walkMinutes": 0, "changesStation": false, "confidence": "tight" }],
+      "overall": "tight"
+    },
+    {
+      "name": "rounding: 4 min 30 s from a delayed arrival rounds up to 5",
+      "legs": [
+        { "from": { "id": "A", "planned": "2026-11-03T10:00:00Z" }, "to": { "id": "X", "planned": "2026-11-03T11:00:00Z", "current": "2026-11-03T11:00:30Z" } },
+        { "from": { "id": "X", "planned": "2026-11-03T11:05:00Z" }, "to": { "id": "B", "planned": "2026-11-03T12:00:00Z" } }
+      ],
+      "expect": [{ "fromIndex": 0, "toIndex": 1, "availableMinutes": 5, "requiredMinutes": 5, "marginMinutes": 0, "walkMinutes": 0, "changesStation": false, "confidence": "tight" }],
+      "overall": "tight"
+    },
+    {
+      "name": "rounding: half a minute below zero rounds toward zero (-5.5 → -5)",
+      "legs": [
+        { "from": { "id": "A", "planned": "2026-11-03T10:00:00Z" }, "to": { "id": "X", "planned": "2026-11-03T11:00:00Z", "current": "2026-11-03T11:05:30Z" } },
+        { "from": { "id": "X", "planned": "2026-11-03T11:00:00Z" }, "to": { "id": "B", "planned": "2026-11-03T12:00:00Z" } }
+      ],
+      "expect": [{ "fromIndex": 0, "toIndex": 1, "availableMinutes": -5, "requiredMinutes": 5, "marginMinutes": -10, "walkMinutes": 0, "changesStation": false, "confidence": "at_risk" }],
+      "overall": "at_risk"
+    },
+    {
+      "name": "boundary: margin -1 is at risk",
+      "legs": [
+        { "from": { "id": "A", "planned": "2026-11-03T10:00:00Z" }, "to": { "id": "X", "planned": "2026-11-03T11:00:00Z" } },
+        { "from": { "id": "X", "planned": "2026-11-03T11:04:00Z" }, "to": { "id": "B", "planned": "2026-11-03T12:00:00Z" } }
+      ],
+      "expect": [{ "fromIndex": 0, "toIndex": 1, "availableMinutes": 4, "requiredMinutes": 5, "marginMinutes": -1, "walkMinutes": 0, "changesStation": false, "confidence": "at_risk" }],
+      "overall": "at_risk"
+    },
+    {
+      "name": "boundary: margin 0 is tight",
+      "legs": [
+        { "from": { "id": "A", "planned": "2026-11-03T10:00:00Z" }, "to": { "id": "X", "planned": "2026-11-03T11:00:00Z" } },
+        { "from": { "id": "X", "planned": "2026-11-03T11:05:00Z" }, "to": { "id": "B", "planned": "2026-11-03T12:00:00Z" } }
+      ],
+      "expect": [{ "fromIndex": 0, "toIndex": 1, "availableMinutes": 5, "requiredMinutes": 5, "marginMinutes": 0, "walkMinutes": 0, "changesStation": false, "confidence": "tight" }],
+      "overall": "tight"
+    },
+    {
+      "name": "boundary: margin 2 is tight",
+      "legs": [
+        { "from": { "id": "A", "planned": "2026-11-03T10:00:00Z" }, "to": { "id": "X", "planned": "2026-11-03T11:00:00Z" } },
+        { "from": { "id": "X", "planned": "2026-11-03T11:07:00Z" }, "to": { "id": "B", "planned": "2026-11-03T12:00:00Z" } }
+      ],
+      "expect": [{ "fromIndex": 0, "toIndex": 1, "availableMinutes": 7, "requiredMinutes": 5, "marginMinutes": 2, "walkMinutes": 0, "changesStation": false, "confidence": "tight" }],
+      "overall": "tight"
+    },
+    {
+      "name": "boundary: margin 3 is safe",
+      "legs": [
+        { "from": { "id": "A", "planned": "2026-11-03T10:00:00Z" }, "to": { "id": "X", "planned": "2026-11-03T11:00:00Z" } },
+        { "from": { "id": "X", "planned": "2026-11-03T11:08:00Z" }, "to": { "id": "B", "planned": "2026-11-03T12:00:00Z" } }
+      ],
+      "expect": [{ "fromIndex": 0, "toIndex": 1, "availableMinutes": 8, "requiredMinutes": 5, "marginMinutes": 3, "walkMinutes": 0, "changesStation": false, "confidence": "safe" }],
+      "overall": "safe"
+    },
+    {
+      "name": "the worst change decides the journey",
+      "legs": [
+        { "from": { "id": "A", "planned": "2026-11-03T10:00:00Z" }, "to": { "id": "X", "planned": "2026-11-03T11:00:00Z" } },
+        { "from": { "id": "X", "planned": "2026-11-03T11:20:00Z" }, "to": { "id": "Y", "planned": "2026-11-03T11:40:00Z" } },
+        { "from": { "id": "Y", "planned": "2026-11-03T11:46:00Z" }, "to": { "id": "B", "planned": "2026-11-03T12:30:00Z" } }
+      ],
+      "expect": [
+        { "fromIndex": 0, "toIndex": 1, "availableMinutes": 20, "requiredMinutes": 5, "marginMinutes": 15, "walkMinutes": 0, "changesStation": false, "confidence": "safe" },
+        { "fromIndex": 1, "toIndex": 2, "availableMinutes": 6, "requiredMinutes": 5, "marginMinutes": 1, "walkMinutes": 0, "changesStation": false, "confidence": "tight" }
+      ],
+      "overall": "tight"
+    },
+    {
+      "name": "a direct ride has no change",
+      "legs": [
+        { "mode": "walk", "from": { "id": "H", "planned": "2026-11-03T09:50:00Z" }, "to": { "id": "A", "planned": "2026-11-03T09:58:00Z" } },
+        { "from": { "id": "A", "planned": "2026-11-03T10:00:00Z" }, "to": { "id": "B", "planned": "2026-11-03T12:00:00Z" } }
+      ],
+      "expect": [],
+      "overall": null
+    }
+  ],
+  "finalArrivalDelay": [
+    {
+      "name": "the last ride's arrival, not a trailing walk's",
+      "legs": [
+        { "from": { "id": "A", "planned": "2026-11-03T10:00:00Z", "current": "2026-11-03T10:05:00Z" }, "to": { "id": "X", "planned": "2026-11-03T11:00:00Z", "current": "2026-11-03T11:02:00Z" } },
+        { "from": { "id": "X", "planned": "2026-11-03T11:10:00Z" }, "to": { "id": "B", "planned": "2026-11-03T12:00:00Z", "current": "2026-11-03T12:23:00Z" } },
+        { "mode": "walk", "from": { "id": "B", "planned": "2026-11-03T12:01:00Z", "current": "2026-11-03T12:24:00Z" }, "to": { "id": "Home", "planned": "2026-11-03T12:10:00Z", "current": "2026-11-03T12:40:00Z" } }
+      ],
+      "expect": 23
+    },
+    {
+      "name": "no current time at the destination",
+      "legs": [
+        { "from": { "id": "A", "planned": "2026-11-03T10:00:00Z", "current": "2026-11-03T10:05:00Z" }, "to": { "id": "B", "planned": "2026-11-03T11:00:00Z" } }
+      ],
+      "expect": 0
+    },
+    {
+      "name": "early arrival",
+      "legs": [
+        { "from": { "id": "A", "planned": "2026-11-03T10:00:00Z" }, "to": { "id": "B", "planned": "2026-11-03T11:00:00Z", "current": "2026-11-03T10:58:00Z" } }
+      ],
+      "expect": -2
+    },
+    {
+      "name": "only a walk",
+      "legs": [
+        { "mode": "walk", "from": { "id": "A", "planned": "2026-11-03T10:00:00Z" }, "to": { "id": "B", "planned": "2026-11-03T10:10:00Z", "current": "2026-11-03T10:30:00Z" } }
+      ],
+      "expect": 0
+    },
+    { "name": "no legs", "legs": [], "expect": 0 }
+  ],
+  "trainBindingLifted": [
+    { "fareType": "saver", "trainBinding": true, "arrivalDelayMinutes": 19, "expect": false },
+    { "fareType": "saver", "trainBinding": true, "arrivalDelayMinutes": 20, "expect": true },
+    { "fareType": "saver", "trainBinding": false, "arrivalDelayMinutes": 60, "expect": false },
+    { "fareType": "flex", "trainBinding": true, "arrivalDelayMinutes": 19, "expect": false },
+    { "fareType": "flex", "trainBinding": true, "arrivalDelayMinutes": 20, "expect": true },
+    { "fareType": "other", "trainBinding": true, "arrivalDelayMinutes": 19, "expect": false },
+    { "fareType": "other", "trainBinding": true, "arrivalDelayMinutes": 20, "expect": true },
+    { "fareType": "regional", "trainBinding": true, "arrivalDelayMinutes": 19, "expect": false },
+    { "fareType": "regional", "trainBinding": true, "arrivalDelayMinutes": 20, "expect": false },
+    { "fareType": "deutschlandticket", "trainBinding": true, "arrivalDelayMinutes": 19, "expect": false },
+    { "fareType": "deutschlandticket", "trainBinding": true, "arrivalDelayMinutes": 20, "expect": false },
+    { "fareType": "bahncard100", "trainBinding": true, "arrivalDelayMinutes": 19, "expect": false },
+    { "fareType": "bahncard100", "trainBinding": true, "arrivalDelayMinutes": 20, "expect": false }
+  ]
+}

@@ -23,10 +23,12 @@ private fun minutesUntil(now: Instant, then: Instant): Long =
 
 /**
  * The line for the ongoing notification, e.g.
- * "RE 4 → Frankfurt Hbf · Pl. 7 · change in 12 min · tight".
- * Before a ride: its platform and when it leaves. On board: where to get off,
- * the next train's platform, and how the change looks. Finished once the last
- * ride has arrived.
+ * "Tight · change in 12 min · RE 4 → Frankfurt Hbf · Pl. 7".
+ * Before a ride: its platform and when it leaves. On board before a change:
+ * how the change looks and when it comes first, since a narrow notification
+ * cuts the tail, then where to get off and the next train's platform. On the
+ * last ride: where and when it arrives. Finished once the last ride has
+ * arrived.
  */
 fun companionStatus(trip: Trip, now: Instant): CompanionStatus {
     val title = trip.displayTitle
@@ -47,9 +49,13 @@ fun companionStatus(trip: Trip, now: Instant): CompanionStatus {
     } else {
         val change = transfers(trip.legs).firstOrNull { it.arriving == index }
         if (change != null) {
+            // The confidence first: a narrow notification cuts the tail.
+            val head = listOfNotNull(
+                change.confidence.label,
+                leg.to.expectedAt?.let { "change ${TripFormat.relative(minutesUntil(now, it))}" },
+            )
+            parts.addAll(0, head)
             TripFormat.platform(trip.legs[change.departing].from.shownPlatform)?.let { parts += it }
-            leg.to.expectedAt?.let { parts += "change ${TripFormat.relative(minutesUntil(now, it))}" }
-            parts += change.confidence.label.lowercase()
         } else {
             TripFormat.platform(leg.to.shownPlatform)?.let { parts += it }
             parts += "arrives ${TripFormat.time(leg.to.expectedAt)}"

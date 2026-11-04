@@ -2,9 +2,10 @@
  * The rules both clients apply to live values: delays, transfer confidence and
  * whether a ticket's train binding is lifted.
  *
- * Written twice on purpose — here and in android/abeona (TransferRules.kt) —
+ * Written twice on purpose — here and in android/abeona (domain/Transfer.kt) —
  * and the binding rule a third time in SQL (abeona_train_binding_lifted).
- * Change them together (.agents/brain/decisions/2026-11-02-abeona-train-companion.md).
+ * Change them together (.agents/brain/decisions/2026-11-02-abeona-train-companion.md);
+ * transfer.fixtures.json holds the cases both clients' tests run.
  *
  * Kept free of runtime imports so `node --test` can run it as it is
  * (src/lib/transfer.test.ts, `npm run test:abeona`).
@@ -87,7 +88,9 @@ function plannedMinutes(leg: RuleLeg): number {
  * The transfer between arriving leg `a` and the leg `b` to catch, with the
  * walk legs between them.
  *
- * - available = (b's departure, current else planned) − (a's arrival, current else planned)
+ * - available = (b's departure, current else planned) − (a's arrival, current else planned).
+ *   Null — no transfer at all — when either time is unknown: the change is
+ *   unknowable, not at risk.
  * - required  = walk minutes + 3 when there is a walk between them or the stop
  *               changes; else 2 on the same platform; else 5. Platforms are
  *               the current one else the planned one, normalised; an unknown
@@ -100,11 +103,11 @@ export function assessTransfer(
   b: RuleLeg,
   walks: RuleLeg[] = [],
   indices: { fromIndex: number; toIndex: number } = { fromIndex: 0, toIndex: 1 },
-): Transfer {
+): Transfer | null {
   const arrival = ms(effectiveTime(a.to));
   const departure = ms(effectiveTime(b.from));
-  const availableMinutes =
-    arrival === null || departure === null ? 0 : Math.round((departure - arrival) / MINUTE);
+  if (arrival === null || departure === null) return null;
+  const availableMinutes = Math.round((departure - arrival) / MINUTE);
 
   const walkMinutes = walks.reduce((sum, w) => sum + plannedMinutes(w), 0);
   const changesStation = walks.length > 0 || a.to.id !== b.from.id;
@@ -136,7 +139,10 @@ export function assessTransfer(
   };
 }
 
-/** Every transfer of a journey: between each non-walk leg and the next one. */
+/**
+ * Every transfer of a journey: between each non-walk leg and the next one,
+ * leaving out changes whose times are unknown.
+ */
 export function transfers(legs: RuleLeg[]): Transfer[] {
   const result: Transfer[] = [];
   let previous = -1;
@@ -144,9 +150,8 @@ export function transfers(legs: RuleLeg[]): Transfer[] {
     if (legs[i].mode === "walk") continue;
     if (previous >= 0) {
       const walks = legs.slice(previous + 1, i).filter((l) => l.mode === "walk");
-      result.push(
-        assessTransfer(legs[previous], legs[i], walks, { fromIndex: previous, toIndex: i }),
-      );
+      const transfer = assessTransfer(legs[previous], legs[i], walks, { fromIndex: previous, toIndex: i });
+      if (transfer) result.push(transfer);
     }
     previous = i;
   }

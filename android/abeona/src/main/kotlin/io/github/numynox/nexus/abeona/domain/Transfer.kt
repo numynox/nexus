@@ -8,7 +8,8 @@ import java.time.Instant
 // The rules both clients share. They must give the same answers as the web's
 // copy (app/abeona/src/lib/transfer.ts) and, for the binding rule, the SQL
 // function abeona_train_binding_lifted: change them together
-// (decisions/2026-11-02-abeona-train-companion.md).
+// (decisions/2026-11-02-abeona-train-companion.md). The cases both test suites
+// run are in app/abeona/src/lib/transfer.fixtures.json (TransferFixturesTest).
 
 /** How likely a change is to work out (glossary: Transfer confidence). */
 enum class Confidence(val label: String) { SAFE("Safe"), TIGHT("Tight"), AT_RISK("At risk") }
@@ -49,7 +50,11 @@ fun normalisePlatform(platform: String?): String? {
     return value.ifEmpty { null }
 }
 
-/** Every change of a journey: each ride and the next ride after it, with the walks between counted. */
+/**
+ * Every change of a journey: each ride and the next ride after it, with the
+ * walks between counted. A change whose arrival or departure time is unknown
+ * is left out: it is unknowable, not at risk.
+ */
 fun transfers(legs: List<Leg>): List<Transfer> {
     val rides = legs.indices.filter { !legs[it].isWalk }
     return rides.zipWithNext().mapNotNull { (a, b) -> transferBetween(legs, a, b) }
@@ -64,7 +69,7 @@ private fun transferBetween(legs: List<Leg>, a: Int, b: Int): Transfer? {
     val walkMinutes = walks.sumOf { walk ->
         val start = walk.from.plannedAt
         val end = walk.to.plannedAt
-        if (start != null && end != null) minutesBetween(start, end) else 0
+        if (start != null && end != null) minutesBetween(start, end).coerceAtLeast(0) else 0
     }
     val available = minutesBetween(arrival, departure)
     val changesStation = walks.isNotEmpty() || arriving.to.id != departing.from.id

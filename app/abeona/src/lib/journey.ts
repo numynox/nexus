@@ -52,6 +52,9 @@ export function effectiveArrival(legs: Leg[]): number {
 
 const HOUR = 3600_000;
 
+/** How often a page refreshes the trips in their live window while it is visible. */
+export const LIVE_REFRESH_MS = 2 * 60_000;
+
 /**
  * A trip is "live" — refreshed on open and every two minutes — from 24 hours
  * before departure until it has arrived (and at most 12 hours after

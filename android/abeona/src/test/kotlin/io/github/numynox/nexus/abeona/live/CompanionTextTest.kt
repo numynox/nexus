@@ -35,7 +35,13 @@ class CompanionTextTest {
 
     @Test
     fun onBoardShowsTheChange() {
-        assertEquals("RE 4 → Frankfurt Hbf · Pl. 7 · change in 12 min · safe", companionStatus(trip, t0.plusSeconds(28 * 60)).text)
+        assertEquals("Safe · change in 12 min · RE 4 → Frankfurt Hbf · Pl. 7", companionStatus(trip, t0.plusSeconds(28 * 60)).text)
+    }
+
+    @Test
+    fun aTightChangeLeadsTheLine() {
+        val tight = trip.copy(legs = listOf(trip.legs[0], trip.legs[1].copy(from = trip.legs[1].from.copy(planned = at(46)))))
+        assertEquals("Tight · change in 12 min · RE 4 → Frankfurt Hbf · Pl. 7", companionStatus(tight, t0.plusSeconds(28 * 60)).text)
     }
 
     @Test
