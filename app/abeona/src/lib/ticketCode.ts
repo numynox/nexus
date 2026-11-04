@@ -13,7 +13,7 @@ const MIN_SIDE = 80;
 const PAGES = 2;
 
 /** What pdf.js hands out for a decoded image (canvas.js reads the same). */
-interface PdfImage {
+export interface PdfImage {
   width: number;
   height: number;
   bitmap?: ImageBitmap;
@@ -85,9 +85,9 @@ function toCanvas(img: PdfImage): HTMLCanvasElement | null {
   return canvas;
 }
 
-/** The barcode as a PNG data URL, or null when the PDF embeds none. */
-export async function extractTicketCode(doc: PDFDocumentProxy, ops: { paintImageXObject: number }): Promise<string | null> {
-  let best: PdfImage | null = null;
+/** The PDF's barcode as pdf.js decoded it, or null when it embeds none. Separate from drawing, so Node can test it. */
+export async function findTicketCode(doc: PDFDocumentProxy, ops: { paintImageXObject: number }): Promise<PdfImage | null> {
+  const found: PdfImage[] = [];
   for (let n = 1; n <= Math.min(doc.numPages, PAGES); n++) {
     const page = await doc.getPage(n);
     const list = await page.getOperatorList();
@@ -96,9 +96,36 @@ export async function extractTicketCode(doc: PDFDocumentProxy, ops: { paintImage
       const id = list.argsArray[i]?.[0];
       if (typeof id !== "string") continue;
       const img = await image(page, id);
-      if (!img || img.width < MIN_SIDE || img.height < MIN_SIDE || !squareEnough(img.width, img.height)) continue;
-      if (!best || img.width * img.height > best.width * best.height) best = img;
+      if (img && img.width >= MIN_SIDE && img.height >= MIN_SIDE && squareEnough(img.width, img.height)) found.push(img);
     }
   }
+  // Largest first; the first that is neither blank nor filled.
+  found.sort((a, b) => b.width * b.height - a.width * a.height);
+  return found.find((img) => darkShare(img) === null || (darkShare(img)! >= 0.2 && darkShare(img)! <= 0.8)) ?? null;
+}
+
+/** How much of the image is dark, from its raw data; null when pdf.js handed out a bitmap instead. */
+export function darkShare(img: PdfImage): number | null {
+  const src = img.data;
+  if (!src) return null;
+  const pixels = img.width * img.height;
+  let dark = 0;
+  for (let p = 0; p < pixels; p++) {
+    if (img.kind === 1) {
+      const rowBytes = Math.ceil(img.width / 8);
+      const x = p % img.width;
+      const y = Math.floor(p / img.width);
+      if (((src[y * rowBytes + (x >> 3)] >> (7 - (x & 7))) & 1) === 0) dark++;
+    } else {
+      const step = img.kind === 3 ? 4 : 3;
+      if (src[p * step] + src[p * step + 1] + src[p * step + 2] < 3 * 128) dark++;
+    }
+  }
+  return dark / pixels;
+}
+
+/** The barcode as a PNG data URL, or null when the PDF embeds none. */
+export async function extractTicketCode(doc: PDFDocumentProxy, ops: { paintImageXObject: number }): Promise<string | null> {
+  const best = await findTicketCode(doc, ops);
   return best ? (toCanvas(best)?.toDataURL("image/png") ?? null) : null;
 }
