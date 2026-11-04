@@ -51,6 +51,7 @@ class HistoryScreenshots {
                 SaveTripSheet(
                     journey = journey,
                     travellers = listOf(Traveller("tr1", "h", "Jannis", "u1")),
+                    cards = emptyList(),
                     me = "u1",
                     onSave = {},
                     onDismiss = {},

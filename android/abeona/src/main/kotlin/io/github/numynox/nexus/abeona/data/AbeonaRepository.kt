@@ -22,7 +22,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.addJsonObject
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.put
@@ -129,8 +130,8 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
             put("train_binding", input.trainBinding)
             put("travel_class", input.travelClass)
             put("price_cents", input.priceCents)
-            put("bahncard_discount", input.bahncardDiscount)
-            input.travellerIds?.let { ids -> put("traveller_ids", JsonArray(ids.map(::JsonPrimitive))) }
+            // Each traveller's own discount; the RPC keeps the shared one on the trip for older APKs.
+            input.travellers?.let { put("travellers", travellersJson(it)) }
         }
         val params = buildJsonObject {
             put("p_trip", trip)
@@ -139,24 +140,29 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
         return NexusJson.decodeFromString<String>(supabase.postgrest.rpc("abeona_save_trip", params).data)
     }
 
-    /** The BahnCard discount of the trip's fare; null for none. */
-    suspend fun setBahncardDiscount(tripId: String, discount: Int?) {
-        supabase.from("abeona_trips").update(buildJsonObject { put("bahncard_discount", discount) }) { filter { eq("id", tripId) } }
-    }
+    /** Who travels on a trip, and with which discount. */
+    suspend fun tripTravellers(tripId: String): List<TripTraveller> =
+        supabase.from("abeona_trip_travellers").select(Columns.list("traveller_id", "bahncard_discount")) { filter { eq("trip_id", tripId) } }
+            .decodeList<TripTraveller>()
 
-    /** The ids of the travellers on a trip. */
-    suspend fun tripTravellerIds(tripId: String): List<String> =
-        supabase.from("abeona_trip_travellers").select(Columns.list("traveller_id")) { filter { eq("trip_id", tripId) } }
-            .decodeList<TripTravellerRow>().map { it.travellerId }
-
-    suspend fun setTripTravellers(tripId: String, travellerIds: List<String>) {
+    /** Replaces who travels on a trip and with which discount, in one call. */
+    suspend fun saveTripTravellers(tripId: String, travellers: List<TripTraveller>) {
         supabase.postgrest.rpc(
-            "abeona_set_trip_travellers",
+            "abeona_save_trip_travellers",
             buildJsonObject {
                 put("p_trip_id", tripId)
-                put("p_traveller_ids", JsonArray(travellerIds.map(::JsonPrimitive)))
+                put("p_travellers", travellersJson(travellers))
             },
         )
+    }
+
+    private fun travellersJson(travellers: List<TripTraveller>) = buildJsonArray {
+        travellers.forEach { t ->
+            addJsonObject {
+                put("id", t.travellerId)
+                put("bahncard_discount", t.bahncardDiscount)
+            }
+        }
     }
 
     /** What is wrong with the trip's BahnCards: the same rows, and words, as on the web. */

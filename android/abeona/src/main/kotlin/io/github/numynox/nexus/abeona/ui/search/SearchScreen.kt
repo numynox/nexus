@@ -203,10 +203,12 @@ fun SearchScreen(app: AppViewModel, navigator: Navigator) {
     }
     draft?.let { ready ->
         val travellers by viewModel.travellers.collectAsStateWithLifecycle()
+        val cards by viewModel.cards.collectAsStateWithLifecycle()
         LaunchedEffect(ready) { viewModel.loadTravellers() }
         SaveTripSheet(
             journey = ready.match.journey,
             travellers = travellers,
+            cards = cards,
             me = viewModel.userId,
             intake = ready,
             onSave = { input ->
@@ -238,10 +240,12 @@ fun SearchScreen(app: AppViewModel, navigator: Navigator) {
 
     saving?.let { journey ->
         val travellers by viewModel.travellers.collectAsStateWithLifecycle()
+        val cards by viewModel.cards.collectAsStateWithLifecycle()
         LaunchedEffect(journey) { viewModel.loadTravellers() }
         SaveTripSheet(
             journey = journey,
             travellers = travellers,
+            cards = cards,
             me = viewModel.userId,
             onSave = { input ->
                 viewModel.save(

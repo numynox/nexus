@@ -83,7 +83,7 @@ class AppScreenshots {
         shot("05-trip-timeline")
         tap("2 stops")
         shot("06-trip-stopovers")
-        scrollTo("BahnCard discount")
+        scrollTo("Who rides, and the BahnCard each one's fare counts on")
         shot("06b-trip-travellers")
         scrollTo("Calendar")
         shot("06c-trip-share")

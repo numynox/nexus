@@ -103,6 +103,7 @@ import io.github.numynox.nexus.abeona.live.LiveSignals
 import io.github.numynox.nexus.abeona.live.OnboardStatus
 import io.github.numynox.nexus.abeona.live.TripLocation
 import io.github.numynox.nexus.abeona.ui.common.TravelDayHero
+import io.github.numynox.nexus.abeona.ui.common.TravellerPicker
 import io.github.numynox.nexus.abeona.ui.common.isLiveDay
 import io.github.numynox.nexus.abeona.ui.common.rememberTicker
 import io.github.numynox.nexus.abeona.ui.AppViewModel
@@ -259,7 +260,7 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                         )
                     },
                     onToggleTraveller = { id -> viewModel.toggleTraveller(id) { scope.launch { snackbar.showSnackbar(it) } } },
-                    onDiscount = { value -> viewModel.setBahncardDiscount(value) { scope.launch { snackbar.showSnackbar(it) } } },
+                    onDiscount = { id, value -> viewModel.setDiscount(id, value) { scope.launch { snackbar.showSnackbar(it) } } },
                     companionOn = companion == tripId,
                     onDbNavigator = { DbNavigator.open(context) },
                     onTicket = {
@@ -362,7 +363,7 @@ private fun TripContent(
     afterRide: AfterRideActions?,
     share: ShareActions?,
     onToggleTraveller: (String) -> Unit,
-    onDiscount: (Int?) -> Unit,
+    onDiscount: (travellerId: String, discount: Int?) -> Unit,
     companionOn: Boolean,
     onDbNavigator: () -> Unit,
     onTicket: () -> Unit,
@@ -476,46 +477,28 @@ private fun LocationPrompt(onAllow: () -> Unit, onDismiss: () -> Unit) {
     }
 }
 
-/** Who rides on this trip, and the BahnCard discount their fare was bought with. */
-@OptIn(ExperimentalLayoutApi::class)
+/** Who rides on this trip, and the BahnCard discount each one's share was bought with. */
 @Composable
-private fun TravellersCard(trip: Trip, people: TripPeople, onToggle: (String) -> Unit, onDiscount: (Int?) -> Unit) {
+private fun TravellersCard(trip: Trip, people: TripPeople, onToggle: (String) -> Unit, onDiscount: (String, Int?) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-        SectionHeader("Travellers", supporting = "Who rides, and the BahnCard their fare counts on")
+        SectionHeader("Travellers", supporting = "Who rides, and the BahnCard each one's fare counts on")
         NexusCard(Modifier.fillMaxWidth()) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                people.travellers.forEach { traveller ->
-                    val on = traveller.id in people.onTrip
-                    FilterChip(
-                        selected = on,
-                        onClick = { onToggle(traveller.id) },
-                        label = { Text(traveller.name) },
-                        leadingIcon = if (on) {
-                            { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                        } else {
-                            null
-                        },
-                    )
-                }
-            }
-            Text("BahnCard discount", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
+            val showDiscount = trip.fareType != FareType.BahnCard100 && trip.fareType != FareType.Deutschlandticket
+            TravellerPicker(
+                travellers = people.travellers,
+                selected = people.onTrip,
+                showDiscount = showDiscount,
+                onToggle = { onToggle(it.id) },
+                onDiscount = onDiscount,
+            )
             when (trip.fareType) {
-                FareType.BahnCard100 -> Text("Every traveller needs a BahnCard 100.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                FareType.Deutschlandticket -> Text("None with a Deutschlandticket.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                else -> ConnectedChoiceRow(
-                    options = BahnCardDiscounts,
-                    selected = trip.bahncardDiscount,
-                    onSelect = onDiscount,
-                    label = { it?.let { kind -> "BC $kind" } ?: "None" },
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                FareType.BahnCard100 -> Text("Every traveller needs a BahnCard 100.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+                FareType.Deutschlandticket -> Text("No BahnCard discount with a Deutschlandticket.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+                else -> Unit
             }
         }
     }
 }
-
-/** The discounts a fare can be bought with; a BahnCard 100 is a fare type of its own. */
-internal val BahnCardDiscounts: List<Int?> = listOf(null, 25, 50)
 
 private fun timelineSummary(trip: Trip): String {
     val rides = trip.legs.count { !it.isWalk }

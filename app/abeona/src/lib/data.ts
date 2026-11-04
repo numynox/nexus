@@ -222,9 +222,8 @@ export interface SaveTripInput {
   train_binding: boolean;
   travel_class: 1 | 2;
   price_cents?: number | null;
-  bahncard_discount?: BahnCardKind | null;
-  /** Who travels. Left out, the trip gets the caller's own traveller. */
-  traveller_ids?: string[];
+  /** Who travels, each with the BahnCard discount of their share. Left out, the trip gets the caller's own traveller. */
+  travellers?: TripTraveller[];
   /**
    * A trip that already happened: saved as source "import", final, never
    * refreshed. The delay, in minutes at the destination, is entered by hand.
@@ -572,8 +571,10 @@ export async function saveTrip(journey: Journey, input: SaveTripInput): Promise<
       train_binding: input.train_binding,
       travel_class: input.travel_class,
       price_cents: input.price_cents ?? null,
-      bahncard_discount: input.bahncard_discount ?? null,
-      ...(input.traveller_ids ? { traveller_ids: input.traveller_ids } : {}),
+      // Each traveller's own discount; the RPC keeps the shared one on the trip for older APKs.
+      ...(input.travellers
+        ? { travellers: input.travellers.map((t) => ({ id: t.traveller_id, bahncard_discount: t.bahncard_discount })) }
+        : {}),
     },
     // The contract's Leg is exactly what the RPC reads.
     p_legs: journey.legs,
@@ -592,27 +593,30 @@ export async function deleteTrip(trip: Pick<Trip, "id" | "ticket_path">): Promis
   if (error) throw error;
 }
 
-/** The BahnCard discount of the trip's fare; null for none. */
-export async function setTripBahncardDiscount(tripId: string, discount: BahnCardKind | null): Promise<void> {
-  const sb = getSupabaseClient();
-  const { error } = await sb
-    .from("abeona_trips")
-    .update({ bahncard_discount: discount, updated_at: new Date().toISOString() })
-    .eq("id", tripId);
-  if (error) throw error;
+/** abeona_trip_travellers: someone on a trip, with the BahnCard discount their share was bought with. */
+export interface TripTraveller {
+  traveller_id: string;
+  bahncard_discount: BahnCardKind | null;
 }
 
-/** The ids of the travellers on a trip. */
-export async function fetchTripTravellerIds(tripId: string): Promise<string[]> {
+/** Who travels on a trip, and with which discount. */
+export async function fetchTripTravellers(tripId: string): Promise<TripTraveller[]> {
   const sb = getSupabaseClient();
-  const { data, error } = await sb.from("abeona_trip_travellers").select("traveller_id").eq("trip_id", tripId);
+  const { data, error } = await sb
+    .from("abeona_trip_travellers")
+    .select("traveller_id, bahncard_discount")
+    .eq("trip_id", tripId);
   if (error) throw error;
-  return ((data ?? []) as { traveller_id: string }[]).map((r) => r.traveller_id);
+  return (data ?? []) as TripTraveller[];
 }
 
-export async function setTripTravellers(tripId: string, travellerIds: string[]): Promise<void> {
+/** Replaces who travels on a trip and with which discount, in one call. */
+export async function saveTripTravellers(tripId: string, travellers: TripTraveller[]): Promise<void> {
   const sb = getSupabaseClient();
-  const { error } = await sb.rpc("abeona_set_trip_travellers", { p_trip_id: tripId, p_traveller_ids: travellerIds });
+  const { error } = await sb.rpc("abeona_save_trip_travellers", {
+    p_trip_id: tripId,
+    p_travellers: travellers.map((t) => ({ id: t.traveller_id, bahncard_discount: t.bahncard_discount })),
+  });
   if (error) throw error;
 }
 

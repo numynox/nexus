@@ -7,6 +7,7 @@ import io.github.numynox.nexus.abeona.data.Journey
 import io.github.numynox.nexus.abeona.data.ProductFilter
 import io.github.numynox.nexus.abeona.data.SaveTripInput
 import io.github.numynox.nexus.abeona.data.Station
+import io.github.numynox.nexus.abeona.data.BahnCard
 import io.github.numynox.nexus.abeona.data.Traveller
 import io.github.numynox.nexus.core.data.describe
 import io.github.numynox.nexus.core.ui.Loadable
@@ -121,7 +122,12 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
     val travellers: StateFlow<List<Traveller>?> = _travellers.asStateFlow()
     val userId: String? get() = container.core.auth.currentUserId
 
+    /** The household's BahnCards, so the save sheet can tell who holds which; empty if they cannot be loaded. */
+    private val _cards = MutableStateFlow<List<BahnCard>>(emptyList())
+    val cards: StateFlow<List<BahnCard>> = _cards.asStateFlow()
+
     fun loadTravellers() = viewModelScope.launch {
+        _cards.value = runCatching { repository.bahnCards() }.getOrDefault(emptyList())
         _travellers.value = runCatching { repository.travellers() }.getOrNull()
     }
 

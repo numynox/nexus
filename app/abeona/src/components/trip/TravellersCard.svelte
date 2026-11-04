@@ -1,17 +1,17 @@
 <script lang="ts">
-  import { Check, Users } from "lucide-svelte";
+  import { Users } from "lucide-svelte";
   import { onMount } from "svelte";
   import {
     describeError,
     fetchTravellers,
-    fetchTripTravellerIds,
-    setTripBahncardDiscount,
-    setTripTravellers,
+    fetchTripTravellers,
+    saveTripTravellers,
     type BahnCardKind,
     type Traveller,
     type Trip,
+    type TripTraveller,
   } from "../../lib/data";
-  import { BAHNCARD_DISCOUNTS } from "../../lib/format";
+  import TravellerPicker from "./TravellerPicker.svelte";
 
   interface Props {
     trip: Trip;
@@ -22,7 +22,7 @@
   let { trip, onChanged }: Props = $props();
 
   let travellers = $state<Traveller[]>([]);
-  let onTrip = $state<ReadonlySet<string>>(new Set());
+  let onTrip = $state<TripTraveller[]>([]);
   let loading = $state(true);
   let busy = $state(false);
   let error = $state("");
@@ -32,9 +32,9 @@
 
   onMount(async () => {
     try {
-      const [all, ids] = await Promise.all([fetchTravellers(), fetchTripTravellerIds(trip.id)]);
+      const [all, riders] = await Promise.all([fetchTravellers(), fetchTripTravellers(trip.id)]);
       travellers = all;
-      onTrip = new Set(ids);
+      onTrip = riders;
     } catch (e) {
       error = describeError(e);
     } finally {
@@ -42,18 +42,21 @@
     }
   });
 
-  async function toggle(t: Traveller) {
+  /** The discount every traveller shares, as the database keeps it on the trip; else null. */
+  function shared(list: TripTraveller[]): BahnCardKind | null {
+    const kinds = new Set(list.map((t) => t.bahncard_discount));
+    return kinds.size === 1 ? [...kinds][0] : null;
+  }
+
+  async function save(next: TripTraveller[]) {
     if (busy) return;
-    const next = new Set(onTrip);
-    if (next.has(t.id)) next.delete(t.id);
-    else next.add(t.id);
     const before = onTrip;
     onTrip = next;
     busy = true;
     error = "";
     try {
-      await setTripTravellers(trip.id, [...next]);
-      onChanged(trip);
+      await saveTripTravellers(trip.id, next);
+      onChanged({ ...trip, bahncard_discount: shared(next) });
     } catch (e) {
       onTrip = before;
       error = describeError(e);
@@ -62,18 +65,18 @@
     }
   }
 
-  async function chooseDiscount(value: BahnCardKind | null) {
-    if (busy || value === trip.bahncard_discount) return;
-    busy = true;
-    error = "";
-    try {
-      await setTripBahncardDiscount(trip.id, value);
-      onChanged({ ...trip, bahncard_discount: value });
-    } catch (e) {
-      error = describeError(e);
-    } finally {
-      busy = false;
-    }
+  function toggle(t: Traveller) {
+    // Someone added joins without a discount until it is chosen.
+    void save(
+      onTrip.some((r) => r.traveller_id === t.id)
+        ? onTrip.filter((r) => r.traveller_id !== t.id)
+        : [...onTrip, { traveller_id: t.id, bahncard_discount: null }],
+    );
+  }
+
+  function choose(id: string, discount: BahnCardKind | null) {
+    if (onTrip.find((r) => r.traveller_id === id)?.bahncard_discount === discount) return;
+    void save(onTrip.map((r) => (r.traveller_id === id ? { ...r, bahncard_discount: discount } : r)));
   }
 </script>
 
@@ -86,39 +89,16 @@
   {#if loading}
     <div class="mt-4 h-10 animate-pulse rounded-full bg-base-200"></div>
   {:else}
-    <div class="mt-4 flex flex-wrap gap-2">
-      {#each travellers as t (t.id)}
-        {@const on = onTrip.has(t.id)}
-        <button
-          class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition
-            {on ? 'border-primary bg-mint text-primary' : 'border-base-300 bg-card text-base-content/70 hover:border-base-content/30'}"
-          aria-pressed={on}
-          disabled={busy}
-          onclick={() => toggle(t)}
-        >
-          {#if on}<Check class="h-3.5 w-3.5" />{/if}
-          {t.name}
-        </button>
-      {/each}
+    <div class="mt-4">
+      <TravellerPicker {travellers} selected={onTrip} {showDiscount} disabled={busy} onToggle={toggle} onDiscount={choose} />
     </div>
-  {/if}
-
-  <p class="mt-5 px-1 pb-1 text-xs font-semibold uppercase tracking-wider text-base-content/55">BahnCard discount</p>
-  {#if showDiscount}
-    <div class="join w-full">
-      {#each BAHNCARD_DISCOUNTS as d (d.label)}
-        <button
-          class="btn btn-sm join-item flex-1 {trip.bahncard_discount === d.value ? 'btn-primary' : 'bg-card'}"
-          aria-pressed={trip.bahncard_discount === d.value}
-          disabled={busy}
-          onclick={() => chooseDiscount(d.value)}
-        >{d.value === null ? "None" : d.value}</button>
-      {/each}
-    </div>
-  {:else}
-    <p class="px-1 text-sm text-base-content/60">
-      {isBahnCard100 ? "Every traveller needs a BahnCard 100." : "None with a Deutschlandticket."}
-    </p>
+    {#if !showDiscount}
+      <p class="mt-3 px-1 text-sm text-base-content/60">
+        {isBahnCard100 ? "Every traveller needs a BahnCard 100." : "No BahnCard discount with a Deutschlandticket."}
+      </p>
+    {:else if onTrip.length > 0}
+      <p class="mt-2 px-1 text-xs text-base-content/55">The BahnCard discount each one's share was bought with.</p>
+    {/if}
   {/if}
 
   {#if error}<p class="mt-3 text-sm text-error" role="alert">{error}</p>{/if}

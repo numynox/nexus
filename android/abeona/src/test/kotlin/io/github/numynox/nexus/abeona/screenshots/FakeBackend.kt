@@ -130,7 +130,6 @@ object FakeBackend {
         Trip(
             NEXT, HOUSEHOLD, "Visit grandma in Bamberg", "planned", frankfurt.name, bamberg.name, at(50), at(203),
             io.github.numynox.nexus.abeona.data.FareType.Saver, true, 2, 3490, "$HOUSEHOLD/$NEXT/sparpreis.png", "tok-1", at(-1), nextLegs,
-            bahncardDiscount = 25,
         ),
         Trip(
             "33333333-3333-4333-8333-000000000002", HOUSEHOLD, "Hamburg conference", "planned", berlin.name, hamburg.name, at(2 * 1440 + 120), at(2 * 1440 + 233),
@@ -352,11 +351,12 @@ object FakeBackend {
                 put("id", "55555555-5555-4555-8555-000000000002"); put("trip_id", PAST_LATE); put("status", "claimed"); put("claimed_at", at(0))
             }
             path.endsWith("/rpc/abeona_trip_warnings") -> if (request.text().contains(NEXT)) warnings else "[]"
-            path.endsWith("/rpc/abeona_set_trip_travellers") -> "null"
+            path.endsWith("/rpc/abeona_save_trip_travellers") -> "null"
             path.endsWith("/rest/v1/abeona_trip_travellers") -> buildJsonArray {
-                // Everyone on the trip to grandma; the saver alone on the others.
-                val ids = if (params["trip_id"]?.removePrefix("eq.") == NEXT) listOf("tr1", "tr2", "tr3") else listOf("tr1")
-                ids.forEach { addJsonObject { put("traveller_id", it) } }
+                // Everyone on the trip to grandma, on one ticket with a BahnCard 25,
+                // a BahnCard 50 and one without; the saver alone on the others.
+                val riders = if (params["trip_id"]?.removePrefix("eq.") == NEXT) listOf("tr1" to 25, "tr2" to 50, "tr3" to null) else listOf("tr1" to null)
+                riders.forEach { (id, discount) -> addJsonObject { put("traveller_id", id); put("bahncard_discount", discount) } }
             }
             path.endsWith("/rest/v1/abeona_bahncards") && request.method == HttpMethod.Get -> NexusJson.encodeToJsonElement(bahnCards)
             path.endsWith("/rest/v1/abeona_bahncards") && request.method != HttpMethod.Delete -> NexusJson.encodeToJsonElement(bahnCards.first())

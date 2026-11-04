@@ -28,11 +28,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import io.github.numynox.nexus.abeona.data.BahnCard
 import io.github.numynox.nexus.abeona.data.FareType
 import io.github.numynox.nexus.abeona.data.Journey
 import io.github.numynox.nexus.abeona.data.SaveTripInput
 import io.github.numynox.nexus.abeona.data.Traveller
+import io.github.numynox.nexus.abeona.data.TripTraveller
 import io.github.numynox.nexus.abeona.domain.AppClock
+import io.github.numynox.nexus.abeona.domain.Travellers
+import io.github.numynox.nexus.abeona.ui.common.TravellerPicker
 import io.github.numynox.nexus.abeona.domain.intake.IntakeDraft
 import io.github.numynox.nexus.abeona.domain.intake.ParsedTicket
 import io.github.numynox.nexus.abeona.domain.intake.MatchStatus
@@ -75,6 +79,8 @@ fun SaveTripSheet(
     journey: Journey,
     /** The household's travellers; null until loaded (or when they cannot be), and the database then picks the saver. */
     travellers: List<Traveller>?,
+    /** The household's BahnCards: who holds which, for each traveller's first guess at their discount. */
+    cards: List<BahnCard>,
     /** The signed-in user, whose own traveller is on the trip by default. */
     me: String?,
     onSave: (SaveTripInput) -> Unit,
@@ -88,11 +94,32 @@ fun SaveTripSheet(
     var binding by remember { mutableStateOf(prefill?.trainBinding ?: (fare == FareType.Saver)) }
     var travelClass by remember { mutableStateOf(prefill?.travelClass ?: 2) }
     var price by remember { mutableStateOf(prefill?.priceCents?.let(::euros).orEmpty()) }
-    var discount by remember { mutableStateOf(prefill?.bahncardDiscount) }
     // A ticket that prints a return booking's total: the user says what this trip cost. Never halved silently.
     val wholeBooking = prefill?.priceCents?.takeIf { prefill.priceScope == PriceScope.Booking }
     var priceConfirmed by remember { mutableStateOf(wholeBooking == null) }
-    var chosen by remember(travellers) { mutableStateOf(travellers?.filter { it.userId == me }?.map { it.id }?.toSet()) }
+    // The kinds of BahnCard each traveller holds on the day of the journey.
+    val held = remember(cards, journey) {
+        val day = journey.legs.firstOrNull()?.from?.plannedAt?.atZone(java.time.ZoneId.systemDefault())?.toLocalDate()?.toString().orEmpty()
+        cards.filter { it.kind != 100 && it.validFrom <= day && it.validTo >= day }
+            .groupBy({ it.travellerId }, { it.kind })
+    }
+    // A traveller joining the trip, with a first guess at their discount: from
+    // a ticket, one of the discounts it prints; from a search, their own card.
+    fun joining(id: String, already: List<TripTraveller>): TripTraveller {
+        val own = held[id].orEmpty()
+        val ticket = prefill?.discounts.orEmpty()
+        val discount = if (ticket.isNotEmpty()) {
+            Travellers.nextDiscount(ticket, already.map { it.bahncardDiscount }, own)
+        } else {
+            Travellers.fromCards(own)
+        }
+        return TripTraveller(id, discount)
+    }
+    var chosen by remember(travellers, held) {
+        mutableStateOf(
+            travellers?.filter { it.userId == me }?.fold(emptyList<TripTraveller>()) { list, t -> list + joining(t.id, list) },
+        )
+    }
     var saving by remember { mutableStateOf(false) }
     val origin = journey.legs.firstOrNull()?.from?.name.orEmpty()
     val destination = journey.legs.lastOrNull()?.to?.name.orEmpty()
@@ -171,33 +198,25 @@ fun SaveTripSheet(
                 label = { if (it == 1) "1st class" else "2nd class" },
                 modifier = Modifier.fillMaxWidth(),
             )
-            if (fare != FareType.BahnCard100 && fare != FareType.Deutschlandticket) {
-                Text("BahnCard discount", style = MaterialTheme.typography.labelLarge)
-                ConnectedChoiceRow(
-                    options = listOf(null, 25, 50),
-                    selected = discount,
-                    onSelect = { discount = it },
-                    label = { it?.let { kind -> "BC $kind" } ?: "None" },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            if (travellers != null && travellers.size > 1) {
-                Text(
-                    listOfNotNull(
-                        "Who travels",
-                        prefill?.travellers?.let { n -> "the ticket is for ${if (n == 1) "1 person" else "$n people"}" },
-                    ).joinToString(" · "),
-                    style = MaterialTheme.typography.labelLarge,
-                )
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    travellers.forEach { traveller ->
-                        val on = chosen?.contains(traveller.id) == true
-                        FilterChip(
-                            selected = on,
-                            onClick = { chosen = (chosen ?: emptySet()).let { if (on) it - traveller.id else it + traveller.id } },
-                            label = { Text(traveller.name) },
-                        )
-                    }
+            val showDiscount = fare != FareType.BahnCard100 && fare != FareType.Deutschlandticket
+            chosen?.let { list ->
+                if (travellers != null && (travellers.size > 1 || showDiscount)) {
+                    Text(
+                        listOfNotNull(
+                            if (travellers.size > 1) "Who travels" else "BahnCard discount",
+                            prefill?.travellers?.let { n -> "the ticket is for ${if (n == 1) "1 person" else "$n people"}" },
+                        ).joinToString(" · "),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                    TravellerPicker(
+                        travellers = travellers,
+                        selected = list,
+                        showDiscount = showDiscount,
+                        onToggle = { t ->
+                            chosen = if (list.any { it.travellerId == t.id }) list.filter { it.travellerId != t.id } else list + joining(t.id, list)
+                        },
+                        onDiscount = { id, d -> chosen = list.map { if (it.travellerId == id) it.copy(bahncardDiscount = d) else it } },
+                    )
                 }
             }
             OutlinedTextField(
@@ -252,8 +271,9 @@ fun SaveTripSheet(
                                 trainBinding = binding && fare in Bindable,
                                 travelClass = travelClass,
                                 priceCents = priceCents,
-                                bahncardDiscount = discount.takeIf { fare != FareType.BahnCard100 && fare != FareType.Deutschlandticket },
-                                travellerIds = chosen?.toList(),
+                                travellers = chosen?.map { t ->
+                                    t.copy(bahncardDiscount = t.bahncardDiscount.takeIf { fare != FareType.BahnCard100 && fare != FareType.Deutschlandticket })
+                                },
                                 past = past,
                                 arrivalDelayMinutes = delay.toIntOrNull()?.coerceIn(0, 1440),
                                 source = intake?.source?.wire,
