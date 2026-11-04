@@ -6,6 +6,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.numynox.nexus.abeona.AppContainer
 import io.github.numynox.nexus.abeona.data.AlternativesResponse
+import io.github.numynox.nexus.abeona.data.Claim
+import io.github.numynox.nexus.abeona.data.Compensation
+import io.github.numynox.nexus.abeona.data.Journey
+import io.github.numynox.nexus.abeona.data.Leg
 import io.github.numynox.nexus.abeona.data.Traveller
 import io.github.numynox.nexus.abeona.data.Trip
 import io.github.numynox.nexus.abeona.data.TripWarning
@@ -53,6 +57,21 @@ data class AlternativesState(
     val error: String? = null,
 )
 
+/** After the ride: what the delay is worth, and the household's claim for it. */
+data class AfterRide(
+    val compensation: Compensation,
+    val claim: Claim?,
+    val busy: Boolean = false,
+)
+
+/** The connections from a missed ride's stop, to pick the one actually taken. */
+data class ReplacementSearch(
+    val missedIdx: Int,
+    val loading: Boolean = true,
+    val options: List<Journey>? = null,
+    val error: String? = null,
+)
+
 /** Who travels on the trip, everyone who could, and what is wrong with their BahnCards. */
 data class TripPeople(
     val travellers: List<Traveller>,
@@ -78,6 +97,13 @@ class TripViewModel(
     /** Null until a search ran, by itself (something is wrong) or on demand. */
     val alternatives: StateFlow<AlternativesState?> = _alternatives.asStateFlow()
 
+    private val _afterRide = MutableStateFlow<AfterRide?>(null)
+    /** Null before arrival, offline, or while loading. */
+    val afterRide: StateFlow<AfterRide?> = _afterRide.asStateFlow()
+
+    private val _replacements = MutableStateFlow<ReplacementSearch?>(null)
+    val replacements: StateFlow<ReplacementSearch?> = _replacements.asStateFlow()
+
     private var auto: Job? = null
     private var probe: Job? = null
     private var searching: Job? = null
@@ -95,6 +121,7 @@ class TripViewModel(
             }
             _detail.value = Loadable.Ready(TripDetail(trip, fetched.offlineSince))
             if (fetched.offlineSince == null) launch { loadPeople() }
+            if (fetched.offlineSince == null && hasArrived(trip)) launch { loadAfterRide() }
             if (fetched.offlineSince == null && !isOver(trip)) refreshNow()
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
@@ -142,6 +169,74 @@ class TripViewModel(
                     onError(it.describe())
                 }
         }
+    }
+
+    private suspend fun loadAfterRide() {
+        val repository = container.repository
+        _afterRide.value = runCatching {
+            coroutineScope {
+                val compensation = async { repository.compensation(tripId) }
+                val claim = async { repository.claim(tripId) }
+                compensation.await()?.let { AfterRide(it, claim.await()) }
+            }
+        }.getOrElse { _afterRide.value }
+    }
+
+    private fun afterRideAction(onError: (String) -> Unit, block: suspend () -> Unit) {
+        _afterRide.value = _afterRide.value?.copy(busy = true)
+        viewModelScope.launch {
+            runCatching { block() }.onFailure { onError(it.describe()) }
+            loadAfterRide()
+        }
+    }
+
+    fun setClaimStatus(status: String, onError: (String) -> Unit) {
+        val current = _afterRide.value ?: return
+        if ((current.claim?.status ?: "open") == status) return
+        afterRideAction(onError) {
+            container.repository.setClaimStatus(tripId, status, current.claim?.amountCents ?: current.compensation.amountCents, current.claim)
+        }
+    }
+
+    fun setPrice(cents: Int, onError: (String) -> Unit) = afterRideAction(onError) {
+        container.repository.setTripPrice(tripId, cents)
+        updateTrip { it.copy(priceCents = cents) }
+    }
+
+    fun setForceMajeure(value: Boolean, onError: (String) -> Unit) = afterRideAction(onError) {
+        container.repository.setForceMajeure(tripId, value)
+        updateTrip { it.copy(forceMajeure = value) }
+    }
+
+    /** Records (or with nulls clears) the missed ride and what was taken instead. */
+    fun recordDisruption(missedIdx: Int?, legs: List<Leg>?, onError: (String) -> Unit, onDone: () -> Unit = {}) = afterRideAction(onError) {
+        container.repository.recordDisruption(tripId, missedIdx, legs)
+        updateTrip { it.copy(missedLegIdx = missedIdx, replacementLegs = legs?.takeIf { l -> l.isNotEmpty() }) }
+        _replacements.value = null
+        onDone()
+    }
+
+    /** Connections from the missed ride's stop at its planned time. */
+    fun searchReplacements(missedIdx: Int): Job = viewModelScope.launch {
+        val trip = _detail.value.valueOrNull?.trip ?: return@launch
+        val missed = trip.legs.getOrNull(missedIdx) ?: return@launch
+        _replacements.value = ReplacementSearch(missedIdx)
+        _replacements.value = try {
+            ReplacementSearch(missedIdx, loading = false, options = container.repository.connectionsAfter(trip, missed).alternatives.map { Journey(it.provider, it.refreshToken, it.legs) })
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            ReplacementSearch(missedIdx, loading = false, error = e.describe())
+        }
+    }
+
+    fun clearReplacementSearch() {
+        _replacements.value = null
+    }
+
+    private fun updateTrip(change: (Trip) -> Trip) {
+        val latest = _detail.value.valueOrNull ?: return
+        _detail.value = Loadable.Ready(latest.copy(trip = change(latest.trip)))
     }
 
     /** Live values from the provider; the screen keeps showing what it has meanwhile. */
@@ -249,6 +344,8 @@ class TripViewModel(
             }.onFailure { onError(it.describe()) }
         }
     }
+
+    private fun hasArrived(trip: Trip) = trip.expectedArrival.isBefore(Instant.now())
 
     private fun isOver(trip: Trip) = trip.expectedArrival.plus(Duration.ofHours(1)).isBefore(Instant.now())
 

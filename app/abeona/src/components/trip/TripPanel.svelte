@@ -11,6 +11,8 @@
   import BindingBanner from "../common/BindingBanner.svelte";
   import TravelDayHero from "../common/TravelDayHero.svelte";
   import AlternativesSection from "./AlternativesSection.svelte";
+  import CompensationCard from "./CompensationCard.svelte";
+  import DisruptionCard from "./DisruptionCard.svelte";
   import Illustration from "../common/Illustration.svelte";
   import LegCard from "./LegCard.svelte";
   import TicketCard from "./TicketCard.svelte";
@@ -34,6 +36,7 @@
   let ticketCard: ReturnType<typeof TicketCard> | undefined = $state();
   let warnings = $state<TripWarning[]>([]);
   let alternativesSection: ReturnType<typeof AlternativesSection> | undefined = $state();
+  let compensationCard: ReturnType<typeof CompensationCard> | undefined = $state();
   /** Ticks every half minute, so the travel day's countdowns move. */
   let now = $state(Date.now());
   let stationMinutes = $state(15);
@@ -199,7 +202,7 @@
     <div class="flex flex-wrap items-center justify-between gap-3 px-1">
       <p class="text-sm text-base-content/60">
         {#if arrived}
-          Arrived
+          Arrived{trip.finalized_at ? " · final times recorded" : ""}
         {:else if s.hasRealtime && trip.refreshed_at}
           <span class="mr-1 inline-block h-2 w-2 rounded-full bg-primary"></span>
           Live · updated {formatTime(trip.refreshed_at)}
@@ -226,7 +229,7 @@
       />
     {/if}
 
-    {#if bindingLifted}
+    {#if bindingLifted && !arrived}
       <BindingBanner delay={s.arrivalDelay} />
     {/if}
 
@@ -236,6 +239,20 @@
 
     {#if day && origin}
       <AlternativesSection bind:this={alternativesSection} {trip} {origin} {reason} refreshKey={trip.refreshed_at} />
+    {/if}
+
+    {#if arrived}
+      <!-- After the ride: what it is worth, and what really happened. -->
+      <div class="grid gap-6 lg:grid-cols-2 lg:items-start">
+        <CompensationCard bind:this={compensationCard} {trip} onTripChanged={(changed) => (trip = changed)} />
+        <DisruptionCard
+          {trip}
+          onChanged={(changed) => {
+            trip = changed;
+            void compensationCard?.reload();
+          }}
+        />
+      </div>
     {/if}
 
     <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">

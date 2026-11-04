@@ -142,6 +142,9 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
     val companion by LiveCompanion.running.collectAsStateWithLifecycle()
     val settings by app.settings.collectAsStateWithLifecycle()
     val alternatives by viewModel.alternatives.collectAsStateWithLifecycle()
+    val afterRide by viewModel.afterRide.collectAsStateWithLifecycle()
+    val replacements by viewModel.replacements.collectAsStateWithLifecycle()
+    var recording by rememberSaveable { mutableStateOf(false) }
     val onboard by LiveSignals.onboard.collectAsStateWithLifecycle()
     val fix by LiveSignals.fix.collectAsStateWithLifecycle()
     val now by rememberTicker()
@@ -149,6 +152,7 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val pull = rememberPullRefresh(viewModel::refresh)
+    val showError: (String) -> Unit = { message -> scope.launch { snackbar.showSnackbar(message) } }
     var confirmDelete by remember { mutableStateOf(false) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
 
@@ -231,6 +235,16 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                         if (alternatives?.result == null && alternatives?.loading != true) viewModel.findAlternatives()
                     },
                     people = people,
+                    afterRide = afterRide?.let { state ->
+                        AfterRideActions(
+                            state = state,
+                            onStatus = { viewModel.setClaimStatus(it, showError) },
+                            onPrice = { viewModel.setPrice(it, showError) },
+                            onForceMajeure = { viewModel.setForceMajeure(it, showError) },
+                            onRecord = { recording = true },
+                            onClear = { viewModel.recordDisruption(null, null, showError) },
+                        )
+                    },
                     onToggleTraveller = { id -> viewModel.toggleTraveller(id) { scope.launch { snackbar.showSnackbar(it) } } },
                     onDiscount = { value -> viewModel.setBahncardDiscount(value) { scope.launch { snackbar.showSnackbar(it) } } },
                     companionOn = companion == tripId,
@@ -269,6 +283,23 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
         )
     }
 
+    if (recording) {
+        (detail as? Loadable.Ready)?.value?.trip?.let { trip ->
+            RecordDisruptionSheet(
+                trip = trip,
+                search = replacements,
+                onSearch = { viewModel.searchReplacements(it) },
+                onSave = { idx, legs ->
+                    viewModel.recordDisruption(idx, legs, showError) { recording = false }
+                },
+                onDismiss = {
+                    recording = false
+                    viewModel.clearReplacementSearch()
+                },
+            )
+        }
+    }
+
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
@@ -288,6 +319,16 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
     }
 }
 
+/** The after-the-ride cards' state and what they can do. */
+private class AfterRideActions(
+    val state: AfterRide,
+    val onStatus: (String) -> Unit,
+    val onPrice: (Int) -> Unit,
+    val onForceMajeure: (Boolean) -> Unit,
+    val onRecord: () -> Unit,
+    val onClear: () -> Unit,
+)
+
 /** The travel day as the trip screen shows it, while the trip is live. */
 private data class LiveDay(
     val day: TravelDay,
@@ -305,6 +346,7 @@ private fun TripContent(
     onDismissLocation: () -> Unit,
     onAlternatives: () -> Unit,
     people: TripPeople?,
+    afterRide: AfterRideActions?,
     onToggleTraveller: (String) -> Unit,
     onDiscount: (Int?) -> Unit,
     companionOn: Boolean,
@@ -329,7 +371,8 @@ private fun TripContent(
                 item(key = "location") { LocationPrompt(onAllow = onAllowLocation, onDismiss = onDismissLocation) }
             }
         }
-        if (trainBindingLifted(trip.fareType, trip.trainBinding, arrivalDelay)) {
+        val over = trip.expectedArrival.plus(Duration.ofHours(1)).isBefore(java.time.Instant.now())
+        if (!over && trainBindingLifted(trip.fareType, trip.trainBinding, arrivalDelay)) {
             item(key = "binding") { BindingLiftedBanner(arrivalDelay) }
         }
         if (!people?.warnings.isNullOrEmpty() && trip.expectedArrival.isAfter(java.time.Instant.now())) {
@@ -347,7 +390,7 @@ private fun TripContent(
                         Text(if (trip.ticketPath != null) "Ticket" else "Add ticket", modifier = Modifier.padding(start = 8.dp))
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (!over) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = onCompanion, modifier = Modifier.weight(1f)) {
                         Icon(
                             if (companionOn) Icons.Rounded.NotificationsOff else Icons.Rounded.NotificationsActive,
@@ -368,6 +411,10 @@ private fun TripContent(
                     }
                 }
             }
+        }
+        afterRide?.let { a ->
+            item(key = "compensation") { CompensationCard(trip, a.state, a.onStatus, a.onPrice, a.onForceMajeure) }
+            item(key = "what-happened") { WhatHappenedCard(trip, a.state.busy, a.onRecord, a.onClear) }
         }
         item(key = "map") {
             TripMap(trip.legs, Modifier.fillMaxWidth().height(220.dp).padding(top = 4.dp))
@@ -496,6 +543,7 @@ private fun TripHeader(detail: TripDetail) {
             when {
                 detail.offlineSince != null -> OfflinePill(detail.offlineSince)
                 detail.refreshError != null -> StatusPill("Live data unavailable", offline = true)
+                trip.finalizedAt != null -> StatusPill("Final times recorded")
                 trip.refreshedAt != null -> StatusPill("Live · updated ${TripFormat.time(trip.refreshedAt.toInstantOrNull())}")
             }
             if (trip.legs.none { it.realtime } && trip.legs.any { !it.isWalk }) StatusPill("Timetable only")

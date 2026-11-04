@@ -8,9 +8,10 @@
 // clients save trips and live values through RPCs, under RLS, as the caller.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import type { Allowance, AlternativesResponse, Journey, Leg, Request } from "./contract.ts";
+import type { Allowance, AlternativesResponse, Request } from "./contract.ts";
 import * as transitous from "./transitous.ts";
 import { ProviderError } from "./transitous.ts";
+import { refreshJourney } from "./refresh.ts";
 import { mark, rank } from "./validity.ts";
 
 const corsHeaders = {
@@ -18,8 +19,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-
-const MAX_REFRESH_LEGS = 12;
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -41,43 +40,6 @@ function isoOrNow(value: unknown): string | null {
   const yearMs = 366 * 24 * 3600 * 1000;
   if (Math.abs(date.getTime() - Date.now()) > yearMs) return null;
   return date.toISOString();
-}
-
-async function refresh(request: Extract<Request, { action: "refresh" }>) {
-  const saved = Array.isArray(request.legs) ? request.legs.slice(0, MAX_REFRESH_LEGS) : [];
-
-  // First try the whole itinerary; it is one request, and it also notices a
-  // leg that has been cancelled outright.
-  if (isId(request.refresh_token)) {
-    try {
-      const journey: Journey = await transitous.refreshItinerary(request.refresh_token);
-      if (saved.length === 0 || journey.legs.length === saved.length) {
-        return { journey, legs: journey.legs };
-      }
-    } catch {
-      // Fall through to refreshing leg by leg.
-    }
-  }
-
-  const legs: (Leg | null)[] = await Promise.all(
-    saved.map(async (leg) => {
-      if (!isId(leg?.trip_ref) || typeof leg.from_name !== "string" || typeof leg.to_name !== "string") {
-        return null;
-      }
-      try {
-        return await transitous.refreshLeg({
-          trip_ref: leg.trip_ref,
-          from_id: isId(leg.from_id) ? leg.from_id : null,
-          to_id: isId(leg.to_id) ? leg.to_id : null,
-          from_name: leg.from_name,
-          to_name: leg.to_name,
-        });
-      } catch {
-        return null;
-      }
-    }),
-  );
-  return { journey: null, legs };
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -177,7 +139,7 @@ Deno.serve(async (req) => {
       }
 
       case "refresh":
-        return json(await refresh(request));
+        return json(await refreshJourney(request.refresh_token, request.legs));
 
       default:
         return json({ error: "Unknown action" }, 400);

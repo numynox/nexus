@@ -50,6 +50,10 @@ object FakeBackend {
     const val NEXT = "33333333-3333-4333-8333-000000000001"
     const val SAVED = "33333333-3333-4333-8333-000000000099"
     const val CARD_JANNIS = "44444444-4444-4444-8444-000000000001"
+    const val PAST_LATE = "33333333-3333-4333-8333-000000000011"
+    const val PAST_MISSED = "33333333-3333-4333-8333-000000000012"
+    const val PAST_DTICKET = "33333333-3333-4333-8333-000000000013"
+    const val PAST_NOPRICE = "33333333-3333-4333-8333-000000000014"
 
     /** No trips at all: the empty state. */
     @Volatile var noTrips = false
@@ -129,6 +133,117 @@ object FakeBackend {
             listOf(ride("ICE", "ICE 126", "Amsterdam Centraal", stop(koeln, 9 * 1440, platform = "5"), stop(amsterdam, 9 * 1440 + 160, platform = "10b"), realtime = false, operator = "NS International")),
         ),
     )
+
+    /**
+     * After the ride: yesterday's trip to grandma, 72 minutes late and final
+     * (eligible); last week's, where the RE was missed and an IC taken (claimed);
+     * a Deutschlandticket ride (€1.50, under the minimum, to pool) and a Flexpreis
+     * without a price.
+     */
+    private val pastTrips: List<Trip> by lazy {
+        val y = -1440L
+        val late = listOf(
+            ride("ICE", "ICE 25", "Wien Hbf", stop(frankfurt, y + 50, y + 52, "8"), stop(wuerzburg, y + 118, y + 121, "4")),
+            ride("RE", "RE 10", "Bamberg", stop(wuerzburg, y + 131, y + 133, "6"), stop(bamberg, y + 203, y + 275, "3"), operator = "DB Regio Bayern"),
+        )
+        val w = -6 * 1440L
+        val missedLegs = listOf(
+            ride("ICE", "ICE 25", "Wien Hbf", stop(frankfurt, w + 50, w + 58, "8"), stop(wuerzburg, w + 118, w + 140, "4")),
+            ride("RE", "RE 10", "Bamberg", stop(wuerzburg, w + 131, w + 131, "6"), stop(bamberg, w + 203, w + 203, "3"), operator = "DB Regio Bayern"),
+        )
+        val replacement = listOf(ride("IC", "IC 2063", "Nürnberg Hbf", stop(wuerzburg, w + 200, w + 204, "3"), stop(bamberg, w + 256, w + 268, "4")))
+        val d = -3 * 1440L
+        listOf(
+            Trip(PAST_LATE, HOUSEHOLD, "Visit grandma in Bamberg", "planned", frankfurt.name, bamberg.name, at(y + 50), at(y + 203),
+                io.github.numynox.nexus.abeona.data.FareType.Saver, true, 2, 3490, null, "tok-p1", at(y + 290), late,
+                finalizedAt = at(y + 290)),
+            Trip(PAST_MISSED, HOUSEHOLD, "Back from grandma", "planned", frankfurt.name, bamberg.name, at(w + 50), at(w + 203),
+                io.github.numynox.nexus.abeona.data.FareType.Saver, true, 2, 4290, null, "tok-p2", at(w + 290), missedLegs,
+                finalizedAt = at(w + 290), missedLegIdx = 1, replacementLegs = replacement),
+            Trip(PAST_DTICKET, HOUSEHOLD, null, "planned", nuernberg.name, bamberg.name, at(d + 600), at(d + 660),
+                io.github.numynox.nexus.abeona.data.FareType.Deutschlandticket, false, 2, null, null, null, at(d + 735),
+                listOf(ride("RE", "RE 42", "Bamberg", stop(nuernberg, d + 600, d + 604, "17"), stop(bamberg, d + 660, d + 726, "5"), operator = "DB Regio Bayern")),
+                finalizedAt = at(d + 735)),
+            Trip(PAST_NOPRICE, HOUSEHOLD, "Cologne meeting", "planned", frankfurt.name, koeln.name, at(-2 * 1440 + 480), at(-2 * 1440 + 545),
+                io.github.numynox.nexus.abeona.data.FareType.Flex, false, 2, null, null, null, at(-2 * 1440 + 640),
+                listOf(ride("ICE", "ICE 120", "Köln Hbf", stop(frankfurt, -2 * 1440 + 480, -2 * 1440 + 482, "18"), stop(koeln, -2 * 1440 + 545, -2 * 1440 + 640, "4"))),
+                finalizedAt = at(-2 * 1440 + 640)),
+        )
+    }
+
+    private fun compensation(id: String) = buildJsonObject {
+        fun base(verdict: String, amount: Int?, percent: Int?, delay: Int, trip: Trip) {
+            put("trip_id", id); put("verdict", verdict); put("amount_cents", amount); put("percent", percent)
+            put("delay_minutes", delay); put("delay_source", if (trip.replacementLegs != null) "replacement" else "final")
+            put("planned_arrival", trip.plannedArrival)
+            put("actual_arrival", (trip.replacementLegs ?: trip.legs).last().to.current)
+            put("threshold_minutes", 60)
+            put("deadline", trip.arrivalAt.atZone(java.time.ZoneId.systemDefault()).toLocalDate().plusMonths(3).toString())
+            put("deadline_passed", false)
+            put("claim_url", "https://www.bahn.de/service/informationen-buchung/fahrgastrechte")
+        }
+        val trip = pastTrips.first { it.id == id }
+        when (id) {
+            PAST_LATE -> {
+                base("eligible", 873, 25, 72, trip); put("poolable", false)
+                putJsonArray("reasons") { add("From 60 minutes late at the destination, 25 % of the fare is paid back.") }
+                putJsonArray("hints") {}
+                put("summary_de", "Fahrgastrechte: Verspätung am Zielbahnhof\nReise: Frankfurt(Main)Hbf → Bamberg\nVerspätung am Ziel: 72 Minuten\nFahrpreis: 34,90 €")
+            }
+            PAST_MISSED -> {
+                base("eligible", 1073, 25, 65, trip); put("poolable", false)
+                putJsonArray("reasons") { add("From 60 minutes late at the destination, 25 % of the fare is paid back.") }
+                putJsonArray("hints") {}
+                put("summary_de", "Fahrgastrechte: Verspätung am Zielbahnhof\nStattdessen gefahren: IC 2063")
+            }
+            PAST_DTICKET -> {
+                base("below_minimum", 150, null, 66, trip); put("poolable", true)
+                putJsonArray("reasons") {
+                    add("A Deutschlandticket gets €1.50 for each arrival 60 minutes or more late."); add("Amounts under €4 are not paid out.")
+                }
+                putJsonArray("hints") {
+                    add("At most 25 % of the ticket's monthly price in all.")
+                    add("With a season ticket, collect several delays and claim them together once they add up to €4.")
+                }
+                put("summary_de", "Fahrgastrechte: Verspätung am Zielbahnhof\nFahrkarte: Deutschlandticket, 2. Klasse")
+            }
+            else -> {
+                base("unknown_price", null, 25, 95, trip); put("poolable", false)
+                putJsonArray("reasons") {
+                    add("From 60 minutes late at the destination, 25 % of the fare is paid back."); add("Add what the ticket cost to work out the amount.")
+                }
+                putJsonArray("hints") {}
+                put("summary_de", "Fahrgastrechte: Verspätung am Zielbahnhof\nReise: Frankfurt(Main)Hbf → Köln Hbf")
+            }
+        }
+    }
+
+    private fun claimEntry(trip: Trip, verdict: String, amount: Int?, delay: Int, status: String) = buildJsonObject {
+        val deadline = trip.arrivalAt.atZone(java.time.ZoneId.systemDefault()).toLocalDate().plusMonths(3)
+        put("trip_id", trip.id); put("title", trip.title); put("origin_name", trip.originName); put("destination_name", trip.destinationName)
+        put("planned_departure", trip.plannedDeparture); put("delay_minutes", delay); put("verdict", verdict); put("amount_cents", amount)
+        put("deadline", deadline.toString()); put("days_left", java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), deadline)); put("status", status)
+    }
+
+    private fun claimsOverview() = buildJsonObject {
+        val byId = pastTrips.associateBy { it.id }
+        putJsonArray("to_claim") {
+            add(claimEntry(byId.getValue(PAST_LATE), "eligible", 873, 72, "open"))
+            add(claimEntry(byId.getValue(PAST_NOPRICE), "unknown_price", null, 95, "open"))
+            add(claimEntry(byId.getValue(PAST_DTICKET), "below_minimum", 150, 66, "open"))
+        }
+        putJsonArray("waiting") { add(claimEntry(byId.getValue(PAST_MISSED), "eligible", 1073, 65, "claimed")) }
+        put("earned_cents", 2350); put("paid", 2)
+    }
+
+    private fun claimFor(tripId: String?) = buildJsonArray {
+        if (tripId == PAST_MISSED) {
+            addJsonObject {
+                put("id", "55555555-5555-4555-8555-000000000001"); put("trip_id", PAST_MISSED); put("status", "claimed")
+                put("amount_cents", 1073); put("claimed_at", at(-5 * 1440))
+            }
+        }
+    }
 
     /** Frankfurt to Munich, in four ways. */
     private val journeys: List<Journey> by lazy {
@@ -220,6 +335,12 @@ object FakeBackend {
             FakeSupabase.isDownload(request, path, "abeona-tickets") && "/bahncards/" in path -> FakeSupabase.StorageFile(bahnCardPng, "image/png")
             FakeSupabase.isDownload(request, path, "abeona-tickets") -> FakeSupabase.StorageFile(ticketPng, "image/png")
             path.endsWith("/rpc/abeona_bahncard_deadlines") -> deadlines
+            path.endsWith("/rpc/abeona_compensation") -> pastTrips.firstOrNull { request.text().contains(it.id) }?.let { compensation(it.id) } ?: "null"
+            path.endsWith("/rpc/abeona_claims_overview") -> claimsOverview()
+            path.endsWith("/rest/v1/abeona_claims") && request.method == HttpMethod.Get -> claimFor(params["trip_id"]?.removePrefix("eq."))
+            path.endsWith("/rest/v1/abeona_claims") -> buildJsonObject {
+                put("id", "55555555-5555-4555-8555-000000000002"); put("trip_id", PAST_LATE); put("status", "claimed"); put("claimed_at", at(0))
+            }
             path.endsWith("/rpc/abeona_trip_warnings") -> if (request.text().contains(NEXT)) warnings else "[]"
             path.endsWith("/rpc/abeona_set_trip_travellers") -> "null"
             path.endsWith("/rest/v1/abeona_trip_travellers") -> buildJsonArray {
@@ -244,7 +365,7 @@ object FakeBackend {
             }
             path.endsWith("/rest/v1/abeona_trips") && request.method == HttpMethod.Get -> {
                 val id = params["id"]?.removePrefix("eq.")
-                val all = shownTrips + savedTrip
+                val all = shownTrips + savedTrip + pastTrips
                 buildJsonArray {
                     (if (id != null) all.filter { it.id == id } else shownTrips).forEach { add(tripRow(it)) }
                 }
@@ -399,6 +520,8 @@ private fun tripRow(trip: Trip) = buildJsonObject {
     put("fare_type", trip.fareType.wire); put("train_binding", trip.trainBinding); put("travel_class", trip.travelClass)
     put("price_cents", trip.priceCents); put("ticket_path", trip.ticketPath); put("refresh_token", trip.refreshToken); put("refreshed_at", trip.refreshedAt)
     put("bahncard_discount", trip.bahncardDiscount)
+    put("finalized_at", trip.finalizedAt); put("missed_leg_idx", trip.missedLegIdx); put("force_majeure", trip.forceMajeure)
+    put("replacement_legs", trip.replacementLegs?.let { NexusJson.encodeToJsonElement(it) } ?: kotlinx.serialization.json.JsonNull)
     putJsonArray("abeona_legs") {
         trip.legs.forEachIndexed { idx, leg ->
             addJsonObject {

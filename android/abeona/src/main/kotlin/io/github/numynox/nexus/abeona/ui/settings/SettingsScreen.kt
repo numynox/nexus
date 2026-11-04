@@ -8,7 +8,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -103,6 +105,9 @@ fun SettingsScreen(app: AppViewModel, navigator: Navigator) {
     }
     val reminderPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) app.setBahnCardReminder(true)
+    }
+    val claimPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) app.setClaimReminder(true)
     }
     val leavePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) app.setLeaveReminder(true)
@@ -283,6 +288,30 @@ fun SettingsScreen(app: AppViewModel, navigator: Navigator) {
                                 checked = settings.bahnCardReminder,
                                 onCheckedChange = { on ->
                                     if (on && !canNotify()) reminderPermission.launch(Manifest.permission.POST_NOTIFICATIONS) else app.setBahnCardReminder(on)
+                                },
+                            )
+                        }
+                    }
+                    item { SectionHeader("Compensation", supporting = "When a trip arrives an hour or more late") }
+                    item {
+                        NexusCard {
+                            Row(
+                                Modifier.fillMaxWidth().clickable { navigator.claims() }.padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("Claims", style = MaterialTheme.typography.titleSmall)
+                                    Text("What to claim, what DB still owes, what came back", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null)
+                            }
+                            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                            SettingSwitch(
+                                title = "Remind me to claim",
+                                description = "The day after a late trip, and four weeks, a week and a day before the three-month deadline. Only this phone.",
+                                checked = settings.claimReminder,
+                                onCheckedChange = { on ->
+                                    if (on && !canNotify()) claimPermission.launch(Manifest.permission.POST_NOTIFICATIONS) else app.setClaimReminder(on)
                                 },
                             )
                         }

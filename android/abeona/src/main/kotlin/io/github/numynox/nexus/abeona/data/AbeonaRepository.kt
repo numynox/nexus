@@ -196,6 +196,72 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
         return applyRefresh(trip, refreshed, now.toString())
     }
 
+    // ── After the ride ──────────────────────────────────────────────────────
+
+    /** What the trip's delay is worth, by the rules in abeona_compensation_rules; null for a trip not visible. */
+    suspend fun compensation(tripId: String): Compensation? {
+        val data = supabase.postgrest.rpc("abeona_compensation", buildJsonObject { put("p_trip_id", tripId) }).data
+        return if (data.isBlank() || data == "null") null else NexusJson.decodeFromString(data)
+    }
+
+    /** The trip's claim, if one was started. */
+    suspend fun claim(tripId: String): Claim? =
+        supabase.from("abeona_claims").select { filter { eq("trip_id", tripId) } }.decodeList<Claim>().firstOrNull()
+
+    /**
+     * Moves the trip's claim to [status], creating it on first use. Claimed and
+     * paid stamp their date; going back to open clears both. The web does the same.
+     */
+    suspend fun setClaimStatus(tripId: String, status: String, amountCents: Int?, existing: Claim?, now: Instant = Instant.now()): Claim {
+        val row = buildJsonObject {
+            put("trip_id", tripId)
+            put("status", status)
+            put("amount_cents", amountCents)
+            put("claimed_at", if (status == "open") null else existing?.claimedAt ?: now.toString())
+            put("paid_at", if (status == "paid") existing?.paidAt ?: now.toString() else null)
+            put("updated_at", now.toString())
+        }
+        return supabase.from("abeona_claims").upsert(row) {
+            onConflict = "trip_id"
+            select()
+        }.decodeSingle()
+    }
+
+    suspend fun setTripPrice(tripId: String, priceCents: Int?) {
+        supabase.from("abeona_trips").update(buildJsonObject { put("price_cents", priceCents) }) { filter { eq("id", tripId) } }
+    }
+
+    suspend fun setForceMajeure(tripId: String, value: Boolean) {
+        supabase.from("abeona_trips").update(buildJsonObject { put("force_majeure", value) }) { filter { eq("id", tripId) } }
+    }
+
+    /** Records the ride that was missed and what was taken instead; nulls clear it. */
+    suspend fun recordDisruption(tripId: String, missedLegIdx: Int?, replacement: List<Leg>?) {
+        supabase.from("abeona_trips").update(
+            buildJsonObject {
+                put("missed_leg_idx", missedLegIdx)
+                put("replacement_legs", replacement?.takeIf { it.isNotEmpty() }?.let { NexusJson.encodeToJsonElement(it) } ?: kotlinx.serialization.json.JsonNull)
+            },
+        ) { filter { eq("id", tripId) } }
+    }
+
+    /** Claims to send, claims waiting for an answer, and what was earned back in [year]. */
+    suspend fun claimsOverview(year: Int): ClaimsOverview {
+        householdId()
+        return NexusJson.decodeFromString(
+            supabase.postgrest.rpc("abeona_claims_overview", buildJsonObject { put("p_year", year) }).data,
+        )
+    }
+
+    /**
+     * Connections from the stop of a missed ride at its planned time, to pick
+     * the one actually taken: the alternatives search, after the fact.
+     */
+    suspend fun connectionsAfter(trip: Trip, missed: Leg): AlternativesResponse = alternatives(
+        trip,
+        AlternativesOrigin(missed.from.id, missed.from.name, missed.from.lat, missed.from.lon, missed.from.plannedAt ?: Instant.now()),
+    )
+
     /** From the start of [year] to the start of the next, in the phone's zone. */
     suspend fun statistics(year: Int, zone: ZoneId = ZoneId.systemDefault()): Statistics {
         householdId()
