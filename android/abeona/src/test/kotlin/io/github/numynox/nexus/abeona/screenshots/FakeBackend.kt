@@ -65,6 +65,13 @@ object FakeBackend {
     /** What the train's Wi-Fi says; null is "not on a train's Wi-Fi". */
     @Volatile var onboard: OnboardStatus? = null
 
+    /**
+     * The timetable intake asks while set: station ids by exact name, and
+     * journeys by "fromId>toId@instant" — a "matching" case of
+     * intake.fixtures.json (IntakeScreenshots).
+     */
+    @Volatile var intakeTimetable: Pair<Map<String, String>, Map<String, List<Journey>>>? = null
+
     private val now = Instant.now().truncatedTo(ChronoUnit.MINUTES)
     private fun at(minutes: Long) = now.plus(minutes, ChronoUnit.MINUTES).toString()
 
@@ -392,7 +399,30 @@ object FakeBackend {
         }
     }
 
-    private fun transit(body: JsonObject): Any? = when (body["action"]?.jsonPrimitive?.content) {
+    private fun intakeTransit(timetable: Pair<Map<String, String>, Map<String, List<Journey>>>, body: JsonObject): Any? =
+        when (body["action"]?.jsonPrimitive?.content) {
+            "locations" -> buildJsonObject {
+                val q = body["query"]?.jsonPrimitive?.content.orEmpty()
+                putJsonArray("stations") {
+                    timetable.first[q]?.let { id -> addJsonObject { put("id", id); put("name", q); put("lat", 0.0); put("lon", 0.0) } }
+                }
+            }
+            "journeys" -> buildJsonObject {
+                val from = body["from"]?.jsonPrimitive?.content
+                val to = body["to"]?.jsonPrimitive?.content
+                val time = body["time"]?.jsonPrimitive?.content?.let(Instant::parse)
+                val found = timetable.second.entries.firstOrNull { (key, _) ->
+                    val (route, at) = key.split("@")
+                    route == "$from>$to" && Instant.parse(at) == time
+                }?.value.orEmpty()
+                put("journeys", NexusJson.encodeToJsonElement(found))
+                put("next_cursor", null as String?)
+                put("previous_cursor", null as String?)
+            }
+            else -> null
+        }
+
+    private fun transit(body: JsonObject): Any? = intakeTimetable?.let { intakeTransit(it, body) } ?: when (body["action"]?.jsonPrimitive?.content) {
         "locations" -> {
             val q = body["query"]?.jsonPrimitive?.content.orEmpty().lowercase()
             buildJsonObject {

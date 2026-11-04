@@ -32,6 +32,7 @@ import io.github.numynox.nexus.abeona.data.FareType
 import io.github.numynox.nexus.abeona.data.Journey
 import io.github.numynox.nexus.abeona.data.SaveTripInput
 import io.github.numynox.nexus.abeona.data.Traveller
+import io.github.numynox.nexus.abeona.domain.AppClock
 import io.github.numynox.nexus.abeona.domain.intake.IntakeDraft
 import io.github.numynox.nexus.abeona.domain.intake.ParsedTicket
 import io.github.numynox.nexus.abeona.domain.intake.MatchStatus
@@ -40,7 +41,6 @@ import io.github.numynox.nexus.abeona.domain.intake.halfOf
 import io.github.numynox.nexus.abeona.domain.intake.matchSummary
 import androidx.compose.material3.Surface
 import io.github.numynox.nexus.abeona.ui.AbeonaColors
-import java.time.Instant
 import io.github.numynox.nexus.core.ui.components.ConnectedChoiceRow
 import io.github.numynox.nexus.core.ui.settings.SettingSwitch
 
@@ -98,7 +98,7 @@ fun SaveTripSheet(
     val destination = journey.legs.lastOrNull()?.to?.name.orEmpty()
     val priceCents = price.replace(',', '.').toDoubleOrNull()?.let { Math.round(it * 100).toInt() }
     // A journey that has already arrived is saved as a past trip: final, never refreshed.
-    val past = remember(journey) { journey.legs.lastOrNull()?.to?.expectedAt?.isBefore(Instant.now()) == true }
+    val past = remember(journey) { journey.legs.lastOrNull()?.to?.expectedAt?.isBefore(AppClock.now()) == true }
     var delay by remember { mutableStateOf("") }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
