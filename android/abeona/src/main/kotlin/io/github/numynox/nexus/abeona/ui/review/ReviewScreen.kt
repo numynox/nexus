@@ -239,7 +239,7 @@ private fun storyCards(stats: Statistics, year: Int, map: List<TravelMapLine>): 
                         Mint,
                     )
                     Spacer(Modifier.height(8.dp))
-                    TripMap(map.map { it.toLeg() }, Modifier.fillMaxWidth().weight(1f), interactive = false)
+                    TripMap(map.map { it.toLeg() }, Modifier.fillMaxWidth().weight(1f))
                 }
             }
         } else null,

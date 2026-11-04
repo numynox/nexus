@@ -4,6 +4,26 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.OpenInFull
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.core.view.doOnLayout
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -159,22 +179,63 @@ private fun tripStyle(legs: List<Leg>, dark: Boolean, ride: Color, walk: Color):
 }
 
 /**
- * The trip on a map; a drawn route on a plain background where MapLibre cannot
- * run (the screenshot tests). Not [interactive] inside a pager, so a swipe
- * turns the page instead of panning the map.
+ * The trip on a map, as a still preview: it takes no gestures, so it never
+ * steals a scroll or a pager swipe. A tap opens it full screen, where it pans
+ * and zooms until it is closed. A drawn route on a plain background where
+ * MapLibre cannot run (the screenshot tests).
  */
 @Composable
-fun TripMap(legs: List<Leg>, modifier: Modifier = Modifier, interactive: Boolean = true) {
-    val context = LocalContext.current
+fun TripMap(legs: List<Leg>, modifier: Modifier = Modifier) {
+    var fullScreen by rememberSaveable { mutableStateOf(false) }
     val shape = RoundedCornerShape(28.dp)
+    Box(modifier.clip(shape)) {
+        RouteMap(legs, Modifier.fillMaxSize(), interactive = false)
+        // Over the map view, which would otherwise take the touch itself.
+        Box(
+            Modifier
+                .fillMaxSize()
+                .clickable(onClickLabel = "Open the map full screen") { fullScreen = true },
+        )
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+            modifier = Modifier.align(Alignment.TopEnd).padding(12.dp).size(36.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.OpenInFull, contentDescription = null, modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+    if (fullScreen) {
+        Dialog(
+            onDismissRequest = { fullScreen = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+        ) {
+            Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
+                RouteMap(legs, Modifier.fillMaxSize(), interactive = true)
+                FilledTonalIconButton(
+                    onClick = { fullScreen = false },
+                    modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(16.dp),
+                ) {
+                    Icon(Icons.Rounded.Close, contentDescription = "Close the map")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RouteMap(legs: List<Leg>, modifier: Modifier, interactive: Boolean) {
+    val context = LocalContext.current
     if ((context.applicationContext as? AbeonaApplication)?.mapsAvailable == false) {
-        SchematicTripMap(legs, modifier.clip(shape))
+        SchematicTripMap(legs, modifier)
         return
     }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val ride = MaterialTheme.colorScheme.primary
     val walk = MaterialTheme.colorScheme.outline
+    val padding = with(LocalDensity.current) { (if (interactive) 64.dp else 28.dp).roundToPx() }
     val mapView = remember { MapView(context).apply { onCreate(null) } }
 
     DisposableEffect(lifecycle, mapView) {
@@ -207,17 +268,21 @@ fun TripMap(legs: List<Leg>, modifier: Modifier = Modifier, interactive: Boolean
             if (!interactive) map.uiSettings.setAllGesturesEnabled(false)
             map.setStyle(Style.Builder().fromJson(tripStyle(legs, dark, ride, walk))) {
                 val points = legs.flatMap { it.points() }.map { (lon, lat) -> LatLng(lat, lon) }
-                when {
-                    points.size >= 2 -> map.moveCamera(CameraUpdateFactory.newLatLngBounds(LatLngBounds.Builder().includes(points).build(), 72))
-                    points.size == 1 -> map.moveCamera(CameraUpdateFactory.newLatLngZoom(points.first(), 12.0))
+                // Fitting bounds needs the view's real size; before layout it
+                // is zero and the camera ends up at the wrong zoom.
+                mapView.doOnLayout {
+                    when {
+                        points.size >= 2 -> map.moveCamera(
+                            CameraUpdateFactory.newLatLngBounds(LatLngBounds.Builder().includes(points).build(), padding),
+                        )
+                        points.size == 1 -> map.moveCamera(CameraUpdateFactory.newLatLngZoom(points.first(), 12.0))
+                    }
                 }
             }
         }
     }
 
-    Box(modifier.clip(shape)) {
-        AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())
-    }
+    AndroidView(factory = { mapView }, modifier = modifier)
 }
 
 /** The route drawn by coordinates on a soft grid: no tiles, same shape. */
