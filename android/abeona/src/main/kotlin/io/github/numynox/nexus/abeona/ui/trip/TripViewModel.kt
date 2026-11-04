@@ -5,10 +5,18 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.numynox.nexus.abeona.AppContainer
+import io.github.numynox.nexus.abeona.data.AlternativesResponse
 import io.github.numynox.nexus.abeona.data.Traveller
 import io.github.numynox.nexus.abeona.data.Trip
 import io.github.numynox.nexus.abeona.data.TripWarning
+import io.github.numynox.nexus.abeona.domain.AlternativesOrigin
+import io.github.numynox.nexus.abeona.domain.TravelDay
+import io.github.numynox.nexus.abeona.domain.alternativesOrigin
+import io.github.numynox.nexus.abeona.domain.alternativesReason
+import io.github.numynox.nexus.abeona.domain.travelDay
+import io.github.numynox.nexus.abeona.live.LiveSignals
 import io.github.numynox.nexus.abeona.ui.common.PickedFile
+import io.github.numynox.nexus.abeona.ui.common.isLiveDay
 import io.github.numynox.nexus.abeona.widget.NextTripWidget
 import io.github.numynox.nexus.core.data.describe
 import io.github.numynox.nexus.core.ui.Loadable
@@ -37,6 +45,14 @@ data class TripDetail(
     val refreshError: String? = null,
 )
 
+/** An alternatives search for the rest of the trip: from where, and what came back. */
+data class AlternativesState(
+    val origin: AlternativesOrigin,
+    val loading: Boolean = true,
+    val result: AlternativesResponse? = null,
+    val error: String? = null,
+)
+
 /** Who travels on the trip, everyone who could, and what is wrong with their BahnCards. */
 data class TripPeople(
     val travellers: List<Traveller>,
@@ -58,7 +74,15 @@ class TripViewModel(
     /** Null while loading, offline, or when it could not load: the section then stays away. */
     val people: StateFlow<TripPeople?> = _people.asStateFlow()
 
+    private val _alternatives = MutableStateFlow<AlternativesState?>(null)
+    /** Null until a search ran, by itself (something is wrong) or on demand. */
+    val alternatives: StateFlow<AlternativesState?> = _alternatives.asStateFlow()
+
     private var auto: Job? = null
+    private var probe: Job? = null
+    private var searching: Job? = null
+    /** The refresh the last automatic search was for: one search per refresh. */
+    private var searchedFor: String? = null
 
     fun load(): Job = viewModelScope.launch {
         if (_detail.value !is Loadable.Ready) _detail.value = Loadable.Loading
@@ -129,6 +153,7 @@ class TripViewModel(
             val fresh = store.refresh(current.trip)
             _detail.value = Loadable.Ready(TripDetail(fresh))
             NextTripWidget.refresh(application)
+            searchIfNeeded(fresh)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -143,12 +168,57 @@ class TripViewModel(
      */
     fun setVisible(visible: Boolean) {
         auto?.cancel()
+        probe?.cancel()
         if (!visible) return
+        // The train's Wi-Fi, every half minute while the trip is live: cheap,
+        // and nothing at all off a train's network.
+        probe = viewModelScope.launch {
+            while (isActive) {
+                val trip = _detail.value.valueOrNull?.trip
+                if (trip != null && isLiveDay(trip, Instant.now())) {
+                    LiveSignals.setOnboard(runCatching { container.onboard.status() }.getOrNull())
+                }
+                delay(PROBE_EVERY)
+            }
+        }
         auto = viewModelScope.launch {
             while (isActive) {
                 delay(REFRESH_EVERY)
                 val trip = _detail.value.valueOrNull?.trip ?: continue
                 if (isToday(trip) && !isOver(trip)) refreshNow()
+            }
+        }
+    }
+
+    /** The travel day of [trip] now, with this phone's settings and signals; null outside its live window. */
+    private suspend fun dayOf(trip: Trip, now: Instant = Instant.now()): TravelDay? {
+        if (!isLiveDay(trip, now)) return null
+        return travelDay(trip.legs, now, container.preferences.current().stationMinutes, LiveSignals.forTrip(trip, now))
+    }
+
+    /** By itself only when a change is at risk, missed, or a train cancelled — and once per refresh. */
+    private suspend fun searchIfNeeded(trip: Trip) {
+        val day = dayOf(trip) ?: return
+        if (alternativesReason(trip.legs, day) == null || trip.refreshedAt == searchedFor) return
+        searchedFor = trip.refreshedAt
+        findAlternatives()
+    }
+
+    /** Connections from where the traveller is to the destination, marked against the ticket. */
+    fun findAlternatives(): Job = viewModelScope.launch {
+        val trip = _detail.value.valueOrNull?.trip ?: return@launch
+        val now = Instant.now()
+        val day = dayOf(trip, now) ?: return@launch
+        val origin = alternativesOrigin(trip.legs, day, now) ?: return@launch
+        searching?.cancel()
+        _alternatives.value = AlternativesState(origin, loading = true, result = _alternatives.value?.result)
+        searching = launch {
+            _alternatives.value = try {
+                AlternativesState(origin, loading = false, result = container.repository.alternatives(trip, origin))
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AlternativesState(origin, loading = false, result = _alternatives.value?.result, error = e.describe())
             }
         }
     }
@@ -190,5 +260,6 @@ class TripViewModel(
 
     private companion object {
         const val REFRESH_EVERY = 120_000L
+        const val PROBE_EVERY = 30_000L
     }
 }

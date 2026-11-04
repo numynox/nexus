@@ -1,5 +1,6 @@
 import { getTheme as readTheme, setTheme as writeTheme } from "@nexus/ui";
 import { ABEONA_THEMES } from "./themes";
+import { DEFAULT_STATION_MINUTES } from "./travelday";
 
 /**
  * Device-local preferences. Trips and travellers live in Postgres, shared by
@@ -9,6 +10,7 @@ import { ABEONA_THEMES } from "./themes";
 const STORAGE_KEYS = {
   THEME: "abeona_theme",
   SEARCH: "abeona_search",
+  STATION_MINUTES: "abeona_station_minutes",
 } as const;
 
 export function getTheme(): string {
@@ -65,4 +67,21 @@ export function getSavedSearch(): SavedSearch {
 
 export function setSavedSearch(search: SavedSearch): void {
   writeJson(STORAGE_KEYS.SEARCH, search);
+}
+
+/** The choices for the time to the station, in minutes; the same on Android. */
+export const STATION_MINUTES_CHOICES = [5, 10, 15, 20, 30, 45, 60] as const;
+
+/**
+ * How long this device's person needs from the door to the platform: the
+ * "time to leave" is the first train's departure minus this. Per device,
+ * because it depends on where the device usually is.
+ */
+export function getStationMinutes(): number {
+  const raw = readJson(STORAGE_KEYS.STATION_MINUTES);
+  return typeof raw === "number" && Number.isInteger(raw) && raw >= 0 && raw <= 180 ? raw : DEFAULT_STATION_MINUTES;
+}
+
+export function setStationMinutes(minutes: number): void {
+  writeJson(STORAGE_KEYS.STATION_MINUTES, Math.max(0, Math.min(180, Math.round(minutes))));
 }

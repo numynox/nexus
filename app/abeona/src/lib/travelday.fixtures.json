@@ -1,0 +1,414 @@
+{
+ "$comment": "The travel day's cases, run by both clients: app/abeona/src/lib/travelday.test.ts (npm run test:abeona) and android/abeona's TravelDayFixturesTest (copied into its test resources by Gradle with transfer.fixtures.json). Change a rule in travelday.ts and domain/TravelDay.kt together, and the case here once. Stops: omitted fields are null. Legs: mode defaults to train, cancelled to false. Instants compare as instants.",
+ "travelDay": [
+  {
+   "name": "before leaving: leave 15 min before the departure",
+   "now": "2026-11-03T09:00:00Z",
+   "stationMinutes": 15,
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": {"kind": "before_leaving", "legIndex": 0, "fromLegIndex": null, "leaveAt": "2026-11-03T09:45:00Z", "minutesToLeave": 45, "minutesToDeparture": 60, "minutesToArrival": null, "cancelled": false, "missedChange": false, "source": "time"}
+  },
+  {
+   "name": "half a minute to leave rounds up",
+   "now": "2026-11-03T09:44:30Z",
+   "stationMinutes": 15,
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": {"kind": "before_leaving", "legIndex": 0, "fromLegIndex": null, "leaveAt": "2026-11-03T09:45:00Z", "minutesToLeave": 1, "minutesToDeparture": 16, "minutesToArrival": null, "cancelled": false, "missedChange": false, "source": "time"}
+  },
+  {
+   "name": "at the station once it is time to leave",
+   "now": "2026-11-03T09:50:00Z",
+   "stationMinutes": 15,
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": {"kind": "at_station", "legIndex": 0, "fromLegIndex": null, "leaveAt": "2026-11-03T09:45:00Z", "minutesToLeave": null, "minutesToDeparture": 10, "minutesToArrival": null, "cancelled": false, "missedChange": false, "source": "time"}
+  },
+  {
+   "name": "no time to the station: leave when the train does",
+   "now": "2026-11-03T09:59:00Z",
+   "stationMinutes": 0,
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": {"kind": "before_leaving", "legIndex": 0, "fromLegIndex": null, "leaveAt": "2026-11-03T10:00:00Z", "minutesToLeave": 1, "minutesToDeparture": 1, "minutesToArrival": null, "cancelled": false, "missedChange": false, "source": "time"}
+  },
+  {
+   "name": "a late departure moves the time to leave",
+   "now": "2026-11-03T09:50:00Z",
+   "stationMinutes": 15,
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8", "current": "2026-11-03T10:07:00Z"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": {"kind": "before_leaving", "legIndex": 0, "fromLegIndex": null, "leaveAt": "2026-11-03T09:52:00Z", "minutesToLeave": 2, "minutesToDeparture": 17, "minutesToArrival": null, "cancelled": false, "missedChange": false, "source": "time"}
+  },
+  {
+   "name": "a cancelled first ride is still the one at the station",
+   "now": "2026-11-03T09:50:00Z",
+   "stationMinutes": 15,
+   "legs": [
+    {"cancelled": true, "from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": {"kind": "at_station", "legIndex": 0, "fromLegIndex": null, "leaveAt": "2026-11-03T09:45:00Z", "minutesToLeave": null, "minutesToDeparture": 10, "minutesToArrival": null, "cancelled": true, "missedChange": false, "source": "time"}
+  },
+  {
+   "name": "on board the first ride",
+   "now": "2026-11-03T10:20:00Z",
+   "stationMinutes": 15,
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": {"kind": "on_board", "legIndex": 0, "fromLegIndex": null, "leaveAt": null, "minutesToLeave": null, "minutesToDeparture": null, "minutesToArrival": 40, "cancelled": false, "missedChange": false, "source": "time"}
+  },
+  {
+   "name": "changing between the rides",
+   "now": "2026-11-03T11:05:00Z",
+   "stationMinutes": 15,
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": {"kind": "changing", "legIndex": 1, "fromLegIndex": 0, "leaveAt": null, "minutesToLeave": null, "minutesToDeparture": 5, "minutesToArrival": null, "cancelled": false, "missedChange": false, "source": "time"}
+  },
+  {
+   "name": "a late arrival keeps you on board",
+   "now": "2026-11-03T11:05:00Z",
+   "stationMinutes": 15,
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4", "current": "2026-11-03T11:08:00Z"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": {"kind": "on_board", "legIndex": 0, "fromLegIndex": null, "leaveAt": null, "minutesToLeave": null, "minutesToDeparture": null, "minutesToArrival": 3, "cancelled": false, "missedChange": false, "source": "time"}
+  },
+  {
+   "name": "on board the last ride",
+   "now": "2026-11-03T11:30:00Z",
+   "stationMinutes": 15,
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": {"kind": "on_board", "legIndex": 1, "fromLegIndex": null, "leaveAt": null, "minutesToLeave": null, "minutesToDeparture": null, "minutesToArrival": 30, "cancelled": false, "missedChange": false, "source": "time"}
+  },
+  {
+   "name": "the last ride's live arrival decides when it is over",
+   "now": "2026-11-03T12:10:00Z",
+   "stationMinutes": 15,
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1", "current": "2026-11-03T12:22:00Z"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": {"kind": "on_board", "legIndex": 1, "fromLegIndex": null, "leaveAt": null, "minutesToLeave": null, "minutesToDeparture": null, "minutesToArrival": 12, "cancelled": false, "missedChange": false, "source": "time"}
+  },
+  {
+   "name": "arrived",
+   "now": "2026-11-03T12:00:00Z",
+   "stationMinutes": 15,
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": {"kind": "arrived", "legIndex": null, "fromLegIndex": null, "leaveAt": null, "minutesToLeave": null, "minutesToDeparture": null, "minutesToArrival": null, "cancelled": false, "missedChange": false, "source": "time"}
+  },
+  {
+   "name": "walks are not rides: changing to the bus after the walk",
+   "now": "2026-11-03T11:03:00Z",
+   "stationMinutes": 15,
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"mode": "walk", "from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z"}, "to": {"id": "wue-bus", "name": "Würzburg Busbahnhof", "lat": 49.8011, "lon": 9.9349, "planned": "2026-11-03T11:05:00Z"}},
+    {"mode": "bus", "from": {"id": "wue-bus", "name": "Würzburg Busbahnhof", "lat": 49.8011, "lon": 9.9349, "planned": "2026-11-03T11:12:00Z"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:30:00Z"}}
+   ],
+   "expect": {"kind": "changing", "legIndex": 2, "fromLegIndex": 0, "leaveAt": null, "minutesToLeave": null, "minutesToDeparture": 9, "minutesToArrival": null, "cancelled": false, "missedChange": false, "source": "time"}
+  },
+  {
+   "name": "only a walk: nothing to ride",
+   "now": "2026-11-03T09:00:00Z",
+   "stationMinutes": 15,
+   "legs": [
+    {"mode": "walk", "from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z"}, "to": {"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned": "2026-11-03T10:10:00Z"}}
+   ],
+   "expect": {"kind": "arrived", "legIndex": null, "fromLegIndex": null, "leaveAt": null, "minutesToLeave": null, "minutesToDeparture": null, "minutesToArrival": null, "cancelled": false, "missedChange": false, "source": "time"}
+  },
+  {
+   "name": "on-board Wi-Fi confirms the ride",
+   "now": "2026-11-03T10:20:00Z",
+   "stationMinutes": 15,
+   "signals": {"onboardLegIndex": 0},
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": {"kind": "on_board", "legIndex": 0, "fromLegIndex": null, "leaveAt": null, "minutesToLeave": null, "minutesToDeparture": null, "minutesToArrival": 40, "cancelled": false, "missedChange": false, "source": "onboard"}
+  },
+  {
+   "name": "on-board Wi-Fi on the first train after the second left: missed the change",
+   "now": "2026-11-03T11:20:00Z",
+   "stationMinutes": 15,
+   "signals": {"onboardLegIndex": 0},
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": {"kind": "on_board", "legIndex": 0, "fromLegIndex": null, "leaveAt": null, "minutesToLeave": null, "minutesToDeparture": null, "minutesToArrival": -20, "cancelled": false, "missedChange": true, "source": "onboard"}
+  },
+  {
+   "name": "on-board Wi-Fi wins over the position",
+   "now": "2026-11-03T11:20:00Z",
+   "stationMinutes": 15,
+   "signals": {"onboardLegIndex": 1, "position": {"lat": 49.8018, "lon": 9.9355, "speedKmh": 0}},
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": {"kind": "on_board", "legIndex": 1, "fromLegIndex": null, "leaveAt": null, "minutesToLeave": null, "minutesToDeparture": null, "minutesToArrival": 40, "cancelled": false, "missedChange": false, "source": "onboard"}
+  },
+  {
+   "name": "on-board Wi-Fi naming a walk is ignored",
+   "now": "2026-11-03T10:20:00Z",
+   "stationMinutes": 15,
+   "signals": {"onboardLegIndex": 1},
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"mode": "walk", "from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z"}, "to": {"id": "wue-bus", "name": "Würzburg Busbahnhof", "lat": 49.8011, "lon": 9.9349, "planned": "2026-11-03T11:05:00Z"}},
+    {"mode": "bus", "from": {"id": "wue-bus", "name": "Würzburg Busbahnhof", "lat": 49.8011, "lon": 9.9349, "planned": "2026-11-03T11:12:00Z"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:30:00Z"}}
+   ],
+   "expect": {"kind": "on_board", "legIndex": 0, "fromLegIndex": null, "leaveAt": null, "minutesToLeave": null, "minutesToDeparture": null, "minutesToArrival": 40, "cancelled": false, "missedChange": false, "source": "time"}
+  },
+  {
+   "name": "near the first stop before it is time to leave: at the station",
+   "now": "2026-11-03T09:00:00Z",
+   "stationMinutes": 15,
+   "signals": {"position": {"lat": 50.1071, "lon": 8.6636, "speedKmh": 0}},
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": {"kind": "at_station", "legIndex": 0, "fromLegIndex": null, "leaveAt": "2026-11-03T09:45:00Z", "minutesToLeave": null, "minutesToDeparture": 60, "minutesToArrival": null, "cancelled": false, "missedChange": false, "source": "location"}
+  },
+  {
+   "name": "far from the first stop: still before leaving",
+   "now": "2026-11-03T09:00:00Z",
+   "stationMinutes": 15,
+   "signals": {"position": {"lat": 52.5251, "lon": 13.3694, "speedKmh": 0}},
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": {"kind": "before_leaving", "legIndex": 0, "fromLegIndex": null, "leaveAt": "2026-11-03T09:45:00Z", "minutesToLeave": 45, "minutesToDeparture": 60, "minutesToArrival": null, "cancelled": false, "missedChange": false, "source": "time"}
+  },
+  {
+   "name": "moving along the ride's line: on board, confirmed",
+   "now": "2026-11-03T10:20:00Z",
+   "stationMinutes": 15,
+   "signals": {"position": {"lat": 50.0438, "lon": 8.9036, "speedKmh": 160}},
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": {"kind": "on_board", "legIndex": 0, "fromLegIndex": null, "leaveAt": null, "minutesToLeave": null, "minutesToDeparture": null, "minutesToArrival": 40, "cancelled": false, "missedChange": false, "source": "location"}
+  },
+  {
+   "name": "on the line but slow: not confirmed",
+   "now": "2026-11-03T10:20:00Z",
+   "stationMinutes": 15,
+   "signals": {"position": {"lat": 50.0438, "lon": 8.9036, "speedKmh": 20}},
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": {"kind": "on_board", "legIndex": 0, "fromLegIndex": null, "leaveAt": null, "minutesToLeave": null, "minutesToDeparture": null, "minutesToArrival": 40, "cancelled": false, "missedChange": false, "source": "time"}
+  },
+  {
+   "name": "standing at the change station after the train left: missed",
+   "now": "2026-11-03T11:15:00Z",
+   "stationMinutes": 15,
+   "signals": {"position": {"lat": 49.8018, "lon": 9.9355, "speedKmh": 0}},
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": {"kind": "changing", "legIndex": 1, "fromLegIndex": 0, "leaveAt": null, "minutesToLeave": null, "minutesToDeparture": -5, "minutesToArrival": null, "cancelled": false, "missedChange": true, "source": "location"}
+  },
+  {
+   "name": "standing at the change station one minute after: not yet missed",
+   "now": "2026-11-03T11:11:00Z",
+   "stationMinutes": 15,
+   "signals": {"position": {"lat": 49.8018, "lon": 9.9355, "speedKmh": 0}},
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": {"kind": "on_board", "legIndex": 1, "fromLegIndex": null, "leaveAt": null, "minutesToLeave": null, "minutesToDeparture": null, "minutesToArrival": 49, "cancelled": false, "missedChange": false, "source": "time"}
+  },
+  {
+   "name": "standing at the first stop after the train left: missed it",
+   "now": "2026-11-03T10:05:00Z",
+   "stationMinutes": 15,
+   "signals": {"position": {"lat": 50.1071, "lon": 8.6636, "speedKmh": null}},
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": {"kind": "at_station", "legIndex": 0, "fromLegIndex": null, "leaveAt": null, "minutesToLeave": null, "minutesToDeparture": -5, "minutesToArrival": null, "cancelled": false, "missedChange": true, "source": "location"}
+  },
+  {
+   "name": "changing, but still moving along the first ride: on board it",
+   "now": "2026-11-03T11:05:00Z",
+   "stationMinutes": 15,
+   "signals": {"position": {"lat": 49.8211, "lon": 9.85, "speedKmh": 60}},
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": {"kind": "on_board", "legIndex": 0, "fromLegIndex": null, "leaveAt": null, "minutesToLeave": null, "minutesToDeparture": null, "minutesToArrival": -5, "cancelled": false, "missedChange": false, "source": "location"}
+  },
+  {
+   "name": "changing, at the change station: confirmed",
+   "now": "2026-11-03T11:05:00Z",
+   "stationMinutes": 15,
+   "signals": {"position": {"lat": 49.8018, "lon": 9.9355, "speedKmh": 0}},
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": {"kind": "changing", "legIndex": 1, "fromLegIndex": 0, "leaveAt": null, "minutesToLeave": null, "minutesToDeparture": 5, "minutesToArrival": null, "cancelled": false, "missedChange": false, "source": "location"}
+  }
+ ],
+ "alternativesOrigin": [
+  {
+   "name": "before leaving: the first stop, now",
+   "now": "2026-11-03T09:00:00Z",
+   "stationMinutes": 15,
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "time": "2026-11-03T09:00:00Z"}
+  },
+  {
+   "name": "on board: the next stopover, at its arrival",
+   "now": "2026-11-03T10:20:00Z",
+   "stationMinutes": 15,
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": {"id": "asch", "name": "Aschaffenburg Hbf", "time": "2026-11-03T10:30:00Z"}
+  },
+  {
+   "name": "on board past the last stopover: where the ride ends",
+   "now": "2026-11-03T10:40:00Z",
+   "stationMinutes": 15,
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": {"id": "wue", "name": "Würzburg Hbf", "time": "2026-11-03T11:00:00Z"}
+  },
+  {
+   "name": "changing: the change station, now",
+   "now": "2026-11-03T11:05:00Z",
+   "stationMinutes": 15,
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": {"id": "wue", "name": "Würzburg Hbf", "time": "2026-11-03T11:05:00Z"}
+  },
+  {
+   "name": "arrived: none",
+   "now": "2026-11-03T12:30:00Z",
+   "stationMinutes": 15,
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": null
+  }
+ ],
+ "alternativesReason": [
+  {
+   "name": "all fine",
+   "now": "2026-11-03T09:00:00Z",
+   "stationMinutes": 15,
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": null
+  },
+  {
+   "name": "a change ahead at risk",
+   "now": "2026-11-03T09:00:00Z",
+   "stationMinutes": 15,
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4", "current": "2026-11-03T11:08:00Z"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": "at_risk"
+  },
+  {
+   "name": "on board towards a change at risk",
+   "now": "2026-11-03T10:20:00Z",
+   "stationMinutes": 15,
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4", "current": "2026-11-03T11:08:00Z"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": "at_risk"
+  },
+  {
+   "name": "a change at risk already behind",
+   "now": "2026-11-03T11:30:00Z",
+   "stationMinutes": 15,
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4", "current": "2026-11-03T11:09:00Z"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": null
+  },
+  {
+   "name": "a cancelled ride ahead",
+   "now": "2026-11-03T10:20:00Z",
+   "stationMinutes": 15,
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"cancelled": true, "from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": "cancelled"
+  },
+  {
+   "name": "missed beats everything",
+   "now": "2026-11-03T11:15:00Z",
+   "stationMinutes": 15,
+   "signals": {"position": {"lat": 49.8018, "lon": 9.9355, "speedKmh": 0}},
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"cancelled": true, "from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": "missed"
+  },
+  {
+   "name": "arrived: never",
+   "now": "2026-11-03T12:30:00Z",
+   "stationMinutes": 15,
+   "legs": [
+    {"from": {"id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.1071, "lon": 8.6636, "planned": "2026-11-03T10:00:00Z", "planned_platform": "8"}, "to": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:00:00Z", "planned_platform": "4"}, "stopovers": [{"id": "asch", "name": "Aschaffenburg Hbf", "lat": 49.9805, "lon": 9.1436, "planned_arrival": "2026-11-03T10:30:00Z"}], "polyline": [[8.6636, 50.1071], [9.1436, 49.9805], [9.9355, 49.8018]]},
+    {"cancelled": true, "from": {"id": "wue", "name": "Würzburg Hbf", "lat": 49.8018, "lon": 9.9355, "planned": "2026-11-03T11:10:00Z", "planned_platform": "5"}, "to": {"id": "bam", "name": "Bamberg", "lat": 49.9007, "lon": 10.8994, "planned": "2026-11-03T12:00:00Z", "planned_platform": "1"}, "polyline": [[9.9355, 49.8018], [10.8994, 49.9007]]}
+   ],
+   "expect": null
+  }
+ ]
+}

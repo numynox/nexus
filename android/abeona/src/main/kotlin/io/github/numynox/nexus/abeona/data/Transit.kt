@@ -138,3 +138,52 @@ enum class ProductFilter(val wire: String) { All("all"), Regional("regional") }
 internal fun String?.toInstantOrNull(): Instant? = this?.let {
     runCatching { OffsetDateTime.parse(it).toInstant() }.getOrElse { _ -> runCatching { Instant.parse(it) }.getOrNull() }
 }
+
+/**
+ * What a trip's ticket covers right now (abeona_allowed_products, from the
+ * rules in abeona_fare_rules and the trip's last saved live values).
+ */
+@Serializable
+data class Allowance(
+    @SerialName("trip_id") val tripId: String,
+    @SerialName("fare_type") val fareType: String,
+    /** False when Abeona has no rule for the fare type: every alternative is [Validity.Check]. */
+    val known: Boolean = false,
+    /** IC, ICE, EC and the like are covered at all. */
+    @SerialName("long_distance") val longDistance: Boolean = true,
+    @SerialName("excluded_products") val excludedProducts: List<String> = emptyList(),
+    /** The train binding holds: only the booked trains count. */
+    @SerialName("train_bound") val trainBound: Boolean = false,
+    /** The ticket was bound and DB has lifted the binding (delay or cancellation). */
+    @SerialName("binding_lifted") val bindingLifted: Boolean = false,
+    @SerialName("arrival_delay_minutes") val arrivalDelayMinutes: Int = 0,
+    @SerialName("booked_lines") val bookedLines: List<String> = emptyList(),
+    /** English, shown as is; it ends in "check the terms". */
+    val hint: String = "",
+)
+
+/** Whether a trip's ticket covers an alternative (glossary: Alternatives). */
+@Serializable
+enum class Validity(val label: String) {
+    @SerialName("valid") Valid("Covered by your ticket"),
+    @SerialName("check") Check("Check the terms"),
+    @SerialName("invalid") Invalid("Needs another ticket"),
+}
+
+/** A connection that could replace the rest of a trip: a [Journey], marked against its ticket. */
+@Serializable
+data class Alternative(
+    val provider: String = "transitous",
+    @SerialName("refresh_token") val refreshToken: String? = null,
+    val legs: List<Leg> = emptyList(),
+    val validity: Validity = Validity.Check,
+    /** Why, in English, shown as is. */
+    @SerialName("validity_note") val validityNote: String = "",
+)
+
+@Serializable
+data class AlternativesResponse(
+    val allowance: Allowance? = null,
+    /** Ranked by arrival, then by number of changes. */
+    val alternatives: List<Alternative> = emptyList(),
+)

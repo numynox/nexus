@@ -10,6 +10,13 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
+    <!-- Optional, asked for on the trip screen: the phone's position while the
+         live companion runs (near a stop, moving along the line, missed the
+         change). Foreground only: no background location. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+
     <!-- "Open DB Navigator": Android 11+ hides other apps unless they are named here. -->
     <queries>
         <package android:name="de.hafas.android.db" />
@@ -37,11 +44,13 @@
             </intent-filter>
         </activity>
 
-        <!-- Refreshes the trip every two minutes during a ride; no location. -->
+        <!-- Refreshes the trip every two minutes during a ride; with the
+             "Use location during a trip" setting it also follows the
+             phone's position, only while it runs. -->
         <service
             android:name=".live.LiveCompanionService"
             android:exported="false"
-            android:foregroundServiceType="dataSync" />
+            android:foregroundServiceType="dataSync|location" />
 
         <!-- The home screen widget: the next departure. -->
         <receiver

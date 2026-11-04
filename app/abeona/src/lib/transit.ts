@@ -104,3 +104,41 @@ export interface RefreshResponse {
   /** Index-aligned with the saved legs; null = no update for that leg. */
   legs: (Leg | null)[];
 }
+
+/**
+ * What a trip's ticket covers right now (abeona_allowed_products, from the
+ * rules in abeona_fare_rules and the trip's last saved live values).
+ */
+export interface Allowance {
+  trip_id: string;
+  fare_type: string;
+  /** False when Abeona has no rule for the fare type: every alternative is "check". */
+  known: boolean;
+  /** IC, ICE, EC and the like are covered at all. */
+  long_distance: boolean;
+  excluded_products: string[];
+  /** The train binding holds: only the booked trains count. */
+  train_bound: boolean;
+  /** The ticket was bound and DB has lifted the binding (delay or cancellation). */
+  binding_lifted: boolean;
+  arrival_delay_minutes: number;
+  booked_lines: string[];
+  /** English, shown as is; it ends in "check the terms". */
+  hint: string;
+}
+
+/** valid: the ticket covers it · check: Abeona cannot tell · invalid: needs another ticket. */
+export type Validity = "valid" | "check" | "invalid";
+
+/** A connection that could replace the rest of a trip, marked against its ticket. */
+export interface Alternative extends Journey {
+  validity: Validity;
+  /** Why, in English, shown as is. */
+  validity_note: string;
+}
+
+export interface AlternativesResponse {
+  allowance: Allowance | null;
+  /** Ranked by arrival, then by number of changes. */
+  alternatives: Alternative[];
+}

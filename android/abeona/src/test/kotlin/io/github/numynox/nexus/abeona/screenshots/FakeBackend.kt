@@ -12,6 +12,7 @@ import io.github.numynox.nexus.abeona.data.LegMode
 import io.github.numynox.nexus.abeona.data.StopTime
 import io.github.numynox.nexus.abeona.data.Stopover
 import io.github.numynox.nexus.abeona.data.Trip
+import io.github.numynox.nexus.abeona.live.OnboardStatus
 import io.github.numynox.nexus.core.data.NexusJson
 import io.github.numynox.nexus.core.testing.FakeSupabase
 import io.ktor.client.engine.HttpClientEngine
@@ -54,6 +55,8 @@ object FakeBackend {
     @Volatile var noTrips = false
     /** The network is gone: every database and function request fails. */
     @Volatile var offline = false
+    /** What the train's Wi-Fi says; null is "not on a train's Wi-Fi". */
+    @Volatile var onboard: OnboardStatus? = null
 
     private val now = Instant.now().truncatedTo(ChronoUnit.MINUTES)
     private fun at(minutes: Long) = now.plus(minutes, ChronoUnit.MINUTES).toString()
@@ -267,6 +270,7 @@ object FakeBackend {
             put("next_cursor", "next-1")
             put("previous_cursor", "prev-1")
         }
+        "alternatives" -> alternatives()
         "refresh" -> {
             // The live values the trips already carry: what the provider says now.
             val token = body["refresh_token"]?.jsonPrimitive?.content
@@ -277,6 +281,40 @@ object FakeBackend {
             }
         }
         else -> null
+    }
+
+    /**
+     * From Würzburg to Bamberg after the change: the saver's binding is lifted
+     * (+22), so IC and RE count; a FlixTrain never does; a bus Abeona cannot
+     * classify is "check".
+     */
+    private fun alternatives() = buildJsonObject {
+        putJsonObject("allowance") {
+            put("trip_id", NEXT); put("fare_type", "saver"); put("known", true); put("long_distance", true)
+            putJsonArray("excluded_products") { add("FLX") }
+            put("train_bound", false); put("binding_lifted", true); put("arrival_delay_minutes", 22)
+            putJsonArray("booked_lines") { add("ICE 25"); add("RE 10") }
+            put("hint", "A Sparpreis is bound to the booked trains. Once DB expects you 20 minutes late or cancels a train, any train on your route counts. Check the terms on your ticket.")
+        }
+        val bus = Place("wue-bus", "Würzburg Busbahnhof", 49.8011, 9.9349)
+        val options = listOf(
+            "valid" to "Covered: the train binding is lifted" to listOf(ride("RE", "RE 10", "Bamberg", stop(wuerzburg, 131, 131, "6", "5"), stop(bamberg, 203, 225, "3"), operator = "DB Regio Bayern")),
+            "valid" to "Covered: the train binding is lifted" to listOf(ride("IC", "IC 2063", "Nürnberg Hbf", stop(wuerzburg, 140, platform = "3"), stop(bamberg, 196, platform = "4"), realtime = false)),
+            "invalid" to "Not covered by your ticket: FLX 1243" to listOf(ride("FLX", "FLX 1243", "Berlin Hbf", stop(wuerzburg, 151, platform = "1"), stop(bamberg, 199, platform = "2"), operator = "FlixTrain")),
+            "check" to "Abeona cannot tell what kind of train this is. Check the terms on your ticket." to listOf(
+                Leg(mode = LegMode.Walk, from = stop(wuerzburg, 135), to = stop(bus, 140)),
+                Leg(mode = LegMode.Bus, lineName = "8045", from = stop(bus, 145), to = stop(bamberg, 250), operator = "OVF"),
+            ),
+        )
+        putJsonArray("alternatives") {
+            options.forEach { (meta, legs) ->
+                addJsonObject {
+                    put("provider", "transitous"); put("refresh_token", null as String?)
+                    put("legs", NexusJson.encodeToJsonElement(legs))
+                    put("validity", meta.first); put("validity_note", meta.second)
+                }
+            }
+        }
     }
 
     private fun statistics() = buildJsonObject {

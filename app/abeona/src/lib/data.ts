@@ -2,6 +2,7 @@ import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import { describeError } from "@nexus/ui/errors";
 import { getSupabaseClient } from "./supabase";
 import type {
+  AlternativesResponse,
   Journey,
   JourneysRequest,
   JourneysResponse,
@@ -600,6 +601,33 @@ export async function searchJourneys(request: JourneysRequest): Promise<Journeys
     next_cursor: result.next_cursor ?? null,
     previous_cursor: result.previous_cursor ?? null,
   };
+}
+
+/**
+ * Connections from `from` (a stop id, else "lat,lon") to the trip's
+ * destination, marked by the Edge Function against what the trip's ticket
+ * allows now. One request per refresh; the trip's live values should be
+ * saved first, since the allowance reads them.
+ */
+export async function fetchAlternatives(
+  trip: Pick<Trip, "id" | "legs">,
+  from: { id: string | null; lat: number | null; lon: number | null },
+  time: string,
+): Promise<AlternativesResponse> {
+  const last = trip.legs[trip.legs.length - 1];
+  const place = (stop: { id: string | null; lat: number | null; lon: number | null }) =>
+    stop.id ?? (stop.lat !== null && stop.lon !== null ? `${stop.lat},${stop.lon}` : null);
+  const origin = place(from);
+  const destination = last ? place(last.to) : null;
+  if (!origin || !destination) throw new Error("This trip has no stop to search from.");
+  const result = await invokeTransit<AlternativesResponse>({
+    action: "alternatives",
+    trip_id: trip.id,
+    from: origin,
+    to: destination,
+    time,
+  });
+  return { allowance: result.allowance ?? null, alternatives: result.alternatives ?? [] };
 }
 
 async function invokeTransit<T>(body: Record<string, unknown>): Promise<T> {

@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.numynox.nexus.abeona.AppContainer
 import io.github.numynox.nexus.abeona.data.AbeonaSettings
+import io.github.numynox.nexus.abeona.data.AlertSettings
+import io.github.numynox.nexus.abeona.reminders.LeaveReminder
 import io.github.numynox.nexus.abeona.live.Background
 import io.github.numynox.nexus.abeona.reminders.BahnCardReminders
 import io.github.numynox.nexus.core.data.AuthState
@@ -79,6 +81,30 @@ class AppViewModel(val container: AppContainer, private val application: Applica
     }
 
     fun setBahnCardReminder(value: Boolean) = viewModelScope.launch { container.preferences.setBahnCardReminder(value) }
+
+    fun setStationMinutes(value: Int) = viewModelScope.launch {
+        container.preferences.setStationMinutes(value)
+        rescheduleLeaveReminder()
+    }
+
+    fun setLeaveReminder(value: Boolean) = viewModelScope.launch {
+        container.preferences.setLeaveReminder(value)
+        rescheduleLeaveReminder()
+    }
+
+    fun setAlerts(value: AlertSettings) = viewModelScope.launch { container.preferences.setAlerts(value) }
+
+    /** Location during a trip: takes effect when the live companion next starts. */
+    fun setTripLocation(value: Boolean) = viewModelScope.launch { container.preferences.setTripLocation(value) }
+
+    fun dismissLocationPrompt() = viewModelScope.launch { container.preferences.setLocationAsked() }
+
+    /** The reminder follows the setting at once, not at the next half-hourly job. */
+    private suspend fun rescheduleLeaveReminder() {
+        val settings = container.preferences.current()
+        val trips = if (settings.leaveReminder) runCatching { container.trips.upcoming().value }.getOrDefault(emptyList()) else emptyList()
+        LeaveReminder.schedule(application, trips, settings.leaveReminder, settings.stationMinutes)
+    }
 
     fun signOut() {
         viewModelScope.launch { runCatching { container.core.auth.signOut() } }

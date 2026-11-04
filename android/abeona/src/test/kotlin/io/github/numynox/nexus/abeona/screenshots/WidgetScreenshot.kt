@@ -11,7 +11,10 @@ import androidx.glance.appwidget.compose
 import androidx.glance.appwidget.provideContent
 import androidx.test.core.app.ApplicationProvider
 import io.github.numynox.nexus.abeona.AbeonaApplication
+import io.github.numynox.nexus.abeona.domain.TravelSignals
 import io.github.numynox.nexus.abeona.live.LiveCompanion
+import io.github.numynox.nexus.abeona.live.OnboardStatus
+import io.github.numynox.nexus.abeona.reminders.LeaveReminder
 import io.github.numynox.nexus.abeona.live.companionAlerts
 import io.github.numynox.nexus.abeona.live.companionStatus
 import io.github.numynox.nexus.abeona.reminders.BahnCardReminders
@@ -68,6 +71,27 @@ class WidgetScreenshot {
         val before = trip.copy(legs = trip.legs.mapIndexed { i, leg -> if (i == 1) leg.copy(from = leg.from.copy(platform = null)) else leg.copy(to = leg.to.copy(current = leg.to.planned)) })
         val alert = companionAlerts(before.copy(legs = before.legs.map { it.copy(to = it.to.copy(current = it.to.planned)) }), trip, Instant.now()).first()
         shotNotification(LiveCompanion.alert(context, trip.id, alert), "45-notification-alert")
+    }
+
+    /** Time to leave, for the trip to grandma's, built from the fake backend's trip. */
+    @Test
+    fun leaveReminder() {
+        val trip = runBlocking { (context.applicationContext as AbeonaApplication).container.trips.trip(FakeBackend.NEXT).value!! }
+        LeaveReminder.createChannel(context)
+        val (title, text) = LeaveReminder.message(trip, 15)
+        shotNotification(LeaveReminder.build(context, trip, title, text), "47-notification-leave")
+    }
+
+    /** On board, with the ICE Portal's speed in the ongoing notification. */
+    @Test
+    fun companionOnBoard() {
+        val container = (context.applicationContext as AbeonaApplication).container
+        val trip = runBlocking { container.trips.trip(FakeBackend.NEXT).value!! }
+        val now = trip.legs[0].from.currentAt!!.plusSeconds(25 * 60)
+        val onboard = OnboardStatus("ICE Portal", "ICE", "25", 247.0, null, null, "Aschaffenburg Hbf", null, null, now)
+        LiveCompanion.createChannels(context)
+        val status = companionStatus(trip, now, 15, TravelSignals(onboardLegIndex = 0), onboard)
+        shotNotification(LiveCompanion.ongoing(context, trip.id, status, now), "48-notification-on-board")
     }
 
     /** The BahnCard reminder, built from what abeona_bahncard_deadlines returns. */

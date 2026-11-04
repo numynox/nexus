@@ -185,6 +185,8 @@ export async function journeys(input: {
   arriveBy: boolean;
   products: "all" | "regional";
   cursor?: string;
+  /** How many itineraries to ask for; 6 by default. */
+  count?: number;
 }): Promise<{ journeys: Journey[]; next_cursor: string | null; previous_cursor: string | null }> {
   const modes = input.products === "regional" ? "REGIONAL_RAIL,REGIONAL_FAST_RAIL,SUBURBAN" : "RAIL";
   const payload = await get("/api/v6/plan", {
@@ -193,7 +195,7 @@ export async function journeys(input: {
     time: input.time,
     arriveBy: String(input.arriveBy),
     transitModes: modes,
-    numItineraries: "6",
+    numItineraries: String(input.count ?? 6),
     detailedTransfers: "false",
     pageCursor: input.cursor,
   });
