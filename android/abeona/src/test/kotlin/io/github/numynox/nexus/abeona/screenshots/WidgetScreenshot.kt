@@ -14,6 +14,7 @@ import io.github.numynox.nexus.abeona.AbeonaApplication
 import io.github.numynox.nexus.abeona.live.LiveCompanion
 import io.github.numynox.nexus.abeona.live.companionAlerts
 import io.github.numynox.nexus.abeona.live.companionStatus
+import io.github.numynox.nexus.abeona.reminders.BahnCardReminders
 import io.github.numynox.nexus.abeona.widget.NextTripContent
 import io.github.numynox.nexus.abeona.widget.NextTripState
 import io.github.numynox.nexus.abeona.widget.NextTripWidget
@@ -67,6 +68,14 @@ class WidgetScreenshot {
         val before = trip.copy(legs = trip.legs.mapIndexed { i, leg -> if (i == 1) leg.copy(from = leg.from.copy(platform = null)) else leg.copy(to = leg.to.copy(current = leg.to.planned)) })
         val alert = companionAlerts(before.copy(legs = before.legs.map { it.copy(to = it.to.copy(current = it.to.planned)) }), trip, Instant.now()).first()
         shotNotification(LiveCompanion.alert(context, trip.id, alert), "45-notification-alert")
+    }
+
+    /** The BahnCard reminder, built from what abeona_bahncard_deadlines returns. */
+    @Test
+    fun bahnCardReminder() {
+        val deadlines = runBlocking { (context.applicationContext as AbeonaApplication).container.repository.bahnCardDeadlines() }
+        val (title, lines) = BahnCardReminders.message(deadlines.map { it.copy(daysLeft = 7) })!!
+        shotNotification(BahnCardReminders.build(context, title, lines), "46-notification-bahncard")
     }
 
     private fun shotNotification(notification: Notification, name: String) {

@@ -1,7 +1,7 @@
 # ADR: Supabase Storage for tickets, under the household's RLS
 
 **Date:** 2026-11-02
-**Status:** Accepted
+**Status:** Accepted — the open end about files outside a trip is resolved by `2026-11-03-abeona-bahncard-files-follow-the-card.md`
 
 ## Context
 Abeona's ticket wallet shows the ticket PDF full-screen during a check, and

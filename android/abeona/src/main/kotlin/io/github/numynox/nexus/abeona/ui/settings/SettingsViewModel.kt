@@ -1,10 +1,15 @@
 package io.github.numynox.nexus.abeona.ui.settings
 
+import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.numynox.nexus.abeona.AppContainer
+import io.github.numynox.nexus.abeona.data.BahnCard
+import io.github.numynox.nexus.abeona.data.BahnCardInput
 import io.github.numynox.nexus.abeona.data.HouseholdMember
 import io.github.numynox.nexus.abeona.data.Traveller
+import io.github.numynox.nexus.abeona.ui.common.PickedFile
 import io.github.numynox.nexus.core.data.NexusConfig
 import io.github.numynox.nexus.core.data.describe
 import io.github.numynox.nexus.core.ui.Loadable
@@ -19,9 +24,16 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-data class Household(val members: List<HouseholdMember>, val travellers: List<Traveller>)
+data class Household(
+    val members: List<HouseholdMember>,
+    val travellers: List<Traveller>,
+    /** Every traveller's BahnCards, the one running longest first. */
+    val cards: List<BahnCard> = emptyList(),
+) {
+    fun cardsOf(traveller: Traveller): List<BahnCard> = cards.filter { it.travellerId == traveller.id }
+}
 
-class SettingsViewModel(private val container: AppContainer) : ViewModel() {
+class SettingsViewModel(private val container: AppContainer, private val application: Application) : ViewModel() {
     private val repository = container.repository
     val config: NexusConfig = container.core.config
     val userId: String? get() = container.core.auth.currentUserId
@@ -38,7 +50,8 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
             coroutineScope {
                 val members = async { repository.members() }
                 val travellers = async { repository.travellers() }
-                Household(members.await(), travellers.await())
+                val cards = async { container.trips.bahnCards().value }
+                Household(members.await(), travellers.await(), cards.await())
             }
         }
     }
@@ -54,4 +67,18 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     fun addTraveller(name: String) = write(null) { repository.addTraveller(name) }
     fun renameTraveller(id: String, name: String) = write(null) { repository.renameTraveller(id, name) }
     fun deleteTraveller(id: String) = write(null) { repository.deleteTraveller(id) }
+
+    /** Saves a card, then its file: a new one uploaded, or the old one removed. */
+    fun saveCard(input: BahnCardInput, id: String?, file: Uri?, removeFile: Boolean) = write("BahnCard saved") {
+        val saved = repository.saveBahnCard(input, id)
+        when {
+            file != null -> {
+                val picked = PickedFile.read(application, file, "bahncard.pdf")
+                container.trips.attachBahnCardFile(saved, picked.name, picked.mimeType, picked.bytes)
+            }
+            removeFile && saved.filePath != null -> repository.removeBahnCardFile(saved)
+        }
+    }
+
+    fun deleteCard(card: BahnCard) = write("BahnCard deleted") { repository.deleteBahnCard(card) }
 }

@@ -53,6 +53,7 @@ import io.github.numynox.nexus.abeona.ui.AppViewModel
 import io.github.numynox.nexus.abeona.ui.Navigator
 import io.github.numynox.nexus.abeona.ui.common.BindingLiftedBanner
 import io.github.numynox.nexus.abeona.ui.common.ConfidenceChip
+import io.github.numynox.nexus.abeona.ui.common.DeadlineBanner
 import io.github.numynox.nexus.abeona.ui.common.DelayBadge
 import io.github.numynox.nexus.abeona.ui.common.Illustration
 import io.github.numynox.nexus.abeona.ui.common.LegChips
@@ -82,6 +83,7 @@ fun TripsScreen(app: AppViewModel, navigator: Navigator) {
     val viewModel = containerViewModel { TripsViewModel(it, application) }
     val trips by viewModel.trips.collectAsStateWithLifecycle()
     val history by viewModel.history.collectAsStateWithLifecycle()
+    val deadlines by viewModel.deadlines.collectAsStateWithLifecycle()
     val version by app.dataVersion.collectAsStateWithLifecycle()
     val update by app.update.collectAsStateWithLifecycle()
     val pull = rememberPullRefresh(viewModel::load)
@@ -120,6 +122,9 @@ fun TripsScreen(app: AppViewModel, navigator: Navigator) {
                         modifier = Modifier.fillMaxSize(),
                     ) {
                         item(key = "update") { UpdateBanner(update) }
+                        if (deadlines.isNotEmpty()) {
+                            item(key = "deadlines") { DeadlineBanner(deadlines, onClick = navigator::settings) }
+                        }
                         if (upcoming.isEmpty()) {
                             item(key = "empty") { EmptyTrips(onPlan = navigator::search) }
                         } else {

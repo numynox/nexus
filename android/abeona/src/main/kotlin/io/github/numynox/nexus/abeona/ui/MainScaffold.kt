@@ -43,6 +43,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import io.github.numynox.nexus.abeona.ui.bahncards.BahnCardScreen
 import io.github.numynox.nexus.abeona.ui.review.ReviewScreen
 import io.github.numynox.nexus.abeona.ui.search.SearchScreen
 import io.github.numynox.nexus.abeona.ui.settings.SettingsScreen
@@ -59,6 +60,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable data class TripRoute(val tripId: String) : NavKey
 @Serializable data class TicketRoute(val tripId: String) : NavKey
+@Serializable data class BahnCardRoute(val cardId: String) : NavKey
 
 /** Where the app can be sent from a screen. */
 class Navigator(
@@ -71,6 +73,8 @@ class Navigator(
     fun ticket(tripId: String) = push(TicketRoute(tripId))
     fun search() = switchTab(SearchRoute)
     fun review() = switchTab(ReviewRoute)
+    fun settings() = switchTab(SettingsRoute)
+    fun bahnCard(cardId: String) = push(BahnCardRoute(cardId))
 
     /** After saving a search result: the trip, with Back going to the trips list. */
     fun savedTrip(id: String) {
@@ -164,9 +168,10 @@ fun MainScaffold(app: AppViewModel, openTrip: MutableStateFlow<String?>) {
                     entry<TripsRoute> { TripsScreen(app, navigator) }
                     entry<SearchRoute> { SearchScreen(app, navigator) }
                     entry<ReviewRoute> { ReviewScreen(app) }
-                    entry<SettingsRoute> { SettingsScreen(app) }
+                    entry<SettingsRoute> { SettingsScreen(app, navigator) }
                     entry<TripRoute>(metadata = sideways) { key -> TripScreen(app, key.tripId, navigator) }
                     entry<TicketRoute>(metadata = sideways) { key -> TicketScreen(app, key.tripId, navigator) }
+                    entry<BahnCardRoute>(metadata = sideways) { key -> BahnCardScreen(app, key.cardId, navigator) }
                 },
             )
         }

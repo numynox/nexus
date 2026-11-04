@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
+import io.github.numynox.nexus.abeona.data.BahnCard
 import io.github.numynox.nexus.abeona.data.Journey
 import io.github.numynox.nexus.abeona.data.Leg
 import io.github.numynox.nexus.abeona.data.LegMode
@@ -47,6 +48,7 @@ object FakeBackend {
     const val HOUSEHOLD = "22222222-2222-4222-8222-222222222222"
     const val NEXT = "33333333-3333-4333-8333-000000000001"
     const val SAVED = "33333333-3333-4333-8333-000000000099"
+    const val CARD_JANNIS = "44444444-4444-4444-8444-000000000001"
 
     /** No trips at all: the empty state. */
     @Volatile var noTrips = false
@@ -111,6 +113,7 @@ object FakeBackend {
         Trip(
             NEXT, HOUSEHOLD, "Visit grandma in Bamberg", "planned", frankfurt.name, bamberg.name, at(50), at(203),
             io.github.numynox.nexus.abeona.data.FareType.Saver, true, 2, 3490, "$HOUSEHOLD/$NEXT/sparpreis.png", "tok-1", at(-1), nextLegs,
+            bahncardDiscount = 25,
         ),
         Trip(
             "33333333-3333-4333-8333-000000000002", HOUSEHOLD, "Hamburg conference", "planned", berlin.name, hamburg.name, at(2 * 1440 + 120), at(2 * 1440 + 233),
@@ -153,6 +156,44 @@ object FakeBackend {
             io.github.numynox.nexus.abeona.data.FareType.Saver, true, 2, 4990, null, "j1", null, j.legs)
     }
 
+    private val today = LocalDate.now()
+
+    /**
+     * Jannis's BahnCard 50 renews unless cancelled within twelve days (the
+     * Trips banner); Alex's BahnCard 25 ran out yesterday (a trip warning);
+     * Mila has none.
+     */
+    val bahnCards = listOf(
+        BahnCard(
+            CARD_JANNIS, "tr1", 50, 2, today.minusDays(325).toString(), today.plusDays(40).toString(), "7081 4111 2233 4455",
+            subscription = true, noticeWeeks = 4, filePath = "$HOUSEHOLD/bahncards/$CARD_JANNIS/bahncard-50.png",
+        ),
+        BahnCard(
+            "44444444-4444-4444-8444-000000000002", "tr2", 25, 2, today.minusYears(1).toString(), today.minusDays(1).toString(),
+            subscription = false,
+        ),
+    )
+
+    private val deadlines = buildJsonArray {
+        addJsonObject {
+            put("card_id", CARD_JANNIS); put("traveller_id", "tr1"); put("traveller_name", "Jannis"); put("kind", 50)
+            put("travel_class", 2); put("valid_to", today.plusDays(40).toString()); put("notice_weeks", 4)
+            put("deadline", today.plusDays(12).toString()); put("days_left", 12)
+        }
+    }
+
+    /** What abeona_trip_warnings says about the next trip, in its own words. */
+    private val warnings = buildJsonArray {
+        addJsonObject {
+            put("kind", "expired"); put("traveller_id", "tr2"); put("traveller_name", "Alex")
+            put("card_id", "44444444-4444-4444-8444-000000000002")
+            put("message", "Alex's BahnCard 25 expires on ${java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.ENGLISH).format(today.minusDays(1))}, before this trip.")
+        }
+        addJsonObject {
+            put("kind", "no_card"); put("traveller_id", "tr3"); put("traveller_name", "Mila"); put("message", "Mila has no BahnCard 25.")
+        }
+    }
+
     private val stations = listOf(frankfurt, aschaffenburg, wuerzburg, bamberg, nuernberg, muenchen, berlin, hamburg, koeln) +
         listOf(Place("fsud", "Frankfurt(Main)Süd", 50.0995, 8.6863), Place("ffl", "Frankfurt(M) Flughafen Fernbf", 50.0532, 8.5698), Place("mpas", "München Ost", 48.1273, 11.6046))
 
@@ -173,7 +214,18 @@ object FakeBackend {
     private fun route(request: HttpRequestData, path: String): Any? {
         val params = request.url.parameters
         return when {
+            FakeSupabase.isDownload(request, path, "abeona-tickets") && "/bahncards/" in path -> FakeSupabase.StorageFile(bahnCardPng, "image/png")
             FakeSupabase.isDownload(request, path, "abeona-tickets") -> FakeSupabase.StorageFile(ticketPng, "image/png")
+            path.endsWith("/rpc/abeona_bahncard_deadlines") -> deadlines
+            path.endsWith("/rpc/abeona_trip_warnings") -> if (request.text().contains(NEXT)) warnings else "[]"
+            path.endsWith("/rpc/abeona_set_trip_travellers") -> "null"
+            path.endsWith("/rest/v1/abeona_trip_travellers") -> buildJsonArray {
+                // Everyone on the trip to grandma; the saver alone on the others.
+                val ids = if (params["trip_id"]?.removePrefix("eq.") == NEXT) listOf("tr1", "tr2", "tr3") else listOf("tr1")
+                ids.forEach { addJsonObject { put("traveller_id", it) } }
+            }
+            path.endsWith("/rest/v1/abeona_bahncards") && request.method == HttpMethod.Get -> NexusJson.encodeToJsonElement(bahnCards)
+            path.endsWith("/rest/v1/abeona_bahncards") && request.method != HttpMethod.Delete -> NexusJson.encodeToJsonElement(bahnCards.first())
             path.endsWith("/rpc/abeona_ensure_household") -> "\"$HOUSEHOLD\""
             path.endsWith("/rpc/abeona_save_trip") -> "\"$SAVED\""
             path.endsWith("/rpc/abeona_list_household_members") -> buildJsonArray {
@@ -242,6 +294,30 @@ object FakeBackend {
         }
     }
 
+    /** A plausible digital BahnCard: the card in DB's colours, its number and a 2D code. */
+    val bahnCardPng: ByteArray by lazy {
+        val w = 1080; val h = 1300
+        val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bitmap)
+        c.drawColor(Color.WHITE)
+        val card = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(0xEC, 0x00, 0x16) }
+        c.drawRoundRect(60f, 60f, w - 60f, 640f, 48f, 48f, card)
+        val white = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textSize = 120f; typeface = Typeface.DEFAULT_BOLD }
+        val small = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textSize = 40f }
+        c.drawText("BahnCard 50", 120f, 260f, white)
+        c.drawText("2. Klasse · Jannis", 120f, 340f, small)
+        c.drawText("7081 4111 2233 4455", 120f, 560f, small)
+        val random = Random(11)
+        val cell = 20f; val size = 27; val left = (w - cell * size) / 2; val top = 720f
+        val black = Paint().apply { color = Color.BLACK }
+        for (y in 0 until size) for (x in 0 until size) {
+            val ring = maxOf(kotlin.math.abs(x - size / 2), kotlin.math.abs(y - size / 2))
+            val on = if (ring <= 6) ring % 2 == 0 else random.nextBoolean()
+            if (on) c.drawRect(left + x * cell, top + y * cell, left + (x + 1) * cell, top + (y + 1) * cell, black)
+        }
+        ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+    }
+
     /** A plausible DB ticket: header, route, and a big 2D code to scan. */
     val ticketPng: ByteArray by lazy {
         val w = 1080; val h = 1500
@@ -284,6 +360,7 @@ private fun tripRow(trip: Trip) = buildJsonObject {
     put("planned_departure", trip.plannedDeparture); put("planned_arrival", trip.plannedArrival)
     put("fare_type", trip.fareType.wire); put("train_binding", trip.trainBinding); put("travel_class", trip.travelClass)
     put("price_cents", trip.priceCents); put("ticket_path", trip.ticketPath); put("refresh_token", trip.refreshToken); put("refreshed_at", trip.refreshedAt)
+    put("bahncard_discount", trip.bahncardDiscount)
     putJsonArray("abeona_legs") {
         trip.legs.forEachIndexed { idx, leg ->
             addJsonObject {

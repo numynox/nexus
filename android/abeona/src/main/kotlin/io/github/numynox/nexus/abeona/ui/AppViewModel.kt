@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import io.github.numynox.nexus.abeona.AppContainer
 import io.github.numynox.nexus.abeona.data.AbeonaSettings
 import io.github.numynox.nexus.abeona.live.Background
+import io.github.numynox.nexus.abeona.reminders.BahnCardReminders
 import io.github.numynox.nexus.core.data.AuthState
 import io.github.numynox.nexus.core.data.AvailableUpdate
 import io.github.numynox.nexus.core.ui.theme.ThemeMode
@@ -17,6 +18,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -42,6 +45,12 @@ class AppViewModel(val container: AppContainer, private val application: Applica
 
     init {
         viewModelScope.launch { _update.value = container.core.updates.check() }
+        // Keep the BahnCard reminder's schedule in step with its setting (not on
+        // the first, stored value: the schedule already exists then), as Annona does.
+        viewModelScope.launch {
+            container.preferences.settings.map { it.bahnCardReminder }.distinctUntilChanged().drop(1)
+                .collect { BahnCardReminders.apply(application, it) }
+        }
         viewModelScope.launch {
             auth.distinctUntilChanged { a, b -> a::class == b::class }.collect { state ->
                 if (state is AuthState.SignedIn) {
@@ -68,6 +77,8 @@ class AppViewModel(val container: AppContainer, private val application: Applica
         container.preferences.setLiveCompanion(value)
         Background.schedule(application)
     }
+
+    fun setBahnCardReminder(value: Boolean) = viewModelScope.launch { container.preferences.setBahnCardReminder(value) }
 
     fun signOut() {
         viewModelScope.launch { runCatching { container.core.auth.signOut() } }

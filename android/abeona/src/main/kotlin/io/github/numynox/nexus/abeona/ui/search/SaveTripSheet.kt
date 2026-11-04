@@ -30,6 +30,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import io.github.numynox.nexus.abeona.data.FareType
 import io.github.numynox.nexus.abeona.data.Journey
+import io.github.numynox.nexus.abeona.data.SaveTripInput
+import io.github.numynox.nexus.abeona.data.Traveller
 import io.github.numynox.nexus.core.ui.components.ConnectedChoiceRow
 import io.github.numynox.nexus.core.ui.settings.SettingSwitch
 
@@ -41,7 +43,11 @@ private val Bindable = setOf(FareType.Flex, FareType.Saver, FareType.Other)
 @Composable
 fun SaveTripSheet(
     journey: Journey,
-    onSave: (title: String, fare: FareType, binding: Boolean, travelClass: Int, priceCents: Int?) -> Unit,
+    /** The household's travellers; null until loaded (or when they cannot be), and the database then picks the saver. */
+    travellers: List<Traveller>?,
+    /** The signed-in user, whose own traveller is on the trip by default. */
+    me: String?,
+    onSave: (SaveTripInput) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var title by remember { mutableStateOf("") }
@@ -49,6 +55,8 @@ fun SaveTripSheet(
     var binding by remember { mutableStateOf(true) }
     var travelClass by remember { mutableStateOf(2) }
     var price by remember { mutableStateOf("") }
+    var discount by remember { mutableStateOf<Int?>(null) }
+    var chosen by remember(travellers) { mutableStateOf(travellers?.filter { it.userId == me }?.map { it.id }?.toSet()) }
     var saving by remember { mutableStateOf(false) }
     val origin = journey.legs.firstOrNull()?.from?.name.orEmpty()
     val destination = journey.legs.lastOrNull()?.to?.name.orEmpty()
@@ -102,6 +110,29 @@ fun SaveTripSheet(
                 label = { if (it == 1) "1st class" else "2nd class" },
                 modifier = Modifier.fillMaxWidth(),
             )
+            if (fare != FareType.BahnCard100 && fare != FareType.Deutschlandticket) {
+                Text("BahnCard discount", style = MaterialTheme.typography.labelLarge)
+                ConnectedChoiceRow(
+                    options = listOf(null, 25, 50),
+                    selected = discount,
+                    onSelect = { discount = it },
+                    label = { it?.let { kind -> "BC $kind" } ?: "None" },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            if (travellers != null && travellers.size > 1) {
+                Text("Who travels", style = MaterialTheme.typography.labelLarge)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    travellers.forEach { traveller ->
+                        val on = chosen?.contains(traveller.id) == true
+                        FilterChip(
+                            selected = on,
+                            onClick = { chosen = (chosen ?: emptySet()).let { if (on) it - traveller.id else it + traveller.id } },
+                            label = { Text(traveller.name) },
+                        )
+                    }
+                }
+            }
             OutlinedTextField(
                 value = price,
                 onValueChange = { price = it.filter { c -> c.isDigit() || c == ',' || c == '.' }.take(8) },
@@ -117,7 +148,17 @@ fun SaveTripSheet(
                 Button(
                     onClick = {
                         saving = true
-                        onSave(title, fare, binding && fare in Bindable, travelClass, priceCents)
+                        onSave(
+                            SaveTripInput(
+                                title = title,
+                                fareType = fare,
+                                trainBinding = binding && fare in Bindable,
+                                travelClass = travelClass,
+                                priceCents = priceCents,
+                                bahncardDiscount = discount.takeIf { fare != FareType.BahnCard100 && fare != FareType.Deutschlandticket },
+                                travellerIds = chosen?.toList(),
+                            ),
+                        )
                     },
                     enabled = !saving,
                 ) { Text("Save trip") }

@@ -4,16 +4,19 @@
   import { getBaseUrl } from "../../lib/config";
   import {
     describeError,
+    fetchBahnCardDeadlines,
     fetchPastTrips,
     fetchTrip,
     fetchUpcomingTrips,
     fetchYearStatistics,
     refreshTripLive,
+    type BahnCardDeadline,
     type Statistics,
     type Trip,
   } from "../../lib/data";
   import { hasArrived, isLiveWindow, LIVE_REFRESH_MS } from "../../lib/journey";
   import Illustration from "../common/Illustration.svelte";
+  import DeadlineBanner from "./DeadlineBanner.svelte";
   import HistoryCard from "./HistoryCard.svelte";
   import TripHeroCard from "./TripHeroCard.svelte";
   import TripListItem from "./TripListItem.svelte";
@@ -26,6 +29,7 @@
   let upcoming = $state<Trip[]>([]);
   let recent = $state<Trip[]>([]);
   let stats = $state<Statistics | null>(null);
+  let deadlines = $state<BahnCardDeadline[]>([]);
   /** Trips whose live values are being fetched right now. */
   let refreshingIds = $state<ReadonlySet<string>>(new Set());
 
@@ -46,14 +50,17 @@
     loading = true;
     error = "";
     try {
-      const [trips, past, year_stats] = await Promise.all([
+      const [trips, past, year_stats, due] = await Promise.all([
         fetchUpcomingTrips(),
         fetchPastTrips(3),
         fetchYearStatistics(year),
+        // A reminder, not the page: a failure here must not hide the trips.
+        fetchBahnCardDeadlines().catch(() => [] as BahnCardDeadline[]),
       ]);
       upcoming = trips.filter((t) => !hasArrived(t.legs));
       recent = past;
       stats = year_stats;
+      deadlines = due;
     } catch (e) {
       error = describeError(e);
     } finally {
@@ -125,6 +132,10 @@
       <div class="h-24 animate-pulse rounded-3xl bg-base-200"></div>
     </div>
   {:else if !error}
+    {#if deadlines.length > 0}
+      <DeadlineBanner {deadlines} settingsHref={`${base}/settings#bahncards`} />
+    {/if}
+
     {#if next}
       <TripHeroCard trip={next} href={tripHref(next.id)} refreshing={refreshingIds.has(next.id)} />
     {:else}

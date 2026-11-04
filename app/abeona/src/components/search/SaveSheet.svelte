@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { X } from "lucide-svelte";
-  import { describeError, saveTrip, type FareTypeValue } from "../../lib/data";
-  import { FARE_TYPES, formatDuration, formatLongDate, formatTime } from "../../lib/format";
+  import { Check, X } from "lucide-svelte";
+  import { describeError, fetchTravellers, saveTrip, type BahnCardKind, type FareTypeValue, type Traveller } from "../../lib/data";
+  import { BAHNCARD_DISCOUNTS, FARE_TYPES, formatDuration, formatLongDate, formatTime } from "../../lib/format";
+  import { session } from "../../lib/stores";
   import { summarise } from "../../lib/journey";
   import type { Journey } from "../../lib/transit";
   import LegChip from "../common/LegChip.svelte";
@@ -21,6 +22,10 @@
   let bindingTouched = $state(false);
   let travelClass = $state<1 | 2>(2);
   let price = $state("");
+  let discount = $state<BahnCardKind | null>(null);
+  let travellers = $state<Traveller[]>([]);
+  /** Null until the travellers are loaded: then the RPC's default (the caller) applies. */
+  let travellerIds = $state<ReadonlySet<string> | null>(null);
   let saving = $state(false);
   let error = $state("");
 
@@ -31,10 +36,33 @@
     if (journey && !dialog.open) {
       error = "";
       dialog.showModal();
+      void loadTravellers();
     } else if (!journey && dialog.open) {
       dialog.close();
     }
   });
+
+  async function loadTravellers() {
+    try {
+      travellers = await fetchTravellers();
+      // Whoever saves the trip travels on it, unless they say otherwise.
+      const me = $session?.user?.id;
+      travellerIds = new Set(travellers.filter((t) => t.user_id === me).map((t) => t.id));
+    } catch {
+      // Without the list, the trip simply gets the caller's own traveller.
+      travellers = [];
+      travellerIds = null;
+    }
+  }
+
+  function toggleTraveller(id: string) {
+    const next = new Set(travellerIds ?? []);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    travellerIds = next;
+  }
+
+  const showDiscount = $derived(fareType !== "bahncard100" && fareType !== "deutschlandticket");
 
   function chooseFare(value: FareTypeValue) {
     fareType = value;
@@ -68,6 +96,8 @@
         train_binding: trainBinding,
         travel_class: travelClass,
         price_cents: cents,
+        bahncard_discount: showDiscount ? discount : null,
+        ...(travellerIds ? { traveller_ids: [...travellerIds] } : {}),
       });
       onSaved(id);
     } catch (e) {
@@ -157,6 +187,43 @@
             </span>
           </label>
         </div>
+
+        {#if showDiscount}
+          <fieldset>
+            <legend class="px-1 pb-1 text-xs font-semibold uppercase tracking-wider text-base-content/55">BahnCard discount</legend>
+            <div class="join w-full">
+              {#each BAHNCARD_DISCOUNTS as d (d.label)}
+                <button
+                  type="button"
+                  class="btn join-item flex-1 {discount === d.value ? 'btn-primary' : 'bg-card'}"
+                  aria-pressed={discount === d.value}
+                  onclick={() => (discount = d.value)}
+                >{d.label}</button>
+              {/each}
+            </div>
+          </fieldset>
+        {/if}
+
+        {#if travellers.length > 1}
+          <fieldset>
+            <legend class="px-1 pb-2 text-xs font-semibold uppercase tracking-wider text-base-content/55">Who travels</legend>
+            <div class="flex flex-wrap gap-2">
+              {#each travellers as t (t.id)}
+                {@const on = travellerIds?.has(t.id) ?? false}
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition
+                    {on ? 'border-primary bg-mint text-primary' : 'border-base-300 bg-card text-base-content/70 hover:border-base-content/30'}"
+                  aria-pressed={on}
+                  onclick={() => toggleTraveller(t.id)}
+                >
+                  {#if on}<Check class="h-3.5 w-3.5" />{/if}
+                  {t.name}
+                </button>
+              {/each}
+            </div>
+          </fieldset>
+        {/if}
 
         {#if error}
           <p class="rounded-2xl bg-error/10 px-4 py-3 text-sm text-error" role="alert">{error}</p>

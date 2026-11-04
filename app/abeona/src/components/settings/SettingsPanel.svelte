@@ -1,20 +1,27 @@
 <script lang="ts">
   import { ThemePicker } from "@nexus/ui";
-  import { Check, LogOut, Palette, Pencil, Plus, Trash2, UserPlus, Users, X } from "lucide-svelte";
+  import { Check, CreditCard, LogOut, Palette, Pencil, Plus, Trash2, UserPlus, Users, X } from "lucide-svelte";
   import { onMount } from "svelte";
   import {
     addTraveller,
     deleteTraveller,
     describeError,
+    fetchBahnCards,
     fetchTravellers,
     inviteToHousehold,
     leaveHousehold,
     listHouseholdMembers,
     renameTraveller,
     signOut,
+    type BahnCard,
     type HouseholdMember,
     type Traveller,
   } from "../../lib/data";
+  import { bahnCardLabel } from "../../lib/format";
+  import BahnCardItem from "../bahncards/BahnCardItem.svelte";
+  import BahnCardSheet from "../bahncards/BahnCardSheet.svelte";
+  import TicketViewer from "../trip/TicketViewer.svelte";
+  import { DB_NAVIGATOR_HOME } from "../../lib/journey";
   import { session } from "../../lib/stores";
   import { getTheme, setTheme } from "../../lib/storage";
   import { ABEONA_THEMES } from "../../lib/themes";
@@ -34,7 +41,29 @@
   let editingName = $state("");
   let travellerError = $state("");
 
+  let cards = $state<BahnCard[]>([]);
+  let cardTraveller = $state<Traveller | null>(null);
+  let editingCard = $state<BahnCard | null>(null);
+  let shownCard = $state<{ card: BahnCard; name: string } | null>(null);
+
   let currentTheme = $state(getTheme());
+
+  /** Each traveller's cards, the one running longest first. */
+  const cardsByTraveller = $derived.by(() => {
+    const map = new Map<string, BahnCard[]>();
+    for (const c of cards) map.set(c.traveller_id, [...(map.get(c.traveller_id) ?? []), c]);
+    return map;
+  });
+
+  function openCard(traveller: Traveller, card: BahnCard | null) {
+    editingCard = card;
+    cardTraveller = traveller;
+  }
+
+  function cardSaved(card: BahnCard) {
+    cards = cards.some((c) => c.id === card.id) ? cards.map((c) => (c.id === card.id ? card : c)) : [card, ...cards];
+    cards = [...cards].sort((a, b) => b.valid_to.localeCompare(a.valid_to));
+  }
 
   const me = $derived($session?.user?.id ?? null);
 
@@ -51,7 +80,7 @@
     loading = true;
     error = "";
     try {
-      [members, travellers] = await Promise.all([listHouseholdMembers(), fetchTravellers()]);
+      [members, travellers, cards] = await Promise.all([listHouseholdMembers(), fetchTravellers(), fetchBahnCards()]);
     } catch (e) {
       error = describeError(e);
     } finally {
@@ -116,11 +145,14 @@
   }
 
   async function remove(t: Traveller) {
-    if (!confirm(`Remove ${t.name} from the travellers?`)) return;
+    const owned = cardsByTraveller.get(t.id)?.length ?? 0;
+    const extra = owned > 0 ? ` Their ${owned === 1 ? "BahnCard goes" : `${owned} BahnCards go`} with them.` : "";
+    if (!confirm(`Remove ${t.name} from the travellers?${extra}`)) return;
     travellerError = "";
     try {
       await deleteTraveller(t.id);
       travellers = travellers.filter((x) => x.id !== t.id);
+      cards = cards.filter((c) => c.traveller_id !== t.id);
     } catch (e) {
       travellerError = describeError(e);
     }
@@ -234,6 +266,48 @@
     {#if travellerError}<p class="mt-2 text-sm text-error" role="alert">{travellerError}</p>{/if}
   </section>
 
+  <section class="rounded-[2rem] bg-card p-6 shadow-card sm:p-8" id="bahncards">
+    <div class="flex items-center gap-2">
+      <CreditCard class="h-5 w-5 text-primary" />
+      <h2 class="text-lg font-semibold text-ink">BahnCards</h2>
+    </div>
+    <p class="mt-1 text-sm text-base-content/60">
+      Abeona checks them against the trips and reminds you before a subscription renews. The digital BahnCard only
+      counts as proof inside the DB Navigator app, so keep that at hand on the train.
+    </p>
+
+    {#if loading}
+      <div class="mt-5 h-24 animate-pulse rounded-2xl bg-base-200"></div>
+    {:else}
+      <div class="mt-5 space-y-5">
+        {#each travellers as t (t.id)}
+          {@const owned = cardsByTraveller.get(t.id) ?? []}
+          <div>
+            <div class="flex items-center justify-between gap-3 px-1">
+              <h3 class="font-medium text-ink">{t.name}</h3>
+              <button class="btn btn-ghost btn-sm rounded-full text-primary" onclick={() => openCard(t, null)}>
+                <Plus class="h-4 w-4" /> Add BahnCard
+              </button>
+            </div>
+            {#if owned.length === 0}
+              <p class="px-1 text-sm text-base-content/50">No BahnCard</p>
+            {:else}
+              <div class="mt-1 space-y-2">
+                {#each owned as card (card.id)}
+                  <BahnCardItem
+                    {card}
+                    onShow={() => (shownCard = { card, name: t.name })}
+                    onEdit={() => openCard(t, card)}
+                  />
+                {/each}
+              </div>
+            {/if}
+          </div>
+        {/each}
+      </div>
+    {/if}
+  </section>
+
   <section class="rounded-[2rem] bg-card p-6 shadow-card sm:p-8">
     <div class="flex items-center gap-2">
       <Palette class="h-5 w-5 text-primary" />
@@ -250,6 +324,25 @@
     </div>
     <button class="btn btn-ghost rounded-full" onclick={logout}><LogOut class="h-4 w-4" /> Sign out</button>
   </section>
+
+  <BahnCardSheet
+    traveller={cardTraveller}
+    card={editingCard}
+    onClose={() => { cardTraveller = null; editingCard = null; }}
+    onSaved={cardSaved}
+    onDeleted={(id) => (cards = cards.filter((c) => c.id !== id))}
+  />
+
+  {#if shownCard?.card.file_path}
+    <TicketViewer
+      path={shownCard.card.file_path}
+      title={`${shownCard.name} · ${bahnCardLabel(shownCard.card)}`}
+      navigatorUrl={DB_NAVIGATOR_HOME}
+      label="BahnCard"
+      note="This copy is for your reference. The digital BahnCard only counts as proof inside the DB Navigator app."
+      onClose={() => (shownCard = null)}
+    />
+  {/if}
 
   <footer class="px-2 pb-4 text-center text-xs leading-relaxed text-base-content/45">
     Timetable data: Transitous (transitous.org), © OpenStreetMap contributors, and the respective transit operators.

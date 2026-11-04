@@ -7,10 +7,14 @@
     path: string;
     title: string;
     navigatorUrl: string;
+    /** What the file is, for screen readers: "Ticket" or "BahnCard". */
+    label?: string;
+    /** A line under the header, e.g. where the file counts as proof. */
+    note?: string;
     onClose: () => void;
   }
 
-  let { path, title, navigatorUrl, onClose }: Props = $props();
+  let { path, title, navigatorUrl, label = "Ticket", note, onClose }: Props = $props();
 
   let pages: HTMLDivElement | undefined = $state();
   let loading = $state(true);
@@ -79,16 +83,19 @@
   });
 </script>
 
-<div class="fixed inset-0 z-[100] flex flex-col bg-white text-[#12313a]" role="dialog" aria-modal="true" aria-label="Ticket">
+<div class="fixed inset-0 z-[100] flex flex-col bg-white text-[#12313a]" role="dialog" aria-modal="true" aria-label={label}>
   <header class="flex items-center gap-3 border-b border-black/5 px-4 py-3" style="padding-top: max(0.75rem, env(safe-area-inset-top))">
-    <button class="btn btn-circle btn-ghost btn-sm text-[#12313a]" aria-label="Close ticket" onclick={onClose}>
+    <button class="btn btn-circle btn-ghost btn-sm text-[#12313a]" aria-label="Close {label.toLowerCase()}" onclick={onClose}>
       <X class="h-5 w-5" />
     </button>
     <p class="min-w-0 flex-1 truncate font-semibold">{title}</p>
     <a href={navigatorUrl} target="_blank" rel="noopener" class="btn btn-sm rounded-full border-[#1f6f5c]/30 bg-white text-[#1f6f5c]">
-      <ExternalLink class="h-4 w-4" /> DB Navigator
+      <ExternalLink class="h-4 w-4" /> {label === "Ticket" ? "DB Navigator" : "Open in DB Navigator"}
     </a>
   </header>
+  {#if note}
+    <p class="border-b border-black/5 bg-[#fdf3dd] px-4 py-2 text-center text-sm text-[#5c4210]">{note}</p>
+  {/if}
   <div class="flex-1 overflow-auto bg-white px-3 py-4">
     {#if loading}
       <div class="flex h-full items-center justify-center"><span class="loading loading-spinner loading-lg text-[#1f6f5c]"></span></div>
@@ -97,7 +104,7 @@
       <p class="mx-auto max-w-md rounded-2xl bg-[#c4553b]/10 px-4 py-3 text-sm text-[#c4553b]">{error}</p>
     {/if}
     {#if imageUrl}
-      <img src={imageUrl} alt="Ticket" class="mx-auto block h-auto max-w-full bg-white" />
+      <img src={imageUrl} alt={label} class="mx-auto block h-auto max-w-full bg-white" />
     {/if}
     <div bind:this={pages} class="space-y-4"></div>
   </div>

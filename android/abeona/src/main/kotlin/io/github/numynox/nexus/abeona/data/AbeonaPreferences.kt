@@ -24,6 +24,8 @@ data class AbeonaSettings(
      * Per phone and off by default: it keeps a notification up for the ride.
      */
     val liveCompanion: Boolean = false,
+    /** Notify before a BahnCard subscription's cancellation deadline. Per phone and off by default. */
+    val bahnCardReminder: Boolean = false,
 )
 
 /**
@@ -36,6 +38,7 @@ class AbeonaPreferences(private val context: Context) {
         val ThemeMode = stringPreferencesKey("theme_mode")
         val DynamicColor = booleanPreferencesKey("dynamic_color")
         val LiveCompanion = booleanPreferencesKey("live_companion")
+        val BahnCardReminder = booleanPreferencesKey("bahncard_reminder")
         val Widget = stringPreferencesKey("widget_next_trip")
     }
 
@@ -45,6 +48,7 @@ class AbeonaPreferences(private val context: Context) {
         themeMode = ThemeMode.entries.firstOrNull { it.name == this[Keys.ThemeMode] } ?: ThemeMode.System,
         dynamicColor = this[Keys.DynamicColor] ?: false,
         liveCompanion = this[Keys.LiveCompanion] ?: false,
+        bahnCardReminder = this[Keys.BahnCardReminder] ?: false,
     )
 
     suspend fun current(): AbeonaSettings = settings.first()
@@ -52,6 +56,7 @@ class AbeonaPreferences(private val context: Context) {
     suspend fun setThemeMode(value: ThemeMode) = edit { it[Keys.ThemeMode] = value.name }
     suspend fun setDynamicColor(value: Boolean) = edit { it[Keys.DynamicColor] = value }
     suspend fun setLiveCompanion(value: Boolean) = edit { it[Keys.LiveCompanion] = value }
+    suspend fun setBahnCardReminder(value: Boolean) = edit { it[Keys.BahnCardReminder] = value }
 
     /** What the home screen widget last loaded, shown while it cannot load. */
     suspend fun widgetSnapshot(): NextTripSnapshot? =

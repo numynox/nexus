@@ -1,6 +1,7 @@
 package io.github.numynox.nexus.abeona.data
 
 import java.time.Instant
+import java.time.LocalDate
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -47,6 +48,8 @@ data class Trip(
     val refreshToken: String? = null,
     val refreshedAt: String? = null,
     val legs: List<Leg> = emptyList(),
+    /** The BahnCard discount the fare was bought with (25, 50, 100); a BahnCard 100 is also a [FareType]. */
+    val bahncardDiscount: Int? = null,
 ) {
     val departureAt: Instant get() = plannedDeparture.toInstantOrNull() ?: Instant.EPOCH
     val arrivalAt: Instant get() = plannedArrival.toInstantOrNull() ?: Instant.EPOCH
@@ -81,6 +84,7 @@ internal data class TripRow(
     @SerialName("ticket_path") val ticketPath: String? = null,
     @SerialName("refresh_token") val refreshToken: String? = null,
     @SerialName("refreshed_at") val refreshedAt: String? = null,
+    @SerialName("bahncard_discount") val bahncardDiscount: Int? = null,
     @SerialName("abeona_legs") val legs: List<LegRow> = emptyList(),
 ) {
     fun toTrip() = Trip(
@@ -100,6 +104,7 @@ internal data class TripRow(
         refreshToken = refreshToken,
         refreshedAt = refreshedAt,
         legs = legs.sortedBy { it.idx }.map { it.toLeg() },
+        bahncardDiscount = bahncardDiscount,
     )
 }
 
@@ -158,6 +163,86 @@ data class Traveller(
     val name: String,
     @SerialName("user_id") val userId: String? = null,
 )
+
+/** What the save sheet knows about a new trip's ticket and who travels on it. */
+data class SaveTripInput(
+    val title: String?,
+    val fareType: FareType,
+    val trainBinding: Boolean,
+    val travelClass: Int,
+    val priceCents: Int?,
+    /** 25, 50 or null; a BahnCard 100 is a [FareType]. */
+    val bahncardDiscount: Int? = null,
+    /** Who travels; null leaves it to the database, which puts the caller's own traveller on. */
+    val travellerIds: List<String>? = null,
+)
+
+/**
+ * A BahnCard (glossary: BahnCard). It belongs to a traveller, and through
+ * them to a household; a merge on invite carries it along. Dates are the
+ * first and last day it is valid.
+ */
+@Serializable
+data class BahnCard(
+    val id: String,
+    @SerialName("traveller_id") val travellerId: String,
+    val kind: Int,
+    @SerialName("travel_class") val travelClass: Int = 2,
+    @SerialName("valid_from") val validFrom: String,
+    @SerialName("valid_to") val validTo: String,
+    @SerialName("card_number") val cardNumber: String? = null,
+    /** Renews unless cancelled [noticeWeeks] weeks before [validTo]. */
+    val subscription: Boolean = true,
+    @SerialName("notice_weeks") val noticeWeeks: Int = 4,
+    @SerialName("file_path") val filePath: String? = null,
+) {
+    val from: LocalDate get() = LocalDate.parse(validFrom)
+    val to: LocalDate get() = LocalDate.parse(validTo)
+    /** The last day to cancel a subscription. */
+    val deadline: LocalDate get() = to.minusWeeks(noticeWeeks.toLong())
+    val label: String get() = "BahnCard $kind · ${if (travelClass == 1) "1st" else "2nd"} class"
+    val fileName: String? get() = filePath?.substringAfterLast('/')
+}
+
+/** What the BahnCard sheet edits: a card without its id and file. */
+data class BahnCardInput(
+    val travellerId: String,
+    val kind: Int,
+    val travelClass: Int,
+    val validFrom: LocalDate,
+    val validTo: LocalDate,
+    val cardNumber: String?,
+    val subscription: Boolean,
+    val noticeWeeks: Int,
+)
+
+/** A row of abeona_bahncard_deadlines(): a subscription to cancel soon, or whose deadline has passed. */
+@Serializable
+data class BahnCardDeadline(
+    @SerialName("card_id") val cardId: String,
+    @SerialName("traveller_id") val travellerId: String,
+    @SerialName("traveller_name") val travellerName: String,
+    val kind: Int,
+    @SerialName("travel_class") val travelClass: Int = 2,
+    @SerialName("valid_to") val validTo: String,
+    @SerialName("notice_weeks") val noticeWeeks: Int = 4,
+    val deadline: String,
+    /** Negative once the deadline has passed. */
+    @SerialName("days_left") val daysLeft: Int,
+)
+
+/** A row of abeona_trip_warnings(); [message] is shown as is, the same on the web. */
+@Serializable
+data class TripWarning(
+    val kind: String,
+    @SerialName("traveller_id") val travellerId: String? = null,
+    @SerialName("traveller_name") val travellerName: String? = null,
+    @SerialName("card_id") val cardId: String? = null,
+    val message: String,
+)
+
+@Serializable
+internal data class TripTravellerRow(@SerialName("traveller_id") val travellerId: String)
 
 @Serializable
 data class HouseholdMember(

@@ -89,7 +89,14 @@ owned. There is no "my products".
 | :--- | :--- | :--- |
 | `abeona_households` | Household | the people who see each other's trips. Bounded, unlike Annona's everyone-sees-everything; one per user, made on first use |
 | `abeona_household_members` | Members | accounts in a household. Inviting someone who is alone in their own household **merges** it in |
-| `abeona_travellers` | Traveller | a person who rides — a member, or someone without an account (a child). BahnCards will belong to travellers, not to accounts |
+| `abeona_travellers` | Traveller | a person who rides — a member, or someone without an account (a child). BahnCards belong to travellers, not to accounts |
+| `abeona_trip_travellers` | Travellers (on a trip) | who rides on a trip. A new trip gets its creator's own traveller unless the save says otherwise |
+| `abeona_bahncards` | BahnCard | DB's discount card (25, 50) or flat rate (100), per traveller, with class, validity and an optional card file. Shown as "BahnCard 50 · 2nd class". Only the digital card **inside DB Navigator** counts as proof; Abeona's copy is a reference, so "Open in DB Navigator" always sits next to it |
+| `subscription` | Renews automatically | the card renews unless cancelled before its deadline. Turned off once it is cancelled, which also silences the reminder |
+| `notice_weeks` | Notice period | weeks before `valid_to` by which a subscription must be cancelled. Default 4 (DB shortened it from 6); editable per card |
+| cancellation deadline | Cancel by … | derived: `valid_to` − notice period (`abeona_bahncard_deadlines`). The Trips banner (both clients) and the Android reminder look 14 days ahead |
+| `bahncard_discount` | BahnCard discount | on a trip: the BahnCard discount (25, 50) its fare was bought with. A BahnCard 100 is the fare type `bahncard100`, not a discount |
+| trip warning | Check the BahnCards | derived, never stored (`abeona_trip_warnings`): a traveller on a discounted trip has no card of the kind, or it ends before / starts after the trip, or is 2nd class on a 1st-class ticket. A BahnCard 50 covers a 25 fare. The message is written in SQL and shown as is by both clients |
 | `abeona_trips` | Trip | one journey from origin to destination, with the ticket facts the app knows (`fare_type`, `train_binding`, class, price) and the stored ticket file |
 | `abeona_legs` | Leg / ride | one train, bus or walk within a trip. `planned_*` never change after saving; `departure`, `arrival` and the current platforms are the live values. Not Vibilia's "leg" between refuels |
 | stopover | Stops | an intermediate stop of a leg, stored as JSON on the leg |
