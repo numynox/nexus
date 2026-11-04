@@ -40,6 +40,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.material.icons.rounded.ConfirmationNumber
+import androidx.compose.material3.FilterChip
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
@@ -105,6 +108,9 @@ import kotlinx.coroutines.withContext
  */
 data class TicketPages(val trip: Trip, val pages: List<Bitmap>, val code: Bitmap?, val offlineSince: Instant?)
 
+/** Something else to show at the gate with the ticket: a traveller's BahnCard, its file as pages and its code. */
+data class TicketDocument(val key: String, val label: String, val pages: List<Bitmap>, val code: Bitmap?)
+
 /** Draws PDF pages, or decodes an image, at a width sharp enough to scan. */
 object TicketRenderer {
     private const val WIDTH = 1440
@@ -136,6 +142,39 @@ class TicketViewModel(
     private val _ticket = MutableStateFlow<Loadable<TicketPages>>(Loadable.Loading)
     val ticket: StateFlow<Loadable<TicketPages>> = _ticket.asStateFlow()
 
+    /** The BahnCards of the trip's travellers that have a file, loaded after the ticket. */
+    private val _cards = MutableStateFlow<List<TicketDocument>>(emptyList())
+    val cards: StateFlow<List<TicketDocument>> = _cards.asStateFlow()
+
+    /**
+     * One card per traveller on the trip: valid on the day, and of at least
+     * their discount when they have one. Offline, without the trip's
+     * travellers, every card valid on the day. A card that fails to load is
+     * left out; the ticket stands on its own.
+     */
+    private suspend fun loadCards(trip: Trip) {
+        val cards = runCatching { container.trips.bahnCards().value }.getOrDefault(emptyList()).filter { it.filePath != null }
+        if (cards.isEmpty()) return
+        val day = trip.departureAt.atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+        val riders = runCatching { container.repository.tripTravellers(trip.id) }.getOrNull()
+        val names = runCatching { container.repository.travellers().associate { it.id to it.name } }.getOrDefault(emptyMap())
+        val chosen = cards
+            .filter { !it.from.isAfter(day) && !it.to.isBefore(day) }
+            .filter { card -> riders == null || riders.any { it.travellerId == card.travellerId } }
+            .groupBy { it.travellerId }
+            .mapNotNull { (traveller, own) ->
+                val need = riders?.firstOrNull { it.travellerId == traveller }?.bahncardDiscount ?: 0
+                own.filter { it.kind >= need }.maxByOrNull { it.kind } ?: own.maxByOrNull { it.kind }
+            }
+        _cards.value = chosen.mapNotNull { card ->
+            runCatching {
+                val file = container.trips.bahnCardFile(card)
+                val (pages, code) = withContext(Dispatchers.Default) { TicketRenderer.render(file) to TicketCode.extract(context, file) }
+                TicketDocument(card.id, listOfNotNull(names[card.travellerId], "BahnCard ${card.kind}").joinToString(" · "), pages, code)
+            }.getOrNull()?.takeIf { it.pages.isNotEmpty() }
+        }
+    }
+
     fun load() = viewModelScope.launch {
         _ticket.value = Loadable.Loading
         _ticket.value = try {
@@ -144,6 +183,7 @@ class TicketViewModel(
             val file = container.trips.ticket(trip)
             val (pages, code) = withContext(Dispatchers.Default) { TicketRenderer.render(file) to TicketCode.extract(context, file) }
             if (pages.isEmpty()) error("This ticket could not be opened.")
+            viewModelScope.launch { loadCards(trip) }
             Loadable.Ready(TicketPages(trip, pages, code, fetched.offlineSince))
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
@@ -176,6 +216,11 @@ fun TicketScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
         if (uri != null) viewModel.replace(uri, context.applicationContext as android.app.Application) { app.say(it) }
     }
 
+    val cards by viewModel.cards.collectAsStateWithLifecycle()
+    // The ticket first, then the BahnCards to show with it, one tap apart.
+    val documents = (ticket as? Loadable.Ready)?.value?.let { listOf(TicketDocument(TICKET, "Ticket", it.pages, it.code)) + cards }.orEmpty()
+    var shown by rememberSaveable { mutableStateOf(TICKET) }
+
     LaunchedEffect(tripId) { viewModel.load() }
     FullBrightness()
 
@@ -205,6 +250,27 @@ fun TicketScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                     (ticket as? Loadable.Ready)?.value?.offlineSince?.let { OfflinePill(it, Modifier.padding(top = 4.dp)) }
                 }
             }
+            if (documents.size > 1) {
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    documents.forEach { document ->
+                        FilterChip(
+                            selected = document.key == shown,
+                            onClick = { shown = document.key },
+                            label = { Text(document.label) },
+                            leadingIcon = {
+                                Icon(
+                                    if (document.key == TICKET) Icons.Rounded.ConfirmationNumber else Icons.Rounded.Badge,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            },
+                        )
+                    }
+                }
+            }
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (val state = ticket) {
                     Loadable.Loading -> LoadingState(Modifier.fillMaxSize())
@@ -213,23 +279,8 @@ fun TicketScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                         TextButton(onClick = { viewModel.load() }) { Text("Try again") }
                     }
                     is Loadable.Ready -> {
-                        // The code first, when there is one; the whole PDF on request.
-                        var showPdf by rememberSaveable(state.value.code == null) { mutableStateOf(state.value.code == null) }
-                        val code = state.value.code
-                        if (code != null && !showPdf) {
-                            TicketCodeView(code, onShowPdf = { showPdf = true })
-                        } else {
-                            ZoomablePages(state.value.pages)
-                            if (code != null) {
-                                FilledTonalButton(
-                                    onClick = { showPdf = false },
-                                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp),
-                                ) {
-                                    Icon(Icons.Rounded.QrCode2, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Text("Show code", modifier = Modifier.padding(start = 8.dp))
-                                }
-                            }
-                        }
+                        val document = documents.firstOrNull { it.key == shown } ?: documents.first()
+                        DocumentView(document, description = if (document.key == TICKET) "Ticket page" else "BahnCard")
                     }
                 }
             }
@@ -312,6 +363,34 @@ internal fun ZoomablePages(pages: List<Bitmap>, description: String = "Ticket pa
                     contentScale = ContentScale.FillWidth,
                     modifier = Modifier.fillMaxWidth(),
                 )
+            }
+        }
+    }
+}
+
+private const val TICKET = "ticket"
+
+/**
+ * A ticket or a BahnCard at the gate: its code first, when the file has one,
+ * the whole file on request; and back.
+ */
+@Composable
+internal fun DocumentView(document: TicketDocument, description: String) {
+    var showPdf by rememberSaveable(document.key) { mutableStateOf(document.code == null) }
+    val code = document.code
+    Box(Modifier.fillMaxSize()) {
+        if (code != null && !showPdf) {
+            TicketCodeView(code, onShowPdf = { showPdf = true })
+        } else {
+            ZoomablePages(document.pages, description = description)
+            if (code != null) {
+                FilledTonalButton(
+                    onClick = { showPdf = false },
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp),
+                ) {
+                    Icon(Icons.Rounded.QrCode2, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text("Show code", modifier = Modifier.padding(start = 8.dp))
+                }
             }
         }
     }

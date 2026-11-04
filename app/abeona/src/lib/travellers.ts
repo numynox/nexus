@@ -27,3 +27,39 @@ export function nextDiscount(ticket: readonly Discount[], given: readonly Discou
   if (held.length === 0 && left.includes(null)) return null;
   return left.find((d) => d !== null) ?? null;
 }
+
+/** The few fields of a BahnCard the ticket viewer chooses by. */
+export interface CardOnFile {
+  id: string;
+  traveller_id: string;
+  kind: number;
+  /** yyyy-mm-dd */
+  valid_from: string;
+  valid_to: string;
+  file_path: string | null;
+}
+
+/**
+ * The BahnCards to show with a trip's ticket: one per traveller on the trip,
+ * with a file, valid on `day` (yyyy-mm-dd), of at least their discount when
+ * they have one. Without the trip's travellers (`riders` null), every card
+ * valid on the day. Android's TicketViewModel.loadCards chooses the same.
+ */
+export function cardsForTrip<C extends CardOnFile>(
+  cards: readonly C[],
+  riders: readonly { traveller_id: string; bahncard_discount: number | null }[] | null,
+  day: string,
+): C[] {
+  const byTraveller = new Map<string, C[]>();
+  for (const c of cards) {
+    if (!c.file_path || c.valid_from > day || c.valid_to < day) continue;
+    if (riders && !riders.some((r) => r.traveller_id === c.traveller_id)) continue;
+    byTraveller.set(c.traveller_id, [...(byTraveller.get(c.traveller_id) ?? []), c]);
+  }
+  return [...byTraveller.entries()].map(([traveller, own]) => {
+    const need = riders?.find((r) => r.traveller_id === traveller)?.bahncard_discount ?? 0;
+    const best = (list: C[]) => list.reduce((a, b) => (b.kind > a.kind ? b : a));
+    const enough = own.filter((c) => c.kind >= need);
+    return best(enough.length > 0 ? enough : own);
+  });
+}
