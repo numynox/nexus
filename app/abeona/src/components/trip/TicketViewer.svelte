@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { ExternalLink, X } from "lucide-svelte";
+  import { ExternalLink, FileText, QrCode, X } from "lucide-svelte";
   import { onMount } from "svelte";
   import { describeError, downloadTicket } from "../../lib/data";
+  import { extractTicketCode } from "../../lib/ticketCode";
 
   interface Props {
     path: string;
@@ -20,6 +21,9 @@
   let loading = $state(true);
   let error = $state("");
   let imageUrl = $state("");
+  /** The PDF's barcode on its own, shown first; the whole PDF on request. */
+  let codeUrl = $state("");
+  let showPdf = $state(false);
 
   async function renderPdf(blob: Blob, target: HTMLDivElement) {
     // pdf.js is heavy: loaded only when a ticket is opened.
@@ -28,6 +32,8 @@
     pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
 
     const doc = await pdfjs.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
+    // The code first, so the PDF does not flash up before it.
+    codeUrl = (await extractTicketCode(doc, pdfjs.OPS).catch(() => null)) ?? "";
     const width = Math.min(target.clientWidth || window.innerWidth, 900);
     const ratio = Math.max(window.devicePixelRatio || 1, 2);
 
@@ -97,7 +103,7 @@
     <p class="border-b border-black/5 bg-[#fdf3dd] px-4 py-2 text-center text-sm text-[#5c4210]">{note}</p>
   {/if}
   <div class="flex-1 overflow-auto bg-white px-3 py-4">
-    {#if loading}
+    {#if loading && !codeUrl}
       <div class="flex h-full items-center justify-center"><span class="loading loading-spinner loading-lg text-[#1f6f5c]"></span></div>
     {/if}
     {#if error}
@@ -106,6 +112,22 @@
     {#if imageUrl}
       <img src={imageUrl} alt={label} class="mx-auto block h-auto max-w-full bg-white" />
     {/if}
-    <div bind:this={pages} class="space-y-4"></div>
+    {#if codeUrl && !showPdf}
+      <div class="flex min-h-full flex-col items-center justify-center gap-6">
+        <!-- Pixelated: every module of the code stays sharp when scaled up. -->
+        <img src={codeUrl} alt="Ticket barcode" class="block aspect-square w-full max-w-[min(32rem,70vh)] bg-white p-4 [image-rendering:pixelated]" />
+        <button type="button" class="btn rounded-full border-[#12313a]/20 bg-white text-[#12313a]" onclick={() => (showPdf = true)}>
+          <FileText class="h-4 w-4" /> Show PDF
+        </button>
+      </div>
+    {/if}
+    <div bind:this={pages} class="space-y-4" class:hidden={codeUrl && !showPdf}></div>
+    {#if codeUrl && showPdf}
+      <div class="sticky bottom-2 mt-4 flex justify-center">
+        <button type="button" class="btn rounded-full bg-[#dff3ec] text-[#12313a] shadow-card" onclick={() => (showPdf = false)}>
+          <QrCode class="h-4 w-4" /> Show code
+        </button>
+      </div>
+    {/if}
   </div>
 </div>
