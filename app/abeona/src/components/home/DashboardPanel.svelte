@@ -175,6 +175,6 @@
       </section>
     {/if}
 
-    <HistoryCard {year} {stats} {recent} reviewHref={`${base}/review`} {tripHref} />
+    <HistoryCard {year} {stats} {recent} reviewHref={`${base}/review`} pastHref={`${base}/past`} {tripHref} />
   {/if}
 </div>

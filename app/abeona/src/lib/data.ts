@@ -525,16 +525,17 @@ export async function fetchUpcomingTrips(): Promise<Trip[]> {
 }
 
 /** The most recent trips that have already arrived, newest first. */
-export async function fetchPastTrips(limit = 5): Promise<Trip[]> {
+export async function fetchPastTrips(limit = 5, before?: string): Promise<Trip[]> {
   const household = await ensureHousehold();
   const sb = getSupabaseClient();
-  const { data, error } = await sb
+  let query = sb
     .from("abeona_trips")
     .select(TRIP_SELECT)
     .eq("household_id", household)
-    .lt("planned_arrival", new Date().toISOString())
-    .order("planned_departure", { ascending: false })
-    .limit(limit);
+    .lt("planned_arrival", new Date().toISOString());
+  // The next page: older than the oldest shown.
+  if (before) query = query.lt("planned_departure", before);
+  const { data, error } = await query.order("planned_departure", { ascending: false }).limit(limit);
   if (error) throw error;
   return ((data ?? []) as TripRow[]).map(tripFromRow);
 }

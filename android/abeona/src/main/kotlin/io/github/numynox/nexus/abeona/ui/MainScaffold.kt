@@ -50,6 +50,7 @@ import io.github.numynox.nexus.abeona.ui.review.ReviewScreen
 import io.github.numynox.nexus.abeona.ui.search.SearchScreen
 import io.github.numynox.nexus.abeona.ui.settings.SettingsScreen
 import io.github.numynox.nexus.abeona.ui.trip.TripScreen
+import io.github.numynox.nexus.abeona.ui.trips.PastTripsScreen
 import io.github.numynox.nexus.abeona.ui.trips.TripsScreen
 import io.github.numynox.nexus.abeona.ui.wallet.TicketScreen
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -64,6 +65,7 @@ import kotlinx.serialization.Serializable
 @Serializable data class TicketRoute(val tripId: String) : NavKey
 @Serializable data class BahnCardRoute(val cardId: String) : NavKey
 @Serializable data object ClaimsRoute : NavKey
+@Serializable data object PastTripsRoute : NavKey
 
 /** Where the app can be sent from a screen. */
 class Navigator(
@@ -79,6 +81,7 @@ class Navigator(
     fun settings() = switchTab(SettingsRoute)
     fun bahnCard(cardId: String) = push(BahnCardRoute(cardId))
     fun claims() = push(ClaimsRoute)
+    fun pastTrips() = push(PastTripsRoute)
 
     /** After saving a search result: the trip, with Back going to the trips list. */
     fun savedTrip(id: String) {
@@ -187,6 +190,7 @@ fun MainScaffold(app: AppViewModel, openTrip: MutableStateFlow<String?>, incomin
                     entry<TicketRoute>(metadata = sideways) { key -> TicketScreen(app, key.tripId, navigator) }
                     entry<BahnCardRoute>(metadata = sideways) { key -> BahnCardScreen(app, key.cardId, navigator) }
                     entry<ClaimsRoute>(metadata = sideways) { ClaimsScreen(app, navigator) }
+                    entry<PastTripsRoute>(metadata = sideways) { PastTripsScreen(app, navigator) }
                 },
             )
         }

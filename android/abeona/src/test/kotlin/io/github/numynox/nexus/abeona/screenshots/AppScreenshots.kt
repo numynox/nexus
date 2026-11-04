@@ -63,6 +63,11 @@ class AppScreenshots {
         shot("01-trips")
         scrollTo("${LocalDate.now().year} on rails")
         shot("02-trips-upcoming-history")
+        scrollTo("Past trips")
+        tap("Past trips")
+        waitFor(hasContentDescription("Back"))
+        shot("02b-past-trips")
+        back()
         scrollTo("Visit grandma in Bamberg")
 
         tap("Visit grandma in Bamberg")

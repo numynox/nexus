@@ -10,10 +10,11 @@
     stats: Statistics | null;
     recent: Trip[];
     reviewHref: string;
+    pastHref: string;
     tripHref: (id: string) => string;
   }
 
-  let { year, stats, recent, reviewHref, tripHref }: Props = $props();
+  let { year, stats, recent, reviewHref, pastHref, tripHref }: Props = $props();
 
   const punctuality = $derived(
     stats?.punctual_share === null || stats?.punctual_share === undefined
@@ -70,6 +71,9 @@
           <TripListItem {trip} href={tripHref(trip.id)} muted />
         {/each}
       </div>
+      <a href={pastHref} class="mt-3 inline-flex items-center gap-1 px-2 text-sm font-semibold text-primary hover:underline">
+        All past trips <ArrowRight class="h-4 w-4" />
+      </a>
     </div>
   {/if}
 </section>

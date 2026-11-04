@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.ConfirmationNumber
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -27,6 +28,7 @@ import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -155,6 +157,12 @@ fun TripsScreen(app: AppViewModel, navigator: Navigator) {
                             }
                         }
                         item(key = "history") { HistoryCard(history, onClick = navigator::review) }
+                        item(key = "past") {
+                            TextButton(onClick = navigator::pastTrips, modifier = Modifier.fillMaxWidth()) {
+                                Icon(Icons.Rounded.History, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Text("Past trips", modifier = Modifier.padding(start = 8.dp))
+                            }
+                        }
                     }
                 }
             }
@@ -286,9 +294,9 @@ fun NextTripCard(
     }
 }
 
-/** A later trip: its day, route and times on one calm row. */
+/** A later trip (or, in Past trips, an earlier one): its day, route and times on one calm row. */
 @Composable
-private fun TripRow(trip: Trip, onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun TripRow(trip: Trip, onClick: () -> Unit, modifier: Modifier = Modifier) {
     NexusCard(modifier = modifier.fillMaxWidth(), onClick = onClick, containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.width(76.dp)) {

@@ -111,6 +111,20 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
         }.decodeList<TripRow>().map { it.toTrip() }
     }
 
+    /** Trips that have arrived, newest first: [limit] of them departing before [before]. */
+    suspend fun pastTrips(before: Instant, limit: Int, now: Instant = Instant.now()): List<Trip> {
+        val household = householdId()
+        return supabase.from("abeona_trips").select(tripColumns) {
+            filter {
+                eq("household_id", household)
+                lt("planned_arrival", now.toString())
+                lt("planned_departure", before.toString())
+            }
+            order("planned_departure", Order.DESCENDING)
+            limit(limit.toLong())
+        }.decodeList<TripRow>().map { it.toTrip() }
+    }
+
     suspend fun trip(id: String): Trip? {
         householdId()
         return supabase.from("abeona_trips").select(tripColumns) { filter { eq("id", id) } }
