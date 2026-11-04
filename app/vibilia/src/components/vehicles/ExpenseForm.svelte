@@ -23,13 +23,13 @@
     submitLabel = null,
     onSuccess,
     onCancel,
-  } = $props<{
+  }: {
     car: any;
     existingExpense?: any | null;
     submitLabel?: string | null;
     onSuccess: () => void;
     onCancel: () => void;
-  }>();
+  } = $props();
 
   let expensedAtLocal = $state(formatDateTimeLocal(new Date()));
   let title = $state("");
