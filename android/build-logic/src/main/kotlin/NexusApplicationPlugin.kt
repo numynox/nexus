@@ -1,5 +1,6 @@
 import com.android.build.api.dsl.ApplicationExtension
 import java.io.File
+import java.util.Properties
 import org.gradle.api.JavaVersion
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -39,11 +40,19 @@ class NexusApplicationPlugin : Plugin<Project> {
 
         // ── Signing ──────────────────────────────────────────────────────────
         // Release builds are signed with the key CI decodes from repository
-        // secrets (DEPLOYMENT.md), one key for every app. Without it a release
-        // build falls back to the debug key, which is fine for trying a release
-        // build locally but cannot update an installed app.
-        val releaseKeystore: File? = providers.environmentVariable("ANDROID_KEYSTORE_PATH").orNull
-            ?.let(::File)?.takeIf { it.isFile }
+        // secrets (DEPLOYMENT.md), one key for every app. Locally, the same
+        // values can come from the gitignored `android/keystore.properties`
+        // instead; an environment variable wins over the file. Without a key a
+        // release build falls back to the debug key, which is fine for trying
+        // a release build locally but cannot update an installed app.
+        val keystoreProperties = Properties().apply {
+            rootDir.resolve("keystore.properties").takeIf { it.isFile }?.reader()?.use(::load)
+        }
+        fun signingValue(variable: String, property: String): String? =
+            providers.environmentVariable(variable).orNull?.takeIf { it.isNotBlank() }
+                ?: keystoreProperties.getProperty(property)?.trim()?.takeIf { it.isNotEmpty() }
+        val releaseKeystore: File? = signingValue("ANDROID_KEYSTORE_PATH", "storeFile")
+            ?.let(rootDir::resolve)?.takeIf { it.isFile }
 
         extensions.configure<ApplicationExtension> {
             namespace = "io.github.numynox.nexus.$app"
@@ -74,9 +83,9 @@ class NexusApplicationPlugin : Plugin<Project> {
                 if (releaseKeystore != null) {
                     create("release") {
                         storeFile = releaseKeystore
-                        storePassword = providers.environmentVariable("ANDROID_KEYSTORE_PASSWORD").orNull
-                        keyAlias = providers.environmentVariable("ANDROID_KEY_ALIAS").orNull
-                        keyPassword = providers.environmentVariable("ANDROID_KEY_PASSWORD").orNull
+                        storePassword = signingValue("ANDROID_KEYSTORE_PASSWORD", "storePassword")
+                        keyAlias = signingValue("ANDROID_KEY_ALIAS", "keyAlias")
+                        keyPassword = signingValue("ANDROID_KEY_PASSWORD", "keyPassword")
                     }
                 }
             }
