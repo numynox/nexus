@@ -3,7 +3,7 @@
   import { Clock } from "lucide-svelte";
   import { fetchCarLastDrive, type CarLastDrive } from "../../lib/data";
 
-  let { carId = null } = $props<{ carId?: string | null }>();
+  let { carId = null }: { carId?: string | null } = $props();
 
   let drive = $state<CarLastDrive | null>(null);
   let loadToken = 0;

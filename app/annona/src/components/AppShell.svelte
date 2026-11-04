@@ -19,6 +19,7 @@
       | "quick-add"
       | "consume"
       | "locations"
+      | "categories"
       | "settings";
     children?: Snippet;
   }

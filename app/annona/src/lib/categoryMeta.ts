@@ -23,7 +23,9 @@ import {
   Wheat,
   Wine,
 } from "lucide-svelte";
-import type { Component } from "svelte";
+// lucide-svelte types its icons as Svelte 4 classes, which Svelte 5 `Component`
+// does not accept; type them as the package's own `Icon` instead.
+import type { Icon } from "lucide-svelte";
 
 export interface CategoryColor {
   key: string;
@@ -34,7 +36,7 @@ export interface CategoryColor {
 export interface CategoryIconDef {
   key: string;
   label: string;
-  component: Component;
+  component: typeof Icon;
 }
 
 export const CATEGORY_COLORS: CategoryColor[] = [
@@ -88,7 +90,7 @@ export function getCategoryBorderColor(
 
 export function getCategoryIconComponent(
   iconKey: string | null | undefined,
-): Component {
+): typeof Icon {
   if (!iconKey) return Package;
   return CATEGORY_ICONS.find((i) => i.key === iconKey)?.component ?? Package;
 }

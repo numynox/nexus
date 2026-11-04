@@ -12,6 +12,11 @@
     expandable = true,
     selectedStationId = null,
     onSelectStation,
+  }: {
+    stations: any[];
+    expandable?: boolean;
+    selectedStationId?: string | number | null;
+    onSelectStation?: (stationId: string | number) => void;
   } = $props();
   let openStationId = $state<string | number | null>(null);
 
