@@ -238,7 +238,8 @@ data class AlternativesOrigin(val id: String?, val name: String, val lat: Double
 /**
  * Before leaving, at the station or changing: the stop of the ride to catch,
  * from now. On board: the train's next stop (the first stopover still ahead,
- * else where the ride ends), from its arrival there. Arrived: none.
+ * else where the ride ends), from its arrival there; none when that is the
+ * destination. Arrived: none.
  */
 fun alternativesOrigin(legs: List<Leg>, day: TravelDay, now: Instant): AlternativesOrigin? {
     val index = day.legIndex ?: return null
@@ -249,6 +250,11 @@ fun alternativesOrigin(legs: List<Leg>, day: TravelDay, now: Instant): Alternati
         val at = (stop.arrival ?: stop.plannedArrival).toInstantOrNull()
         if (at != null && at.isAfter(now)) return AlternativesOrigin(stop.id, stop.name, stop.lat, stop.lon, at)
     }
+    // Where the ride ends. When that is the destination there is nothing left
+    // to find another way to.
+    val destination = legs.last().to
+    val same = if (leg.to.id != null && destination.id != null) leg.to.id == destination.id else leg.to.name == destination.name
+    if (same) return null
     val end = leg.to.expectedAt
     return AlternativesOrigin(leg.to.id, leg.to.name, leg.to.lat, leg.to.lon, if (end != null && end.isAfter(now)) end else now)
 }

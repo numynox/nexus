@@ -56,8 +56,9 @@
   // until shortly after it arrives.
   const live = $derived(legs.length > 0 && isLiveWindow(legs, now));
   const day = $derived(live ? travelDay(legs, now, stationMinutes) : null);
-  const reason = $derived(day ? alternativesReason(legs, day) : null);
+  // No origin once the only stop left is the destination: then nothing is offered.
   const origin = $derived(day ? alternativesOrigin(legs, day, now) : null);
+  const reason = $derived(day && origin ? alternativesReason(legs, day) : null);
 
   async function load(id: string) {
     try {

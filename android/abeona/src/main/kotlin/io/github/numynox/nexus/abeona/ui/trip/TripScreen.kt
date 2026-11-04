@@ -96,6 +96,7 @@ import io.github.numynox.nexus.abeona.domain.transfers
 import io.github.numynox.nexus.abeona.domain.AlternativesReason
 import io.github.numynox.nexus.abeona.domain.TravelDay
 import io.github.numynox.nexus.abeona.domain.TravelDayKind
+import io.github.numynox.nexus.abeona.domain.alternativesOrigin
 import io.github.numynox.nexus.abeona.domain.alternativesReason
 import io.github.numynox.nexus.abeona.domain.travelDay
 import io.github.numynox.nexus.abeona.live.LiveCompanion
@@ -227,7 +228,12 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                             null
                         } else {
                             val day = travelDay(trip.legs, now, settings.stationMinutes, LiveSignals.forTrip(trip, now, onboard, fix))
-                            LiveDay(day, settings.stationMinutes, LiveSignals.onboardFor(trip, now, onboard), alternativesReason(trip.legs, day))
+                            // Nothing to search once the only stop left is the destination.
+                            val searchable = alternativesOrigin(trip.legs, day, now) != null
+                            LiveDay(
+                                day, settings.stationMinutes, LiveSignals.onboardFor(trip, now, onboard),
+                                alternativesReason(trip.legs, day).takeIf { searchable }, searchable,
+                            )
                         }
                     },
                     askLocation = !settings.tripLocation && !settings.locationAsked,
@@ -349,6 +355,8 @@ private data class LiveDay(
     val stationMinutes: Int,
     val onboard: OnboardStatus?,
     val reason: AlternativesReason?,
+    /** False once the only stop left is the destination: there is nothing to find another way to. */
+    val searchable: Boolean,
 )
 
 @Composable
@@ -418,7 +426,7 @@ private fun TripContent(
                             maxLines = 1,
                         )
                     }
-                    if (live != null && live.day.kind != TravelDayKind.Arrived) {
+                    if (live != null && live.searchable) {
                         OutlinedButton(onClick = onAlternatives) {
                             Icon(Icons.Rounded.Shuffle, contentDescription = null, modifier = Modifier.size(18.dp))
                             Text("Alternatives", modifier = Modifier.padding(start = 8.dp), maxLines = 1)
