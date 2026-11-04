@@ -54,5 +54,9 @@ impossible on the server.
   Two-minute polling of a handful of trips is light, but a widening user base
   is a reason to talk to them, or to run a MOTIS instance. Nothing in the
   contract would change.
-- The responses are not cached server-side yet. If Transitous starts
-  throttling, a cache table keyed by request comes first.
+- ~~The responses are not cached server-side yet.~~ Since 2026-11-04 they are:
+  `abeona_transit_cache` keeps each Transitous answer under the sha-256 of its
+  request, written and read with the service role by `abeona-transit`,
+  `abeona-refresh-trips` and `abeona-public` (`cache.ts`): station search for
+  a day, journeys for two minutes, refreshes for one. The nightly maintenance
+  prunes rows older than two days. A failing cache is a miss, never an error.

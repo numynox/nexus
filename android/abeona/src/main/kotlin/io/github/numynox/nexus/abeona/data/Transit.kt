@@ -33,6 +33,8 @@ data class StopTime(
     @SerialName("planned_platform") val plannedPlatform: String? = null,
     val platform: String? = null,
     val cancelled: Boolean = false,
+    /** ISO 3166 alpha-2 from the stop's time zone or id; saved with the trip for the statistics' countries. */
+    val country: String? = null,
 ) {
     val plannedAt: Instant? get() = planned.toInstantOrNull()
     val currentAt: Instant? get() = current.toInstantOrNull()

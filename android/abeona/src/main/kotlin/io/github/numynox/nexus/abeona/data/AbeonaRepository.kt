@@ -120,7 +120,8 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
         householdId()
         val trip = buildJsonObject {
             put("title", input.title?.trim()?.takeIf { it.isNotEmpty() })
-            put("source", "search")
+            put("source", if (input.past) "import" else "search")
+            if (input.past) input.arrivalDelayMinutes?.let { put("arrival_delay_minutes", it) }
             put("provider", journey.provider)
             put("refresh_token", journey.refreshToken)
             put("fare_type", input.fareType.wire)
@@ -275,6 +276,84 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
         )
     }
 
+    /** The household's rides that arrived in [year], one thinned line per pair of stations. */
+    suspend fun travelMap(year: Int, zone: ZoneId = ZoneId.systemDefault()): List<TravelMapLine> {
+        householdId()
+        val from = java.time.LocalDate.of(year, 1, 1).atStartOfDay(zone).toInstant()
+        val to = java.time.LocalDate.of(year + 1, 1, 1).atStartOfDay(zone).toInstant()
+        return supabase.postgrest.rpc(
+            "abeona_travel_map",
+            buildJsonObject { put("p_from", from.toString()); put("p_to", to.toString()) },
+        ).decodeList()
+    }
+
+    // ── Share links (abeona_share_links, opened by abeona-public) ───────────
+
+    /** The trip's live share links, one per kind at most. */
+    suspend fun shareLinks(tripId: String, now: Instant = Instant.now()): List<ShareLink> =
+        supabase.from("abeona_share_links").select {
+            filter {
+                eq("trip_id", tripId)
+                gt("expires_at", now.toString())
+            }
+        }.decodeList()
+
+    /** Makes a link of [kind] ("ics" or "status"); the database chooses the token and the expiry. */
+    suspend fun createShareLink(tripId: String, kind: String, now: Instant = Instant.now()): ShareLink {
+        // An expired link of the same kind still holds the (trip, kind) slot.
+        supabase.from("abeona_share_links").delete {
+            filter {
+                eq("trip_id", tripId)
+                eq("kind", kind)
+                lte("expires_at", now.toString())
+            }
+        }
+        return supabase.from("abeona_share_links").insert(buildJsonObject { put("trip_id", tripId); put("kind", kind) }) { select() }
+            .decodeSingle()
+    }
+
+    /** Revoking deletes the row: the link opens nothing from then on. */
+    suspend fun revokeShareLink(token: String) {
+        supabase.from("abeona_share_links").delete { filter { eq("token", token) } }
+    }
+
+    // ── Imports (the abeona-import Edge Function) ───────────────────────────
+
+    /**
+     * Reads the Träwelling check-ins between [from] and [to] as trips. The
+     * token goes to the Edge Function in this one request and is kept nowhere.
+     */
+    suspend fun readTraewelling(token: String, from: java.time.LocalDate, to: java.time.LocalDate): ImportResult =
+        NexusJson.decodeFromString(
+            supabase.functions.invoke(
+                function = "abeona-import",
+                body = buildJsonObject {
+                    put("action", "import_traewelling")
+                    put("token", token.trim())
+                    put("from", from.toString())
+                    put("to", to.toString())
+                },
+            ).bodyAsText(),
+        )
+
+    /** Saves an imported trip, final from the start; its legs go in as the function gave them. */
+    suspend fun saveImportedTrip(trip: ImportedTrip): String {
+        householdId()
+        val params = buildJsonObject {
+            put(
+                "p_trip",
+                buildJsonObject {
+                    put("source", "import")
+                    put("provider", "traewelling")
+                    put("fare_type", "other")
+                    trip.arrivalDelayMinutes?.let { put("arrival_delay_minutes", it) }
+                },
+            )
+            put("p_legs", JsonArray(trip.legs))
+        }
+        return NexusJson.decodeFromString<String>(supabase.postgrest.rpc("abeona_save_trip", params).data)
+    }
+
     // ── BahnCards ──────────────────────────────────────────────────────────
 
     /** Every card of the household's travellers, the one running longest first. */
@@ -422,6 +501,17 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
     companion object {
         /** How far ahead the reminder and the Trips banner look for a cancellation deadline; the web uses the same. */
         const val DEADLINE_DAYS = 14
+
+        /** Where the web's status page lives (GitHub Pages, DEPLOYMENT.md). */
+        const val STATUS_PAGE = "https://numynox.github.io/nexus/abeona/status"
+
+        /**
+         * Where a share link points: the calendar file straight from the
+         * abeona-public Edge Function, the status page on the website.
+         */
+        fun shareUrl(link: ShareLink, supabaseUrl: String): String =
+            if (link.kind == "ics") "${supabaseUrl.trimEnd('/')}/functions/v1/abeona-public?t=${link.token}"
+            else "$STATUS_PAGE?t=${link.token}"
 
         /** Letters, digits, dot, dash and underscore; Storage keys are picky, and so are people's file names. */
         fun safeFileName(name: String): String =

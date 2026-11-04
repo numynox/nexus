@@ -29,6 +29,8 @@ export interface StopTime {
   planned_platform: string | null;
   platform: string | null;
   cancelled: boolean;
+  /** ISO 3166 alpha-2 from the stop's time zone or id; absent on older answers. */
+  country?: string | null;
 }
 
 /** An intermediate stop of a leg. */

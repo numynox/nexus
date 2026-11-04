@@ -53,7 +53,9 @@
     "db:backfill:off": "node --env-file=.env scripts/backfill-openfoodfacts.mjs",
     "db:backfill:off:prod": "node --env-file=.env.prod scripts/backfill-openfoodfacts.mjs --confirm-prod",
     "db:import:fuelio": "node --env-file=.env scripts/import-fuelio.mjs",
-    "db:import:fuelio:prod": "node --env-file=.env.prod scripts/import-fuelio.mjs --confirm-prod"
+    "db:import:fuelio:prod": "node --env-file=.env.prod scripts/import-fuelio.mjs --confirm-prod",
+    "db:import:abeona": "node --env-file=.env scripts/import-abeona-csv.mjs",
+    "db:import:abeona:prod": "node --env-file=.env.prod scripts/import-abeona-csv.mjs --confirm-prod"
   },
   "license": "AGPL-3.0-only",
   "engines": {

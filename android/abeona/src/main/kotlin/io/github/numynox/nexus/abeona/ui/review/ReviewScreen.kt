@@ -50,6 +50,8 @@ import androidx.lifecycle.viewModelScope
 import io.github.numynox.nexus.abeona.AppContainer
 import io.github.numynox.nexus.abeona.R
 import io.github.numynox.nexus.abeona.data.Statistics
+import io.github.numynox.nexus.abeona.data.TravelMapLine
+import io.github.numynox.nexus.abeona.ui.trip.TripMap
 import io.github.numynox.nexus.abeona.ui.AbeonaColors
 import io.github.numynox.nexus.abeona.ui.AbeonaPalette
 import io.github.numynox.nexus.abeona.ui.AppViewModel
@@ -81,6 +83,10 @@ class ReviewViewModel(private val container: AppContainer) : ViewModel() {
     private val _stats = MutableStateFlow<Loadable<Statistics>>(Loadable.Loading)
     val stats: StateFlow<Loadable<Statistics>> = _stats.asStateFlow()
 
+    private val _map = MutableStateFlow<List<TravelMapLine>>(emptyList())
+    /** The year's lines for the map card; empty until loaded, or when it could not load. */
+    val map: StateFlow<List<TravelMapLine>> = _map.asStateFlow()
+
     private val _claims = MutableStateFlow<ClaimsOverview?>(null)
     /** This year's claims, for the bar under the stories; null until loaded or when it could not load. */
     val claims: StateFlow<ClaimsOverview?> = _claims.asStateFlow()
@@ -89,6 +95,7 @@ class ReviewViewModel(private val container: AppContainer) : ViewModel() {
         _year.value = year
         _stats.value = Loadable.Loading
         launch { _claims.value = runCatching { container.repository.claimsOverview(LocalDate.now().year) }.getOrNull() }
+        launch { _map.value = runCatching { container.repository.travelMap(year) }.getOrDefault(emptyList()) }
         _stats.value = loadable { container.repository.statistics(year) }
     }
 }
@@ -112,6 +119,7 @@ fun ReviewScreen(app: AppViewModel, navigator: Navigator) {
     val year by viewModel.year.collectAsStateWithLifecycle()
     val stats by viewModel.stats.collectAsStateWithLifecycle()
     val claims by viewModel.claims.collectAsStateWithLifecycle()
+    val map by viewModel.map.collectAsStateWithLifecycle()
     val version by app.dataVersion.collectAsStateWithLifecycle()
     val thisYear = LocalDate.now().year
 
@@ -139,7 +147,7 @@ fun ReviewScreen(app: AppViewModel, navigator: Navigator) {
                 when (val state = stats) {
                     Loadable.Loading -> LoadingState(Modifier.fillMaxSize())
                     is Loadable.Failed -> ErrorState(state.message, onRetry = { viewModel.load() })
-                    is Loadable.Ready -> StoryPager(state.value, year)
+                    is Loadable.Ready -> StoryPager(state.value, year, map)
                 }
             }
             claims?.let { ClaimsBar(it, onClick = navigator::claims) }
@@ -148,8 +156,8 @@ fun ReviewScreen(app: AppViewModel, navigator: Navigator) {
 }
 
 @Composable
-private fun StoryPager(stats: Statistics, year: Int) {
-    val cards = storyCards(stats, year)
+private fun StoryPager(stats: Statistics, year: Int, map: List<TravelMapLine>) {
+    val cards = storyCards(stats, year, map)
     val pager = rememberPagerState { cards.size }
     val scope = rememberCoroutineScope()
     Column(Modifier.fillMaxSize()) {
@@ -181,7 +189,7 @@ private fun StoryPager(stats: Statistics, year: Int) {
     }
 }
 
-private fun storyCards(stats: Statistics, year: Int): List<@Composable () -> Unit> {
+private fun storyCards(stats: Statistics, year: Int, map: List<TravelMapLine>): List<@Composable () -> Unit> {
     if (stats.trips == 0) {
         return listOf({
             StoryCard(Night, illustration = R.drawable.illus_year_review) {
@@ -214,9 +222,60 @@ private fun storyCards(stats: Statistics, year: Int): List<@Composable () -> Uni
                     },
                     Green,
                 )
-                Body("Longest trip: ${NexusFormat.km(stats.longestKm)}.", Green)
+                Body(
+                    stats.longestTrip?.let { "Longest trip: ${it.from} → ${it.to}, ${NexusFormat.km(it.km)}." }
+                        ?: "Longest trip: ${NexusFormat.km(stats.longestKm)}.",
+                    Green,
+                )
             }
         },
+        if (map.isNotEmpty()) {
+            {
+                StoryCard(Mint) {
+                    Kicker("Where you went", Mint)
+                    Headline(
+                        "${map.size} ${if (map.size == 1) "stretch" else "stretches"} of track" +
+                            if (stats.countries.size > 1) ", ${stats.countries.size} countries" else "",
+                        Mint,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    TripMap(map.map { it.toLeg() }, Modifier.fillMaxWidth().weight(1f), interactive = false)
+                }
+            }
+        } else null,
+        if (stats.co2SavedKg > 0) {
+            {
+                StoryCard(Green) {
+                    Kicker("Footprint", Green)
+                    Big(NexusFormat.number(stats.co2SavedKg, if (stats.co2SavedKg < 10) 1 else 0), Green)
+                    Headline("kg CO₂ saved against the car", Green)
+                    Body(
+                        "By train ${NexusFormat.number(stats.co2TrainKg)} kg, by car it would have been ${NexusFormat.number(stats.co2CarKg)} kg.",
+                        Green,
+                    )
+                    trees(stats.co2SavedKg)?.let { Body(it, Green) }
+                    Text(
+                        "Per traveller. ${stats.co2Factors?.source ?: "Approximate."}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Green.content.copy(alpha = 0.7f),
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+            }
+        } else null,
+        if (stats.countries.isNotEmpty()) {
+            {
+                StoryCard(Sky) {
+                    Kicker("Countries", Sky)
+                    Big("${stats.countries.size}", Sky)
+                    Headline(if (stats.countries.size == 1) "country by train" else "countries by train", Sky)
+                    Spacer(Modifier.height(8.dp))
+                    stats.countries.take(6).forEach { code ->
+                        Body("${flag(code)}  ${Locale("", code).getDisplayCountry(Locale.ENGLISH).ifBlank { code }}", Sky)
+                    }
+                }
+            }
+        } else null,
         {
             StoryCard(Sky) {
                 Kicker("Time on board", Sky)
@@ -261,6 +320,18 @@ private fun storyCards(stats: Statistics, year: Int): List<@Composable () -> Uni
             { StoryCard(Night) { MonthChart(stats, year) } }
         } else null,
     )
+}
+
+/** "DE" → 🇩🇪 */
+private fun flag(code: String): String =
+    if (code.length == 2 && code.all { it in 'A'..'Z' }) {
+        code.map { String(Character.toChars(0x1F1E6 + (it - 'A'))) }.joinToString("")
+    } else ""
+
+/** A beech takes up roughly 12.5 kg of CO₂ a year (an often-quoted rule of thumb); the web says the same. */
+private fun trees(kg: Double): String? {
+    val n = Math.round(kg / 12.5).toInt()
+    return if (n >= 1) "About what ${NexusFormat.number(n.toDouble())} ${if (n == 1) "beech tree takes" else "beech trees take"} up in a year." else null
 }
 
 @Composable

@@ -158,9 +158,13 @@ private fun tripStyle(legs: List<Leg>, dark: Boolean, ride: Color, walk: Color):
     }.toString()
 }
 
-/** The trip on a map; a drawn route on a plain background where MapLibre cannot run (the screenshot tests). */
+/**
+ * The trip on a map; a drawn route on a plain background where MapLibre cannot
+ * run (the screenshot tests). Not [interactive] inside a pager, so a swipe
+ * turns the page instead of panning the map.
+ */
 @Composable
-fun TripMap(legs: List<Leg>, modifier: Modifier = Modifier) {
+fun TripMap(legs: List<Leg>, modifier: Modifier = Modifier, interactive: Boolean = true) {
     val context = LocalContext.current
     val shape = RoundedCornerShape(28.dp)
     if ((context.applicationContext as? AbeonaApplication)?.mapsAvailable == false) {
@@ -200,6 +204,7 @@ fun TripMap(legs: List<Leg>, modifier: Modifier = Modifier) {
             map.uiSettings.isRotateGesturesEnabled = false
             map.uiSettings.isTiltGesturesEnabled = false
             map.uiSettings.isLogoEnabled = false
+            if (!interactive) map.uiSettings.setAllGesturesEnabled(false)
             map.setStyle(Style.Builder().fromJson(tripStyle(legs, dark, ride, walk))) {
                 val points = legs.flatMap { it.points() }.map { (lon, lat) -> LatLng(lat, lon) }
                 when {

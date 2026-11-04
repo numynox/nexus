@@ -39,6 +39,7 @@ the row that owns the file, as tickets already do.
 - Deleting a traveller deletes their cards; the files are removed by the
   clients on a best-effort basis, so an orphaned object is possible and
   harmless (nobody can reach it once its row is gone and the prefix is not
-  theirs).
+  theirs). Since 2026-11-04 `abeona-refresh-trips` sweeps such files
+  (`2026-11-04-abeona-history-and-imports.md`).
 - `abeona_trip_warnings` and `abeona_bahncard_deadlines` run as the caller
   (`security invoker`), so RLS scopes them; they need no re-check of their own.

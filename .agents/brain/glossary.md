@@ -122,3 +122,9 @@ owned. There is no "my products".
 | `abeona_compensation_rules` | (the reasons and hints on the card) | passenger-rights figures as rows: tiers (60 min 25 %, 120 min 50 %), flat rates (Deutschlandticket, BahnCard 100), the €4 minimum, the three-month deadline, the night taxi, force majeure. Reference data; verify against fahrgastrechte.info |
 | `abeona_claims` | Your claim / Claims | one per trip: `open` "Open" / "Not claimed yet", `claimed`, `paid`, `rejected`. "Earned back" is what was paid in a year |
 | claim reminder | Remind me to claim | Android only, device-local, off by default: the day after a late trip and 28, 7 and 1 days before the deadline |
+| past trip | Save past trip · A past trip | a trip saved after it happened (`source = 'import'`): from the search for a past date, Träwelling or the CSV script. Final from the start, never refreshed; the delay is typed by hand |
+| `from_country` / `to_country` | Countries | ISO code of a ride's ends, from the stop's time zone or id. The year in review counts them |
+| CO₂ saved | Footprint · kg CO₂ saved against the car | derived (`abeona_statistics`): km × (car − rail or bus) per passenger-km, one traveller, from `abeona_co2_factors` (UBA, approximate) |
+| travel map | Where you went | derived (`abeona_travel_map`): one line per pair of stations ridden in a year, with a count |
+| `abeona_share_links` | Share · Live status · Calendar | a token link to one trip, `status` (a page for whoever picks you up, until six hours after arrival) or `ics` (a calendar that follows delays, 30 days past the trip). Revoke deletes it. Opened by `abeona-public` |
+| Träwelling import | Import from Träwelling | Settings, both clients: a personal access token pasted once, check-ins read for a date range and grouped into trips, the chosen ones saved as past trips. The token is not kept |

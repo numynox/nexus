@@ -1,6 +1,14 @@
 <script lang="ts">
   import { Check, X } from "lucide-svelte";
-  import { describeError, fetchTravellers, saveTrip, type BahnCardKind, type FareTypeValue, type Traveller } from "../../lib/data";
+  import {
+    describeError,
+    fetchTravellers,
+    isPastJourney,
+    saveTrip,
+    type BahnCardKind,
+    type FareTypeValue,
+    type Traveller,
+  } from "../../lib/data";
   import { BAHNCARD_DISCOUNTS, FARE_TYPES, formatDuration, formatLongDate, formatTime } from "../../lib/format";
   import { session } from "../../lib/stores";
   import { summarise } from "../../lib/journey";
@@ -27,14 +35,18 @@
   /** Null until the travellers are loaded: then the RPC's default (the caller) applies. */
   let travellerIds = $state<ReadonlySet<string> | null>(null);
   let saving = $state(false);
+  /** For a journey that has already arrived: how late it really was, typed by hand. */
+  let delay = $state("");
   let error = $state("");
 
   const s = $derived(journey ? summarise(journey.legs) : null);
+  const past = $derived(journey ? isPastJourney(journey) : false);
 
   $effect(() => {
     if (!dialog) return;
     if (journey && !dialog.open) {
       error = "";
+      delay = "";
       dialog.showModal();
       void loadTravellers();
     } else if (!journey && dialog.open) {
@@ -87,10 +99,19 @@
       error = "Enter the price as a number, e.g. 29.90.";
       return;
     }
+    let delayMinutes: number | null = null;
+    if (past && delay.trim() !== "") {
+      delayMinutes = Number(delay.trim());
+      if (!Number.isInteger(delayMinutes) || delayMinutes < 0 || delayMinutes > 1440) {
+        error = "Enter the delay in whole minutes, e.g. 12.";
+        return;
+      }
+    }
     saving = true;
     error = "";
     try {
       const id = await saveTrip(journey, {
+        ...(past ? { past: { arrival_delay_minutes: delayMinutes } } : {}),
         title,
         fare_type: fareType,
         train_binding: trainBinding,
@@ -130,6 +151,16 @@
       </div>
 
       <div class="space-y-5 px-6 py-6">
+        {#if past}
+          <div class="rounded-2xl bg-amber-soft p-4 text-amber-ink">
+            <p class="font-semibold">A past trip</p>
+            <p class="mt-1 text-sm">It is saved as it happened and not followed live. Say how late you arrived, if you were.</p>
+            <label class="mt-3 block">
+              <span class="block pb-1 text-xs font-semibold uppercase tracking-wider opacity-80">Arrived late by <span class="normal-case font-normal tracking-normal">(minutes, optional)</span></span>
+              <input class="input tabular w-full rounded-2xl bg-card text-base-content" inputmode="numeric" placeholder="0" bind:value={delay} maxlength="4" />
+            </label>
+          </div>
+        {/if}
         <label class="block">
           <span class="block px-1 pb-1 text-xs font-semibold uppercase tracking-wider text-base-content/55">Title <span class="normal-case font-normal tracking-normal">(optional)</span></span>
           <input class="input w-full rounded-2xl bg-card" placeholder="e.g. Weekend in Berlin" bind:value={title} maxlength="80" />
@@ -234,7 +265,7 @@
         <button type="button" class="btn btn-ghost flex-1 rounded-full" onclick={() => dialog?.close()}>Cancel</button>
         <button type="submit" class="btn btn-primary flex-[2] rounded-full" disabled={saving}>
           {#if saving}<span class="loading loading-spinner loading-sm"></span>{/if}
-          Save trip
+          {past ? "Save past trip" : "Save trip"}
         </button>
       </div>
     </form>

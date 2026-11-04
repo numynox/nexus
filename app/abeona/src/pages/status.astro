@@ -1,0 +1,9 @@
+---
+import StatusRoute from "../components/routes/StatusRoute.svelte";
+import Layout from "../layouts/Layout.astro";
+---
+
+<!-- A share link's page: no sign-in, no app around it. The token in ?t= is the credential. -->
+<Layout title="Live status" description="Where the train is, and when it arrives." noindex>
+  <StatusRoute client:only="svelte" />
+</Layout>

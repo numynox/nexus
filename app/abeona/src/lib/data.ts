@@ -132,6 +132,91 @@ export interface Statistics {
   top_station: { name: string; count: number } | null;
   products: Record<string, number>;
   by_month: { month: string; trips: number; km: number }[];
+  /** CO₂ the rides saved against driving, one traveller, kg; approximate (abeona_co2_factors). */
+  co2_saved_kg: number;
+  co2_train_kg: number;
+  co2_car_kg: number;
+  /** Where the factors come from, e.g. "Umweltbundesamt (TREMOD), reference year 2022; approximate". */
+  co2_source: string | null;
+  /** ISO codes of the countries ridden from or to, most often first. */
+  countries: string[];
+  longest_trip: { trip_id: string; from: string; to: string; km: number; date: string } | null;
+}
+
+/** One line of the map of everything travelled (abeona_travel_map). */
+export interface TravelMapLine {
+  from: { name: string; lat: number; lon: number };
+  to: { name: string; lat: number; lon: number };
+  product: string | null;
+  /** How often the pair of stations was ridden, either way. */
+  count: number;
+  /** [[lon, lat], …], thinned. */
+  polyline: [number, number][];
+}
+
+export type ShareKind = "ics" | "status";
+
+/** abeona_share_links: the token is the whole credential; revoking deletes the row. */
+export interface ShareLink {
+  token: string;
+  trip_id: string;
+  kind: ShareKind;
+  expires_at: string;
+  created_by: string | null;
+  created_at: string;
+}
+
+/** What abeona-public answers for a status link; the status page formats it. */
+export interface SharedStatus {
+  origin: string;
+  destination: string;
+  state: "upcoming" | "on_board" | "changing" | "arrived" | "cancelled";
+  current: SharedStatusLeg | null;
+  planned_arrival: string;
+  expected_arrival: string;
+  delay_minutes: number;
+  live: boolean;
+  final: boolean;
+  legs: SharedStatusLeg[];
+  updated_at: string;
+  expires_at: string;
+}
+
+export interface SharedStatusLeg {
+  line_name: string | null;
+  product: string | null;
+  from: SharedStatusStop;
+  to: SharedStatusStop;
+  cancelled: boolean;
+  delay_minutes: number;
+}
+
+export interface SharedStatusStop {
+  name: string;
+  planned: string | null;
+  current: string | null;
+  planned_platform: string | null;
+  platform: string | null;
+}
+
+/** A trip abeona-import read from Träwelling, not saved yet. */
+export interface ImportedTrip {
+  external_id: string;
+  origin: string;
+  destination: string;
+  planned_departure: string;
+  planned_arrival: string;
+  arrival_delay_minutes: number | null;
+  legs: Leg[];
+  /** A trip with the same origin and departure is saved already. */
+  duplicate: boolean;
+}
+
+export interface ImportResult {
+  trips: ImportedTrip[];
+  statuses: number;
+  skipped: number;
+  truncated: boolean;
 }
 
 export interface SaveTripInput {
@@ -143,6 +228,11 @@ export interface SaveTripInput {
   bahncard_discount?: BahnCardKind | null;
   /** Who travels. Left out, the trip gets the caller's own traveller. */
   traveller_ids?: string[];
+  /**
+   * A trip that already happened: saved as source "import", final, never
+   * refreshed. The delay, in minutes at the destination, is entered by hand.
+   */
+  past?: { arrival_delay_minutes: number | null };
 }
 
 export type BahnCardKind = 25 | 50 | 100;
@@ -459,6 +549,13 @@ export async function fetchTrip(id: string): Promise<Trip | null> {
   return data ? tripFromRow(data as TripRow) : null;
 }
 
+/** Whether a searched journey has already arrived, so saving it records a past trip. */
+export function isPastJourney(journey: Journey, now = Date.now()): boolean {
+  const last = journey.legs[journey.legs.length - 1];
+  const arrival = last?.to.current ?? last?.to.planned;
+  return !!arrival && Date.parse(arrival) < now;
+}
+
 /** Saves a searched journey as a new trip; returns its id. */
 export async function saveTrip(journey: Journey, input: SaveTripInput): Promise<string> {
   await ensureHousehold();
@@ -466,7 +563,10 @@ export async function saveTrip(journey: Journey, input: SaveTripInput): Promise<
   const { data, error } = await sb.rpc("abeona_save_trip", {
     p_trip: {
       title: input.title?.trim() || null,
-      source: "search",
+      source: input.past ? "import" : "search",
+      ...(input.past && input.past.arrival_delay_minutes !== null
+        ? { arrival_delay_minutes: input.past.arrival_delay_minutes }
+        : {}),
       provider: journey.provider,
       refresh_token: journey.refresh_token,
       fare_type: input.fare_type,
@@ -837,7 +937,26 @@ export async function fetchStatistics(from: Date, to: Date): Promise<Statistics>
     top_station: s.top_station ?? null,
     products: s.products ?? {},
     by_month: (s.by_month ?? []).map((m) => ({ month: m.month, trips: Number(m.trips), km: Number(m.km ?? 0) })),
+    co2_saved_kg: Number(s.co2_saved_kg ?? 0),
+    co2_train_kg: Number(s.co2_train_kg ?? 0),
+    co2_car_kg: Number(s.co2_car_kg ?? 0),
+    co2_source: ((s as { co2_factors?: { source?: string } }).co2_factors?.source) ?? null,
+    countries: Array.isArray(s.countries) ? s.countries.filter((c) => typeof c === "string") : [],
+    longest_trip: s.longest_trip ? { ...s.longest_trip, km: Number(s.longest_trip.km) } : null,
   };
+}
+
+/** The household's rides that arrived in [from, to), one thinned line per pair of stations. */
+export async function fetchTravelMap(from: Date, to: Date): Promise<TravelMapLine[]> {
+  await ensureHousehold();
+  const sb = getSupabaseClient();
+  const { data, error } = await sb.rpc("abeona_travel_map", { p_from: from.toISOString(), p_to: to.toISOString() });
+  if (error) throw error;
+  return ((data ?? []) as TravelMapLine[]).map((l) => ({ ...l, count: Number(l.count) }));
+}
+
+export async function fetchYearTravelMap(year: number): Promise<TravelMapLine[]> {
+  return fetchTravelMap(new Date(year, 0, 1), new Date(year + 1, 0, 1));
 }
 
 export async function fetchYearStatistics(year: number): Promise<Statistics> {
@@ -860,6 +979,98 @@ export async function fetchTripYears(): Promise<number[]> {
   const years: number[] = [];
   for (let y = thisYear; y >= Math.min(first, thisYear); y--) years.push(y);
   return years;
+}
+
+// ── Share links (abeona_share_links, opened by abeona-public) ────────
+
+/** The trip's live share links, one per kind at most. */
+export async function fetchShareLinks(tripId: string): Promise<ShareLink[]> {
+  const sb = getSupabaseClient();
+  const { data, error } = await sb
+    .from("abeona_share_links")
+    .select("*")
+    .eq("trip_id", tripId)
+    .gt("expires_at", new Date().toISOString());
+  if (error) throw error;
+  return (data ?? []) as ShareLink[];
+}
+
+/** Makes a link; the database chooses the token and the expiry. */
+export async function createShareLink(tripId: string, kind: ShareKind): Promise<ShareLink> {
+  const sb = getSupabaseClient();
+  // An expired link of the same kind still holds the (trip, kind) slot.
+  await sb.from("abeona_share_links").delete().eq("trip_id", tripId).eq("kind", kind).lte("expires_at", new Date().toISOString());
+  const { data, error } = await sb.from("abeona_share_links").insert({ trip_id: tripId, kind }).select().single();
+  if (error) throw error;
+  return data as ShareLink;
+}
+
+/** Revoking deletes the row: the link opens nothing from then on. */
+export async function revokeShareLink(token: string): Promise<void> {
+  const sb = getSupabaseClient();
+  const { error } = await sb.from("abeona_share_links").delete().eq("token", token);
+  if (error) throw error;
+}
+
+function publicFunctionUrl(token: string): string {
+  const base = (import.meta.env.PUBLIC_SUPABASE_URL || "").replace(/\/+$/, "");
+  return `${base}/functions/v1/abeona-public?t=${token}`;
+}
+
+/**
+ * Where a link points: the calendar file straight from the Edge Function
+ * (webcal:// for subscribing), the status page on this site.
+ */
+export function shareLinkUrl(link: Pick<ShareLink, "token" | "kind">, origin: string, base: string): string {
+  if (link.kind === "ics") return publicFunctionUrl(link.token);
+  return `${origin}${base}/status?t=${link.token}`;
+}
+
+export function calendarSubscribeUrl(token: string): string {
+  return publicFunctionUrl(token).replace(/^https?:\/\//, "webcal://");
+}
+
+/** The status page's data, without a session: the token is the credential. */
+export async function fetchSharedStatus(token: string): Promise<SharedStatus> {
+  if (!/^[0-9a-f]{36}$/.test(token)) throw new Error("This link is not valid.");
+  const response = await fetch(publicFunctionUrl(token), { headers: { Accept: "application/json" } });
+  const body = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(typeof body?.error === "string" ? body.error : "This link could not be opened.");
+  return body as SharedStatus;
+}
+
+// ── Imports (abeona-import) ────────────────────────────────────────
+
+/**
+ * Reads the Träwelling check-ins between two dates (yyyy-mm-dd) as trips.
+ * The token goes to the Edge Function in this one request and is kept
+ * nowhere — not here, not there.
+ */
+export async function readTraewelling(token: string, from: string, to: string): Promise<ImportResult> {
+  const sb = getSupabaseClient();
+  const { data, error } = await sb.functions.invoke("abeona-import", {
+    body: { action: "import_traewelling", token: token.trim(), from, to },
+  });
+  if (error) throw new Error(await describeFunctionError(error));
+  const r = (data ?? {}) as Partial<ImportResult>;
+  return { trips: r.trips ?? [], statuses: Number(r.statuses ?? 0), skipped: Number(r.skipped ?? 0), truncated: !!r.truncated };
+}
+
+/** Saves an imported trip: final from the start, never refreshed. */
+export async function saveImportedTrip(trip: ImportedTrip): Promise<string> {
+  await ensureHousehold();
+  const sb = getSupabaseClient();
+  const { data, error } = await sb.rpc("abeona_save_trip", {
+    p_trip: {
+      source: "import",
+      provider: "traewelling",
+      fare_type: "other",
+      ...(trip.arrival_delay_minutes !== null ? { arrival_delay_minutes: trip.arrival_delay_minutes } : {}),
+    },
+    p_legs: trip.legs,
+  });
+  if (error) throw error;
+  return data as string;
 }
 
 // ── Tickets (Storage) ──────────────────────────────────────────────

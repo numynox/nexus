@@ -2,11 +2,20 @@
   import { ChevronLeft, ChevronRight } from "lucide-svelte";
   import { onMount } from "svelte";
   import { getBaseUrl } from "../../lib/config";
-  import { describeError, fetchTripYears, fetchYearStatistics, type Statistics } from "../../lib/data";
-  import { formatNumber } from "../../lib/format";
+  import { countryFlag, countryName } from "../../lib/basemap";
+  import {
+    describeError,
+    fetchTripYears,
+    fetchYearStatistics,
+    fetchYearTravelMap,
+    type Statistics,
+    type TravelMapLine,
+  } from "../../lib/data";
+  import { formatNumber, formatShortDate } from "../../lib/format";
   import Illustration from "../common/Illustration.svelte";
   import ClaimsSection from "./ClaimsSection.svelte";
   import MonthChart from "./MonthChart.svelte";
+  import TravelMap from "./TravelMap.svelte";
 
   const base = getBaseUrl();
   /** Germany from Sylt to the Alps, roughly, as the crow flies. */
@@ -15,6 +24,7 @@
   let years = $state<number[]>([new Date().getFullYear()]);
   let year = $state(new Date().getFullYear());
   let stats = $state<Statistics | null>(null);
+  let lines = $state<TravelMapLine[]>([]);
   let loading = $state(true);
   let error = $state("");
   let track: HTMLDivElement | undefined = $state();
@@ -36,7 +46,9 @@
     loading = true;
     error = "";
     try {
-      stats = await fetchYearStatistics(y);
+      const [s, map] = await Promise.all([fetchYearStatistics(y), fetchYearTravelMap(y).catch(() => [])]);
+      stats = s;
+      lines = map;
     } catch (e) {
       error = describeError(e);
     } finally {
@@ -66,6 +78,12 @@
     void load(year);
     fetchTripYears().then((list) => (years = list)).catch(() => {});
   });
+
+  /** A beech absorbs roughly 12.5 kg of CO₂ a year (an often-quoted rule of thumb). */
+  function trees(kg: number): string {
+    const n = Math.round(kg / 12.5);
+    return n >= 1 ? `About what ${formatNumber(n)} ${n === 1 ? "beech tree takes" : "beech trees take"} up in a year.` : "";
+  }
 
   function acrossGermany(km: number): string {
     const times = km / GERMANY_KM;
@@ -135,9 +153,64 @@
           <p class="mt-4 text-lg leading-snug">{acrossGermany(stats.km)}</p>
           <div class="mt-auto rounded-2xl bg-card p-4">
             <p class="text-xs font-semibold uppercase tracking-wider text-base-content/55">Longest trip</p>
-            <p class="tabular mt-1 text-2xl font-semibold">{formatNumber(stats.longest_km)} km</p>
+            <p class="tabular mt-1 text-2xl font-semibold">{formatNumber(stats.longest_trip?.km ?? stats.longest_km)} km</p>
+            {#if stats.longest_trip}
+              <a class="mt-1 block text-sm text-base-content/70 hover:text-primary" href={`${base}/trip?id=${stats.longest_trip.trip_id}`}>
+                {stats.longest_trip.from} → {stats.longest_trip.to} · {formatShortDate(stats.longest_trip.date)}
+              </a>
+            {/if}
           </div>
         </article>
+
+        <!-- 2b. The map of everything travelled -->
+        {#if lines.length > 0}
+          <article class="story bg-card text-ink shadow-card">
+            <p class="eyebrow text-primary">Where you went</p>
+            <p class="mt-3 text-lg leading-snug">
+              {formatNumber(lines.length)} {lines.length === 1 ? "stretch" : "stretches"} of track{#if stats.countries.length > 1}, in {stats.countries.length} countries{/if}.
+            </p>
+            <div class="mt-4 -mx-3 flex-1">
+              <TravelMap {lines} />
+            </div>
+          </article>
+        {/if}
+
+        <!-- 2c. Footprint -->
+        {#if stats.co2_saved_kg > 0}
+          <article class="story bg-mint text-ink">
+            <p class="eyebrow text-primary">Footprint</p>
+            <p class="tabular mt-6 text-6xl font-semibold tracking-tight">{formatNumber(stats.co2_saved_kg, stats.co2_saved_kg < 10 ? 1 : 0)}<span class="ml-2 text-2xl font-medium opacity-60">kg</span></p>
+            <p class="mt-1 text-xl font-medium">CO₂ saved against the car</p>
+            <p class="mt-4 text-lg leading-snug">{trees(stats.co2_saved_kg)}</p>
+            <div class="mt-auto grid grid-cols-2 gap-3">
+              <div class="rounded-2xl bg-card p-4">
+                <p class="text-xs font-semibold uppercase tracking-wider text-base-content/55">By train</p>
+                <p class="tabular mt-1 text-xl font-semibold">{formatNumber(stats.co2_train_kg)} kg</p>
+              </div>
+              <div class="rounded-2xl bg-card p-4">
+                <p class="text-xs font-semibold uppercase tracking-wider text-base-content/55">By car</p>
+                <p class="tabular mt-1 text-xl font-semibold">{formatNumber(stats.co2_car_kg)} kg</p>
+              </div>
+            </div>
+            <p class="mt-3 text-xs text-base-content/60">Per traveller. {stats.co2_source ?? "Approximate."}</p>
+          </article>
+        {/if}
+
+        <!-- 2d. Countries -->
+        {#if stats.countries.length > 0}
+          <article class="story bg-sky text-ink">
+            <p class="eyebrow text-info">Countries</p>
+            <p class="tabular mt-6 text-7xl font-semibold tracking-tight">{stats.countries.length}</p>
+            <p class="mt-1 text-xl font-medium">{stats.countries.length === 1 ? "country" : "countries"} by train</p>
+            <ul class="mt-auto space-y-2">
+              {#each stats.countries.slice(0, 6) as code (code)}
+                <li class="flex items-center gap-3 rounded-2xl bg-card px-4 py-2.5 font-medium">
+                  <span class="text-xl" aria-hidden="true">{countryFlag(code)}</span>{countryName(code)}
+                </li>
+              {/each}
+            </ul>
+          </article>
+        {/if}
 
         <!-- 3. Time on board -->
         <article class="story bg-sky text-ink">

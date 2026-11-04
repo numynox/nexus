@@ -6,8 +6,10 @@
 // without a client release (an installed APK lags behind) and so every client
 // gets one normalised shape (contract.ts). Nothing is written here: the
 // clients save trips and live values through RPCs, under RLS, as the caller.
+// The one exception is the response cache (cache.ts), service role only.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { databaseCache } from "./cache.ts";
 import type { Allowance, AlternativesResponse, Request } from "./contract.ts";
 import * as transitous from "./transitous.ts";
 import { ProviderError } from "./transitous.ts";
@@ -69,6 +71,17 @@ async function alternatives(
     count: 8,
   });
   return { allowance, alternatives: rank(result.journeys.map((j) => mark(j, allowance))) };
+}
+
+// Transitous answers are cached for a minute or two (a day for station
+// search) in abeona_transit_cache, with the service role; the table is not
+// readable through the API. Without the key the function simply asks every
+// time.
+const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+if (serviceKey && Deno.env.get("SUPABASE_URL")) {
+  transitous.useCache(databaseCache(
+    createClient(Deno.env.get("SUPABASE_URL")!, serviceKey, { auth: { persistSession: false } }),
+  ));
 }
 
 Deno.serve(async (req) => {

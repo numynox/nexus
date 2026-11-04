@@ -86,6 +86,7 @@ private sealed interface Editing {
     data object Invite : Editing
     data class TravellerEdit(val traveller: Traveller?) : Editing
     data class CardEdit(val traveller: Traveller, val card: BahnCard?) : Editing
+    data object Import : Editing
 }
 
 @Composable
@@ -319,6 +320,26 @@ fun SettingsScreen(app: AppViewModel, navigator: Navigator) {
                 }
             }
 
+            item { SectionHeader("Past trips", supporting = "For the history and the year in review") }
+            item {
+                NexusCard {
+                    Row(
+                        Modifier.fillMaxWidth().clickable { editing = Editing.Import }.padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Import from Träwelling", style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                "Your check-ins, with their real times. Trips of the last month can also be saved from Search.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null)
+                    }
+                }
+            }
+
             item { SectionHeader("Appearance") }
             item {
                 AppearanceCard(
@@ -380,6 +401,10 @@ fun SettingsScreen(app: AppViewModel, navigator: Navigator) {
                 editing = null
             },
             onDelete = current.card?.let { card -> { viewModel.deleteCard(card); editing = null } },
+            onDismiss = { editing = null },
+        )
+        Editing.Import -> ImportSheet(
+            onImported = { count -> app.changed(if (count == 1) "1 trip imported" else "$count trips imported") },
             onDismiss = { editing = null },
         )
         null -> Unit
