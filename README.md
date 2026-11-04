@@ -263,9 +263,9 @@ npm run build:abeona
 npm run build:landing         # output/pages/index.html, generated from config.yaml
 ```
 
-Each build runs `astro check` before `astro build`, so every app is
-type-checked — though `astro check` only covers `.astro` and `.ts` files, not
-the script block of a `.svelte` component. `output/` is generated and git-ignored. CI runs `build:websites`
+Each build runs `astro check` and `svelte-check` before `astro build`, so every
+app is type-checked — `astro check` covers `.astro` and `.ts` files,
+`svelte-check` the `.svelte` components. `output/` is generated and git-ignored. CI runs `build:websites`
 and publishes `output/pages`; this is the only automated check that exists, so
 build them all before pushing. Abeona's shared rules (transfer confidence,
 train binding) also have tests: `npm run test:abeona` (plain `node --test`).
