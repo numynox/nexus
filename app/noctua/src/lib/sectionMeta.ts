@@ -33,12 +33,14 @@ import {
   Trophy,
   Utensils,
 } from "lucide-svelte";
-import type { Component } from "svelte";
+// lucide-svelte types its icons as Svelte 4 classes, which Svelte 5 `Component`
+// does not accept; type them as the package's own `Icon` instead.
+import type { Icon } from "lucide-svelte";
 
 export interface SectionIconDef {
   key: string;
   label: string;
-  component: Component;
+  component: typeof Icon;
 }
 
 export const SECTION_ICONS: SectionIconDef[] = [
@@ -68,7 +70,7 @@ export const DEFAULT_SECTION_ICON = "newspaper";
 
 export function getSectionIconComponent(
   iconKey: string | null | undefined,
-): Component {
+): typeof Icon {
   if (!iconKey) return Newspaper;
   return SECTION_ICONS.find((i) => i.key === iconKey)?.component ?? Newspaper;
 }

@@ -23,7 +23,7 @@
     submitLabel = null,
     onSuccess,
     onCancel,
-  } = $props<{
+  }: {
     car: any;
     previousMileage?: number | null;
     nextMileage?: number | null;
@@ -31,7 +31,7 @@
     submitLabel?: string | null;
     onSuccess: () => void;
     onCancel: () => void;
-  }>();
+  } = $props();
 
   let mileage = $state(0);
   let liters = $state(0);

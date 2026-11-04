@@ -578,12 +578,15 @@ the account is the same.
 Two checks exist, and both must be run by hand or by CI — nothing is automatic
 on save:
 
-- **`npm run build:websites`** — each app's build runs `astro check` first, so a
-  type error fails the build. CI runs this. **`astro check` covers `.astro` and
-  `.ts` files only** — it does *not* type-check the script block of a `.svelte`
-  component, where most of the code lives. Verified by giving a typed object a
-  property that does not exist: the check passes. Real coverage there needs
-  `svelte-check`, which nothing runs yet.
+- **`npm run build:websites`** — each app's build runs `astro check`, then
+  `svelte-check`, then `astro build`, so a type error fails the build. CI runs
+  this. **`astro check` covers `.astro` and `.ts` files only** — it does *not*
+  type-check the script block of a `.svelte` component, where most of the code
+  lives (verified by giving a typed object a property that does not exist: it
+  passes). `svelte-check` covers those. It must run after `astro check`, which
+  writes `.astro/types.d.ts`; without that file every `import.meta.env` and
+  `?url`/`?raw` import is an error. Warnings (mostly a11y and
+  `<svelte:component>` deprecations in Annona) do not fail the build.
 - **`npm run test:db`** — pgTAP tests in `supabase/tests/`, run against the
   local Supabase stack with `supabase test db`. Each file is one transaction
   that is rolled back, so tests leave no rows behind and can run against a
@@ -602,6 +605,9 @@ on save:
   - `noctua_recommendations.test.sql` does the same for Noctua's one shared
     thing: everyone reads every recommendation and gets the article through
     the RPC, nobody writes or withdraws in someone else's name.
+  - `function_grants.test.sql` pins who may EXECUTE which function outside
+    Abeona: `anon` nothing, `authenticated` only what a client calls, and the
+    signup trigger still working without the grant.
 
 Both suites were checked by mutation: loosening the sections policy to
 `using (true)`, and making the statistics RPC ignore missed refuels, each make
@@ -634,9 +640,8 @@ snapshot job, the cache and a stop's country, the orphan sweep, the
 Träwelling mapping against a fixture of real statuses, and the `.ics` and
 status rendering.
 
-Still absent: any linter or formatter, any type-checking inside `.svelte`
-components, any test of the components or of the non-Abeona Edge Functions, and `test:db` in
-CI (it needs Docker in the runner).
+Still absent: any linter or formatter, any test of the components or of the
+non-Abeona Edge Functions, and `test:db` in CI (it needs Docker in the runner).
 
 ## History worth knowing
 
