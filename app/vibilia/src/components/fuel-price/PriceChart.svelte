@@ -220,7 +220,7 @@
     }
 
     const datasets: PriceDataset[] = dayKeys
-      .map((dayKey, index) => {
+      .map((dayKey, index): PriceDataset | null => {
         const dayMap = minimumByMinuteByDay.get(dayKey);
         if (!dayMap || dayMap.size === 0) return null;
 

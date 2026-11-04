@@ -83,7 +83,7 @@ The conventions that carry the most weight here — reasoning in
   another.
 - **`supabase/migrations/` is the source of truth for the schema.** No ORM, no
   generated types. Never edit an applied migration; add a new one.
-- **Prefix new tables with the app name** (`annona_*`). All three apps share one
+- **Prefix new tables with the app name** (`annona_*`). All the apps share one
   `public` schema.
 - **Device-local preference → `lib/storage.ts`; anything shared → Postgres.**
 - **Build all the apps before pushing** (`npm run build:websites`). For

@@ -11,10 +11,10 @@
    * cheapest of our stations, when it runs dry. The badge keeps the short
    * version for the Nearby page.
    */
-  let { carId = null, stations = [] } = $props<{
+  let { carId = null, stations = [] }: {
     carId?: string | null;
     stations?: any[];
-  }>();
+  } = $props();
 
   let estimate = $state<FuelLevelEstimate | null>(null);
   let loadToken = 0;

@@ -15,6 +15,7 @@
       | "quick-add"
       | "consume"
       | "locations"
+      | "categories"
       | "settings";
     baseUrl?: string;
     siteTitle?: string;
