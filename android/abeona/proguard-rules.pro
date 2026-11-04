@@ -15,3 +15,7 @@
 
 # MapLibre's native code calls back into these by name.
 -keep class org.maplibre.** { *; }
+
+# PdfBox-Android (ticket intake): JPEG 2000 decoding is an optional extra
+# library Abeona does not ship; text extraction never needs it.
+-dontwarn com.gemalto.jp2.JP2Decoder

@@ -45,6 +45,7 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import io.github.numynox.nexus.abeona.ui.bahncards.BahnCardScreen
 import io.github.numynox.nexus.abeona.ui.claims.ClaimsScreen
+import io.github.numynox.nexus.abeona.ui.intake.IncomingShare
 import io.github.numynox.nexus.abeona.ui.review.ReviewScreen
 import io.github.numynox.nexus.abeona.ui.search.SearchScreen
 import io.github.numynox.nexus.abeona.ui.settings.SettingsScreen
@@ -101,7 +102,7 @@ private val TopLevels = listOf(
 )
 
 @Composable
-fun MainScaffold(app: AppViewModel, openTrip: MutableStateFlow<String?>) {
+fun MainScaffold(app: AppViewModel, openTrip: MutableStateFlow<String?>, incoming: MutableStateFlow<IncomingShare?>) {
     val backStack = rememberNavBackStack(TripsRoute)
     val top = backStack.lastOrNull()
     val currentTab = backStack.lastOrNull { key -> TopLevels.any { it.route == key } } ?: TripsRoute
@@ -130,6 +131,16 @@ fun MainScaffold(app: AppViewModel, openTrip: MutableStateFlow<String?>) {
             openTrip.value = null
             open(TripsRoute)
             navigator.trip(id)
+        }
+    }
+
+    // A share from another app goes to the search screen, which reads it (intake).
+    val share by incoming.collectAsStateWithLifecycle()
+    LaunchedEffect(share) {
+        share?.let {
+            incoming.value = null
+            app.share.value = it
+            open(SearchRoute)
         }
     }
 
