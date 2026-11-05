@@ -1,8 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 import { parseFeed } from "rss";
+import { articlesToWrite, STORED_COLUMNS, type StoredArticle } from "./lib/changes.ts";
 import { applyFeedFilters } from "./lib/filter.ts";
 import { mapFeedEntriesToArticles } from "./lib/processor.ts";
 import type { FeedRecord, FeedResult } from "./lib/types.ts";
+
+/** URLs per read of the stored articles, to keep the request URL short. */
+const URLS_PER_READ = 25;
 
 Deno.serve(async (req) => {
   try {
@@ -99,21 +103,41 @@ Deno.serve(async (req) => {
           ).values(),
         );
 
-        const { error: upsertError } = await supabase
-          .from("articles")
-          .upsert(uniqueArticles, {
-            onConflict: "feed_id, url",
-            ignoreDuplicates: false,
-          });
+        // Write only what is new or changed: a feed repeats the same entries
+        // every hour, and rewriting identical rows was most of the database's
+        // Disk IO (decisions/2026-11-05-scheduled-jobs-share-minutes.md).
+        const stored: StoredArticle[] = [];
+        const urls = uniqueArticles
+          .map((article) => article.url)
+          .filter((url): url is string => !!url);
+        for (let i = 0; i < urls.length; i += URLS_PER_READ) {
+          const { data, error: readError } = await supabase
+            .from("articles")
+            .select(STORED_COLUMNS)
+            .eq("feed_id", feed.id)
+            .in("url", urls.slice(i, i + URLS_PER_READ));
+          if (readError) throw readError;
+          stored.push(...((data ?? []) as StoredArticle[]));
+        }
 
-        if (upsertError) throw upsertError;
+        const changed = articlesToWrite(uniqueArticles, stored);
+        if (changed.length > 0) {
+          const { error: upsertError } = await supabase
+            .from("articles")
+            .upsert(changed, {
+              onConflict: "feed_id, url",
+              ignoreDuplicates: false,
+            });
+
+          if (upsertError) throw upsertError;
+        }
 
         return {
           feed: feed.id,
           total,
           filtered: filteredOut,
-          upserted: uniqueArticles.length,
-          status: "Success",
+          upserted: changed.length,
+          status: changed.length > 0 ? "Success" : "Unchanged",
         } as FeedResult;
       } catch (err) {
         console.error(`Error processing feed ${feed.id}:`, err);
