@@ -242,7 +242,7 @@ npm run db:functions:list                        # what is deployed
 | `fetch-nearby-fuel-prices` | Vibilia's browser UI | the signed-in user's JWT |
 | `lookup-food-product` | Annona's browser UI | the signed-in user's JWT |
 | `abeona-transit` | both Abeona clients | the signed-in user's JWT |
-| `abeona-refresh-trips` | `pg_cron`, every 15 minutes | `ABEONA_REFRESH_INVOKE_SECRET`, bearer or `x-invoke-secret` |
+| `abeona-refresh-trips` | `pg_cron`, every 10 minutes | `ABEONA_REFRESH_INVOKE_SECRET`, bearer or `x-invoke-secret` |
 | `abeona-import` | both Abeona clients (Träwelling import) | the signed-in user's JWT |
 | `abeona-public` | anyone holding an Abeona share link | nothing: the token in the link (`verify_jwt = false`) |
 
@@ -368,10 +368,15 @@ function's environment — or the job starts getting 401s.
 
 | Job | Cron | Calls |
 | :--- | :--- | :--- |
-| `fetch-rss-hourly` | `0 * * * *` | `public.invoke_fetch_rss()` |
+| `fetch-rss-hourly` | `7 * * * *` | `public.invoke_fetch_rss()` |
 | `refresh-fuel-prices-every-10min` | `7,17,27,37,47,57 * * * *` | `public.invoke_refresh_fuel_prices()` |
-| `nexus-maintenance-daily` | `20 3 * * *` | `public.run_nexus_maintenance()` |
-| `abeona-refresh-trips-every-15min` | `4,19,34,49 * * * *` | `public.invoke_abeona_refresh_trips()` |
+| `nexus-maintenance-daily` | `17 3 * * *` | `public.run_nexus_maintenance()` |
+| `abeona-refresh-trips-every-10min` | `7,17,27,37,47,57 * * * *` | `public.invoke_abeona_refresh_trips()` |
+
+All jobs run on the same minutes on purpose: every 2-minute window in which
+anything writes costs a whole 16 MB WAL segment of Disk IO, so a new job goes
+on these minutes, never beside them
+(`.agents/brain/decisions/2026-11-05-scheduled-jobs-share-minutes.md`).
 
 `nexus-maintenance-daily` never leaves the database — no Edge Function, no Vault
 secret — so unlike the other two it reports its own outcome. It returns a JSON

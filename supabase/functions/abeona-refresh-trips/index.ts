@@ -1,5 +1,5 @@
 // abeona-refresh-trips: the final snapshot of Abeona's trips, run by pg_cron
-// every 15 minutes through public.invoke_abeona_refresh_trips(), which reads
+// every 10 minutes through public.invoke_abeona_refresh_trips(), which reads
 // this function's URL and its invoke secret from Vault.
 //
 // Like fetch-rss it is guarded by a shared secret, not a user's JWT

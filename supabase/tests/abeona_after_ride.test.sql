@@ -60,8 +60,8 @@ select ok(not has_function_privilege('anon', 'public.abeona_compensation(uuid)',
   'anon cannot ask for compensation');
 select ok(not has_table_privilege('anon', 'public.abeona_claims', 'select'),
   'anon cannot read claims');
-select is((select schedule from cron.job where jobname = 'abeona-refresh-trips-every-15min'), '4,19,34,49 * * * *',
-  'the job runs every 15 minutes');
+select is((select schedule from cron.job where jobname = 'abeona-refresh-trips-every-10min'), '7,17,27,37,47,57 * * * *',
+  'the job runs every 10 minutes, on the other jobs'' minutes');
 
 -- ── User A's trips ─────────────────────────────────────────────────────────
 set local role authenticated;

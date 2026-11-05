@@ -9,7 +9,7 @@
 import type { Leg } from "../abeona-transit/contract.ts";
 import { type Refresher, refreshJourney, transitousRefresher } from "../abeona-transit/refresh.ts";
 
-/** At most this many trips per run; the job runs every 15 minutes. */
+/** At most this many trips per run; the job runs every 10 minutes. */
 export const TRIPS_PER_RUN = 10;
 
 /** A leg as abeona_trips_to_finalize hands it over. */

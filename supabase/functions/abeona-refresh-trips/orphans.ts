@@ -3,7 +3,7 @@
 // so the scheduled job does it through the Storage API, a few per run.
 // Kept apart from index.ts so the test can hand it fakes.
 
-/** At most this many files per run; the job runs every 15 minutes. */
+/** At most this many files per run; the job runs every 10 minutes. */
 export const ORPHANS_PER_RUN = 20;
 
 export interface OrphanDatabase {

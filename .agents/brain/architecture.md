@@ -338,15 +338,20 @@ invoke secret and target URL from **Supabase Vault** and fires `net.http_post`
 via `pg_net`
 (`decisions/2026-03-27-schedule-edge-functions-with-pg-cron-and-vault.md`).
 
-- `fetch-rss-hourly` — `0 * * * *`
+- `fetch-rss-hourly` — `7 * * * *`
 - `refresh-fuel-prices-every-10min` — `7,17,27,37,47,57 * * * *`
-- `abeona-refresh-trips-every-15min` — `4,19,34,49 * * * *`, Abeona's final
-  snapshot; must run on the day, as Transitous forgets realtime soon after
-- `nexus-maintenance-daily` — `20 3 * * *`, calling
+- `abeona-refresh-trips-every-10min` — `7,17,27,37,47,57 * * * *`, Abeona's
+  final snapshot; must run on the day, as Transitous forgets realtime soon after
+- `nexus-maintenance-daily` — `17 3 * * *`, calling
   `public.run_nexus_maintenance()` (see *Retention* below). Unlike the other
   two it stays inside Postgres; no Edge Function, no Vault secret.
 
-Both scheduling migrations first unschedule any earlier job with the same name
+**Every job runs on the same minutes.** Supabase forces a fresh 16 MB WAL
+segment for each 2-minute window that saw any write, and that is what drains
+the free tier's Disk IO budget — so jobs share minutes rather than spread out
+(`decisions/2026-11-05-scheduled-jobs-share-minutes.md`).
+
+Every scheduling migration first unschedules any earlier job with the same name
 or command, so re-running them is safe. Vault secrets are **not** in migrations
 and must exist in each environment or the job raises.
 

@@ -1,7 +1,9 @@
 # ADR: Abeona freezes a trip's actuals with a scheduled snapshot
 
 **Date:** 2026-11-03
-**Status:** Accepted
+**Status:** Accepted — the schedule (every 15 minutes, `4,19,34,49`) is
+superseded by `2026-11-05-scheduled-jobs-share-minutes.md`: every 10 minutes
+on the other jobs' minutes.
 
 ## Context
 #38 phase 5 ("after the ride") needs what actually happened: the statistics
