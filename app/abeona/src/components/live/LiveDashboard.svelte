@@ -4,11 +4,13 @@
    * ui/live/LiveDashboard.kt. The one thing to do now with its countdown,
    * then as far as they matter in this state: where on the ride the train
    * is (next stop, stops left), the map with the traveller on it, the next
-   * change, the whole journey, and how Abeona knows which train you are on.
+   * change and the whole journey. How Abeona knows which train you are on
+   * sits behind the source pill on the first card.
    */
   import {
     ArrowRight,
     ArrowRightLeft,
+    ChevronDown,
     CircleCheck,
     Clock,
     DoorOpen,
@@ -85,6 +87,9 @@
         return "Arrived";
     }
   });
+
+  /** How Abeona knows, behind the source pill. */
+  let sourceDialog: HTMLDialogElement | undefined = $state();
 
   const sourceLabel = $derived(day.source === "onboard" ? "Train Wi-Fi" : day.source === "location" ? "Location" : "Timetable");
 
@@ -258,10 +263,17 @@
       </span>
       <p class="min-w-0 flex-1 truncate text-xs font-bold uppercase tracking-[0.14em] {warn ? 'text-amber-ink' : 'text-primary'}">{eyebrow}</p>
       {#if !arrived}
-        <span class="inline-flex items-center gap-1.5 rounded-full bg-card/80 px-2.5 py-1 text-[0.7rem] font-semibold text-ink" title="What placed you on your trip">
+        <button
+          type="button"
+          class="inline-flex items-center gap-1.5 rounded-full bg-card/80 py-1 pl-2.5 pr-1.5 text-[0.7rem] font-semibold text-ink transition hover:bg-card focus-visible:outline-2 focus-visible:outline-primary"
+          aria-haspopup="dialog"
+          aria-label={`How Abeona knows: ${sourceLabel}`}
+          onclick={() => sourceDialog?.showModal()}
+        >
           {#if day.source === "onboard"}<Wifi class="h-3.5 w-3.5 text-primary" />{:else if day.source === "location"}<LocateFixed class="h-3.5 w-3.5 text-primary" />{:else}<Clock class="h-3.5 w-3.5 text-primary" />{/if}
           {sourceLabel}
-        </span>
+          <ChevronDown class="h-3.5 w-3.5 text-base-content/50" />
+        </button>
       {/if}
     </div>
 
@@ -469,48 +481,57 @@
             <Flag class="h-4 w-4 text-base-content/50" />
           </div>
         </div>
-
-        <!-- How Abeona knows: each signal, the deciding one lit. -->
-        <div class="rounded-3xl bg-card p-5 shadow-card">
-          <p class="text-[0.68rem] font-bold uppercase tracking-[0.12em] text-base-content/50">
-            {onBoard ? "How Abeona knows your train" : "How Abeona knows where you are"}
-          </p>
-          <ul class="mt-3 space-y-3">
-            <li class="flex items-center gap-3">
-              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full {tone.off}"><Wifi class="h-[18px] w-[18px]" /></span>
-              <div class="min-w-0 flex-1">
-                <p class="text-sm font-medium text-ink">Train Wi-Fi</p>
-                <p class="text-xs text-base-content/60">Read by the Android app on an ICE or Railjet: it names the train</p>
-              </div>
-            </li>
-            <li class="flex items-center gap-3">
-              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full {tone[locationEvidence.state]}"><LocateFixed class="h-[18px] w-[18px]" /></span>
-              <div class="min-w-0 flex-1">
-                <p class="text-sm font-medium text-ink">Location</p>
-                <p class="text-xs text-base-content/60">{locationEvidence.detail}</p>
-              </div>
-              {#if locationEvidence.state === "decides"}
-                <span class="rounded-full bg-mint px-2 py-0.5 text-[0.68rem] font-bold text-primary">Decides</span>
-              {/if}
-              {#if location === "off"}
-                <button class="btn btn-xs rounded-full border-none bg-mint text-primary" onclick={() => onLocation(true)}>Use</button>
-              {:else if location === "on" || location === "asking"}
-                <button class="btn btn-ghost btn-xs rounded-full text-base-content/60" onclick={() => onLocation(false)}>Stop</button>
-              {/if}
-            </li>
-            <li class="flex items-center gap-3">
-              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full {tone[timetableEvidence.state]}"><Clock class="h-[18px] w-[18px]" /></span>
-              <div class="min-w-0 flex-1">
-                <p class="text-sm font-medium text-ink">Timetable</p>
-                <p class="text-xs text-base-content/60">{timetableEvidence.detail}</p>
-              </div>
-              {#if timetableEvidence.state === "decides"}
-                <span class="rounded-full bg-mint px-2 py-0.5 text-[0.68rem] font-bold text-primary">Decides</span>
-              {/if}
-            </li>
-          </ul>
-        </div>
       </div>
     </div>
   {/if}
 </section>
+
+<!-- What the source pill opens: each signal, the deciding one lit. -->
+<dialog bind:this={sourceDialog} class="modal modal-bottom sm:modal-middle" aria-labelledby="how-abeona-knows">
+  <div class="modal-box rounded-t-[2rem] sm:rounded-[2rem]">
+    <h3 id="how-abeona-knows" class="text-lg font-semibold text-ink">
+      {onBoard ? "How Abeona knows your train" : "How Abeona knows where you are"}
+    </h3>
+    <p class="mt-1 text-sm text-base-content/70">
+      The strongest signal there is decides: the train's Wi-Fi, then your location, then the timetable with the live times.
+    </p>
+    <ul class="mt-3 space-y-3">
+        <li class="flex items-center gap-3">
+          <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full {tone.off}"><Wifi class="h-[18px] w-[18px]" /></span>
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-medium text-ink">Train Wi-Fi</p>
+            <p class="text-xs text-base-content/60">Read by the Android app on an ICE or Railjet: it names the train</p>
+          </div>
+        </li>
+        <li class="flex items-center gap-3">
+          <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full {tone[locationEvidence.state]}"><LocateFixed class="h-[18px] w-[18px]" /></span>
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-medium text-ink">Location</p>
+            <p class="text-xs text-base-content/60">{locationEvidence.detail}</p>
+          </div>
+          {#if locationEvidence.state === "decides"}
+            <span class="rounded-full bg-mint px-2 py-0.5 text-[0.68rem] font-bold text-primary">Decides</span>
+          {/if}
+          {#if location === "off"}
+            <button class="btn btn-xs rounded-full border-none bg-mint text-primary" onclick={() => onLocation(true)}>Use</button>
+          {:else if location === "on" || location === "asking"}
+            <button class="btn btn-ghost btn-xs rounded-full text-base-content/60" onclick={() => onLocation(false)}>Stop</button>
+          {/if}
+        </li>
+        <li class="flex items-center gap-3">
+          <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full {tone[timetableEvidence.state]}"><Clock class="h-[18px] w-[18px]" /></span>
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-medium text-ink">Timetable</p>
+            <p class="text-xs text-base-content/60">{timetableEvidence.detail}</p>
+          </div>
+          {#if timetableEvidence.state === "decides"}
+            <span class="rounded-full bg-mint px-2 py-0.5 text-[0.68rem] font-bold text-primary">Decides</span>
+          {/if}
+        </li>
+      </ul>
+    <div class="modal-action">
+      <form method="dialog"><button class="btn btn-ghost rounded-full">Close</button></form>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>

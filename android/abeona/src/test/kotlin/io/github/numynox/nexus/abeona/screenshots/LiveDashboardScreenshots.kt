@@ -25,6 +25,7 @@ import io.github.numynox.nexus.abeona.live.Fix
 import io.github.numynox.nexus.abeona.live.OnboardStatus
 import io.github.numynox.nexus.abeona.live.evidence
 import io.github.numynox.nexus.abeona.ui.AbeonaPalette
+import io.github.numynox.nexus.abeona.ui.live.HowAbeonaKnows
 import io.github.numynox.nexus.abeona.ui.live.LiveDashboard
 import io.github.numynox.nexus.abeona.ui.live.liveView
 import io.github.numynox.nexus.core.ui.theme.NexusTheme
@@ -87,6 +88,30 @@ class LiveDashboardScreenshots {
         }
         compose.onRoot().captureRoboImage("build/outputs/roborazzi/app/$name.png")
     }
+
+    /** What the source pill opens, drawn as the sheet shows it. */
+    private fun sheet(name: String, nowMinutes: Long, signals: TravelSignals = TravelSignals(), onboard: OnboardStatus? = null, fix: Fix? = null, locationOn: Boolean = false) {
+        val trip = trip()
+        val now = at(nowMinutes)
+        val day = travelDay(trip.legs, now, 15, signals)
+        val evidence = evidence(trip, day, now, onboard, fix, locationOn, true)
+        compose.setContent {
+            NexusTheme(AbeonaPalette, themeMode = ThemeMode.Light) {
+                Column(Modifier.background(MaterialTheme.colorScheme.surfaceContainerLow).padding(top = 24.dp)) {
+                    HowAbeonaKnows(evidence, day, onUseLocation = {}, modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 32.dp))
+                }
+            }
+        }
+        compose.onRoot().captureRoboImage("build/outputs/roborazzi/app/$name.png")
+    }
+
+    @Test fun howAbeonaKnowsWifi() = sheet(
+        "59k-how-abeona-knows-wifi", 46,
+        signals = TravelSignals(onboardLegIndex = 0),
+        onboard = OnboardStatus("ICE Portal", "ICE", "25", 247.0, 49.94, 9.50, "Würzburg Hbf", at(75), "4", at(46)),
+    )
+
+    @Test fun howAbeonaKnowsTimetable() = sheet("59l-how-abeona-knows-timetable", 20)
 
     @Test fun beforeLeaving() = shot("59a-live-before-leaving", "Before leaving · by the timetable", -25)
 

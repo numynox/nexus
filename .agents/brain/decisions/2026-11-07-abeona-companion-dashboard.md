@@ -48,9 +48,14 @@ by itself, and when it ran it was not useful enough:
   the stops either side. The map shows the strongest position there is:
   the train's Wi-Fi (its own coordinates), the phone's or browser's fix, else
   that estimate as a hollow dot.
-- **"How Abeona knows" is shown, not hidden.** Each signal says what it sees
-  and the one that placed the traveller is marked "Decides"; the hero carries
-  a small source pill and the notification's subtext names it.
+- **The source is a pill; the evidence is one tap behind it.** The first
+  card carries a small pill naming what placed the traveller (Train Wi-Fi,
+  Location, Timetable) and the notification's subtext names it too. Tapping
+  the pill opens "How Abeona knows": each signal says what it sees, the one
+  that placed the traveller is marked "Decides", and the location can be
+  turned on there. A first version had this as a card at the end of the
+  dashboard; it repeated the pill every time for something read only when
+  Abeona seems wrong, so it moved behind the pill before it shipped.
 - **The web gets the same dashboard**, with the browser's position while the
   page is open and the traveller asked for it (device-local, off by default).
   The train's Wi-Fi stays Android-only.

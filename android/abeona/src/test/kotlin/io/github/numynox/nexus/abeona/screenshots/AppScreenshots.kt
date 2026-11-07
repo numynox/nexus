@@ -74,6 +74,11 @@ class AppScreenshots {
         waitForText("Open DB Navigator")
         waitForText("Live · updated", substring = true)
         shot("03-trip-detail")
+        // The source pill opens how Abeona knows; no signals here, so the timetable.
+        tapIcon("How Abeona knows: Timetable")
+        waitForText("How Abeona knows", substring = true)
+        shot("03a-trip-how-abeona-knows")
+        dismiss()
         scrollTo("Know where you are on the trip")
         shot("03b-trip-location-prompt")
         scrollTo("Start live companion")

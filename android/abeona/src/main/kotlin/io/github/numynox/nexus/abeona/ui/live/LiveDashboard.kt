@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.DirectionsWalk
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.MeetingRoom
 import androidx.compose.material.icons.rounded.MyLocation
@@ -41,6 +42,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -137,8 +140,9 @@ fun liveView(
  * The live companion's dashboard (glossary: Live companion, travel day):
  * the one thing to do now with its countdown, then — as far as they matter
  * in this state — where on the ride the train is (next stop, stops left),
- * the map with the traveller on it, the next change, the whole journey, and
- * how Abeona knows which train the traveller is on.
+ * the map with the traveller on it, the next change and the whole journey.
+ * How Abeona knows which train the traveller is on sits behind the first
+ * card's source pill: one tap when in doubt, out of the way otherwise.
  */
 @Composable
 fun LiveDashboard(
@@ -149,24 +153,28 @@ fun LiveDashboard(
     onUseLocation: (() -> Unit)? = null,
 ) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        LiveNow(view, onAlternatives = onAlternatives)
-        LiveDetails(view, showMap = showMap, onUseLocation = onUseLocation)
+        LiveNow(view, onAlternatives = onAlternatives, onUseLocation = onUseLocation)
+        LiveDetails(view, showMap = showMap)
     }
 }
 
-/** The dashboard's first card: the one thing to do now, and its countdown. */
+/**
+ * The dashboard's first card: the one thing to do now, and its countdown.
+ * Its source pill ("Train Wi-Fi", "Location", "Timetable") opens how Abeona
+ * knows, with the way to turn the location on ([onUseLocation]).
+ */
 @Composable
-fun LiveNow(view: LiveView, modifier: Modifier = Modifier, onAlternatives: (() -> Unit)? = null) {
-    Box(modifier) { NowCard(view, onAlternatives) }
+fun LiveNow(view: LiveView, modifier: Modifier = Modifier, onAlternatives: (() -> Unit)? = null, onUseLocation: (() -> Unit)? = null) {
+    Box(modifier) { NowCard(view, onAlternatives, onUseLocation) }
 }
 
 /**
  * The rest of the dashboard, under the first card (the trip screen puts the
- * ticket and DB Navigator between the two): the ride, the map, the change,
- * the journey and how Abeona knows. Nothing once arrived.
+ * ticket and DB Navigator between the two): the ride, the map, the change
+ * and the journey. Nothing once arrived.
  */
 @Composable
-fun LiveDetails(view: LiveView, modifier: Modifier = Modifier, showMap: Boolean = true, onUseLocation: (() -> Unit)? = null) {
+fun LiveDetails(view: LiveView, modifier: Modifier = Modifier, showMap: Boolean = true) {
     val day = view.day
     if (day.kind == TravelDayKind.Arrived) return
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -183,7 +191,6 @@ fun LiveDetails(view: LiveView, modifier: Modifier = Modifier, showMap: Boolean 
         }
         if (day.kind == TravelDayKind.OnBoard && view.change != null) ChangeCard(view.trip, view.change, view.now)
         JourneyStrip(view.trip, day)
-        EvidenceCard(view.evidence, day, onUseLocation)
     }
 }
 
@@ -245,7 +252,17 @@ private fun countdown(minutes: Int?): Pair<String, String>? {
 }
 
 @Composable
-private fun NowCard(view: LiveView, onAlternatives: (() -> Unit)?) {
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+private fun NowCard(view: LiveView, onAlternatives: (() -> Unit)?, onUseLocation: (() -> Unit)?) {
+    var showSource by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    if (showSource) {
+        androidx.compose.material3.ModalBottomSheet(
+            onDismissRequest = { showSource = false },
+            sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        ) {
+            HowAbeonaKnows(view.evidence, view.day, onUseLocation, Modifier.padding(start = 24.dp, end = 24.dp, bottom = 32.dp))
+        }
+    }
     val day = view.day
     val leg = view.leg
     val warn = day.missedChange || day.cancelled
@@ -274,7 +291,7 @@ private fun NowCard(view: LiveView, onAlternatives: (() -> Unit)?) {
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                if (day.kind != TravelDayKind.Arrived) SourcePill(day.source)
+                if (day.kind != TravelDayKind.Arrived) SourcePill(day.source) { showSource = true }
             }
 
             val (headline, detail, delay, minutes, unit) = nowLines(view)
@@ -391,12 +408,20 @@ private fun nowLines(view: LiveView): NowLines {
     }
 }
 
+/** What placed the traveller, as a button: a tap opens how Abeona knows. */
 @Composable
-private fun SourcePill(source: TravelDaySource) {
-    Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f), contentColor = MaterialTheme.colorScheme.onSurface, shape = CircleShape) {
-        Row(Modifier.padding(horizontal = 9.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+private fun SourcePill(source: TravelDaySource, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        shape = CircleShape,
+        modifier = Modifier.semantics { contentDescription = "How Abeona knows: ${sourceShort(source)}" },
+    ) {
+        Row(Modifier.padding(start = 9.dp, end = 5.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             Icon(evidenceIcon(sourceKind(source)), contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
             Text(sourceShort(source), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold), maxLines = 1)
+            Icon(Icons.Rounded.ExpandMore, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -707,17 +732,27 @@ private fun JourneyStrip(trip: Trip, day: TravelDay) {
 
 // ---------------------------------------------------------------- how Abeona knows
 
-/** Each signal with its icon: the one that decided lit, the others saying what they see. */
+/**
+ * What the source pill opens: each signal with its icon, the one that
+ * decided lit, the others saying what they see, and "Use" for the location.
+ * Public so the screenshot test can draw it without the sheet.
+ */
 @Composable
-private fun EvidenceCard(evidence: List<Evidence>, day: TravelDay, onUseLocation: (() -> Unit)?) {
+fun HowAbeonaKnows(evidence: List<Evidence>, day: TravelDay, onUseLocation: (() -> Unit)?, modifier: Modifier = Modifier) {
     val scheme = MaterialTheme.colorScheme
-    DashCard {
-        Label(
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text(
             when (day.kind) {
                 TravelDayKind.OnBoard -> "How Abeona knows your train"
                 TravelDayKind.AtStation, TravelDayKind.Changing -> "How Abeona knows where you are"
                 else -> "How Abeona knows"
             },
+            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+        )
+        Text(
+            "The strongest signal there is decides: the train's Wi-Fi, then your location, then the timetable with the live times.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = scheme.onSurfaceVariant,
         )
         evidence.forEach { e ->
             val decides = e.state == EvidenceState.Decides

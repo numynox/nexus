@@ -416,7 +416,7 @@ private fun TripContent(
     askLocation: Boolean,
     onAllowLocation: () -> Unit,
     onDismissLocation: () -> Unit,
-    /** "Use" on the dashboard's Location row: the setting, the permission, the companion. */
+    /** "Use" on the Location row behind the source pill: the setting, the permission, the companion. */
     onUseLocation: () -> Unit,
     onAlternatives: () -> Unit,
     people: TripPeople?,
@@ -439,7 +439,7 @@ private fun TripContent(
     ) {
         item(key = "header") { TripHeader(detail) }
         live?.let { l ->
-            item(key = "travel-day") { LiveNow(l.view, onAlternatives = onAlternatives) }
+            item(key = "travel-day") { LiveNow(l.view, onAlternatives = onAlternatives, onUseLocation = onUseLocation) }
         }
         val over = trip.expectedArrival.plus(Duration.ofHours(1)).isBefore(java.time.Instant.now())
         if (!over && trainBindingLifted(trip.fareType, trip.trainBinding, arrivalDelay)) {
@@ -485,7 +485,7 @@ private fun TripContent(
         live?.let { l ->
             // The ticket and DB Navigator stay one tap from the top; the
             // rest of the dashboard follows them.
-            item(key = "live-details") { LiveDetails(l.view, onUseLocation = onUseLocation) }
+            item(key = "live-details") { LiveDetails(l.view) }
             if (askLocation && l.day.kind != TravelDayKind.Arrived) {
                 item(key = "location") { LocationPrompt(onAllow = onAllowLocation, onDismiss = onDismissLocation) }
             }
