@@ -1,0 +1,41 @@
+{
+  "$comment": "Ride progress cases, run by both clients: app/abeona/src/lib/progress.test.ts (npm run test:abeona) and android/abeona's RideProgressFixturesTest (copied into its test resources by Gradle). Change progress.ts and domain/RideProgress.kt together, and the case here once. Stops: omitted fields are null. estimate compares to 1e-4 degrees; null means none.",
+  "leg": {
+    "from": { "id": "ffm", "name": "Frankfurt(Main)Hbf", "lat": 50.0, "lon": 8.0, "planned": "2026-11-03T10:00:00Z", "current": "2026-11-03T10:05:00Z" },
+    "to": { "id": "wue", "name": "Würzburg Hbf", "lat": 50.0, "lon": 10.0, "planned": "2026-11-03T11:00:00Z", "current": "2026-11-03T11:05:00Z" },
+    "stopovers": [
+      { "id": "asch", "name": "Aschaffenburg Hbf", "lat": 50.0, "lon": 9.0, "planned_arrival": "2026-11-03T10:30:00Z", "arrival": "2026-11-03T10:35:00Z", "planned_departure": "2026-11-03T10:32:00Z", "departure": "2026-11-03T10:37:00Z" },
+      { "id": "gone", "name": "Laufach", "lat": 50.0, "lon": 9.3, "planned_arrival": "2026-11-03T10:42:00Z", "cancelled": true },
+      { "id": "lohr", "name": "Lohr Bahnhof", "lat": 50.0, "lon": 9.5, "planned_arrival": "2026-11-03T10:45:00Z", "arrival": "2026-11-03T10:50:00Z" },
+      { "id": "x", "name": "Nowhen" }
+    ],
+    "polyline": [[8.0, 50.0], [8.5, 50.5], [9.0, 50.0], [9.5, 50.0], [10.0, 50.0]]
+  },
+  "cases": [
+    {
+      "name": "before it leaves: at the first stop, three stops ahead",
+      "now": "2026-11-03T10:01:00Z",
+      "expect": { "stops": ["ffm", "asch", "lohr", "wue"], "current": 0, "next": 1, "stopsLeft": 3, "minutesToNext": 34, "fraction": 0, "estimate": { "lat": 50.0, "lon": 8.0 }, "passed": [false, false, false, false] }
+    },
+    {
+      "name": "moving: halfway to the next stop, on the line's detour",
+      "now": "2026-11-03T10:20:00Z",
+      "expect": { "stops": ["ffm", "asch", "lohr", "wue"], "current": null, "next": 1, "stopsLeft": 3, "minutesToNext": 15, "fraction": 0.25, "estimate": { "lat": 50.5, "lon": 8.5 }, "passed": [true, false, false, false] }
+    },
+    {
+      "name": "standing at a stopover between its arrival and departure",
+      "now": "2026-11-03T10:36:00Z",
+      "expect": { "stops": ["ffm", "asch", "lohr", "wue"], "current": 1, "next": 2, "stopsLeft": 2, "minutesToNext": 14, "fraction": 0.5166667, "estimate": { "lat": 50.0, "lon": 9.0 }, "passed": [true, false, false, false] }
+    },
+    {
+      "name": "moving: the last stretch, straight where the line is straight",
+      "now": "2026-11-03T10:57:30Z",
+      "expect": { "stops": ["ffm", "asch", "lohr", "wue"], "current": null, "next": 3, "stopsLeft": 1, "minutesToNext": 8, "fraction": 0.875, "estimate": { "lat": 50.0, "lon": 9.75 }, "passed": [true, true, true, false] }
+    },
+    {
+      "name": "arrived: at the last stop, nothing left",
+      "now": "2026-11-03T11:10:00Z",
+      "expect": { "stops": ["ffm", "asch", "lohr", "wue"], "current": 3, "next": null, "stopsLeft": 0, "minutesToNext": null, "fraction": 1, "estimate": { "lat": 50.0, "lon": 10.0 }, "passed": [true, true, true, true] }
+    }
+  ]
+}
