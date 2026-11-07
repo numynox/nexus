@@ -294,6 +294,11 @@ cd android
 ./gradlew recordRoborazziDebug assembleRelease   # every app, as before a push
 ```
 
+Where Maven Central answers `429 Too Many Requests` (cloud agent sandboxes),
+add `-I gradle/init/maven-central-mirror.gradle` to any of these: it fetches
+from Google's mirror of Central instead, Robolectric's runtime included
+(`.agents/brain/issues/maven-central-rate-limit.md`).
+
 ### Screenshots
 
 `recordRoborazziDebug` runs the app's `AppScreenshots`: the real app —

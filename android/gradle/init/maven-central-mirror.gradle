@@ -1,0 +1,23 @@
+// Google's mirror of Maven Central, for sandboxes where Central answers 429
+// (Too Many Requests): cloud agent sessions. Not used by CI or a laptop.
+//   ./gradlew -I gradle/init/maven-central-mirror.gradle :abeona:recordRoborazziDebug
+// It puts the mirror first, drops Central itself, and points Robolectric's
+// own download of its Android runtime jars at the mirror too. See
+// .agents/brain/issues/maven-central-rate-limit.md.
+def mirrorUrl = "https://maven-central.storage-download.googleapis.com/maven2/"
+
+def preferMirror = { RepositoryHandler repos ->
+    repos.removeIf { it instanceof MavenArtifactRepository && it.url.toString().startsWith("https://repo.maven.apache.org") }
+    def mirror = repos.maven { name = "MavenCentralMirror"; url = uri(mirrorUrl) }
+    repos.remove(mirror)
+    repos.addFirst(mirror)
+}
+
+settingsEvaluated { settings ->
+    preferMirror(settings.pluginManagement.repositories)
+    preferMirror(settings.dependencyResolutionManagement.repositories)
+}
+
+allprojects {
+    tasks.withType(Test).configureEach { systemProperty "robolectric.dependency.repo.url", mirrorUrl }
+}
