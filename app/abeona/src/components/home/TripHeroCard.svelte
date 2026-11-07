@@ -26,9 +26,11 @@
     /** Where the traveller is on the trip, while it is live. */
     day?: TravelDay | null;
     stationMinutes?: number;
+    /** The clock the day was worked out at. */
+    now?: number;
   }
 
-  let { trip, href, refreshing = false, day = null, stationMinutes = 15 }: Props = $props();
+  let { trip, href, refreshing = false, day = null, stationMinutes = 15, now = Date.now() }: Props = $props();
 
   const s = $derived(summarise(trip.legs));
   const firstRide = $derived(s.rides[0] ?? trip.legs[0]);
@@ -70,7 +72,7 @@
     {/if}
 
     {#if day}
-      <div class="mt-5"><TravelDayHero legs={trip.legs} {day} {stationMinutes} /></div>
+      <div class="mt-5"><TravelDayHero legs={trip.legs} {day} {stationMinutes} {now} /></div>
     {/if}
 
     <div class="mt-6 grid grid-cols-[1fr_auto_1fr] items-start gap-3 sm:gap-6">

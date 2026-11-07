@@ -7,6 +7,9 @@ import java.io.File
 import java.time.Instant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -145,8 +148,18 @@ class TripStore(
         if (failure.isNetworkFailure() && trip != null) Fetched(trip, cached.first) else throw failure
     }
 
+    private val _refreshed = MutableSharedFlow<Trip>(extraBufferCapacity = 8)
+    /**
+     * Every trip a refresh brought back, whoever asked: an open trip screen
+     * shows the live companion's refreshes the moment they land.
+     */
+    val refreshed: SharedFlow<Trip> = _refreshed.asSharedFlow()
+
     /** Live values from the provider, written to the database and the pack. */
-    suspend fun refresh(trip: Trip): Trip = repository.refreshTrip(trip).also { pack.update(it) }
+    suspend fun refresh(trip: Trip): Trip = repository.refreshTrip(trip).also {
+        pack.update(it)
+        _refreshed.tryEmit(it)
+    }
 
     suspend fun delete(trip: Trip) {
         repository.deleteTrip(trip)

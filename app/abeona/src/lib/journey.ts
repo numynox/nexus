@@ -52,11 +52,14 @@ export function effectiveArrival(legs: Leg[]): number {
 
 const HOUR = 3600_000;
 
-/** How often a page refreshes the trips in their live window while it is visible. */
-export const LIVE_REFRESH_MS = 2 * 60_000;
+/**
+ * How often a page refreshes the trips in their live window while it is
+ * visible: as often as abeona-transit's cache lets a refresh be new (60 s).
+ */
+export const LIVE_REFRESH_MS = 60_000;
 
 /**
- * A trip is "live" — refreshed on open and every two minutes — from 24 hours
+ * A trip is "live" — refreshed on open and every minute — from 24 hours
  * before departure until it has arrived (and at most 12 hours after
  * departure, so a forgotten trip stops polling).
  */

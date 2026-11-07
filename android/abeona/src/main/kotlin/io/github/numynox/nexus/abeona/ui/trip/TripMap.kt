@@ -50,6 +50,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import io.github.numynox.nexus.abeona.AbeonaApplication
 import io.github.numynox.nexus.abeona.BuildConfig
 import io.github.numynox.nexus.abeona.data.Leg
+import io.github.numynox.nexus.abeona.live.EvidenceKind
 import io.github.numynox.nexus.abeona.ui.AbeonaColors
 import kotlin.math.PI
 import kotlin.math.ln
@@ -67,7 +68,32 @@ import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapView
+import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.Style
+import org.maplibre.android.style.sources.GeoJsonSource
+
+/**
+ * Where the traveller is on the map, and what said so: the train's Wi-Fi
+ * (its own position), the phone's location, or the timetable (where the
+ * train should be by now, on its line: domain/RideProgress.kt).
+ */
+data class MapMarker(val lat: Double, val lon: Double, val kind: EvidenceKind)
+
+private fun markerJson(marker: MapMarker?): String = buildJsonObject {
+    put("type", "FeatureCollection")
+    putJsonArray("features") {
+        marker?.let { m ->
+            addJsonObject {
+                put("type", "Feature")
+                putJsonObject("properties") { put("estimate", m.kind == EvidenceKind.Timetable) }
+                putJsonObject("geometry") {
+                    put("type", "Point")
+                    putJsonArray("coordinates") { add(m.lon); add(m.lat) }
+                }
+            }
+        }
+    }
+}.toString()
 
 /** A leg's line on the map: its own polyline, or straight from stop to stop when it has none. */
 internal fun Leg.points(): List<Pair<Double, Double>> {
@@ -86,7 +112,7 @@ private fun hex(color: Color) = "#%06X".format(0xFFFFFF and color.toArgb())
  * someone gets on or off as a dot. All in one style document, so the map has
  * nothing to add after it loads.
  */
-private fun tripStyle(legs: List<Leg>, dark: Boolean, ride: Color, walk: Color): String {
+private fun tripStyle(legs: List<Leg>, dark: Boolean, ride: Color, walk: Color, marker: MapMarker?): String {
     val key = BuildConfig.CARTO_API_KEY
     val carto = key.isNotBlank()
     val tiles = if (carto) {
@@ -140,6 +166,10 @@ private fun tripStyle(legs: List<Leg>, dark: Boolean, ride: Color, walk: Color):
                 put("type", "geojson")
                 put("data", features)
             }
+            putJsonObject(MARKER_SOURCE) {
+                put("type", "geojson")
+                put("data", kotlinx.serialization.json.Json.parseToJsonElement(markerJson(marker)))
+            }
         }
         putJsonArray("layers") {
             addJsonObject {
@@ -174,9 +204,37 @@ private fun tripStyle(legs: List<Leg>, dark: Boolean, ride: Color, walk: Color):
                     put("circle-stroke-color", hex(AbeonaColors.Ink)); put("circle-stroke-width", 3)
                 }
             }
+            // Where the traveller is: a soft halo, then the dot; hollow when
+            // it is only the timetable's estimate.
+            addJsonObject {
+                put("id", "me-halo"); put("type", "circle"); put("source", MARKER_SOURCE)
+                putJsonObject("paint") { put("circle-radius", 18); put("circle-color", hex(ride)); put("circle-opacity", 0.22) }
+            }
+            addJsonObject {
+                put("id", "me"); put("type", "circle"); put("source", MARKER_SOURCE)
+                putJsonObject("paint") {
+                    put("circle-radius", 8)
+                    put(
+                        "circle-color",
+                        JsonArray(listOf(JsonPrimitive("case"), JsonArray(listOf(JsonPrimitive("get"), JsonPrimitive("estimate"))), JsonPrimitive("#FFFFFF"), JsonPrimitive(hex(ride)))),
+                    )
+                    put("circle-stroke-color", JsonPrimitive("#FFFFFF"))
+                    put("circle-stroke-width", 3)
+                }
+            }
+            addJsonObject {
+                put("id", "me-ring"); put("type", "circle"); put("source", MARKER_SOURCE)
+                put("filter", JsonArray(listOf(JsonPrimitive("=="), JsonArray(listOf(JsonPrimitive("get"), JsonPrimitive("estimate"))), JsonPrimitive(true))))
+                putJsonObject("paint") {
+                    put("circle-radius", 8); put("circle-opacity", 0)
+                    put("circle-stroke-color", hex(ride)); put("circle-stroke-width", 3)
+                }
+            }
         }
     }.toString()
 }
+
+private const val MARKER_SOURCE = "me-source"
 
 /**
  * The trip on a map, as a still preview: it takes no gestures, so it never
@@ -185,11 +243,11 @@ private fun tripStyle(legs: List<Leg>, dark: Boolean, ride: Color, walk: Color):
  * MapLibre cannot run (the screenshot tests).
  */
 @Composable
-fun TripMap(legs: List<Leg>, modifier: Modifier = Modifier) {
+fun TripMap(legs: List<Leg>, modifier: Modifier = Modifier, marker: MapMarker? = null, focus: Leg? = null) {
     var fullScreen by rememberSaveable { mutableStateOf(false) }
     val shape = RoundedCornerShape(28.dp)
     Box(modifier.clip(shape)) {
-        RouteMap(legs, Modifier.fillMaxSize(), interactive = false)
+        RouteMap(legs, Modifier.fillMaxSize(), interactive = false, marker = marker, focus = focus)
         // Over the map view, which would otherwise take the touch itself.
         Box(
             Modifier
@@ -212,7 +270,7 @@ fun TripMap(legs: List<Leg>, modifier: Modifier = Modifier) {
             properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
         ) {
             Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
-                RouteMap(legs, Modifier.fillMaxSize(), interactive = true)
+                RouteMap(legs, Modifier.fillMaxSize(), interactive = true, marker = marker)
                 FilledTonalIconButton(
                     onClick = { fullScreen = false },
                     modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(16.dp),
@@ -224,11 +282,21 @@ fun TripMap(legs: List<Leg>, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * The camera's points: with a [focus] ride (the one on board, or to catch)
+ * that ride and the marker, so the preview shows where on it the traveller
+ * is; else the whole trip.
+ */
+private fun cameraPoints(legs: List<Leg>, marker: MapMarker?, focus: Leg?): List<Pair<Double, Double>> {
+    val base = focus?.points()?.takeIf { it.size >= 2 } ?: legs.flatMap { it.points() }
+    return base + listOfNotNull(marker?.let { it.lon to it.lat })
+}
+
 @Composable
-private fun RouteMap(legs: List<Leg>, modifier: Modifier, interactive: Boolean) {
+private fun RouteMap(legs: List<Leg>, modifier: Modifier, interactive: Boolean, marker: MapMarker? = null, focus: Leg? = null) {
     val context = LocalContext.current
     if ((context.applicationContext as? AbeonaApplication)?.mapsAvailable == false) {
-        SchematicTripMap(legs, modifier)
+        SchematicTripMap(legs, modifier, marker, focus)
         return
     }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -237,6 +305,7 @@ private fun RouteMap(legs: List<Leg>, modifier: Modifier, interactive: Boolean) 
     val walk = MaterialTheme.colorScheme.outline
     val padding = with(LocalDensity.current) { (if (interactive) 64.dp else 28.dp).roundToPx() }
     val mapView = remember { MapView(context).apply { onCreate(null) } }
+    val loaded = remember { mutableStateOf<MapLibreMap?>(null) }
 
     DisposableEffect(lifecycle, mapView) {
         val observer = LifecycleEventObserver { _, event ->
@@ -266,8 +335,9 @@ private fun RouteMap(legs: List<Leg>, modifier: Modifier, interactive: Boolean) 
             map.uiSettings.isTiltGesturesEnabled = false
             map.uiSettings.isLogoEnabled = false
             if (!interactive) map.uiSettings.setAllGesturesEnabled(false)
-            map.setStyle(Style.Builder().fromJson(tripStyle(legs, dark, ride, walk))) {
-                val points = legs.flatMap { it.points() }.map { (lon, lat) -> LatLng(lat, lon) }
+            map.setStyle(Style.Builder().fromJson(tripStyle(legs, dark, ride, walk, marker))) {
+                loaded.value = map
+                val points = cameraPoints(legs, marker, focus).map { (lon, lat) -> LatLng(lat, lon) }
                 // Fitting bounds needs the view's real size; before layout it
                 // is zero and the camera ends up at the wrong zoom.
                 mapView.doOnLayout {
@@ -282,12 +352,25 @@ private fun RouteMap(legs: List<Leg>, modifier: Modifier, interactive: Boolean) 
         }
     }
 
+    // The marker moves without the style being built again; the preview's
+    // camera follows it, the full-screen map stays where it was panned to.
+    LaunchedEffect(loaded.value, marker, focus) {
+        val map = loaded.value ?: return@LaunchedEffect
+        map.style?.getSourceAs<GeoJsonSource>(MARKER_SOURCE)?.setGeoJson(markerJson(marker))
+        if (!interactive && marker != null) {
+            val points = cameraPoints(legs, marker, focus).map { (lon, lat) -> LatLng(lat, lon) }
+            if (points.size >= 2 && mapView.width > 0) {
+                map.easeCamera(CameraUpdateFactory.newLatLngBounds(LatLngBounds.Builder().includes(points).build(), padding), 600)
+            }
+        }
+    }
+
     AndroidView(factory = { mapView }, modifier = modifier)
 }
 
 /** The route drawn by coordinates on a soft grid: no tiles, same shape. */
 @Composable
-private fun SchematicTripMap(legs: List<Leg>, modifier: Modifier) {
+private fun SchematicTripMap(legs: List<Leg>, modifier: Modifier, marker: MapMarker? = null, focus: Leg? = null) {
     val background = MaterialTheme.colorScheme.surfaceContainer
     val grid = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
     val water = MaterialTheme.colorScheme.secondaryContainer
@@ -310,7 +393,7 @@ private fun SchematicTripMap(legs: List<Leg>, modifier: Modifier) {
 
         // Web Mercator, so the shape matches the real map's.
         fun mercatorY(lat: Double) = ln(tan(PI / 4 + Math.toRadians(lat) / 2))
-        val all = legs.flatMap { it.points() }
+        val all = cameraPoints(legs, marker, focus)
         if (all.isEmpty()) return@Canvas
         val minX = all.minOf { it.first }; val maxX = all.maxOf { it.first }
         val minY = all.minOf { mercatorY(it.second) }; val maxY = all.maxOf { mercatorY(it.second) }
@@ -341,6 +424,17 @@ private fun SchematicTripMap(legs: List<Leg>, modifier: Modifier) {
             val center = place(lon to lat)
             drawCircle(ink, radius = 7.dp.toPx(), center = center)
             drawCircle(surface, radius = 4.dp.toPx(), center = center)
+        }
+        marker?.let { m ->
+            val center = place(m.lon to m.lat)
+            drawCircle(ride.copy(alpha = 0.22f), radius = 18.dp.toPx(), center = center)
+            if (m.kind == EvidenceKind.Timetable) {
+                drawCircle(surface, radius = 8.dp.toPx(), center = center)
+                drawCircle(ride, radius = 8.dp.toPx(), center = center, style = Stroke(3.dp.toPx()))
+            } else {
+                drawCircle(surface, radius = 10.dp.toPx(), center = center)
+                drawCircle(ride, radius = 7.dp.toPx(), center = center)
+            }
         }
     }
 }

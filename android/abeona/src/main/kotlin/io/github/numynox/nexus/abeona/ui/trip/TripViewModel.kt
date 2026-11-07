@@ -15,6 +15,7 @@ import io.github.numynox.nexus.abeona.data.Traveller
 import io.github.numynox.nexus.abeona.data.TripTraveller
 import io.github.numynox.nexus.abeona.data.Trip
 import io.github.numynox.nexus.abeona.data.TripWarning
+import io.github.numynox.nexus.abeona.data.toInstantOrNull
 import io.github.numynox.nexus.abeona.domain.AlternativesOrigin
 import io.github.numynox.nexus.abeona.domain.TravelDay
 import io.github.numynox.nexus.abeona.domain.alternativesOrigin
@@ -120,6 +121,19 @@ class TripViewModel(
     private var searching: Job? = null
     /** The refresh the last automatic search was for: one search per refresh. */
     private var searchedFor: String? = null
+
+    init {
+        // The live companion's refreshes (and any other screen's) land here too.
+        viewModelScope.launch {
+            store.refreshed.collect { fresh ->
+                if (fresh.id != tripId) return@collect
+                if (_detail.value.valueOrNull == null) return@collect
+                _detail.value = Loadable.Ready(TripDetail(fresh))
+                // Once per refresh: searchIfNeeded remembers the last one.
+                searchIfNeeded(fresh)
+            }
+        }
+    }
 
     fun load(): Job = viewModelScope.launch {
         if (_detail.value !is Loadable.Ready) _detail.value = Loadable.Loading
@@ -289,10 +303,10 @@ class TripViewModel(
     private suspend fun refreshNow() {
         val current = _detail.value.valueOrNull ?: return
         try {
+            // The store hands the result to the collector in init as well.
             val fresh = store.refresh(current.trip)
             _detail.value = Loadable.Ready(TripDetail(fresh))
             NextTripWidget.refresh(application)
-            searchIfNeeded(fresh)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -302,8 +316,10 @@ class TripViewModel(
     }
 
     /**
-     * While the screen is visible and the trip is today, refresh every two
-     * minutes, like the departure boards; stops when the screen goes away.
+     * While the screen is visible and the trip is today, refresh every
+     * minute (the Edge Function's cache keeps a refresh for as long), at once
+     * when what is shown is older; stops when the screen goes away. While the
+     * live companion follows this trip it refreshes for the screen.
      */
     fun setVisible(visible: Boolean) {
         auto?.cancel()
@@ -322,9 +338,13 @@ class TripViewModel(
         }
         auto = viewModelScope.launch {
             while (isActive) {
-                delay(REFRESH_EVERY)
-                val trip = _detail.value.valueOrNull?.trip ?: continue
-                if (isToday(trip) && !isOver(trip)) refreshNow()
+                val trip = _detail.value.valueOrNull?.trip
+                val age = trip?.refreshedAt.toInstantOrNull()?.let { Duration.between(it, Instant.now()).toMillis() } ?: Long.MAX_VALUE
+                val followed = io.github.numynox.nexus.abeona.live.LiveCompanion.running.value == tripId
+                if (trip != null && isToday(trip) && !isOver(trip) && trip.finalizedAt == null && !followed && age >= REFRESH_EVERY - 5_000) {
+                    refreshNow()
+                }
+                delay(TICK_EVERY)
             }
         }
     }
@@ -400,7 +420,8 @@ class TripViewModel(
     }
 
     private companion object {
-        const val REFRESH_EVERY = 120_000L
-        const val PROBE_EVERY = 30_000L
+        const val REFRESH_EVERY = 60_000L
+        const val TICK_EVERY = 15_000L
+        const val PROBE_EVERY = 15_000L
     }
 }

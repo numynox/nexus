@@ -70,3 +70,6 @@ Vibilia's cars) and a shared household (like Annona, but bounded).
   "12 min", "Pl. 7", "Missed"). Older Android shows it as an ordinary ongoing
   notification. The user can turn Live Updates off per app in Android's
   settings.
+- (2026-11-07) The companion now refreshes every minute and starts from an
+  exact alarm, on by default, with a dashboard on the trip page
+  (`2026-11-07-abeona-companion-dashboard.md`).

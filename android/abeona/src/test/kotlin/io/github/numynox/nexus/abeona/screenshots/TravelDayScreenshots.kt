@@ -92,7 +92,7 @@ class TravelDayScreenshots {
             NexusTheme(AbeonaPalette, themeMode = mode) {
                 Column(Modifier.background(MaterialTheme.colorScheme.surface).padding(16.dp)) {
                     Text(caption, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
-                    TravelDayHero(trip, day, 15, Modifier.fillMaxWidth(), onboard = onboard, reason = reason, onAlternatives = {})
+                    TravelDayHero(trip, day, 15, Modifier.fillMaxWidth(), onboard = onboard, reason = reason, onAlternatives = {}, now = now)
                 }
             }
         }

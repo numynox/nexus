@@ -3,6 +3,7 @@
   import { displayPlatform, formatDuration, formatTime, legLabel, stopDelay } from "../../lib/format";
   import { effectiveTime, transfers } from "../../lib/transfer";
   import type { AlternativesReason, TravelDay } from "../../lib/travelday";
+  import { rideProgress } from "../../lib/progress";
   import type { Leg } from "../../lib/transit";
   import ConfidenceChip from "./ConfidenceChip.svelte";
   import DelayBadge from "./DelayBadge.svelte";
@@ -16,9 +17,25 @@
     /** Where the time to the station is changed; omitted inside a link. */
     settingsHref?: string;
     onAlternatives?: () => void;
+    /** The clock the day was worked out at, for the next stop. */
+    now?: number;
   }
 
-  let { legs, day, stationMinutes, reason = null, settingsHref, onAlternatives }: Props = $props();
+  let { legs, day, stationMinutes, reason = null, settingsHref, onAlternatives, now = Date.now() }: Props = $props();
+
+  /** On board: "Next: Aschaffenburg Hbf 10:35 · 3 stops left", as the notification says it on Android. */
+  const nextStop = $derived.by(() => {
+    if (day.kind !== "on_board" || !leg) return null;
+    const p = rideProgress(leg, now);
+    if (!p || p.next === null) return null;
+    const last = p.stops.length - 1;
+    const left = p.stopsLeft === 1 ? "last stop" : `${p.stopsLeft} stops left`;
+    if (p.current !== null && p.current > 0 && p.current < last) {
+      return `Now at ${p.stops[p.current].name} · ${p.next === last ? `then ${p.stops[p.next].name}` : left}`;
+    }
+    if (p.next === last) return `Next stop: ${p.stops[p.next].name}`;
+    return `Next: ${p.stops[p.next].name} ${formatTime(new Date(p.stops[p.next].arrival).toISOString())} · ${left}`;
+  });
 
   const leg = $derived(day.legIndex !== null ? legs[day.legIndex] : null);
   const from = $derived(day.fromLegIndex !== null ? legs[day.fromLegIndex] : null);
@@ -125,6 +142,9 @@
         <p class="mt-1 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
           {legLabel(leg)}{leg.headsign ? ` to ${leg.headsign}` : ""}
         </p>
+        {#if nextStop}
+          <p class="mt-1 text-sm font-medium text-ink">{nextStop}</p>
+        {/if}
         <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-base-content/70">
           <span>
             {change ? "Get off at" : "Arrives at"} {leg.to.name} {inMinutes(day.minutesToArrival)}, {formatTime(effectiveTime(leg.to))}{displayPlatform(leg.to) ? ` · platform ${displayPlatform(leg.to)}` : ""}

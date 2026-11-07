@@ -11,6 +11,7 @@ const STORAGE_KEYS = {
   THEME: "abeona_theme",
   SEARCH: "abeona_search",
   STATION_MINUTES: "abeona_station_minutes",
+  TRIP_LOCATION: "abeona_trip_location",
 } as const;
 
 export function getTheme(): string {
@@ -84,4 +85,17 @@ export function getStationMinutes(): number {
 
 export function setStationMinutes(minutes: number): void {
   writeJson(STORAGE_KEYS.STATION_MINUTES, Math.max(0, Math.min(180, Math.round(minutes))));
+}
+
+/**
+ * Use this browser's position on a live trip's page, while it is open: the
+ * dashboard then shows where the traveller is and can tell the station from
+ * the train. Off until turned on; the position never leaves the browser.
+ */
+export function getTripLocation(): boolean {
+  return readJson(STORAGE_KEYS.TRIP_LOCATION) === true;
+}
+
+export function setTripLocation(on: boolean): void {
+  writeJson(STORAGE_KEYS.TRIP_LOCATION, on);
 }

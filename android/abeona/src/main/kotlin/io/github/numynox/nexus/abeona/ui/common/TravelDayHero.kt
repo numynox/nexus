@@ -43,6 +43,8 @@ import io.github.numynox.nexus.abeona.domain.TravelDayKind
 import io.github.numynox.nexus.abeona.domain.TravelDaySource
 import io.github.numynox.nexus.abeona.domain.arrivalDelay
 import io.github.numynox.nexus.abeona.domain.departureDelay
+import io.github.numynox.nexus.abeona.domain.rideProgress
+import io.github.numynox.nexus.abeona.live.nextStopLine
 import io.github.numynox.nexus.abeona.domain.transfers
 import io.github.numynox.nexus.abeona.live.OnboardStatus
 import io.github.numynox.nexus.abeona.ui.attention
@@ -100,6 +102,7 @@ fun TravelDayHero(
     onboard: OnboardStatus? = null,
     reason: AlternativesReason? = null,
     onAlternatives: (() -> Unit)? = null,
+    now: Instant = Instant.now(),
 ) {
     val warn = day.missedChange || day.cancelled
     val container = if (warn) attention.container.copy(alpha = 0.32f) else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
@@ -168,7 +171,7 @@ fun TravelDayHero(
                         }
                     }
                 }
-                else -> OnBoard(trip, day, leg, change?.let { legs[it.departing] }, change?.availableMinutes, change?.walkMinutes ?: 0, change?.confidence)
+                else -> OnBoard(trip, day, now, leg, change?.let { legs[it.departing] }, change?.availableMinutes, change?.walkMinutes ?: 0, change?.confidence)
             }
             if (onboard != null && day.source == TravelDaySource.Onboard) OnboardStrip(onboard)
             if (reason != null && onAlternatives != null) {
@@ -213,6 +216,7 @@ private fun DetailWithDelay(text: String, delay: Int) {
 private fun OnBoard(
     trip: Trip,
     day: TravelDay,
+    now: Instant,
     leg: Leg,
     next: Leg?,
     available: Int?,
@@ -220,6 +224,9 @@ private fun OnBoard(
     confidence: io.github.numynox.nexus.abeona.domain.Confidence?,
 ) {
     Headline("${leg.label}${leg.headsign?.let { " to $it" } ?: ""}")
+    rideProgress(leg, now)
+        ?.let(::nextStopLine)
+        ?.let { Text(it, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)) }
     DetailWithDelay(
         "${if (next != null) "Get off at" else "Arrives at"} ${leg.to.name} ${inMinutes(day.minutesToArrival)}, ${TripFormat.time(leg.to.expectedAt)}" +
             (leg.to.shownPlatform?.let { " · Pl. $it" } ?: ""),

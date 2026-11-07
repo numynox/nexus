@@ -136,7 +136,7 @@ fun SettingsScreen(app: AppViewModel, navigator: Navigator) {
                 NexusCard {
                     SettingSwitch(
                         title = "Start the live companion by itself",
-                        description = "Half an hour before a trip, this phone starts following it: platform, delay and your changes in a notification, with an alert when something changes. Only this phone.",
+                        description = "Before a trip (your time to the station plus a quarter of an hour, at least half an hour), this phone starts following it: when to leave, the platform, the next stop and your changes in a notification that updates every minute, with an alert when something changes. Opening a trip under way starts it too. Only this phone.",
                         checked = settings.liveCompanion,
                         onCheckedChange = { on ->
                             val allowed = Build.VERSION.SDK_INT < 33 ||

@@ -53,7 +53,7 @@ class TripsViewModel(private val container: AppContainer, private val applicatio
             launch { _history.value = runCatching { container.repository.statistics(LocalDate.now().year) }.getOrNull() }
             launch { _deadlines.value = runCatching { container.repository.bahnCardDeadlines() }.getOrElse { _deadlines.value } }
             refreshNextIfSoon(state.trips)
-            Background.scheduleAutostart(application, state.trips)
+            Background.scheduleAutostart(application, state.trips, foreground = true)
         }
         NextTripWidget.refresh(application)
     }
