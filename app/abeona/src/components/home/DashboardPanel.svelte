@@ -77,7 +77,7 @@
   let refreshRunning = false;
 
   // Every trip in its live window gets fresh live values, one after another:
-  // a handful of Edge Function calls every two minutes, never a burst. The
+  // a handful of Edge Function calls every minute, never a burst. The
   // rest keep what was last saved until they are opened.
   async function refreshLive() {
     if (refreshRunning) return;
@@ -103,7 +103,7 @@
 
   onMount(() => {
     stationMinutes = getStationMinutes();
-    const tick = setInterval(() => (now = Date.now()), 30_000);
+    const tick = setInterval(() => (now = Date.now()), 15_000);
     void load().then(refreshLive);
     // Like the trip page: only while someone is looking.
     const timer = setInterval(() => {
@@ -148,7 +148,7 @@
     {/if}
 
     {#if next}
-      <TripHeroCard trip={next} href={tripHref(next.id)} refreshing={refreshingIds.has(next.id)} {day} {stationMinutes} />
+      <TripHeroCard trip={next} href={tripHref(next.id)} refreshing={refreshingIds.has(next.id)} {day} {stationMinutes} {now} />
     {:else}
       <section class="grid items-center gap-8 rounded-[2rem] bg-card p-6 shadow-card sm:p-10 md:grid-cols-2">
         <Illustration name="empty-trips" class="w-full" />

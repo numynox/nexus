@@ -16,12 +16,13 @@
   } from "../../lib/data";
   import { fareLabel, formatLongDate, formatPrice, formatTime } from "../../lib/format";
   import { dbNavigatorUrl, hasArrived, isLiveWindow, LIVE_REFRESH_MS, summarise } from "../../lib/journey";
-  import { getStationMinutes } from "../../lib/storage";
+  import { FRESH_MS, type Fix, type LocationState, watchPosition } from "../../lib/position";
+  import { getStationMinutes, getTripLocation, setTripLocation } from "../../lib/storage";
   import { trainBindingLifted, transfers } from "../../lib/transfer";
   import { alternativesOrigin, alternativesReason, travelDay } from "../../lib/travelday";
   import { cardsForTrip } from "../../lib/travellers";
   import BindingBanner from "../common/BindingBanner.svelte";
-  import TravelDayHero from "../common/TravelDayHero.svelte";
+  import LiveDashboard from "../live/LiveDashboard.svelte";
   import AlternativesSection from "./AlternativesSection.svelte";
   import CompensationCard from "./CompensationCard.svelte";
   import DisruptionCard from "./DisruptionCard.svelte";
@@ -50,9 +51,14 @@
   let warnings = $state<TripWarning[]>([]);
   let alternativesSection: ReturnType<typeof AlternativesSection> | undefined = $state();
   let compensationCard: ReturnType<typeof CompensationCard> | undefined = $state();
-  /** Ticks every half minute, so the travel day's countdowns move. */
+  /** Ticks every 15 seconds, so the countdowns and the train on its line move. */
   let now = $state(Date.now());
   let stationMinutes = $state(15);
+  /** This browser's position, while the trip is live and it was asked for. */
+  let wantLocation = $state(false);
+  let location = $state<LocationState>("off");
+  let fix = $state<Fix | null>(null);
+  const position = $derived(fix && now - fix.at <= FRESH_MS ? fix.position : null);
 
   const legs = $derived(trip?.legs ?? []);
   const s = $derived(legs.length > 0 ? summarise(legs) : null);
@@ -67,7 +73,26 @@
   // The travel day only while the trip is live: from a day before it leaves
   // until shortly after it arrives.
   const live = $derived(legs.length > 0 && isLiveWindow(legs, now));
-  const day = $derived(live ? travelDay(legs, now, stationMinutes) : null);
+  const day = $derived(live ? travelDay(legs, now, stationMinutes, { position }) : null);
+
+  // Only while the trip is live, the page open, and it was asked for.
+  $effect(() => {
+    if (!live || !wantLocation || arrived) return;
+    const stop = watchPosition(
+      (f) => (fix = f),
+      (state) => (location = state),
+    );
+    return () => {
+      stop();
+      fix = null;
+      location = "off";
+    };
+  });
+
+  function useLocation(on: boolean) {
+    wantLocation = on;
+    setTripLocation(on);
+  }
   // No origin once the only stop left is the destination: then nothing is offered.
   const origin = $derived(day ? alternativesOrigin(legs, day, now) : null);
   const reason = $derived(day && origin ? alternativesReason(legs, day) : null);
@@ -153,7 +178,8 @@
 
   onMount(() => {
     stationMinutes = getStationMinutes();
-    const tick = setInterval(() => (now = Date.now()), 30_000);
+    wantLocation = getTripLocation();
+    const tick = setInterval(() => (now = Date.now()), 15_000);
     const id = new URLSearchParams(window.location.search).get("id");
     if (!id) {
       error = "No trip selected.";
@@ -166,7 +192,7 @@
       // Final trips (frozen by the job, or imported as past trips) never change again.
       if (!trip || trip.finalized_at || !isLiveWindow(trip.legs)) return;
       void refresh();
-      // While the page is open on the day of the trip, every two minutes —
+      // While the page is open on the day of the trip, every minute —
       // the web has no background service, so this is all it can do.
       timer = setInterval(() => {
         if (document.visibilityState !== "visible" || !trip) return;
@@ -259,11 +285,15 @@
     {/if}
 
     {#if day}
-      <TravelDayHero
-        {legs}
+      <LiveDashboard
+        {trip}
         {day}
+        {now}
         {stationMinutes}
         {reason}
+        {position}
+        {location}
+        onLocation={useLocation}
         settingsHref={`${base}/settings#device`}
         onAlternatives={() => alternativesSection?.reveal()}
       />
@@ -313,7 +343,10 @@
       </section>
 
       <aside class="space-y-4 lg:sticky lg:top-6">
-        <TripMap {legs} />
+        {#if !day || arrived}
+          <!-- While the trip is live the dashboard has the map, with you on it. -->
+          <TripMap {legs} />
+        {/if}
         <TicketCard
           bind:this={ticketCard}
           {trip}

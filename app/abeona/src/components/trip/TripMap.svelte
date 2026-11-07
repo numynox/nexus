@@ -1,14 +1,20 @@
 <script lang="ts">
   import { cssColor } from "../../lib/basemap";
   import { productFamily } from "../../lib/format";
+  import type { MapMarker } from "../../lib/progress";
   import type { Leg } from "../../lib/transit";
   import MapFrame from "../MapFrame.svelte";
 
   interface Props {
     legs: Leg[];
+    /** The traveller on the map; moves without the trip being drawn again. */
+    marker?: MapMarker | null;
+    /** The ride to frame (the one on board) instead of the whole trip. */
+    focus?: Leg | null;
   }
 
-  let { legs }: Props = $props();
+  let { legs, marker = null, focus = null }: Props = $props();
+  let markerLayer: import("leaflet").LayerGroup | null = null;
 
   let leaflet: typeof import("leaflet") | null = null;
   let map: import("leaflet").Map | null = null;
@@ -97,21 +103,67 @@
     if (first) fit();
   }
 
+  /** The ride in focus and the traveller on it, else the whole trip. */
+  function frame(): import("leaflet").LatLngBounds | null {
+    const L = leaflet;
+    if (!L) return bounds;
+    const pts = focus ? pointsOf(focus) : [];
+    if (pts.length < 2) return bounds;
+    const b = L.latLngBounds(pts);
+    if (marker) b.extend([marker.lat, marker.lon]);
+    return b;
+  }
+
   function fit() {
-    if (map && bounds) map.fitBounds(bounds, { padding: [36, 36], maxZoom: 13 });
+    const b = frame();
+    if (map && b) map.fitBounds(b, { padding: [36, 36], maxZoom: 13 });
+  }
+
+  function drawMarker() {
+    const L = leaflet;
+    if (!L || !map || !markerLayer) return;
+    markerLayer.clearLayers();
+    if (!marker) return;
+    const primary = cssColor("--color-primary", "#1f6f5c");
+    const card = cssColor("--ab-card", "#ffffff");
+    const at: [number, number] = [marker.lat, marker.lon];
+    L.circleMarker(at, { radius: 18, stroke: false, fillColor: primary, fillOpacity: 0.22, interactive: false }).addTo(markerLayer);
+    L.circleMarker(at, {
+      radius: 8,
+      color: marker.kind === "timetable" ? primary : card,
+      weight: 3,
+      fillColor: marker.kind === "timetable" ? card : primary,
+      fillOpacity: 1,
+    })
+      .bindTooltip(marker.kind === "timetable" ? "Where the timetable puts your train" : "You are here", {
+        direction: "top",
+        offset: [0, -8],
+        className: "abeona-map-label",
+      })
+      .addTo(markerLayer);
+    // Follow the traveller when they leave the view.
+    if (!map.getBounds().pad(-0.1).contains(at)) fit();
   }
 
   function ready(L: typeof import("leaflet"), created: import("leaflet").Map) {
     leaflet = L;
     map = created;
     layer = L.layerGroup().addTo(created);
+    markerLayer = L.layerGroup().addTo(created);
     draw();
+    drawMarker();
   }
 
   $effect(() => {
     // Redraw when live values change the legs (cancellations).
     void legs;
     draw();
+  });
+
+  $effect(() => {
+    void marker;
+    void focus;
+    drawMarker();
   });
 </script>
 
