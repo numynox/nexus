@@ -99,7 +99,13 @@ import io.github.numynox.nexus.abeona.domain.TravelDayKind
 import io.github.numynox.nexus.abeona.domain.alternativesOrigin
 import io.github.numynox.nexus.abeona.domain.alternativesReason
 import io.github.numynox.nexus.abeona.domain.travelDay
+import io.github.numynox.nexus.abeona.live.Background
 import io.github.numynox.nexus.abeona.live.LiveCompanion
+import io.github.numynox.nexus.abeona.live.evidence
+import io.github.numynox.nexus.abeona.ui.live.LiveDetails
+import io.github.numynox.nexus.abeona.ui.live.LiveNow
+import io.github.numynox.nexus.abeona.ui.live.LiveView
+import io.github.numynox.nexus.abeona.ui.live.liveView
 import io.github.numynox.nexus.abeona.live.LiveSignals
 import io.github.numynox.nexus.abeona.live.OnboardStatus
 import io.github.numynox.nexus.abeona.live.TripLocation
@@ -143,6 +149,7 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
     val people by viewModel.people.collectAsStateWithLifecycle()
     val companion by LiveCompanion.running.collectAsStateWithLifecycle()
     val settings by app.settings.collectAsStateWithLifecycle()
+    val currentSettings by androidx.compose.runtime.rememberUpdatedState(settings)
     val alternatives by viewModel.alternatives.collectAsStateWithLifecycle()
     val afterRide by viewModel.afterRide.collectAsStateWithLifecycle()
     val replacements by viewModel.replacements.collectAsStateWithLifecycle()
@@ -151,7 +158,8 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
     var recording by rememberSaveable { mutableStateOf(false) }
     val onboard by LiveSignals.onboard.collectAsStateWithLifecycle()
     val fix by LiveSignals.fix.collectAsStateWithLifecycle()
-    val now by rememberTicker()
+    // Every 15 s: the dashboard's countdowns and the train on its line move with it.
+    val now by rememberTicker(Duration.ofSeconds(15))
     var showAlternatives by rememberSaveable { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -162,11 +170,16 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
 
     LaunchedEffect(tripId) { viewModel.load() }
 
+
     // Two-minute refreshes only while the screen is in front.
     DisposableEffect(lifecycle, viewModel) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_RESUME -> viewModel.setVisible(true)
+                Lifecycle.Event.ON_RESUME -> {
+                    viewModel.setVisible(true)
+                    // Started by the alarm, the companion could not have the position: take it now.
+                    LiveCompanion.takeLocationIfAllowed(context, currentSettings.tripLocation)
+                }
                 Lifecycle.Event.ON_PAUSE -> viewModel.setVisible(false)
                 else -> Unit
             }
@@ -200,6 +213,23 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
         }
     }
 
+    // Opening a trip that is under way is enough to have it followed: the
+    // companion starts by itself (the app is in front, so Android allows it),
+    // unless it was stopped for this trip by hand.
+    val ready = (detail as? Loadable.Ready)?.value?.trip
+    val due = ready != null && settings.liveCompanion && Background.isDue(ready, settings.stationMinutes, now)
+    LaunchedEffect(due, companion) {
+        if (!due || companion != null || LiveCompanion.stoppedByHand.value == tripId) return@LaunchedEffect
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            // Asks once for the notification; the companion starts either way.
+            notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            runCatching { LiveCompanion.start(context, tripId) }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -227,12 +257,22 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                         if (!isLiveDay(trip, now)) {
                             null
                         } else {
-                            val day = travelDay(trip.legs, now, settings.stationMinutes, LiveSignals.forTrip(trip, now, onboard, fix))
+                            val signals = LiveSignals.forTrip(trip, now, onboard, fix)
+                            val day = travelDay(trip.legs, now, settings.stationMinutes, signals)
                             // Nothing to search once the only stop left is the destination.
                             val searchable = alternativesOrigin(trip.legs, day, now) != null
+                            val reason = alternativesReason(trip.legs, day).takeIf { searchable }
+                            val following = companion == tripId
+                            val locationOn = settings.tripLocation && TripLocation(context).hasPermission()
                             LiveDay(
-                                day, settings.stationMinutes, LiveSignals.onboardFor(trip, now, onboard),
-                                alternativesReason(trip.legs, day).takeIf { searchable }, searchable,
+                                liveView(
+                                    trip, day, now, settings.stationMinutes,
+                                    evidence(trip, day, now, onboard, fix, locationOn, following),
+                                    LiveSignals.onboardFor(trip, now, onboard),
+                                    signals.position,
+                                    reason,
+                                ),
+                                searchable,
                             )
                         }
                     },
@@ -351,13 +391,12 @@ private class AfterRideActions(
 
 /** The travel day as the trip screen shows it, while the trip is live. */
 private data class LiveDay(
-    val day: TravelDay,
-    val stationMinutes: Int,
-    val onboard: OnboardStatus?,
-    val reason: AlternativesReason?,
+    val view: LiveView,
     /** False once the only stop left is the destination: there is nothing to find another way to. */
     val searchable: Boolean,
-)
+) {
+    val day: TravelDay get() = view.day
+}
 
 @Composable
 private fun TripContent(
@@ -387,12 +426,7 @@ private fun TripContent(
     ) {
         item(key = "header") { TripHeader(detail) }
         live?.let { l ->
-            item(key = "travel-day") {
-                TravelDayHero(trip, l.day, l.stationMinutes, onboard = l.onboard, reason = l.reason, onAlternatives = onAlternatives)
-            }
-            if (askLocation && l.day.kind != TravelDayKind.Arrived) {
-                item(key = "location") { LocationPrompt(onAllow = onAllowLocation, onDismiss = onDismissLocation) }
-            }
+            item(key = "travel-day") { LiveNow(l.view, onAlternatives = onAlternatives) }
         }
         val over = trip.expectedArrival.plus(Duration.ofHours(1)).isBefore(java.time.Instant.now())
         if (!over && trainBindingLifted(trip.fareType, trip.trainBinding, arrivalDelay)) {
@@ -435,12 +469,23 @@ private fun TripContent(
                 }
             }
         }
+        live?.let { l ->
+            // The ticket and DB Navigator stay one tap from the top; the
+            // rest of the dashboard follows them.
+            item(key = "live-details") { LiveDetails(l.view) }
+            if (askLocation && l.day.kind != TravelDayKind.Arrived) {
+                item(key = "location") { LocationPrompt(onAllow = onAllowLocation, onDismiss = onDismissLocation) }
+            }
+        }
         afterRide?.let { a ->
             item(key = "compensation") { CompensationCard(trip, a.state, a.onStatus, a.onPrice, a.onForceMajeure) }
             item(key = "what-happened") { WhatHappenedCard(trip, a.state.busy, a.onRecord, a.onClear) }
         }
-        item(key = "map") {
-            TripMap(trip.legs, Modifier.fillMaxWidth().height(220.dp).padding(top = 4.dp))
+        // While the trip is live the dashboard has the map, with the traveller on it.
+        if (live == null || live.day.kind == TravelDayKind.Arrived) {
+            item(key = "map") {
+                TripMap(trip.legs, Modifier.fillMaxWidth().height(220.dp).padding(top = 4.dp))
+            }
         }
         item(key = "timeline-head") { SectionHeader("Your journey", supporting = timelineSummary(trip)) }
         trip.legs.forEachIndexed { index, leg ->

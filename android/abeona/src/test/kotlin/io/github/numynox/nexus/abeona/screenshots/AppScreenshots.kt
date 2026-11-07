@@ -82,9 +82,11 @@ class AppScreenshots {
         shot("03c-trip-alternatives")
         dismiss()
         scrollTo("Visit grandma in Bamberg")
+        // While the trip is live, the map is in the dashboard, above the timeline.
         scrollTo("Your journey")
-        shot("04-trip-map")
-        scrollTo("RE 10")
+        shot("04-trip-journey")
+        // The timeline's own button: the dashboard shows "RE 10" too.
+        scrollTo("2 stops")
         shot("05-trip-timeline")
         tap("2 stops")
         shot("06-trip-stopovers")
