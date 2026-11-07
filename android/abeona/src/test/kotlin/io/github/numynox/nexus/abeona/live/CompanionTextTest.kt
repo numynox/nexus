@@ -4,6 +4,7 @@ import io.github.numynox.nexus.abeona.data.AlertSettings
 import io.github.numynox.nexus.abeona.data.FareType
 import io.github.numynox.nexus.abeona.data.Leg
 import io.github.numynox.nexus.abeona.data.StopTime
+import io.github.numynox.nexus.abeona.data.Stopover
 import io.github.numynox.nexus.abeona.data.Trip
 import io.github.numynox.nexus.abeona.domain.Position
 import io.github.numynox.nexus.abeona.domain.TravelSignals
@@ -33,53 +34,85 @@ class CompanionTextTest {
 
     @Test
     fun beforeLeavingSaysWhenToLeave() {
-        assertEquals("Leave in 10 min · RE 4 → Frankfurt Hbf · Pl. 3 · departs in 25 min", companionStatus(trip, t0.minusSeconds(25 * 60)).text)
+        val status = companionStatus(trip, t0.minusSeconds(25 * 60))
+        assertEquals("Leave in 10 min", status.title)
+        assertEquals(listOf("RE 4 · Pl. 3 · 08:00 from Mainz Hbf", "15 min to the station"), status.lines)
+        assertEquals(t0.minusSeconds(15 * 60), status.countdownTo)
+        assertEquals("10 min", status.chip)
     }
 
     @Test
     fun atTheStationShowsPlatformAndCountdown() {
-        assertEquals("RE 4 → Frankfurt Hbf · Pl. 3 · departs in 10 min", companionStatus(trip, t0.minusSeconds(10 * 60)).text)
+        val status = companionStatus(trip, t0.minusSeconds(10 * 60))
+        assertEquals("Pl. 3 · RE 4 in 10 min", status.title)
+        assertEquals("to Frankfurt Hbf · departs 08:00", status.text)
+        assertEquals(t0, status.countdownTo)
+        assertEquals("Pl. 3", status.chip)
     }
 
     @Test
-    fun changingShowsTheNextTrain() {
-        assertEquals("ICE 25 → Würzburg Hbf · Pl. 7 · departs in 4 min", companionStatus(trip, t0.plusSeconds(44 * 60)).text)
+    fun changingShowsTheNextTrainAndTheMargin() {
+        val status = companionStatus(trip, t0.plusSeconds(44 * 60))
+        assertEquals("Pl. 7 · ICE 25 in 4 min", status.title)
+        assertEquals(listOf("to Würzburg Hbf · departs 08:48", "8 min to change · Safe · from Pl. 11"), status.lines)
     }
 
     @Test
     fun theTrainsWifiAddsTheSpeed() {
         val onboard = OnboardStatus("ICE Portal", "ICE", "25", 247.4, null, null, "Würzburg Hbf", null, "5", t0)
         val signals = TravelSignals(onboardLegIndex = 1)
-        assertEquals("ICE 25 → Würzburg Hbf · Pl. 5 · arrives 10:00 · 247 km/h", companionStatus(trip, t0.plusSeconds(60 * 60), signals = signals, onboard = onboard).text)
+        val status = companionStatus(trip, t0.plusSeconds(60 * 60), signals = signals, onboard = onboard)
+        assertEquals("Würzburg Hbf in 1 h", status.title)
+        assertEquals(listOf("Next stop: Würzburg Hbf", "Arrives 10:00 · Pl. 5", "ICE 25 · 247 km/h"), status.lines)
     }
 
     @Test
     fun standingAtTheChangeAfterTheTrainLeftLooksMissed() {
         val signals = TravelSignals(position = Position(50.1071, 8.6636, 0.0))
         val placed = trip.copy(legs = trip.legs.map { it.copy(from = it.from.copy(lat = 50.1071, lon = 8.6636)) })
-        assertEquals(
-            "Looks like you missed the ICE 25 · see alternatives in Abeona",
-            companionStatus(placed, t0.plusSeconds(52 * 60), signals = signals).text,
-        )
+        val status = companionStatus(placed, t0.plusSeconds(52 * 60), signals = signals)
+        assertEquals("Looks like you missed the ICE 25", status.title)
+        assertEquals("It left Frankfurt Hbf at 08:48 · see alternatives in Abeona", status.text)
+        assertEquals("Missed", status.chip)
         assertEquals("missed-1", missedAlert(placed, t0.plusSeconds(52 * 60), 15, signals, AlertSettings())?.key)
         assertEquals(null, missedAlert(placed, t0.plusSeconds(52 * 60), 15, signals, AlertSettings(connectionAtRisk = false)))
     }
 
     @Test
-    fun onBoardShowsTheChange() {
-        assertEquals("Safe · change in 12 min · RE 4 → Frankfurt Hbf · Pl. 7", companionStatus(trip, t0.plusSeconds(28 * 60)).text)
+    fun onBoardShowsTheChangeAhead() {
+        val status = companionStatus(trip, t0.plusSeconds(28 * 60))
+        assertEquals("Change at Frankfurt Hbf in 12 min", status.title)
+        assertEquals(listOf("Next stop: Frankfurt Hbf", "Then ICE 25 · Pl. 7 · 08:48 · 8 min to change (Safe)"), status.lines)
+        assertEquals(t0.plusSeconds(40 * 60), status.countdownTo)
+        assertEquals(0.7, status.progress!!.fraction, 1e-9)
     }
 
     @Test
-    fun aTightChangeLeadsTheLine() {
+    fun aTightChangeSaysSo() {
         val tight = trip.copy(legs = listOf(trip.legs[0], trip.legs[1].copy(from = trip.legs[1].from.copy(planned = at(46)))))
-        assertEquals("Tight · change in 12 min · RE 4 → Frankfurt Hbf · Pl. 7", companionStatus(tight, t0.plusSeconds(28 * 60)).text)
+        assertEquals("Then ICE 25 · Pl. 7 · 08:46 · 6 min to change (Tight)", companionStatus(tight, t0.plusSeconds(28 * 60)).lines[1])
+    }
+
+    @Test
+    fun onBoardCountsTheStopsLeft() {
+        val withStop = trip.copy(
+            legs = listOf(
+                trip.legs[0],
+                trip.legs[1].copy(stopovers = listOf(Stopover("a", "Aschaffenburg Hbf", plannedArrival = at(75), plannedDeparture = at(77)))),
+            ),
+        )
+        assertEquals("Next: Aschaffenburg Hbf 09:15 · 2 stops left", companionStatus(withStop, t0.plusSeconds(60 * 60)).text)
+        assertEquals("Now at Aschaffenburg Hbf · then Würzburg Hbf", companionStatus(withStop, t0.plusSeconds(76 * 60)).text)
+        assertEquals("Next stop: Würzburg Hbf", companionStatus(withStop, t0.plusSeconds(90 * 60)).text)
     }
 
     @Test
     fun lastRideShowsArrival() {
-        assertEquals("ICE 25 → Würzburg Hbf · Pl. 5 · arrives 10:00", companionStatus(trip, t0.plusSeconds(60 * 60)).text)
+        val status = companionStatus(trip, t0.plusSeconds(60 * 60))
+        assertEquals("Würzburg Hbf in 1 h", status.title)
+        assertEquals("Arrives 10:00 · Pl. 5", status.lines[1])
         assertTrue(companionStatus(trip, t0.plusSeconds(121 * 60)).finished)
+        assertEquals("Arrived at Würzburg Hbf", companionStatus(trip, t0.plusSeconds(121 * 60)).title)
     }
 
     @Test

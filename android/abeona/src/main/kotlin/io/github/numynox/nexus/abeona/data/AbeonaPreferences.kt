@@ -22,10 +22,12 @@ data class AbeonaSettings(
     val themeMode: ThemeMode = ThemeMode.System,
     val dynamicColor: Boolean = false,
     /**
-     * Start the live companion on its own, half an hour before a departure.
-     * Per phone and off by default: it keeps a notification up for the ride.
+     * Start the live companion on its own before a departure (Background.lead:
+     * the time to the station plus a quarter of an hour, at least half an
+     * hour). Per phone and on by default: following the ride is what the app
+     * is for, and it is one tap to stop.
      */
-    val liveCompanion: Boolean = false,
+    val liveCompanion: Boolean = true,
     /** Notify before a BahnCard subscription's cancellation deadline. Per phone and off by default. */
     val bahnCardReminder: Boolean = false,
     /** Notify about compensation to claim, and before its deadline. Per phone and off by default. */
@@ -91,7 +93,7 @@ class AbeonaPreferences(private val context: Context) {
     private fun Preferences.toSettings() = AbeonaSettings(
         themeMode = ThemeMode.entries.firstOrNull { it.name == this[Keys.ThemeMode] } ?: ThemeMode.System,
         dynamicColor = this[Keys.DynamicColor] ?: false,
-        liveCompanion = this[Keys.LiveCompanion] ?: false,
+        liveCompanion = this[Keys.LiveCompanion] ?: true,
         bahnCardReminder = this[Keys.BahnCardReminder] ?: false,
         claimReminder = this[Keys.ClaimReminder] ?: false,
         stationMinutes = this[Keys.StationMinutes]?.takeIf { it in 0..180 } ?: TravelDayRules.DEFAULT_STATION_MINUTES,

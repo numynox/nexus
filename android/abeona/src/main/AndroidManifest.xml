@@ -14,6 +14,15 @@
          (Android 16+: pinned at the top, a chip in the status bar). -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
+    <!-- The companion starts by itself before a departure from an exact alarm:
+         Android 12+ lets a foreground service start from one, not from a
+         background job. USE_EXACT_ALARM is granted on install (13+); the app
+         is sideloaded, so Play's restriction on it does not apply. Android 12
+         asks for SCHEDULE_EXACT_ALARM instead. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission
+        android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:maxSdkVersion="32" />
 
     <!-- Optional, asked for on the trip screen: the phone's position while the
          live companion runs (near a stop, moving along the line, missed the
@@ -61,7 +70,12 @@
             </intent-filter>
         </activity>
 
-        <!-- Refreshes the trip every two minutes during a ride; with the
+        <!-- Starts the live companion before a departure (live/Background.kt). -->
+        <receiver
+            android:name=".live.CompanionAlarmReceiver"
+            android:exported="false" />
+
+        <!-- Refreshes the trip every minute during a ride; with the
              "Use location during a trip" setting it also follows the
              phone's position, only while it runs. -->
         <service

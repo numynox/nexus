@@ -38,13 +38,16 @@ import kotlinx.coroutines.launch
 
 /**
  * The live companion: during a trip, the phone itself polls the Edge Function
- * every two minutes, writes the live values back, and keeps one ongoing
- * notification current with the travel day — with a heads-up for the news
- * the alert settings ask for (delay, platform change, cancellation, a change
- * at risk or missed, the train binding lifted). Every 30 seconds it also
- * looks at the train's Wi-Fi and, if allowed, the phone's position. There is
- * no server-side monitoring (decisions/2026-11-02-abeona-train-companion.md,
- * decisions/2026-11-03-abeona-fare-rules-and-device-signals.md).
+ * every minute (as often as its cache lets a refresh be new), writes the live
+ * values back, and keeps one ongoing notification current with the travel
+ * day — with a heads-up for the news the alert settings ask for (delay,
+ * platform change, cancellation, a change at risk or missed, the train
+ * binding lifted). Every 15 seconds it also looks at the train's Wi-Fi and,
+ * if allowed, the phone's position; between those the notification's clock
+ * counts down by itself. There is no server-side monitoring
+ * (decisions/2026-11-02-abeona-train-companion.md,
+ * decisions/2026-11-03-abeona-fare-rules-and-device-signals.md,
+ * decisions/2026-11-07-abeona-companion-dashboard.md).
  */
 object LiveCompanion {
     internal const val CHANNEL_LIVE = "live"
@@ -54,9 +57,10 @@ object LiveCompanion {
     private const val ACTION_STOP = "io.github.numynox.nexus.abeona.live.STOP"
     private const val EXTRA_TRIP = "trip_id"
 
-    val REFRESH_EVERY: Duration = Duration.ofMinutes(2)
+    /** The Edge Function keeps a refresh for 60 s (abeona-transit/cache.ts): asking more often brings nothing new. */
+    val REFRESH_EVERY: Duration = Duration.ofMinutes(1)
     /** How often the signals (on-board Wi-Fi, position) and the notification are looked at between refreshes. */
-    val TICK: Duration = Duration.ofSeconds(30)
+    val TICK: Duration = Duration.ofSeconds(15)
     /** How long after the final arrival the companion stays, for a late train's last minutes. */
     val LINGER: Duration = Duration.ofMinutes(15)
     /** The longest the companion keeps the CPU awake; Android 15 stops a dataSync service after six hours anyway. */
@@ -70,12 +74,40 @@ object LiveCompanion {
         _running.value = tripId
     }
 
+    private val _hasLocation = MutableStateFlow(false)
+    /** The companion follows the phone's position too (it was allowed to when it started). */
+    val hasLocation: StateFlow<Boolean> = _hasLocation.asStateFlow()
+
+    internal fun setHasLocation(value: Boolean) {
+        _hasLocation.value = value
+    }
+
+    /**
+     * With the app in front: a companion that started from the background
+     * (the alarm), where Android refuses it the position, starts again to
+     * pick it up, if the setting asks for it.
+     */
+    fun takeLocationIfAllowed(context: Context, tripLocation: Boolean) {
+        val tripId = running.value ?: return
+        if (!tripLocation || hasLocation.value || !TripLocation(context).hasPermission()) return
+        start(context, tripId)
+    }
+
     fun start(context: Context, tripId: String) {
         ContextCompat.startForegroundService(context, intent(context, ACTION_START).putExtra(EXTRA_TRIP, tripId))
     }
 
+    private val _stoppedByHand = MutableStateFlow<String?>(null)
+    /** The trip whose companion was stopped by hand: opening it again does not start it again. */
+    val stoppedByHand: StateFlow<String?> = _stoppedByHand.asStateFlow()
+
+    /** Stops following, by hand (the trip screen, the notification's Stop): it stays off for this trip. */
     fun stop(context: Context) {
         context.startService(intent(context, ACTION_STOP))
+    }
+
+    internal fun markStoppedByHand() {
+        _stoppedByHand.value = running.value
     }
 
     private fun intent(context: Context, action: String) = Intent(context, LiveCompanionService::class.java).setAction(action)
@@ -100,17 +132,31 @@ object LiveCompanion {
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
-    /** The ongoing notification for [status]; built here so the screenshot test draws the real one. */
-    fun ongoing(context: Context, tripId: String?, status: CompanionStatus, updated: Instant?): Notification {
+    /**
+     * The ongoing notification for [status]; built here so the screenshot
+     * test draws the real one. [source] says what placed the traveller
+     * ("Train Wi-Fi", "Location", "Timetable"), next to when it was updated.
+     */
+    fun ongoing(context: Context, tripId: String?, status: CompanionStatus, updated: Instant?, source: String? = null): Notification {
         val stop = PendingIntent.getService(context, 1, intent(context, ACTION_STOP), PendingIntent.FLAG_IMMUTABLE)
-        return NotificationCompat.Builder(context, CHANNEL_LIVE)
+        val countdown = status.countdownTo?.takeIf { it.isAfter(Instant.now()) }
+        val builder = NotificationCompat.Builder(context, CHANNEL_LIVE)
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(ContextCompat.getColor(context, R.color.abeona_green))
             .setContentTitle(status.title)
             .setContentText(status.text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(status.text))
-            .setSubText(updated?.let { "Live · ${TripFormat.time(it)}" })
-            .setShowWhen(false)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(status.lines.joinToString("\n")))
+            .setSubText(listOfNotNull(source, updated?.let { "Live ${TripFormat.time(it)}" }).joinToString(" · ").ifEmpty { null })
+        // The clock in the header counts down to the next thing by itself,
+        // to the second, between the companion's ticks.
+        if (countdown != null) {
+            builder.setWhen(countdown.toEpochMilli()).setShowWhen(true).setUsesChronometer(true).setChronometerCountDown(true)
+        } else {
+            builder.setShowWhen(false)
+        }
+        // How far along the ride on board: the stops behind, the stops ahead.
+        status.progress?.let { builder.setProgress(1000, (it.fraction * 1000).toInt(), false) }
+        return builder
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setSilent(true)
@@ -150,8 +196,19 @@ object LiveCompanion {
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(ContextCompat.getColor(context, R.color.abeona_green))
             .setContentTitle("${trip.displayTitle} ${TripFormat.relative(minutes)}")
-            .setContentText("Tap to follow it live: platform, delay and your changes.")
+            .setContentText("Android did not let Abeona start following it. Tap Follow live.")
             .setContentIntent(openTrip(context, trip.id))
+            // A tap on a notification may start a foreground service.
+            .addAction(
+                0,
+                "Follow live",
+                PendingIntent.getForegroundService(
+                    context,
+                    trip.id.hashCode(),
+                    intent(context, ACTION_START).putExtra(EXTRA_TRIP, trip.id),
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+                ),
+            )
             .setAutoCancel(true)
             .build()
         NotificationManagerCompat.from(context).notify(trip.id.hashCode(), notification)
@@ -180,6 +237,7 @@ class LiveCompanionService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         LiveCompanion.createChannels(this)
         val tripId = LiveCompanion.tripIdOf(intent)
+        if (!LiveCompanion.isStart(intent)) LiveCompanion.markStoppedByHand()
         if (!LiveCompanion.isStart(intent) || tripId == null) {
             finish()
             return START_NOT_STICKY
@@ -200,6 +258,9 @@ class LiveCompanionService : Service() {
             ServiceCompat.startForeground(this, LiveCompanion.ONGOING_ID, placeholder, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         }
         LiveCompanion.setRunning(tripId)
+        LiveCompanion.setHasLocation(withLocation)
+        // The reminder that asked for a tap, if Android refused the start before.
+        NotificationManagerCompat.from(this).cancel(tripId.hashCode())
         wakeLock.acquire(LiveCompanion.MAX_AWAKE.toMillis())
         posted.clear()
         following?.cancel()
@@ -247,7 +308,10 @@ class LiveCompanionService : Service() {
             missedAlert(trip, now, settings.stationMinutes, signals, settings.alerts)?.takeIf { posted.add(it.key) }?.let { post(tripId, it) }
             val status = companionStatus(trip, now, settings.stationMinutes, signals, LiveSignals.onboardFor(trip, now))
             if (LiveCompanion.canNotify(this)) {
-                NotificationManagerCompat.from(this).notify(LiveCompanion.ONGOING_ID, LiveCompanion.ongoing(this, tripId, status, updated))
+                NotificationManagerCompat.from(this).notify(
+                    LiveCompanion.ONGOING_ID,
+                    LiveCompanion.ongoing(this, tripId, status, updated, sourceLabel(trip, now, settings.stationMinutes, signals)),
+                )
             }
             if (status.finished && now.isAfter(trip.expectedArrival.plus(LiveCompanion.LINGER))) return finish()
             delay(LiveCompanion.TICK.toMillis())
@@ -264,6 +328,7 @@ class LiveCompanionService : Service() {
         location.stop()
         LiveSignals.clear()
         LiveCompanion.setRunning(null)
+        LiveCompanion.setHasLocation(false)
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -281,6 +346,7 @@ class LiveCompanionService : Service() {
         releaseWakeLock()
         location.stop()
         LiveCompanion.setRunning(null)
+        LiveCompanion.setHasLocation(false)
         scope.cancel()
         super.onDestroy()
     }
