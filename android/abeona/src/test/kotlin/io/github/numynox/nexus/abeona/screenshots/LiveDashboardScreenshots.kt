@@ -112,7 +112,7 @@ class LiveDashboardScreenshots {
 
     @Test fun changing() = shot("59f-live-changing", "Changing at Würzburg", 77)
 
-    @Test fun lastRide() = shot("59g-live-last-ride", "The last ride, standing at Schweinfurt", 125)
+    @Test fun lastRide() = shot("59g-live-last-ride", "The last ride, standing at Schweinfurt", 128)
 
     @Test fun missed() = shot(
         "59h-live-missed", "Still at Würzburg after the RE 10 left · by the position", 86,
