@@ -506,12 +506,16 @@ Things that differ from the web on purpose:
   (`files/offline/trips.json`) plus ticket copies in `files/tickets/<trip_id>/`;
   screens fall back to it when the network fails and say "Offline · updated
   HH:mm". The **live companion** (`live/`) is a `dataSync` foreground service
-  that refreshes the trip every two minutes and keeps an ongoing notification,
-  with alerts only for changes it sees after its first refresh. An optional,
-  device-local auto-start (off by default) schedules WorkManager jobs for 30
-  minutes before departure. Android 12+ may refuse a background start, so it
-  then posts a "tap to follow it live" notification instead; Android 15's
-  six-hour daily dataSync limit makes it stop itself. The **Next trip** Glance
+  that refreshes the trip every minute and keeps an ongoing notification
+  (title, next stop, next change, a countdown clock and the ride's progress
+  bar), with alerts only for changes it sees after its first refresh. The
+  device-local auto-start (on by default) is an **exact alarm**
+  (`USE_EXACT_ALARM`) at the time to the station plus 15 minutes, at least
+  30, before departure: Android 12+ lets a foreground service start from an
+  exact alarm but not from a WorkManager job. Opening the app or the trip
+  during the ride starts it as well; if Android still refuses, a reminder
+  with a "Follow live" button does it. Android 15's six-hour daily dataSync
+  limit makes it stop itself (`decisions/2026-11-07-abeona-companion-dashboard.md`). The **Next trip** Glance
   widget keeps the last good trip without its route and computes delays and
   confidence when it draws. Tickets go through supabase-kt's Storage plugin,
   installed on core's shared client (with an in-memory resumable-upload cache,
@@ -526,9 +530,14 @@ Things that differ from the web on purpose:
   Wi-Fi network itself with short timeouts) and, with its setting, the
   position (`TripLocation`, `LocationManager`, only while the companion runs,
   which then adds the `location` service type when Android allows it). The
-  companion looks at both every 30 s and refreshes every two minutes; its
+  companion looks at both every 15 s and refreshes every minute; its
   alerts follow device-local settings, and a WorkManager **time to leave**
   reminder (`reminders/LeaveReminder.kt`) moves itself if the train is late.
+  The trip screen's **live dashboard** (`ui/live/LiveDashboard.kt`, the web's
+  `components/live/LiveDashboard.svelte`) reads the travel day, the **ride
+  progress** (`domain/RideProgress.kt`, `progress.ts`,
+  `progress.fixtures.json`: next stop, stops left, where the timetable puts
+  the train on its line) and each signal's say (`live/Evidence.kt`).
   The year in review adds the map of everything travelled (MapLibre, not
   interactive inside the pager, the schematic fallback in tests), CO₂ saved
   and countries; a journey found for a past date is saved as a past trip with
