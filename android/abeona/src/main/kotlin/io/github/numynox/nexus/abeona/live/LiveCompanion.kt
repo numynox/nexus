@@ -137,9 +137,9 @@ object LiveCompanion {
      * test draws the real one. [source] says what placed the traveller
      * ("Train Wi-Fi", "Location", "Timetable"), next to when it was updated.
      */
-    fun ongoing(context: Context, tripId: String?, status: CompanionStatus, updated: Instant?, source: String? = null): Notification {
+    fun ongoing(context: Context, tripId: String?, status: CompanionStatus, updated: Instant?, source: String? = null, now: Instant = Instant.now()): Notification {
         val stop = PendingIntent.getService(context, 1, intent(context, ACTION_STOP), PendingIntent.FLAG_IMMUTABLE)
-        val countdown = status.countdownTo?.takeIf { it.isAfter(Instant.now()) }
+        val countdown = status.countdownTo?.takeIf { it.isAfter(now) }
         val builder = NotificationCompat.Builder(context, CHANNEL_LIVE)
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(ContextCompat.getColor(context, R.color.abeona_green))
@@ -154,8 +154,6 @@ object LiveCompanion {
         } else {
             builder.setShowWhen(false)
         }
-        // How far along the ride on board: the stops behind, the stops ahead.
-        status.progress?.let { builder.setProgress(1000, (it.fraction * 1000).toInt(), false) }
         return builder
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -191,12 +189,18 @@ object LiveCompanion {
     fun remind(context: Context, trip: Trip) {
         if (!canNotify(context)) return
         createChannels(context)
-        val minutes = Duration.between(Instant.now(), trip.expectedDeparture).toMinutes().coerceAtLeast(0)
-        val notification = NotificationCompat.Builder(context, CHANNEL_ALERTS)
+        NotificationManagerCompat.from(context).notify(trip.id.hashCode(), reminder(context, trip))
+    }
+
+    /** The reminder itself, with its "Follow live" button; built here so the screenshot test draws the real one. */
+    fun reminder(context: Context, trip: Trip, now: Instant = Instant.now()): Notification {
+        val minutes = Duration.between(now, trip.expectedDeparture).toMinutes().coerceAtLeast(0)
+        return NotificationCompat.Builder(context, CHANNEL_ALERTS)
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(ContextCompat.getColor(context, R.color.abeona_green))
             .setContentTitle("${trip.displayTitle} ${TripFormat.relative(minutes)}")
-            .setContentText("Android did not let Abeona start following it. Tap Follow live.")
+            .setContentText("Tap Follow live for when to leave, the platform, the next stop and your changes.")
+            .setShowWhen(false)
             .setContentIntent(openTrip(context, trip.id))
             // A tap on a notification may start a foreground service.
             .addAction(
@@ -211,7 +215,6 @@ object LiveCompanion {
             )
             .setAutoCancel(true)
             .build()
-        NotificationManagerCompat.from(context).notify(trip.id.hashCode(), notification)
     }
 }
 

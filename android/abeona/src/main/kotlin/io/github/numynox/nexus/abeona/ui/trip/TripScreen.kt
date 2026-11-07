@@ -279,6 +279,17 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                     askLocation = !settings.tripLocation && !settings.locationAsked,
                     onAllowLocation = { locationPermission.launch(TripLocation.PERMISSIONS) },
                     onDismissLocation = app::dismissLocationPrompt,
+                    onUseLocation = {
+                        when {
+                            !TripLocation(context).hasPermission() -> locationPermission.launch(TripLocation.PERMISSIONS)
+                            !settings.tripLocation -> {
+                                app.setTripLocation(true)
+                                if (companion == tripId) LiveCompanion.start(context, tripId)
+                            }
+                            // The setting and permission are there: the companion is what follows the position.
+                            companion != tripId -> runCatching { LiveCompanion.start(context, tripId) }
+                        }
+                    },
                     onAlternatives = {
                         showAlternatives = true
                         if (alternatives?.result == null && alternatives?.loading != true) viewModel.findAlternatives()
@@ -405,6 +416,8 @@ private fun TripContent(
     askLocation: Boolean,
     onAllowLocation: () -> Unit,
     onDismissLocation: () -> Unit,
+    /** "Use" on the dashboard's Location row: the setting, the permission, the companion. */
+    onUseLocation: () -> Unit,
     onAlternatives: () -> Unit,
     people: TripPeople?,
     afterRide: AfterRideActions?,
@@ -472,7 +485,7 @@ private fun TripContent(
         live?.let { l ->
             // The ticket and DB Navigator stay one tap from the top; the
             // rest of the dashboard follows them.
-            item(key = "live-details") { LiveDetails(l.view) }
+            item(key = "live-details") { LiveDetails(l.view, onUseLocation = onUseLocation) }
             if (askLocation && l.day.kind != TravelDayKind.Arrived) {
                 item(key = "location") { LocationPrompt(onAllow = onAllowLocation, onDismiss = onDismissLocation) }
             }

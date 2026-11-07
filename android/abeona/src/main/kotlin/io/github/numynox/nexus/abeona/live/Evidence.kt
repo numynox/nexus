@@ -75,8 +75,8 @@ fun evidence(
 
     val position = fix?.takeIf { Duration.between(it.at, now) <= LiveSignals.FRESH }?.position
     val location = when {
-        !locationOn -> Evidence(EvidenceKind.Location, EvidenceState.Off, "Location", "Off · turn it on in Settings to confirm where you are")
-        !companionRunning -> Evidence(EvidenceKind.Location, EvidenceState.Off, "Location", "Followed only while the live companion runs")
+        !locationOn -> Evidence(EvidenceKind.Location, EvidenceState.Off, "Location", "Off · use it to see where you are on the map")
+        !companionRunning -> Evidence(EvidenceKind.Location, EvidenceState.Off, "Location", "Followed while the live companion runs: start it to use it")
         position == null -> Evidence(EvidenceKind.Location, EvidenceState.Silent, "Location", "Waiting for a position fix")
         else -> {
             val state = if (day.source == TravelDaySource.Location) EvidenceState.Decides else EvidenceState.Agrees

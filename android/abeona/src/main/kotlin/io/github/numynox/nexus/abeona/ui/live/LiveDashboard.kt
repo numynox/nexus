@@ -141,10 +141,16 @@ fun liveView(
  * how Abeona knows which train the traveller is on.
  */
 @Composable
-fun LiveDashboard(view: LiveView, modifier: Modifier = Modifier, onAlternatives: (() -> Unit)? = null, showMap: Boolean = true) {
+fun LiveDashboard(
+    view: LiveView,
+    modifier: Modifier = Modifier,
+    onAlternatives: (() -> Unit)? = null,
+    showMap: Boolean = true,
+    onUseLocation: (() -> Unit)? = null,
+) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         LiveNow(view, onAlternatives = onAlternatives)
-        LiveDetails(view, showMap = showMap)
+        LiveDetails(view, showMap = showMap, onUseLocation = onUseLocation)
     }
 }
 
@@ -160,7 +166,7 @@ fun LiveNow(view: LiveView, modifier: Modifier = Modifier, onAlternatives: (() -
  * the journey and how Abeona knows. Nothing once arrived.
  */
 @Composable
-fun LiveDetails(view: LiveView, modifier: Modifier = Modifier, showMap: Boolean = true) {
+fun LiveDetails(view: LiveView, modifier: Modifier = Modifier, showMap: Boolean = true, onUseLocation: (() -> Unit)? = null) {
     val day = view.day
     if (day.kind == TravelDayKind.Arrived) return
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -177,7 +183,7 @@ fun LiveDetails(view: LiveView, modifier: Modifier = Modifier, showMap: Boolean 
         }
         if (day.kind == TravelDayKind.OnBoard && view.change != null) ChangeCard(view.trip, view.change, view.now)
         JourneyStrip(view.trip, day)
-        EvidenceCard(view.evidence, day)
+        EvidenceCard(view.evidence, day, onUseLocation)
     }
 }
 
@@ -703,7 +709,7 @@ private fun JourneyStrip(trip: Trip, day: TravelDay) {
 
 /** Each signal with its icon: the one that decided lit, the others saying what they see. */
 @Composable
-private fun EvidenceCard(evidence: List<Evidence>, day: TravelDay) {
+private fun EvidenceCard(evidence: List<Evidence>, day: TravelDay, onUseLocation: (() -> Unit)?) {
     val scheme = MaterialTheme.colorScheme
     DashCard {
         Label(
@@ -735,6 +741,12 @@ private fun EvidenceCard(evidence: List<Evidence>, day: TravelDay) {
                 Column(Modifier.weight(1f)) {
                     Text(e.title, style = MaterialTheme.typography.titleSmall.copy(fontWeight = if (decides) FontWeight.SemiBold else FontWeight.Medium))
                     Text(e.detail, style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+                }
+                if (e.kind == EvidenceKind.Location && e.state == EvidenceState.Off && onUseLocation != null) {
+                    androidx.compose.material3.FilledTonalButton(
+                        onClick = onUseLocation,
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+                    ) { Text("Use") }
                 }
                 if (decides) {
                     Surface(color = scheme.primaryContainer, contentColor = scheme.onPrimaryContainer, shape = CircleShape) {
