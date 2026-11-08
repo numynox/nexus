@@ -21,6 +21,7 @@ import io.github.numynox.nexus.core.data.isNetworkFailure
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -101,6 +102,52 @@ object Background {
         }
         CompanionAlarm.set(context, next.id, startAt(next, settings.stationMinutes))
     }
+}
+
+/** What the trip screen offers for the live companion (live/Background.kt: companionOffer). */
+sealed interface CompanionOffer {
+    /** It follows this trip: "Stop". */
+    data object Running : CompanionOffer
+
+    /** It will start by itself at [at] (or now, when that has passed): small print, no button. */
+    data class Automatic(val at: Instant) : CompanionOffer
+
+    /** It does not start by itself (the setting is off, or it was stopped by hand): "Start". */
+    data object Manual : CompanionOffer
+
+    /** Not now: too early (another day) or the trip is over. */
+    data object Hidden : CompanionOffer
+}
+
+/** Trips leaving before this local time can be followed from the evening before. */
+val EARLY_DEPARTURE: LocalTime = LocalTime.of(3, 0)
+
+/**
+ * The companion's offer for [trip]: running, starting by itself, startable
+ * by hand, or nothing. By hand only on the travel day, from the evening
+ * before for a departure before 03:00, and while the trip is under way; never
+ * later than [LiveCompanion.LINGER] after the arrival.
+ */
+fun companionOffer(
+    trip: Trip,
+    now: Instant,
+    autoStart: Boolean,
+    stationMinutes: Int,
+    running: Boolean,
+    stoppedByHand: Boolean,
+    zone: ZoneId = ZoneId.systemDefault(),
+): CompanionOffer {
+    if (running) return CompanionOffer.Running
+    if (!LiveCompanion.canFollow(trip, now) || trip.legs.none { !it.isWalk }) return CompanionOffer.Hidden
+    // After the arrival nothing starts it by itself any more: by hand, until it is too late.
+    if (autoStart && !stoppedByHand && trip.expectedArrival.isAfter(now)) return CompanionOffer.Automatic(Background.startAt(trip, stationMinutes))
+    val departure = trip.expectedDeparture.atZone(zone)
+    val today = now.atZone(zone).toLocalDate()
+    val day = departure.toLocalDate()
+    val onTheDay = today == day ||
+        (today == day.minusDays(1) && departure.toLocalTime().isBefore(EARLY_DEPARTURE)) ||
+        !now.isBefore(trip.expectedDeparture)
+    return if (onTheDay) CompanionOffer.Manual else CompanionOffer.Hidden
 }
 
 /** The one alarm that starts the companion. */

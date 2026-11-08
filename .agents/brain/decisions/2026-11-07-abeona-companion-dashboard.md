@@ -56,6 +56,25 @@ by itself, and when it ran it was not useful enough:
   turned on there. A first version had this as a card at the end of the
   dashboard; it repeated the pill every time for something read only when
   Abeona seems wrong, so it moved behind the pill before it shipped.
+- **The notification alerts, silently.** (2026-11-08) Its first channel was
+  `IMPORTANCE_LOW`, which Android files as a silent notification and by
+  default leaves off the lock screen, the always-on display and the status
+  bar: it showed only in the unlocked shade. The channel is now
+  `live-companion` at default importance with no sound or vibration and
+  public on the lock screen (the old `live` channel is deleted, since a
+  channel's importance cannot be raised). `setSilent` is gone too: it puts the
+  notification into a group. A Live Update on Android 16 QPR+/17 must request
+  promotion, be ongoing, have a title, use a standard, BigText, Call or
+  Progress style, not be a group summary, have no custom views and not be
+  colorized (the first Android 16 release wanted colorized instead);
+  `OngoingNotificationTest` pins these. The user can still turn Live Updates
+  off for the app; the trip screen then says so with a way to turn them on.
+- **The trip screen's companion button only where it does something.**
+  (2026-11-08) With auto-start on, small print says when Abeona starts
+  following the trip, and there is no Start button. By hand (setting off, or
+  stopped by hand for this trip) it is offered on the travel day only, from
+  the evening before for a departure before 03:00, and while the trip runs
+  (`companionOffer`, `CompanionOfferTest`).
 - **The web gets the same dashboard**, with the browser's position while the
   page is open and the traveller asked for it (device-local, off by default).
   The train's Wi-Fi stays Android-only.

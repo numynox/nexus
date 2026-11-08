@@ -81,7 +81,8 @@ class AppScreenshots {
         dismiss()
         scrollTo("Know where you are on the trip")
         shot("03b-trip-location-prompt")
-        scrollTo("Start live companion")
+        // Auto-start is on: small print says when, there is no Start button.
+        scrollTo("Alternatives")
         tap("Alternatives")
         waitForText("Needs another ticket")
         shot("03c-trip-alternatives")

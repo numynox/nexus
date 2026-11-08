@@ -29,12 +29,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.getAndUpdate
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * The live companion: during a trip, the phone itself polls the Edge Function
@@ -50,7 +53,15 @@ import kotlinx.coroutines.launch
  * decisions/2026-11-07-abeona-companion-dashboard.md).
  */
 object LiveCompanion {
-    internal const val CHANNEL_LIVE = "live"
+    /**
+     * The ongoing notification's channel. "live" was IMPORTANCE_LOW: Android
+     * files that as a silent notification and, by default, leaves it off the
+     * lock screen, the always-on display and the status bar, which is where
+     * the companion is needed. A channel's importance cannot be raised once it
+     * exists, so this is a new one, and "live" is deleted.
+     */
+    internal const val CHANNEL_LIVE = "live-companion"
+    private const val OLD_CHANNEL_LIVE = "live"
     internal const val CHANNEL_ALERTS = "alerts"
     internal const val ONGOING_ID = 7
     private const val ACTION_START = "io.github.numynox.nexus.abeona.live.START"
@@ -61,8 +72,12 @@ object LiveCompanion {
     val REFRESH_EVERY: Duration = Duration.ofMinutes(1)
     /** How often the signals (on-board Wi-Fi, position) and the notification are looked at between refreshes. */
     val TICK: Duration = Duration.ofSeconds(15)
-    /** How long after the final arrival the companion stays, for a late train's last minutes. */
-    val LINGER: Duration = Duration.ofMinutes(15)
+    /**
+     * How long after the expected arrival the companion stays, for a late
+     * train's last minutes and the way out of the station; then it stops, and
+     * it cannot be started for that trip again.
+     */
+    val LINGER: Duration = Duration.ofMinutes(30)
     /** The longest the companion keeps the CPU awake; Android 15 stops a dataSync service after six hours anyway. */
     val MAX_AWAKE: Duration = Duration.ofHours(6)
 
@@ -117,8 +132,17 @@ object LiveCompanion {
 
     fun createChannels(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
+        manager.deleteNotificationChannel(OLD_CHANNEL_LIVE)
+        // Default importance, so it counts as an alerting notification (lock
+        // screen, always-on display, status bar icon), but without a sound or
+        // vibration of its own: it updates every 15 seconds.
         manager.createNotificationChannel(
-            NotificationChannel(CHANNEL_LIVE, context.getString(R.string.companion_channel), NotificationManager.IMPORTANCE_LOW),
+            NotificationChannel(CHANNEL_LIVE, context.getString(R.string.companion_channel), NotificationManager.IMPORTANCE_DEFAULT).apply {
+                setSound(null, null)
+                enableVibration(false)
+                setShowBadge(false)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            },
         )
         manager.createNotificationChannel(
             NotificationChannel(CHANNEL_ALERTS, context.getString(R.string.alerts_channel), NotificationManager.IMPORTANCE_HIGH),
@@ -146,7 +170,7 @@ object LiveCompanion {
             .setContentTitle(status.title)
             .setContentText(status.text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(status.lines.joinToString("\n")))
-            .setSubText(listOfNotNull(source, updated?.let { "Live ${TripFormat.time(it)}" }).joinToString(" · ").ifEmpty { null })
+            .setSubText(listOfNotNull(source, updated?.let { freshness(it, now) }).joinToString(" · ").ifEmpty { null })
         // The clock in the header counts down to the next thing by itself,
         // to the second, between the companion's ticks.
         if (countdown != null) {
@@ -157,8 +181,13 @@ object LiveCompanion {
         return builder
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setSilent(true)
+            // No setSilent: NotificationCompat does that by putting the
+            // notification into a group named "silent" and muting the group.
+            // The channel has no sound or vibration instead, and the
+            // notification stays a plain ongoing one, as a Live Update must be.
             .setCategory(NotificationCompat.CATEGORY_NAVIGATION)
+            // Platform, train and times are not sensitive: show all of it locked.
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             // A Live Update on Android 16+: kept at the top of the shade, on the
             // lock screen, and as a chip in the status bar, like a navigation app's.
             .setRequestPromotedOngoing(true)
@@ -167,6 +196,16 @@ object LiveCompanion {
             .addAction(0, "Stop", stop)
             .build()
     }
+
+    /** Until [LINGER] after the expected arrival: after that the companion stops, and cannot be started again. */
+    fun canFollow(trip: Trip, now: Instant): Boolean = trip.expectedArrival.plus(LINGER).isAfter(now)
+
+    /** Live values older than this are said to be old, so a failing refresh does not look live. */
+    val STALE_AFTER: Duration = Duration.ofMinutes(3)
+
+    /** "Live 10:00", or "Not updated since 10:00" when the refreshes stopped getting through. */
+    internal fun freshness(updated: Instant, now: Instant): String =
+        if (Duration.between(updated, now) > STALE_AFTER) "Not updated since ${TripFormat.time(updated)}" else "Live ${TripFormat.time(updated)}"
 
     fun alert(context: Context, tripId: String, alert: CompanionAlert): Notification =
         NotificationCompat.Builder(context, CHANNEL_ALERTS)
@@ -289,35 +328,60 @@ class LiveCompanionService : Service() {
         val container = (application as AbeonaApplication).container
         container.core.auth.awaitUserId() ?: return finish()
         var trip = runCatching { container.trips.trip(tripId).value }.getOrNull() ?: return finish()
+        // Too late to start (a tapped reminder, a restart by Android): the trip is over.
+        if (!LiveCompanion.canFollow(trip, Instant.now())) return finish()
         var updated: Instant? = null
         var refreshedAt: Instant? = null
-        while (scope.isActive) {
-            val settings = container.preferences.current()
-            var now = Instant.now()
-            if (refreshedAt == null || !now.isBefore(refreshedAt.plus(LiveCompanion.REFRESH_EVERY))) {
-                refreshedAt = now
-                val fresh = runCatching { container.trips.refresh(trip) }.getOrNull()
-                now = Instant.now()
+        // A refresh made elsewhere (the trip screen, the half-hourly job) is
+        // taken at once: the notification and its alerts move with the app
+        // instead of a tick or a minute later. Its own refreshes come back
+        // here too, and are recognised by their time.
+        val elsewhere = MutableStateFlow<Trip?>(null)
+        val listener = scope.launch {
+            container.trips.refreshed.collect { fresh -> if (fresh.id == tripId && fresh.refreshedAt != trip.refreshedAt) elsewhere.value = fresh }
+        }
+        try {
+            while (scope.isActive) {
+                val settings = container.preferences.current()
+                var now = Instant.now()
+                val taken = elsewhere.getAndUpdate { null }
+                val fresh = if (taken != null && taken.refreshedAt != trip.refreshedAt) {
+                    taken
+                } else if (refreshedAt == null || !now.isBefore(refreshedAt.plus(LiveCompanion.REFRESH_EVERY))) {
+                    refreshedAt = now
+                    runCatching { container.trips.refresh(trip) }
+                        .onFailure { android.util.Log.w("AbeonaCompanion", "Refresh failed", it) }
+                        .getOrNull()
+                        .also { now = Instant.now() }
+                } else {
+                    null
+                }
                 if (fresh != null) {
                     if (updated != null) companionAlerts(trip, fresh, now, settings.alerts).filter { posted.add(it.key) }.forEach { post(tripId, it) }
                     trip = fresh
                     updated = now
+                    refreshedAt = now
+                    // Its own refresh echoed back through the store: nothing new.
+                    elsewhere.update { if (it?.refreshedAt == fresh.refreshedAt) null else it }
                     NextTripWidget.refresh(this)
                 }
+                val onboard = runCatching { container.onboard.status() }.getOrNull()
+                LiveSignals.setOnboard(onboard)
+                val signals = LiveSignals.forTrip(trip, now)
+                missedAlert(trip, now, settings.stationMinutes, signals, settings.alerts)?.takeIf { posted.add(it.key) }?.let { post(tripId, it) }
+                val status = companionStatus(trip, now, settings.stationMinutes, signals, LiveSignals.onboardFor(trip, now))
+                if (LiveCompanion.canNotify(this)) {
+                    NotificationManagerCompat.from(this).notify(
+                        LiveCompanion.ONGOING_ID,
+                        LiveCompanion.ongoing(this, tripId, status, updated, sourceLabel(trip, now, settings.stationMinutes, signals)),
+                    )
+                }
+                if (!LiveCompanion.canFollow(trip, now)) return finish()
+                // The next tick, or sooner when a refresh lands from elsewhere.
+                withTimeoutOrNull(LiveCompanion.TICK.toMillis()) { elsewhere.first { it != null } }
             }
-            val onboard = runCatching { container.onboard.status() }.getOrNull()
-            LiveSignals.setOnboard(onboard)
-            val signals = LiveSignals.forTrip(trip, now)
-            missedAlert(trip, now, settings.stationMinutes, signals, settings.alerts)?.takeIf { posted.add(it.key) }?.let { post(tripId, it) }
-            val status = companionStatus(trip, now, settings.stationMinutes, signals, LiveSignals.onboardFor(trip, now))
-            if (LiveCompanion.canNotify(this)) {
-                NotificationManagerCompat.from(this).notify(
-                    LiveCompanion.ONGOING_ID,
-                    LiveCompanion.ongoing(this, tripId, status, updated, sourceLabel(trip, now, settings.stationMinutes, signals)),
-                )
-            }
-            if (status.finished && now.isAfter(trip.expectedArrival.plus(LiveCompanion.LINGER))) return finish()
-            delay(LiveCompanion.TICK.toMillis())
+        } finally {
+            listener.cancel()
         }
     }
 
