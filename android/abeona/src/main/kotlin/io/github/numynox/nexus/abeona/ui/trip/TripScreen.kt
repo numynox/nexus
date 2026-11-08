@@ -100,6 +100,8 @@ import io.github.numynox.nexus.abeona.domain.alternativesOrigin
 import io.github.numynox.nexus.abeona.domain.alternativesReason
 import io.github.numynox.nexus.abeona.domain.travelDay
 import io.github.numynox.nexus.abeona.live.Background
+import io.github.numynox.nexus.abeona.live.CompanionOffer
+import io.github.numynox.nexus.abeona.live.companionOffer
 import io.github.numynox.nexus.abeona.live.LiveCompanion
 import io.github.numynox.nexus.abeona.live.evidence
 import io.github.numynox.nexus.abeona.ui.live.LiveDetails
@@ -148,6 +150,7 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
     val detail by viewModel.detail.collectAsStateWithLifecycle()
     val people by viewModel.people.collectAsStateWithLifecycle()
     val companion by LiveCompanion.running.collectAsStateWithLifecycle()
+    val stoppedByHand by LiveCompanion.stoppedByHand.collectAsStateWithLifecycle()
     val settings by app.settings.collectAsStateWithLifecycle()
     val currentSettings by androidx.compose.runtime.rememberUpdatedState(settings)
     val alternatives by viewModel.alternatives.collectAsStateWithLifecycle()
@@ -318,7 +321,20 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                     },
                     onToggleTraveller = { id -> viewModel.toggleTraveller(id) { scope.launch { snackbar.showSnackbar(it) } } },
                     onDiscount = { id, value -> viewModel.setDiscount(id, value) { scope.launch { snackbar.showSnackbar(it) } } },
-                    companionOn = companion == tripId,
+                    companion = companionOffer(
+                        state.value.trip, now, settings.liveCompanion, settings.stationMinutes,
+                        running = companion == tripId, stoppedByHand = stoppedByHand == tripId,
+                    ),
+                    liveUpdatesOff = Build.VERSION.SDK_INT >= 36 &&
+                        !context.getSystemService(android.app.NotificationManager::class.java).canPostPromotedNotifications(),
+                    onLiveUpdatesSettings = {
+                        runCatching {
+                            context.startActivity(
+                                android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_PROMOTION_SETTINGS)
+                                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName),
+                            )
+                        }
+                    },
                     onDbNavigator = { DbNavigator.open(context) },
                     onTicket = {
                         if (state.value.trip.ticketPath != null) navigator.ticket(tripId)
@@ -424,7 +440,10 @@ private fun TripContent(
     share: ShareActions?,
     onToggleTraveller: (String) -> Unit,
     onDiscount: (travellerId: String, discount: Int?) -> Unit,
-    companionOn: Boolean,
+    companion: CompanionOffer,
+    /** Android 16+ with Live Updates turned off for Abeona: no status bar chip, not pinned on the lock screen. */
+    liveUpdatesOff: Boolean,
+    onLiveUpdatesSettings: () -> Unit,
     onDbNavigator: () -> Unit,
     onTicket: () -> Unit,
     onCompanion: () -> Unit,
@@ -460,25 +479,36 @@ private fun TripContent(
                         Text(if (trip.ticketPath != null) "Ticket" else "Add ticket", modifier = Modifier.padding(start = 8.dp))
                     }
                 }
-                if (!over) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onCompanion, modifier = Modifier.weight(1f)) {
-                        Icon(
-                            if (companionOn) Icons.Rounded.NotificationsOff else Icons.Rounded.NotificationsActive,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Text(
-                            if (companionOn) "Stop live companion" else "Start live companion",
-                            modifier = Modifier.padding(start = 8.dp),
-                            maxLines = 1,
-                        )
+                // The companion's button only when pressing it does something
+                // the app would not do by itself: stop it, or start it on the day.
+                val companionButton = companion is CompanionOffer.Running || companion is CompanionOffer.Manual
+                val alternativesButton = !over && live != null && live.searchable
+                if (companionButton || alternativesButton) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (companionButton) {
+                        val on = companion is CompanionOffer.Running
+                        OutlinedButton(onClick = onCompanion, modifier = Modifier.weight(1f)) {
+                            Icon(
+                                if (on) Icons.Rounded.NotificationsOff else Icons.Rounded.NotificationsActive,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Text(
+                                if (on) "Stop live companion" else "Start live companion",
+                                modifier = Modifier.padding(start = 8.dp),
+                                maxLines = 1,
+                            )
+                        }
                     }
-                    if (live != null && live.searchable) {
+                    if (alternativesButton) {
                         OutlinedButton(onClick = onAlternatives) {
                             Icon(Icons.Rounded.Shuffle, contentDescription = null, modifier = Modifier.size(18.dp))
                             Text("Alternatives", modifier = Modifier.padding(start = 8.dp), maxLines = 1)
                         }
                     }
+                }
+                if (companion is CompanionOffer.Automatic) CompanionSmallPrint(companion)
+                if (liveUpdatesOff && (companion is CompanionOffer.Running || companion is CompanionOffer.Automatic)) {
+                    LiveUpdatesOff(onLiveUpdatesSettings)
                 }
             }
         }
@@ -776,5 +806,36 @@ private fun WalkRow(leg: Leg) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 8.dp),
         )
+    }
+}
+
+/** In place of a "Start" button the app would press by itself anyway: when it will. */
+@Composable
+private fun CompanionSmallPrint(offer: CompanionOffer.Automatic) {
+    val now = java.time.Instant.now()
+    val day = TripFormat.day(offer.at)
+    val text = when {
+        !offer.at.isAfter(now) -> "Abeona is starting to follow this trip live."
+        day == "Today" -> "Abeona follows this trip live by itself from ${TripFormat.time(offer.at)}."
+        day == "Tomorrow" -> "Abeona follows this trip live by itself from tomorrow, ${TripFormat.time(offer.at)}."
+        else -> "Abeona follows this trip live by itself from $day, ${TripFormat.time(offer.at)}."
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(horizontal = 4.dp)) {
+        Icon(Icons.Rounded.NotificationsActive, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+        Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** Android 16+: without Live Updates the notification is not pinned on the lock screen nor shown as a chip. */
+@Composable
+private fun LiveUpdatesOff(onSettings: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(start = 4.dp)) {
+        Text(
+            "Live Updates are off for Abeona: the companion is not pinned to the lock screen and the status bar.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = onSettings) { Text("Turn on") }
     }
 }

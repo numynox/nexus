@@ -50,7 +50,15 @@ import kotlinx.coroutines.launch
  * decisions/2026-11-07-abeona-companion-dashboard.md).
  */
 object LiveCompanion {
-    internal const val CHANNEL_LIVE = "live"
+    /**
+     * The ongoing notification's channel. "live" was IMPORTANCE_LOW: Android
+     * files that as a silent notification and, by default, leaves it off the
+     * lock screen, the always-on display and the status bar, which is where
+     * the companion is needed. A channel's importance cannot be raised once it
+     * exists, so this is a new one, and "live" is deleted.
+     */
+    internal const val CHANNEL_LIVE = "live-companion"
+    private const val OLD_CHANNEL_LIVE = "live"
     internal const val CHANNEL_ALERTS = "alerts"
     internal const val ONGOING_ID = 7
     private const val ACTION_START = "io.github.numynox.nexus.abeona.live.START"
@@ -117,8 +125,17 @@ object LiveCompanion {
 
     fun createChannels(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
+        manager.deleteNotificationChannel(OLD_CHANNEL_LIVE)
+        // Default importance, so it counts as an alerting notification (lock
+        // screen, always-on display, status bar icon), but without a sound or
+        // vibration of its own: it updates every 15 seconds.
         manager.createNotificationChannel(
-            NotificationChannel(CHANNEL_LIVE, context.getString(R.string.companion_channel), NotificationManager.IMPORTANCE_LOW),
+            NotificationChannel(CHANNEL_LIVE, context.getString(R.string.companion_channel), NotificationManager.IMPORTANCE_DEFAULT).apply {
+                setSound(null, null)
+                enableVibration(false)
+                setShowBadge(false)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            },
         )
         manager.createNotificationChannel(
             NotificationChannel(CHANNEL_ALERTS, context.getString(R.string.alerts_channel), NotificationManager.IMPORTANCE_HIGH),
@@ -157,8 +174,13 @@ object LiveCompanion {
         return builder
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setSilent(true)
+            // No setSilent: NotificationCompat does that by putting the
+            // notification into a group named "silent" and muting the group.
+            // The channel has no sound or vibration instead, and the
+            // notification stays a plain ongoing one, as a Live Update must be.
             .setCategory(NotificationCompat.CATEGORY_NAVIGATION)
+            // Platform, train and times are not sensitive: show all of it locked.
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             // A Live Update on Android 16+: kept at the top of the shade, on the
             // lock screen, and as a chip in the status bar, like a navigation app's.
             .setRequestPromotedOngoing(true)
