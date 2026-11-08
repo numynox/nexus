@@ -25,5 +25,10 @@ class NexusCore(
         engine = engine,
     )
     val auth = AuthRepository(supabase, scope)
+
+    init {
+        // Requests from the background (a foreground service, a worker) need the session too.
+        keepSessionLoaded(supabase, scope)
+    }
     val updates = UpdateChecker(config, engine)
 }

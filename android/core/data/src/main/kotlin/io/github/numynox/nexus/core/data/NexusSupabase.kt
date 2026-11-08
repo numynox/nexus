@@ -22,7 +22,11 @@ import io.ktor.client.plugins.api.createClientPlugin
 import io.ktor.http.HttpHeaders
 import java.io.IOException
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 
@@ -85,6 +89,35 @@ fun createNexusSupabaseClient(
 
 /** How long a data request waits for an expired session to be refreshed. */
 private val SessionWait = 15.seconds
+
+/** How long the session may stay unsettled before [keepSessionLoaded] loads it itself. */
+private val ReloadAfter = 1.seconds
+
+/**
+ * Keeps the stored session loaded while the app is in the background.
+ * supabase-kt stops the refresh when the app goes to the background and sets
+ * the status back to `Initializing` (its android `setupPlatform`, `onStop`),
+ * and loads the session again only when the app comes back. A foreground
+ * service or a background job would then wait at the [sessionGate] for ever,
+ * and every request of theirs would fail without being sent (the live
+ * companion kept its first values for a whole trip). So whenever the status
+ * has been `Initializing` for [ReloadAfter], this loads the stored session,
+ * as supabase-kt's `onStart` would; that also restarts the refresh, so the
+ * token stays valid through a long trip with the screen off. Loading twice
+ * is harmless: supabase-kt replaces its refresh job.
+ */
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+fun keepSessionLoaded(supabase: SupabaseClient, scope: CoroutineScope) {
+    scope.launch {
+        supabase.auth.sessionStatus.collectLatest { status ->
+            if (status !is SessionStatus.Initializing) return@collectLatest
+            delay(ReloadAfter)
+            if (supabase.auth.sessionStatus.value is SessionStatus.Initializing) {
+                runCatching { supabase.auth.loadFromStorage() }
+            }
+        }
+    }
+}
 
 /** The session could not be refreshed in time — almost always no network yet. */
 class SessionUnavailableException : IOException("Could not reach the server to renew your session.")

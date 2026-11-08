@@ -163,7 +163,7 @@ object LiveCompanion {
             .setContentTitle(status.title)
             .setContentText(status.text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(status.lines.joinToString("\n")))
-            .setSubText(listOfNotNull(source, updated?.let { "Live ${TripFormat.time(it)}" }).joinToString(" · ").ifEmpty { null })
+            .setSubText(listOfNotNull(source, updated?.let { freshness(it, now) }).joinToString(" · ").ifEmpty { null })
         // The clock in the header counts down to the next thing by itself,
         // to the second, between the companion's ticks.
         if (countdown != null) {
@@ -189,6 +189,13 @@ object LiveCompanion {
             .addAction(0, "Stop", stop)
             .build()
     }
+
+    /** Live values older than this are said to be old, so a failing refresh does not look live. */
+    val STALE_AFTER: Duration = Duration.ofMinutes(3)
+
+    /** "Live 10:00", or "Not updated since 10:00" when the refreshes stopped getting through. */
+    internal fun freshness(updated: Instant, now: Instant): String =
+        if (Duration.between(updated, now) > STALE_AFTER) "Not updated since ${TripFormat.time(updated)}" else "Live ${TripFormat.time(updated)}"
 
     fun alert(context: Context, tripId: String, alert: CompanionAlert): Notification =
         NotificationCompat.Builder(context, CHANNEL_ALERTS)
@@ -318,7 +325,9 @@ class LiveCompanionService : Service() {
             var now = Instant.now()
             if (refreshedAt == null || !now.isBefore(refreshedAt.plus(LiveCompanion.REFRESH_EVERY))) {
                 refreshedAt = now
-                val fresh = runCatching { container.trips.refresh(trip) }.getOrNull()
+                val fresh = runCatching { container.trips.refresh(trip) }
+                    .onFailure { android.util.Log.w("AbeonaCompanion", "Refresh failed", it) }
+                    .getOrNull()
                 now = Instant.now()
                 if (fresh != null) {
                     if (updated != null) companionAlerts(trip, fresh, now, settings.alerts).filter { posted.add(it.key) }.forEach { post(tripId, it) }

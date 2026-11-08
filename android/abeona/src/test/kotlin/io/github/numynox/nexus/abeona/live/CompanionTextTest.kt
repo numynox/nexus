@@ -155,4 +155,11 @@ class CompanionTextTest {
         assertEquals(emptyList<String>(), companionAlerts(lateBy(6), lateBy(9), before).map { it.key })
         assertEquals(listOf("delay-0-2"), companionAlerts(lateBy(9), lateBy(11), before).map { it.key })
     }
+
+    @Test
+    fun oldLiveValuesSaySo() {
+        val updated = t0
+        assertEquals("Live 08:00", LiveCompanion.freshness(updated, t0.plusSeconds(170)))
+        assertEquals("Not updated since 08:00", LiveCompanion.freshness(updated, t0.plusSeconds(24 * 60)))
+    }
 }

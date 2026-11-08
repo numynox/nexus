@@ -35,3 +35,14 @@ session is dropped from memory while it retries. Two things went wrong:
   the refresh cannot get through, and it showed the sign-in form. It now shows
   "Could not reach the server" with a retry, and lets the client's own retry
   bring the app in. Noctua's web pages already reported an error there.
+- (2026-11-08) In the background the gate held every request for ever:
+  supabase-kt sets the status back to `Initializing` when the app leaves the
+  foreground (`setupPlatform`, `onStop`) and loads the session again only in
+  `onStart`. Abeona's live companion (a foreground service) and every
+  background job then failed after 15 s without sending anything; the
+  companion's notification stayed at its first values for a whole trip.
+  `keepSessionLoaded` (`NexusSupabase.kt`, started by `NexusCore`) loads the
+  stored session whenever the status has been `Initializing` for a second,
+  as `onStart` would, which also keeps the token refreshed in the background.
+  Loading inside the gate itself hung under Robolectric, so it is a watcher on
+  the core's scope instead. Pinned by Abeona's `BackgroundSessionTest`.
