@@ -139,6 +139,9 @@ class LiveDashboardScreenshots {
 
     @Test fun lastRide() = shot("59g-live-last-ride", "The last ride, standing at Schweinfurt", 128)
 
+    /** Standing at the stop before the last: the list still names where to get off. */
+    @Test fun standingBeforeTheLastStop() = shot("59m-live-standing-before-last", "Standing at Haßfurt, Bamberg next", 147)
+
     @Test fun missed() = shot(
         "59h-live-missed", "Still at Würzburg after the RE 10 left · by the position", 86,
         signals = TravelSignals(position = Position(49.8018, 9.9355, 0.0)),

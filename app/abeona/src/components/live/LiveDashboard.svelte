@@ -178,9 +178,12 @@
   const standing = $derived(
     !!progress && progress.current !== null && progress.current > 0 && progress.current < progress.stops.length - 1,
   );
+  // The stops still ahead that the line above does not name: standing at a
+  // stop it names that stop, so the list starts at the next one; moving, it
+  // names the next one.
   const ahead = $derived.by(() => {
     if (!progress) return [] as number[];
-    const from = progress.next ?? progress.stops.length;
+    const from = progress.next === null ? progress.stops.length : !onBoard || standing ? progress.next : progress.next + 1;
     const all: number[] = [];
     for (let i = from; i < progress.stops.length; i++) all.push(i);
     return all;
@@ -330,7 +333,7 @@
               <LegChip {leg} size="md" />
               <span class="min-w-0 flex-1 truncate text-sm font-medium text-ink">to {leg.headsign ?? leg.to.name}</span>
               <span class="tabular text-sm font-semibold text-primary">
-                {#if progress.stopsLeft === 0}Arrived{:else if !onBoard}{progress.stops.length - 1} stops{:else if progress.stopsLeft === 1}Last stop{:else}{progress.stopsLeft} stops left{/if}
+                {#if progress.stopsLeft === 0}Arrived{:else if !onBoard}{progress.stops.length - 1} stops{:else if progress.stopsLeft === 1}1 stop left{:else}{progress.stopsLeft} stops left{/if}
               </span>
             </div>
 
@@ -376,7 +379,7 @@
               {/if}
             </div>
 
-            {#if ahead.length > 1 || !onBoard}
+            {#if ahead.length > 0}
               <ol class="mt-3 space-y-1.5">
                 {#each shownAhead as i, k (i)}
                   {#if k === 3 && ahead.length > 5}

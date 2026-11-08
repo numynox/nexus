@@ -29,12 +29,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.getAndUpdate
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * The live companion: during a trip, the phone itself polls the Edge Function
@@ -320,35 +323,56 @@ class LiveCompanionService : Service() {
         var trip = runCatching { container.trips.trip(tripId).value }.getOrNull() ?: return finish()
         var updated: Instant? = null
         var refreshedAt: Instant? = null
-        while (scope.isActive) {
-            val settings = container.preferences.current()
-            var now = Instant.now()
-            if (refreshedAt == null || !now.isBefore(refreshedAt.plus(LiveCompanion.REFRESH_EVERY))) {
-                refreshedAt = now
-                val fresh = runCatching { container.trips.refresh(trip) }
-                    .onFailure { android.util.Log.w("AbeonaCompanion", "Refresh failed", it) }
-                    .getOrNull()
-                now = Instant.now()
+        // A refresh made elsewhere (the trip screen, the half-hourly job) is
+        // taken at once: the notification and its alerts move with the app
+        // instead of a tick or a minute later. Its own refreshes come back
+        // here too, and are recognised by their time.
+        val elsewhere = MutableStateFlow<Trip?>(null)
+        val listener = scope.launch {
+            container.trips.refreshed.collect { fresh -> if (fresh.id == tripId && fresh.refreshedAt != trip.refreshedAt) elsewhere.value = fresh }
+        }
+        try {
+            while (scope.isActive) {
+                val settings = container.preferences.current()
+                var now = Instant.now()
+                val taken = elsewhere.getAndUpdate { null }
+                val fresh = if (taken != null && taken.refreshedAt != trip.refreshedAt) {
+                    taken
+                } else if (refreshedAt == null || !now.isBefore(refreshedAt.plus(LiveCompanion.REFRESH_EVERY))) {
+                    refreshedAt = now
+                    runCatching { container.trips.refresh(trip) }
+                        .onFailure { android.util.Log.w("AbeonaCompanion", "Refresh failed", it) }
+                        .getOrNull()
+                        .also { now = Instant.now() }
+                } else {
+                    null
+                }
                 if (fresh != null) {
                     if (updated != null) companionAlerts(trip, fresh, now, settings.alerts).filter { posted.add(it.key) }.forEach { post(tripId, it) }
                     trip = fresh
                     updated = now
+                    refreshedAt = now
+                    // Its own refresh echoed back through the store: nothing new.
+                    elsewhere.update { if (it?.refreshedAt == fresh.refreshedAt) null else it }
                     NextTripWidget.refresh(this)
                 }
+                val onboard = runCatching { container.onboard.status() }.getOrNull()
+                LiveSignals.setOnboard(onboard)
+                val signals = LiveSignals.forTrip(trip, now)
+                missedAlert(trip, now, settings.stationMinutes, signals, settings.alerts)?.takeIf { posted.add(it.key) }?.let { post(tripId, it) }
+                val status = companionStatus(trip, now, settings.stationMinutes, signals, LiveSignals.onboardFor(trip, now))
+                if (LiveCompanion.canNotify(this)) {
+                    NotificationManagerCompat.from(this).notify(
+                        LiveCompanion.ONGOING_ID,
+                        LiveCompanion.ongoing(this, tripId, status, updated, sourceLabel(trip, now, settings.stationMinutes, signals)),
+                    )
+                }
+                if (status.finished && now.isAfter(trip.expectedArrival.plus(LiveCompanion.LINGER))) return finish()
+                // The next tick, or sooner when a refresh lands from elsewhere.
+                withTimeoutOrNull(LiveCompanion.TICK.toMillis()) { elsewhere.first { it != null } }
             }
-            val onboard = runCatching { container.onboard.status() }.getOrNull()
-            LiveSignals.setOnboard(onboard)
-            val signals = LiveSignals.forTrip(trip, now)
-            missedAlert(trip, now, settings.stationMinutes, signals, settings.alerts)?.takeIf { posted.add(it.key) }?.let { post(tripId, it) }
-            val status = companionStatus(trip, now, settings.stationMinutes, signals, LiveSignals.onboardFor(trip, now))
-            if (LiveCompanion.canNotify(this)) {
-                NotificationManagerCompat.from(this).notify(
-                    LiveCompanion.ONGOING_ID,
-                    LiveCompanion.ongoing(this, tripId, status, updated, sourceLabel(trip, now, settings.stationMinutes, signals)),
-                )
-            }
-            if (status.finished && now.isAfter(trip.expectedArrival.plus(LiveCompanion.LINGER))) return finish()
-            delay(LiveCompanion.TICK.toMillis())
+        } finally {
+            listener.cancel()
         }
     }
 

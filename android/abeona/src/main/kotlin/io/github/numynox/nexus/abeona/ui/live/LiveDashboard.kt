@@ -474,7 +474,7 @@ private fun RideCard(leg: Leg, progress: RideProgress, onBoard: Boolean, onboard
                 when {
                     progress.stopsLeft == 0 -> "Arrived"
                     !onBoard -> "${stops.size - 1} stops"
-                    progress.stopsLeft == 1 -> "Last stop"
+                    progress.stopsLeft == 1 -> "1 stop left"
                     else -> "${progress.stopsLeft} stops left"
                 },
                 style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold).tabular(),
@@ -508,9 +508,17 @@ private fun RideCard(leg: Leg, progress: RideProgress, onBoard: Boolean, onboard
 
         StopRail(progress, onBoard)
 
-        // The stops still ahead, up to the one to get off at.
-        val ahead = (next ?: (last + 1)).let { from -> (from..last).toList() }
-        if (ahead.size > 1 || !onBoard) {
+        // The stops still ahead, up to the one to get off at, that the line
+        // above does not name: standing at a stop it names that stop, so the
+        // list starts at the next one; moving, it names the next one.
+        val standingHere = onBoard && current != null && current in 1 until last
+        val from = when {
+            next == null -> last + 1
+            !onBoard || standingHere -> next
+            else -> next + 1
+        }
+        val ahead = (from..last).toList()
+        if (ahead.isNotEmpty()) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 val shown = if (ahead.size > 5) ahead.take(3) + ahead.last() else ahead
                 shown.forEachIndexed { k, i ->
