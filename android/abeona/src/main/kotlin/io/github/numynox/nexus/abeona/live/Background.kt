@@ -125,7 +125,8 @@ val EARLY_DEPARTURE: LocalTime = LocalTime.of(3, 0)
 /**
  * The companion's offer for [trip]: running, starting by itself, startable
  * by hand, or nothing. By hand only on the travel day, from the evening
- * before for a departure before 03:00, and while the trip is under way.
+ * before for a departure before 03:00, and while the trip is under way; never
+ * later than [LiveCompanion.LINGER] after the arrival.
  */
 fun companionOffer(
     trip: Trip,
@@ -137,8 +138,9 @@ fun companionOffer(
     zone: ZoneId = ZoneId.systemDefault(),
 ): CompanionOffer {
     if (running) return CompanionOffer.Running
-    if (!trip.expectedArrival.plus(LiveCompanion.LINGER).isAfter(now) || trip.legs.none { !it.isWalk }) return CompanionOffer.Hidden
-    if (autoStart && !stoppedByHand) return CompanionOffer.Automatic(Background.startAt(trip, stationMinutes))
+    if (!LiveCompanion.canFollow(trip, now) || trip.legs.none { !it.isWalk }) return CompanionOffer.Hidden
+    // After the arrival nothing starts it by itself any more: by hand, until it is too late.
+    if (autoStart && !stoppedByHand && trip.expectedArrival.isAfter(now)) return CompanionOffer.Automatic(Background.startAt(trip, stationMinutes))
     val departure = trip.expectedDeparture.atZone(zone)
     val today = now.atZone(zone).toLocalDate()
     val day = departure.toLocalDate()

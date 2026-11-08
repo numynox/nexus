@@ -56,7 +56,17 @@ class CompanionOfferTest {
     }
 
     @Test
-    fun nothingOnceTheTripIsOver() {
-        assertEquals(CompanionOffer.Hidden, offer(morning, "2026-11-08T11:30", auto = true))
+    fun byHandUntilHalfAnHourAfterTheArrival() {
+        // Arrives 10:40. Nothing starts it by itself after that, so no small print promising it.
+        assertEquals(CompanionOffer.Manual, offer(morning, "2026-11-08T11:05", auto = true))
+        assertEquals(CompanionOffer.Running, offer(morning, "2026-11-08T11:05", auto = true, running = true))
+        assertEquals(CompanionOffer.Hidden, offer(morning, "2026-11-08T11:11", auto = true))
+        assertEquals(CompanionOffer.Hidden, offer(morning, "2026-11-08T11:11"))
+    }
+
+    @Test
+    fun theCompanionStopsHalfAnHourAfterTheArrival() {
+        assertEquals(true, LiveCompanion.canFollow(morning, at("2026-11-08T11:09")))
+        assertEquals(false, LiveCompanion.canFollow(morning, at("2026-11-08T11:10")))
     }
 }

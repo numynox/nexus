@@ -72,8 +72,12 @@ object LiveCompanion {
     val REFRESH_EVERY: Duration = Duration.ofMinutes(1)
     /** How often the signals (on-board Wi-Fi, position) and the notification are looked at between refreshes. */
     val TICK: Duration = Duration.ofSeconds(15)
-    /** How long after the final arrival the companion stays, for a late train's last minutes. */
-    val LINGER: Duration = Duration.ofMinutes(15)
+    /**
+     * How long after the expected arrival the companion stays, for a late
+     * train's last minutes and the way out of the station; then it stops, and
+     * it cannot be started for that trip again.
+     */
+    val LINGER: Duration = Duration.ofMinutes(30)
     /** The longest the companion keeps the CPU awake; Android 15 stops a dataSync service after six hours anyway. */
     val MAX_AWAKE: Duration = Duration.ofHours(6)
 
@@ -192,6 +196,9 @@ object LiveCompanion {
             .addAction(0, "Stop", stop)
             .build()
     }
+
+    /** Until [LINGER] after the expected arrival: after that the companion stops, and cannot be started again. */
+    fun canFollow(trip: Trip, now: Instant): Boolean = trip.expectedArrival.plus(LINGER).isAfter(now)
 
     /** Live values older than this are said to be old, so a failing refresh does not look live. */
     val STALE_AFTER: Duration = Duration.ofMinutes(3)
@@ -321,6 +328,8 @@ class LiveCompanionService : Service() {
         val container = (application as AbeonaApplication).container
         container.core.auth.awaitUserId() ?: return finish()
         var trip = runCatching { container.trips.trip(tripId).value }.getOrNull() ?: return finish()
+        // Too late to start (a tapped reminder, a restart by Android): the trip is over.
+        if (!LiveCompanion.canFollow(trip, Instant.now())) return finish()
         var updated: Instant? = null
         var refreshedAt: Instant? = null
         // A refresh made elsewhere (the trip screen, the half-hourly job) is
@@ -367,7 +376,7 @@ class LiveCompanionService : Service() {
                         LiveCompanion.ongoing(this, tripId, status, updated, sourceLabel(trip, now, settings.stationMinutes, signals)),
                     )
                 }
-                if (status.finished && now.isAfter(trip.expectedArrival.plus(LiveCompanion.LINGER))) return finish()
+                if (!LiveCompanion.canFollow(trip, now)) return finish()
                 // The next tick, or sooner when a refresh lands from elsewhere.
                 withTimeoutOrNull(LiveCompanion.TICK.toMillis()) { elsewhere.first { it != null } }
             }
