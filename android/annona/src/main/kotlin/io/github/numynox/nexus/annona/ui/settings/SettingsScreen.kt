@@ -70,7 +70,6 @@ import io.github.numynox.nexus.core.ui.Loadable
 import io.github.numynox.nexus.core.ui.components.LoadingState
 import io.github.numynox.nexus.core.ui.components.NexusCard
 import io.github.numynox.nexus.core.ui.components.SectionHeader
-import io.github.numynox.nexus.core.ui.components.UpdateBanner
 import io.github.numynox.nexus.core.ui.settings.AboutItem
 import io.github.numynox.nexus.core.ui.settings.AccountCard
 import io.github.numynox.nexus.core.ui.settings.AppearanceCard
@@ -86,7 +85,6 @@ fun SettingsScreen(app: AppViewModel) {
     val viewModel = containerViewModel { SettingsViewModel(it) }
     val settings by app.settings.collectAsStateWithLifecycle()
     val auth by app.auth.collectAsStateWithLifecycle()
-    val update by app.update.collectAsStateWithLifecycle()
     val lists by viewModel.lists.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     var editing by remember { mutableStateOf<Editing?>(null) }
@@ -103,8 +101,6 @@ fun SettingsScreen(app: AppViewModel) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
-            item { UpdateBanner(update) }
-
             item { SectionHeader("Reminders") }
             item {
                 NexusCard {
@@ -202,7 +198,7 @@ fun SettingsScreen(app: AppViewModel) {
             }
             item { SectionHeader("Account") }
             item { AccountCard("Annona", (auth as? AuthState.SignedIn)?.email, onSignOut = app::signOut) }
-            item { AboutItem(viewModel.config) }
+            item { AboutItem(viewModel.config, app.updates) }
         }
     }
 

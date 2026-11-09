@@ -51,7 +51,6 @@ import io.github.numynox.nexus.core.ui.components.ConnectedChoiceRow
 import io.github.numynox.nexus.core.ui.components.LoadingState
 import io.github.numynox.nexus.core.ui.components.NexusCard
 import io.github.numynox.nexus.core.ui.components.SectionHeader
-import io.github.numynox.nexus.core.ui.components.UpdateBanner
 import io.github.numynox.nexus.core.ui.settings.AboutItem
 import io.github.numynox.nexus.core.ui.settings.AccountCard
 import io.github.numynox.nexus.core.ui.settings.AppearanceCard
@@ -70,7 +69,6 @@ fun SettingsScreen(app: AppViewModel, onOpenSection: (Long) -> Unit) {
     val viewModel = containerViewModel { SettingsViewModel(it) }
     val settings by app.settings.collectAsStateWithLifecycle()
     val auth by app.auth.collectAsStateWithLifecycle()
-    val update by app.update.collectAsStateWithLifecycle()
     val sections by viewModel.sections.collectAsStateWithLifecycle()
     val sectionsVersion by app.sectionsVersion.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
@@ -87,8 +85,6 @@ fun SettingsScreen(app: AppViewModel, onOpenSection: (Long) -> Unit) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
-            item { UpdateBanner(update) }
-
             item {
                 SectionHeader("Sections", supporting = "Your arrangement of the shared feed catalogue", trailing = {
                     FilledTonalButton(onClick = { creating = true }) {
@@ -199,7 +195,7 @@ fun SettingsScreen(app: AppViewModel, onOpenSection: (Long) -> Unit) {
 
             item { SectionHeader("Account") }
             item { AccountCard("Noctua", (auth as? AuthState.SignedIn)?.email, onSignOut = app::signOut) }
-            item { AboutItem(viewModel.config) }
+            item { AboutItem(viewModel.config, app.updates) }
         }
     }
 

@@ -70,7 +70,6 @@ fun PantryScreen(app: AppViewModel, navigator: Navigator) {
     val viewModel = containerViewModel { PantryViewModel(it) }
     val pantry by viewModel.pantry.collectAsStateWithLifecycle()
     val version by app.dataVersion.collectAsStateWithLifecycle()
-    val update by app.update.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val pull = rememberPullRefresh(viewModel::load)
@@ -116,7 +115,7 @@ fun PantryScreen(app: AppViewModel, navigator: Navigator) {
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                         modifier = Modifier.fillMaxSize(),
                     ) {
-                        item(key = "update") { UpdateBanner(update) }
+                        item(key = "update") { UpdateBanner(app.updates) }
                         item(key = "summary") { Summary(state.value.summary) }
                         if (state.value.items.isEmpty()) {
                             item(key = "empty") {

@@ -8,6 +8,7 @@ import io.github.numynox.nexus.annona.data.AnnonaSettings
 import io.github.numynox.nexus.annona.reminders.ExpiryReminders
 import io.github.numynox.nexus.core.data.AuthState
 import io.github.numynox.nexus.core.data.AvailableUpdate
+import io.github.numynox.nexus.core.update.AppUpdates
 import io.github.numynox.nexus.core.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,8 +31,8 @@ class AppViewModel(val container: AppContainer, private val application: Applica
     val settings: StateFlow<AnnonaSettings> = container.preferences.settings
         .stateIn(viewModelScope, SharingStarted.Eagerly, AnnonaSettings())
 
-    private val _update = MutableStateFlow<AvailableUpdate?>(null)
-    val update: StateFlow<AvailableUpdate?> = _update.asStateFlow()
+    val updates: AppUpdates get() = container.updates
+    val update: StateFlow<AvailableUpdate?> = container.updates.available
 
     /** Bumped after every write, so screens showing stock reload. */
     private val _dataVersion = MutableStateFlow(0)
@@ -42,7 +43,7 @@ class AppViewModel(val container: AppContainer, private val application: Applica
     val messages: SharedFlow<String> = _messages.asSharedFlow()
 
     init {
-        viewModelScope.launch { _update.value = container.core.updates.check() }
+        container.updates.start()
         viewModelScope.launch {
             auth.distinctUntilChanged { a, b -> a::class == b::class }.collect { state ->
                 // The shared category list starts from the defaults, as on the web.

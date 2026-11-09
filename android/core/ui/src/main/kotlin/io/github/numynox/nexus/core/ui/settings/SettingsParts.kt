@@ -13,6 +13,7 @@ import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.SystemUpdate
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
@@ -21,6 +22,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,10 +30,17 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.numynox.nexus.core.data.AvailableUpdate
 import io.github.numynox.nexus.core.data.NexusConfig
 import io.github.numynox.nexus.core.ui.components.ConnectedChoiceRow
+import io.github.numynox.nexus.core.ui.components.DownloadIndicator
 import io.github.numynox.nexus.core.ui.components.NexusCard
+import io.github.numynox.nexus.core.ui.components.downloadingLabel
+import io.github.numynox.nexus.core.ui.components.rememberInstallUpdate
 import io.github.numynox.nexus.core.ui.theme.ThemeMode
+import io.github.numynox.nexus.core.update.AppUpdates
+import io.github.numynox.nexus.core.update.DownloadProgress
 
 /** The Nexus apps, for "the same account signs you in to …". */
 private val NexusApps = listOf("Noctua", "Vibilia", "Annona", "Abeona")
@@ -117,18 +126,46 @@ fun AccountCard(appName: String, email: String?, onSignOut: () -> Unit, modifier
     }
 }
 
-/** The installed version, and where newer ones come from. */
+/** The installed version and, when there is one, the newer release with its install button. */
 @Composable
-fun AboutItem(config: NexusConfig, modifier: Modifier = Modifier) {
+fun AboutItem(config: NexusConfig, updates: AppUpdates, modifier: Modifier = Modifier) {
+    val update by updates.available.collectAsStateWithLifecycle()
+    val download by updates.download.collectAsStateWithLifecycle(null)
+    AboutItem(config, update, download, onInstall = rememberInstallUpdate(updates), modifier)
+}
+
+@Composable
+fun AboutItem(
+    config: NexusConfig,
+    update: AvailableUpdate?,
+    download: DownloadProgress?,
+    onInstall: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val uriHandler = LocalUriHandler.current
     ListItem(
         headlineContent = { Text("${config.appName} ${config.versionName}") },
-        supportingContent = { Text("Installed from GitHub Releases") },
+        supportingContent = {
+            Text(
+                when {
+                    update != null && download != null -> downloadingLabel(download)
+                    update != null -> "Version ${update.versionName} available"
+                    else -> "Installed from GitHub Releases"
+                },
+            )
+        },
         leadingContent = { Icon(Icons.Rounded.Info, contentDescription = null) },
         trailingContent = {
-            TextButton(onClick = { uriHandler.openUri("https://github.com/${config.releaseRepository}/releases") }) {
-                Icon(Icons.Rounded.SystemUpdate, contentDescription = null, modifier = Modifier.size(18.dp))
-                Text("Releases", modifier = Modifier.padding(start = 6.dp))
+            when {
+                update != null && download != null -> DownloadIndicator(download, Modifier.padding(horizontal = 12.dp))
+                update != null -> FilledTonalButton(onClick = onInstall) {
+                    Icon(Icons.Rounded.SystemUpdate, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text("Install", modifier = Modifier.padding(start = 6.dp))
+                }
+                else -> TextButton(onClick = { uriHandler.openUri("https://github.com/${config.releaseRepository}/releases") }) {
+                    Icon(Icons.Rounded.SystemUpdate, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text("Releases", modifier = Modifier.padding(start = 6.dp))
+                }
             }
         },
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),

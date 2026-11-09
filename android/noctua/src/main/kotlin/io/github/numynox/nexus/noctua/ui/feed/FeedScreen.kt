@@ -304,7 +304,7 @@ fun FeedScreen(app: AppViewModel, onManageSections: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    if (update != null) item(key = "update") { UpdateBanner(update) }
+                    if (update != null) item(key = "update") { UpdateBanner(app.updates) }
                     if (state.value.content.sections.isEmpty()) {
                         item(key = "no-sections") {
                             EmptyState(

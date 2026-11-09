@@ -11,6 +11,7 @@ android {
 
 dependencies {
     api(project(":core:data"))
+    api(project(":core:update"))
 
     api(platform(libs.compose.bom))
     api(libs.compose.ui)

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.numynox.nexus.core.data.AuthState
 import io.github.numynox.nexus.core.data.AvailableUpdate
+import io.github.numynox.nexus.core.update.AppUpdates
 import io.github.numynox.nexus.core.ui.theme.ThemeMode
 import io.github.numynox.nexus.noctua.AppContainer
 import io.github.numynox.nexus.noctua.data.Density
@@ -36,15 +37,15 @@ class AppViewModel(val container: AppContainer) : ViewModel() {
     val settings: StateFlow<NoctuaSettings> = storedSettings.map { it ?: NoctuaSettings() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, NoctuaSettings())
 
-    private val _update = MutableStateFlow<AvailableUpdate?>(null)
-    val update: StateFlow<AvailableUpdate?> = _update.asStateFlow()
+    val updates: AppUpdates get() = container.updates
+    val update: StateFlow<AvailableUpdate?> = container.updates.available
 
     /** Bumped when sections change in settings, so the feed reloads. */
     private val _sectionsVersion = MutableStateFlow(0)
     val sectionsVersion: StateFlow<Int> = _sectionsVersion.asStateFlow()
 
     init {
-        viewModelScope.launch { _update.value = container.core.updates.check() }
+        container.updates.start()
     }
 
     fun sectionsChanged() = _sectionsVersion.update { it + 1 }

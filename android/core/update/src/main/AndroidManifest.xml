@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- The update check and the download. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- "Update available", the download's progress, the install prompt. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- The download runs as a foreground worker. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Installing the downloaded APK over the app itself. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <application>
+        <!-- The notification's tap (start the download) and PackageInstaller's answer. -->
+        <receiver
+            android:name=".UpdateReceiver"
+            android:exported="false" />
+
+        <!-- WorkManager's foreground service, typed for the download worker.
+             An app whose own worker ever needs another type lists both here
+             in its manifest, with tools:replace. -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
+    </application>
+</manifest>

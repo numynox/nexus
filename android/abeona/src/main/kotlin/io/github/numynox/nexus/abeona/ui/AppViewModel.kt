@@ -13,6 +13,7 @@ import io.github.numynox.nexus.abeona.reminders.BahnCardReminders
 import io.github.numynox.nexus.abeona.reminders.ClaimReminders
 import io.github.numynox.nexus.core.data.AuthState
 import io.github.numynox.nexus.core.data.AvailableUpdate
+import io.github.numynox.nexus.core.update.AppUpdates
 import io.github.numynox.nexus.core.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,8 +37,8 @@ class AppViewModel(val container: AppContainer, private val application: Applica
     val settings: StateFlow<AbeonaSettings> = container.preferences.settings
         .stateIn(viewModelScope, SharingStarted.Eagerly, AbeonaSettings())
 
-    private val _update = MutableStateFlow<AvailableUpdate?>(null)
-    val update: StateFlow<AvailableUpdate?> = _update.asStateFlow()
+    val updates: AppUpdates get() = container.updates
+    val update: StateFlow<AvailableUpdate?> = container.updates.available
 
     /** Bumped after every write, so screens showing trips reload. */
     private val _dataVersion = MutableStateFlow(0)
@@ -51,7 +52,7 @@ class AppViewModel(val container: AppContainer, private val application: Applica
     val messages: SharedFlow<String> = _messages.asSharedFlow()
 
     init {
-        viewModelScope.launch { _update.value = container.core.updates.check() }
+        container.updates.start()
         // Keep the BahnCard reminder's schedule in step with its setting (not on
         // the first, stored value: the schedule already exists then), as Annona does.
         viewModelScope.launch {

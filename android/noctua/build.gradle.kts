@@ -21,4 +21,5 @@ dependencies {
     implementation(libs.coil.network.okhttp)
 
     testImplementation(libs.coil.test)
+    testImplementation(libs.androidx.work.testing)
 }

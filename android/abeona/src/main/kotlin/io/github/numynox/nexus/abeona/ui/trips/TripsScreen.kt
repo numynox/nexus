@@ -95,7 +95,6 @@ fun TripsScreen(app: AppViewModel, navigator: Navigator) {
     val history by viewModel.history.collectAsStateWithLifecycle()
     val deadlines by viewModel.deadlines.collectAsStateWithLifecycle()
     val version by app.dataVersion.collectAsStateWithLifecycle()
-    val update by app.update.collectAsStateWithLifecycle()
     val settings by app.settings.collectAsStateWithLifecycle()
     val onboard by LiveSignals.onboard.collectAsStateWithLifecycle()
     val fix by LiveSignals.fix.collectAsStateWithLifecycle()
@@ -134,7 +133,7 @@ fun TripsScreen(app: AppViewModel, navigator: Navigator) {
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxSize(),
                     ) {
-                        item(key = "update") { UpdateBanner(update) }
+                        item(key = "update") { UpdateBanner(app.updates) }
                         if (deadlines.isNotEmpty()) {
                             item(key = "deadlines") { DeadlineBanner(deadlines, onClick = navigator::settings) }
                         }
