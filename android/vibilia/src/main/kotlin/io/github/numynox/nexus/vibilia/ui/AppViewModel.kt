@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.numynox.nexus.core.data.AuthState
 import io.github.numynox.nexus.core.data.AvailableUpdate
+import io.github.numynox.nexus.core.update.AppUpdates
 import io.github.numynox.nexus.core.ui.Loadable
 import io.github.numynox.nexus.core.ui.loadable
 import io.github.numynox.nexus.core.ui.theme.ThemeMode
@@ -64,8 +65,8 @@ class AppViewModel(private val container: AppContainer, private val application:
     val tracker: StateFlow<TrackerState> = container.driveTracking.tracker.state
         .stateIn(viewModelScope, SharingStarted.Eagerly, TrackerState())
 
-    private val _update = MutableStateFlow<AvailableUpdate?>(null)
-    val update: StateFlow<AvailableUpdate?> = _update.asStateFlow()
+    val updates: AppUpdates get() = container.updates
+    val update: StateFlow<AvailableUpdate?> = container.updates.available
 
     private val _editor = MutableStateFlow<EditorRequest?>(null)
     val editor: StateFlow<EditorRequest?> = _editor.asStateFlow()
@@ -84,7 +85,7 @@ class AppViewModel(private val container: AppContainer, private val application:
                 if (state is AuthState.SignedIn) onSignedIn()
             }
         }
-        viewModelScope.launch { _update.value = container.updates.check() }
+        container.updates.start()
         // An uploaded drive leaves the phone's queue, so the screens stop
         // adding it themselves; reload so the server's copy takes its place.
         viewModelScope.launch {

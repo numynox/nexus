@@ -3,6 +3,7 @@ package io.github.numynox.nexus.vibilia
 import android.content.Context
 import io.github.numynox.nexus.core.data.NexusConfig
 import io.github.numynox.nexus.core.data.NexusCore
+import io.github.numynox.nexus.core.update.AppUpdates
 import io.github.numynox.nexus.vibilia.data.CarRepository
 import io.github.numynox.nexus.vibilia.data.CommuteRepository
 import io.github.numynox.nexus.vibilia.data.DriveRepository
@@ -42,7 +43,7 @@ class AppContainer(
     val config get() = core.config
     val supabase get() = core.supabase
     val auth get() = core.auth
-    val updates get() = core.updates
+    val updates = AppUpdates(context, core.config, core.updates)
     val preferences = VibiliaPreferences(context)
     val prices = FuelPriceRepository(supabase)
     val cars = CarRepository(supabase)

@@ -3,6 +3,7 @@ package io.github.numynox.nexus.noctua
 import android.content.Context
 import io.github.numynox.nexus.core.data.NexusConfig
 import io.github.numynox.nexus.core.data.NexusCore
+import io.github.numynox.nexus.core.update.AppUpdates
 import io.github.numynox.nexus.noctua.data.NoctuaPreferences
 import io.github.numynox.nexus.noctua.data.NoctuaRepository
 import io.ktor.client.engine.HttpClientEngine
@@ -33,6 +34,7 @@ class AppContainer(
         ),
         httpEngine,
     )
+    val updates = AppUpdates(context, core.config, core.updates)
     val preferences = NoctuaPreferences(context)
     val repository = NoctuaRepository(core.supabase)
 }

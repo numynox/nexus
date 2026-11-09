@@ -9,6 +9,7 @@ import io.github.numynox.nexus.abeona.live.OnboardSource
 import io.github.numynox.nexus.abeona.live.OnboardWifi
 import io.github.numynox.nexus.core.data.NexusConfig
 import io.github.numynox.nexus.core.data.NexusCore
+import io.github.numynox.nexus.core.update.AppUpdates
 import io.ktor.client.engine.HttpClientEngine
 
 /**
@@ -34,6 +35,7 @@ class AppContainer(
         ),
         httpEngine,
     )
+    val updates = AppUpdates(context, core.config, core.updates)
     val preferences = AbeonaPreferences(context)
     val repository = AbeonaRepository(core.supabase)
     val pack = OfflinePack(context)

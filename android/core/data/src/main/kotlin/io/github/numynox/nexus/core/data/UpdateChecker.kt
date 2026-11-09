@@ -11,21 +11,30 @@ import kotlinx.serialization.Serializable
 
 data class AvailableUpdate(
     val versionName: String,
-    /** The release page, where the APK can be downloaded and installed. */
+    /** The run number CI wrote into the tag; what Android compares. */
+    val versionCode: Long,
+    /** The release page, for builds that cannot install the APK themselves. */
     val pageUrl: String,
     val apkUrl: String?,
 )
 
 /**
  * Apps are sideloaded from GitHub Releases, so nothing tells an installed app
- * that a newer one exists. This asks GitHub for the latest release carrying
- * this app's tag prefix and compares version codes, which CI writes into the
- * tag as `<prefix><major>.<minor>.<versionCode>`.
+ * that a newer one exists. This asks GitHub for the releases carrying this
+ * app's tag prefix and picks the highest version code, which CI writes into
+ * the tag as `<prefix><major>.<minor>.<versionCode>`. Unauthenticated: the
+ * repository is public, and 60 requests an hour is plenty for a daily check.
  */
-class UpdateChecker(private val config: NexusConfig, private val engine: HttpClientEngine? = null) {
+class UpdateChecker(
+    private val repository: String,
+    private val tagPrefix: String,
+    private val engine: HttpClientEngine? = null,
+) {
+    constructor(config: NexusConfig, engine: HttpClientEngine? = null) :
+        this(config.releaseRepository, config.releaseTagPrefix, engine)
 
     @Serializable
-    private data class Release(
+    internal data class Release(
         @SerialName("tag_name") val tagName: String,
         @SerialName("html_url") val htmlUrl: String,
         val draft: Boolean = false,
@@ -34,32 +43,45 @@ class UpdateChecker(private val config: NexusConfig, private val engine: HttpCli
     )
 
     @Serializable
-    private data class Asset(
+    internal data class Asset(
         val name: String,
         @SerialName("browser_download_url") val downloadUrl: String,
     )
 
-    /** Null when up to date, offline, or the repository is not reachable. */
-    suspend fun check(): AvailableUpdate? = runCatching {
+    /** The newest release, or null when offline or the repository is not reachable. */
+    suspend fun latest(): AvailableUpdate? = runCatching {
         (engine?.let { HttpClient(it) } ?: HttpClient(OkHttp)).use { client ->
-            val body = client.get("https://api.github.com/repos/${config.releaseRepository}/releases?per_page=30") {
+            // Every app releases into the same repository, so one page of 100
+            // keeps this app's newest in view however busy the others are.
+            val body = client.get("https://api.github.com/repos/$repository/releases?per_page=100") {
                 header("Accept", "application/vnd.github+json")
+                header("User-Agent", "Nexus-Android")
             }.bodyAsText()
-            NexusJson.decodeFromString<List<Release>>(body)
-                .filter { !it.draft && !it.prerelease && it.tagName.startsWith(config.releaseTagPrefix) }
-                .mapNotNull { release -> versionCodeOf(release.tagName)?.let { it to release } }
+            newest(body, tagPrefix)
+        }
+    }.getOrNull()
+
+    /** The newest release if it is newer than [installedVersionCode], else null. */
+    suspend fun check(installedVersionCode: Long): AvailableUpdate? =
+        latest()?.takeIf { it.versionCode > installedVersionCode }
+
+    companion object {
+        /** The highest version code among [tagPrefix]'s published releases in GitHub's [json]. */
+        fun newest(json: String, tagPrefix: String): AvailableUpdate? =
+            NexusJson.decodeFromString<List<Release>>(json)
+                .filter { !it.draft && !it.prerelease && it.tagName.startsWith(tagPrefix) }
+                .mapNotNull { release -> versionCodeOf(release.tagName, tagPrefix)?.let { it to release } }
                 .maxByOrNull { it.first }
-                ?.takeIf { (code, _) -> code > config.versionCode }
-                ?.let { (_, release) ->
+                ?.let { (code, release) ->
                     AvailableUpdate(
-                        versionName = release.tagName.removePrefix(config.releaseTagPrefix),
+                        versionName = release.tagName.removePrefix(tagPrefix),
+                        versionCode = code,
                         pageUrl = release.htmlUrl,
                         apkUrl = release.assets.firstOrNull { it.name.endsWith(".apk") }?.downloadUrl,
                     )
                 }
-        }
-    }.getOrNull()
 
-    private fun versionCodeOf(tag: String): Int? =
-        tag.removePrefix(config.releaseTagPrefix).substringAfterLast('.').toIntOrNull()
+        private fun versionCodeOf(tag: String, prefix: String): Long? =
+            tag.removePrefix(prefix).substringAfterLast('.').toLongOrNull()
+    }
 }

@@ -126,7 +126,9 @@ class AppScreenshots {
         shot("12-vehicle-sharing")
         back()
 
-        scrollTo("Say the arrival time in the car")
+        // Past the commute card, so its rows clear the navigation bar the
+        // tap below would otherwise land on.
+        scrollTo("Remind me to refuel")
         waitFor(hasText("Mo–Fr · 06:30–09:30 · 16:00–19:00"))
         shot("12a-settings-commute")
         compose.onAllNodes(hasText("Mo–Fr · 06:30–09:30 · 16:00–19:00")).onFirst().performClick()

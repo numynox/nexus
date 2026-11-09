@@ -47,7 +47,6 @@ import io.github.numynox.nexus.core.ui.components.ConnectedChoiceRow
 import io.github.numynox.nexus.core.ui.components.NexusCard
 import io.github.numynox.nexus.core.ui.components.PlaceholderCard
 import io.github.numynox.nexus.core.ui.components.SectionHeader
-import io.github.numynox.nexus.core.ui.components.UpdateBanner
 import io.github.numynox.nexus.core.ui.settings.AboutItem
 import io.github.numynox.nexus.core.ui.settings.AccountCard
 import io.github.numynox.nexus.core.ui.settings.AppearanceCard
@@ -70,7 +69,6 @@ fun SettingsScreen(app: AppViewModel, onOpenVehicle: (String?) -> Unit, onOpenCo
     val settings by app.settings.collectAsStateWithLifecycle()
     val cars by app.cars.collectAsStateWithLifecycle()
     val auth by app.auth.collectAsStateWithLifecycle()
-    val update by app.update.collectAsStateWithLifecycle()
     val links by viewModel.links.collectAsStateWithLifecycle()
     val commutes by viewModel.commutes.collectAsStateWithLifecycle()
     // Again on every return here, so a commute just saved shows.
@@ -104,8 +102,6 @@ fun SettingsScreen(app: AppViewModel, onOpenVehicle: (String?) -> Unit, onOpenCo
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
-            item { UpdateBanner(update) }
-
             item {
                 SectionHeader("Vehicles", trailing = {
                     FilledTonalButton(onClick = { onOpenVehicle(null) }) {
@@ -291,7 +287,7 @@ fun SettingsScreen(app: AppViewModel, onOpenVehicle: (String?) -> Unit, onOpenCo
             item { SectionHeader("Account") }
             item { AccountCard("Vibilia", (auth as? AuthState.SignedIn)?.email, onSignOut = app::signOut) }
 
-            item { AboutItem(viewModel.config) }
+            item { AboutItem(viewModel.config, app.updates) }
         }
     }
 }

@@ -3,10 +3,11 @@ name: Android app
 # The one build of a Nexus Android app, called by android-<app>.yml, each of
 # which triggers only when that app's code or the shared Android code changes.
 # Pull requests get tests, screenshots and a release build; a push to main
-# also publishes the signed APK as a GitHub release, which is how the apps are
-# installed and updated (sideloaded, no Play Store — DEPLOYMENT.md). Pull
-# requests are signed with the release key too, so their APK artifact updates
-# the installed app in place; a fork's gets no secrets and is debug-signed.
+# also publishes the signed APK as a GitHub release: installed by hand the
+# first time (sideloaded, no Play Store — DEPLOYMENT.md), then downloaded and
+# installed by the app itself. Pull requests are signed with the release key
+# too, so their APK artifact updates the installed app in place; a fork's gets
+# no secrets and is debug-signed.
 
 on:
   workflow_call:
@@ -79,14 +80,15 @@ jobs:
 
       - name: Test, screenshot and build
         # One Gradle run: the screenshot walk (AppScreenshots, the real app
-        # against a fake backend) also runs every other unit test, and the
-        # release build shares its configuration and compiled modules.
+        # against a fake backend) also runs every other unit test of the app,
+        # the shared modules' tests run beside it, and the release build
+        # shares its configuration and compiled modules.
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          ./gradlew ":$APP:recordRoborazziDebug" ":$APP:assembleRelease"
+          ./gradlew ":$APP:recordRoborazziDebug" :core:data:testDebugUnitTest :core:update:testDebugUnitTest ":$APP:assembleRelease"
           version="$(./gradlew -q ":$APP:printVersionName")"
           echo "APP_VERSION=${version}" >> "$GITHUB_ENV"
           cp "$APP/build/outputs/apk/release/$APP-release.apk" "$RUNNER_TEMP/$APP-${version}.apk"
@@ -115,6 +117,6 @@ jobs:
           version="${APP_VERSION}"
           gh release create "$APP-android-v${version}" "$RUNNER_TEMP/$APP-${version}.apk" \
             --title "$TITLE for Android ${version}" \
-            --notes "Built from ${GITHUB_SHA::7}. Open this page on the phone and install the APK; Android updates the installed app in place." \
+            --notes "Built from ${GITHUB_SHA::7}. An installed app offers this update itself; for a first install, open this page on the phone and install the APK." \
             --target "$GITHUB_SHA" \
             --latest=false

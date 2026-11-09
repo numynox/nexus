@@ -184,7 +184,6 @@ private fun HistoryTab(
     val car by app.selectedCar.collectAsStateWithLifecycle()
     val cars by app.cars.collectAsStateWithLifecycle()
     val tracker by app.tracker.collectAsStateWithLifecycle()
-    val update by app.update.collectAsStateWithLifecycle()
     val now = rememberNow(30_000)
 
     LaunchedEffect(settings.fuelType, settings.priceHistoryDays, version) {
@@ -203,7 +202,7 @@ private fun HistoryTab(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
-            item(key = "update") { UpdateBanner(update) }
+            item(key = "update") { UpdateBanner(app.updates) }
             item(key = "drive") {
                 LiveDriveBanner(
                     visible = openDrive != null && drivingCar != null && settings.trackDrives,

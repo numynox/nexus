@@ -19,9 +19,11 @@ dependencyResolutionManagement {
 rootProject.name = "nexus-android"
 
 // Shared by every app, like the websites' packages/: the Supabase client and
-// session, the design system and app shell, and the screenshot test harness.
+// session, the design system and app shell, the in-app update, and the
+// screenshot test harness.
 include(":core:data")
 include(":core:ui")
+include(":core:update")
 include(":core:testing")
 
 // One application module per Nexus app, named after it.

@@ -38,6 +38,7 @@ nexus/
 │   ├── build-logic/     # Gradle conventions: SDKs, version, signing, build config
 │   ├── core/data/       # Supabase client, session, update check — shared
 │   ├── core/ui/         # theme, app shell, components, charts, sign-in — shared
+│   ├── core/update/     # in-app update: download and install a release — shared
 │   ├── core/testing/    # fake Supabase and screenshot robot — shared by the tests
 │   ├── noctua/          # the Noctua app
 │   ├── vibilia/         # the Vibilia app
@@ -292,6 +293,7 @@ cd android
 ./gradlew :annona:recordRoborazziDebug    # unit tests + screenshots of every screen
 ./gradlew :annona:assembleRelease         # what CI publishes
 ./gradlew recordRoborazziDebug assembleRelease   # every app, as before a push
+./gradlew :core:data:testDebugUnitTest :core:update:testDebugUnitTest   # the shared modules' tests
 ```
 
 Where Maven Central answers `429 Too Many Requests` (cloud agent sandboxes),

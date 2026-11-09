@@ -13,6 +13,7 @@ import io.github.numynox.nexus.annona.ui.AnnonaPalette
 import io.github.numynox.nexus.core.data.AvailableUpdate
 import io.github.numynox.nexus.core.ui.components.UpdateBanner
 import io.github.numynox.nexus.core.ui.theme.NexusTheme
+import io.github.numynox.nexus.core.update.DownloadProgress
 import io.github.numynox.nexus.core.ui.theme.ThemeMode
 import org.junit.Rule
 import org.junit.Test
@@ -22,8 +23,9 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * The update banner in both themes. The fake backend never offers an update,
- * so no screen shows it — which is how its Download button went unreadable.
+ * The update banner in both themes, offering a release and downloading it.
+ * The fake backend never offers an update, so no screen shows it — which is
+ * how its button once went unreadable.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -34,13 +36,14 @@ class UpdateBannerScreenshot {
 
     @Test
     fun updateBanner() {
-        val update = AvailableUpdate(versionName = "1.4.57", pageUrl = "https://github.com", apkUrl = null)
+        val update = AvailableUpdate(versionName = "0.0.57", versionCode = 57, pageUrl = "https://github.com", apkUrl = "https://github.com/app.apk")
         compose.setContent {
             Column {
                 ThemeMode.entries.filter { it != ThemeMode.System }.forEach { mode ->
                     NexusTheme(AnnonaPalette, themeMode = mode) {
                         Column(Modifier.background(MaterialTheme.colorScheme.surface).padding(16.dp)) {
-                            UpdateBanner(update)
+                            UpdateBanner(update, download = null, onInstall = {})
+                            UpdateBanner(update, DownloadProgress(42), onInstall = {}, modifier = Modifier.padding(top = 8.dp))
                         }
                     }
                 }

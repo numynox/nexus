@@ -75,7 +75,6 @@ import io.github.numynox.nexus.core.ui.Loadable
 import io.github.numynox.nexus.core.ui.components.LoadingState
 import io.github.numynox.nexus.core.ui.components.NexusCard
 import io.github.numynox.nexus.core.ui.components.SectionHeader
-import io.github.numynox.nexus.core.ui.components.UpdateBanner
 import io.github.numynox.nexus.core.ui.settings.AboutItem
 import io.github.numynox.nexus.core.ui.settings.AccountCard
 import io.github.numynox.nexus.core.ui.settings.AppearanceCard
@@ -95,7 +94,6 @@ fun SettingsScreen(app: AppViewModel, navigator: Navigator) {
     val viewModel = containerViewModel { SettingsViewModel(it, application) }
     val settings by app.settings.collectAsStateWithLifecycle()
     val auth by app.auth.collectAsStateWithLifecycle()
-    val update by app.update.collectAsStateWithLifecycle()
     val household by viewModel.household.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     var editing by remember { mutableStateOf<Editing?>(null) }
@@ -129,8 +127,6 @@ fun SettingsScreen(app: AppViewModel, navigator: Navigator) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
-            item { UpdateBanner(update) }
-
             item { SectionHeader("On the day") }
             item {
                 NexusCard {
@@ -363,7 +359,7 @@ fun SettingsScreen(app: AppViewModel, navigator: Navigator) {
                     )
                 }
             }
-            item { AboutItem(viewModel.config) }
+            item { AboutItem(viewModel.config, app.updates) }
         }
     }
 

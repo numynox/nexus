@@ -1,6 +1,9 @@
 package io.github.numynox.nexus.noctua.screenshots
 
 import android.graphics.Color
+import androidx.work.Configuration
+import androidx.work.testing.SynchronousExecutor
+import androidx.work.testing.WorkManagerTestInitHelper
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.test.FakeImage
@@ -21,6 +24,8 @@ import kotlinx.coroutines.runBlocking
  */
 class ScreenshotApplication : NoctuaApplication() {
     override fun onCreate() {
+        // The in-app update's daily check is scheduled with WorkManager.
+        WorkManagerTestInitHelper.initializeTestWorkManager(this, Configuration.Builder().setExecutor(SynchronousExecutor()).build())
         super.onCreate()
         val palette = listOf(0xFF5C6BC0, 0xFF26A69A, 0xFFEF8A65, 0xFF8D6E63, 0xFF42A5F5, 0xFFAB47BC, 0xFF9CCC65)
         val engine = FakeImageLoaderEngine.Builder()

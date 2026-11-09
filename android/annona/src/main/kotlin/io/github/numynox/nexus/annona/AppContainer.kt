@@ -5,6 +5,7 @@ import io.github.numynox.nexus.annona.data.AnnonaPreferences
 import io.github.numynox.nexus.annona.data.AnnonaRepository
 import io.github.numynox.nexus.core.data.NexusConfig
 import io.github.numynox.nexus.core.data.NexusCore
+import io.github.numynox.nexus.core.update.AppUpdates
 import io.ktor.client.engine.HttpClientEngine
 
 /** Every long-lived object, wired by hand like the other apps'. [httpEngine] replaces the network in screenshot tests. */
@@ -26,6 +27,7 @@ class AppContainer(
         ),
         httpEngine,
     )
+    val updates = AppUpdates(context, core.config, core.updates)
     val preferences = AnnonaPreferences(context)
     val repository = AnnonaRepository(core.supabase)
 }
