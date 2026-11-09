@@ -422,7 +422,10 @@ android/
                 error wording, NexusConfig, date serializers
   core/ui       NexusTheme (palette per app, wallpaper colours optional), NexusApp
                 (theme + session gate + sign-in), Loadable, formatting, components,
-                NexusChart, shared settings cards
+                NexusChart, shared settings cards, the update banner
+  core/update   AppUpdates: the daily release check, the download worker,
+                PackageInstaller and its receiver — the in-app update
+                (decisions/2026-11-09-in-app-self-update.md)
   core/testing  FakeSupabase and ScreenshotRobot — test-only
   noctua/ vibilia/ annona/ abeona/   one module per app: data/ (rows,
                 repository, preferences), ui/ (one package per screen), plus

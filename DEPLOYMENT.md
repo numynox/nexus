@@ -98,7 +98,8 @@ workflow — `android-noctua.yml`, `android-vibilia.yml`, `android-annona.yml`,
    the Gradle files) or `config.yaml`, and on `workflow_dispatch`. A change to
    Noctua alone builds Noctua alone.
 2. One Gradle run, Java 21: the unit tests and the screenshot walk
-   (`:<app>:recordRoborazziDebug`), then `:<app>:assembleRelease`. The Gradle
+   (`:<app>:recordRoborazziDebug`), the shared modules' tests
+   (`:core:data` and `:core:update`), then `:<app>:assembleRelease`. The Gradle
    cache is written from `main` only and read by pull requests.
 3. On a push to `main` with the signing key configured, publishes a GitHub
    release tagged `<app>-android-v<version>` with the APK attached. The
@@ -115,11 +116,23 @@ check looks only at tags with its own prefix.
 
 ### Installing and updating on a phone
 
-Open the release page on the phone, download the APK and install it (Android
-asks once to allow installs from the browser). Later releases install over the
-existing app, keeping its sign-in and settings. The app checks GitHub's
-releases on start and shows a banner when a newer one exists. There is no Play
-Store listing.
+**The first install** is by hand: open the release page on the phone,
+download the APK and install it (Android asks once to allow installs from the
+browser).
+
+**Every later update happens inside the app**
+(`.agents/brain/decisions/2026-11-09-in-app-self-update.md`). The app checks
+GitHub's releases on start and once a day, notifies a newer release once, and
+offers it in a banner and at the foot of Settings. "Install" downloads the APK,
+checks it is the same app, newer and signed with the same key, and hands it to
+Android's package installer; the app restarts as the new version, keeping its
+sign-in and settings. The first time, Android asks to allow "Install unknown
+apps" for the app itself and to confirm the update. Later updates may install
+without the prompt — not yet seen on a device, so check it on the next two
+releases. There is no Play Store listing.
+
+Debug builds (`.debug`) are another package and debug-signed: their banner
+opens the release page instead.
 
 ### Required configuration
 
@@ -155,8 +168,12 @@ keyAlias=nexus
 keyPassword=…
 ```
 
-A relative `storeFile` is resolved against `android/`. Pass
-`NEXUS_VERSION_CODE` above the installed version, or Android refuses the update.
+A relative `storeFile` is resolved against `android/`. To install a local
+release build over a released app, pass the installed version's
+`NEXUS_VERSION_CODE` (an equal code installs) — never a lower one, which
+Android refuses without an uninstall (and its loss of the app's data), and
+never a high one like 9999, which would make every later release a downgrade
+the app ignores.
 
 **Back the keystore up outside GitHub.** Android installs an update only if it
 is signed with the same key as the installed app; without the key, every phone
