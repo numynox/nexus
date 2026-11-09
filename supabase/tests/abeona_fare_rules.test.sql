@@ -1,6 +1,6 @@
 -- Abeona fare rules: the reference table, and what abeona_allowed_products()
 -- says a trip's ticket covers — with the binding held, lifted by delay or by
--- a cancellation, and never IC/ICE on a Deutschlandticket.
+-- a cancellation or a broken connection, and never IC/ICE on a Deutschlandticket.
 --
 -- Run with: npm run test:db
 
@@ -8,7 +8,7 @@ begin;
 
 create extension if not exists pgtap;
 
-select plan(22);
+select plan(27);
 
 insert into auth.users (id, email) values
   ('abe0fa00-0000-4000-8000-000000000001', 'abeona-fr-a@test.local'),
@@ -46,10 +46,10 @@ select is((select count(*)::int from public.abeona_fare_rules), 5,
 select ok(not has_table_privilege('anon', 'public.abeona_fare_rules', 'select'),
   'anon cannot read the fare rules');
 
-select ok(not has_function_privilege('anon', 'public.abeona_allowed_products(uuid)', 'execute'),
+select ok(not has_function_privilege('anon', 'public.abeona_allowed_products(uuid, boolean)', 'execute'),
   'anon cannot execute abeona_allowed_products');
 
-select ok(has_function_privilege('authenticated', 'public.abeona_allowed_products(uuid)', 'execute'),
+select ok(has_function_privilege('authenticated', 'public.abeona_allowed_products(uuid, boolean)', 'execute'),
   'authenticated can execute abeona_allowed_products');
 
 -- ── User A ─────────────────────────────────────────────────────────────────
@@ -81,6 +81,8 @@ select is((select a->>'train_bound' from fr_allowed where key = 'saver'), 'true'
   'a saver on time is bound to its trains');
 select is((select a->>'binding_lifted' from fr_allowed where key = 'saver'), 'false',
   'and its binding is not lifted');
+select is((select a->>'binding_lifted_reason' from fr_allowed where key = 'saver'), null,
+  'and there is no reason while it holds');
 select is((select a->'booked_lines' from fr_allowed where key = 'saver'), '["ICE 25", "RE 10"]'::jsonb,
   'the booked lines are the rides, in order');
 
@@ -105,6 +107,25 @@ update public.abeona_legs set arrival = null, cancelled = (idx = 1)
 where trip_id = (select id from fr_ids where key = 'saver');
 select is((public.abeona_allowed_products((select id from fr_ids where key = 'saver'))->>'binding_lifted'), 'true',
   'a cancelled ride lifts the binding');
+
+-- Nothing cancelled, on time, but the ICE comes in just as the RE leaves: an
+-- impossible connection lifts it.
+update public.abeona_legs l set cancelled = false, arrival = (
+  select coalesce(r.departure, r.planned_departure) from public.abeona_legs r where r.trip_id = l.trip_id and r.idx = 1)
+where trip_id = (select id from fr_ids where key = 'saver') and idx = 0;
+select is((public.abeona_allowed_products((select id from fr_ids where key = 'saver'))->>'binding_lifted_reason'), 'impossible_connection',
+  'a change with no time at all lifts the binding');
+
+-- One minute to spare: still bound, unless the phone saw the change missed.
+update public.abeona_legs l set arrival = (
+  select coalesce(r.departure, r.planned_departure) - interval '1 minute' from public.abeona_legs r where r.trip_id = l.trip_id and r.idx = 1)
+where trip_id = (select id from fr_ids where key = 'saver') and idx = 0;
+select is((public.abeona_allowed_products((select id from fr_ids where key = 'saver'))->>'train_bound'), 'true',
+  'a change with a minute to spare: still bound');
+select is((public.abeona_allowed_products((select id from fr_ids where key = 'saver'), true)->>'binding_lifted_reason'), 'missed_connection',
+  'a short change the phone saw missed lifts it');
+select is((public.abeona_allowed_products((select id from fr_ids where key = 'dticket'), true)->>'binding_lifted'), 'false',
+  'a missed change lifts nothing on a ticket without a binding');
 
 -- Deutschlandticket: never IC/ICE, even when late or cancelled.
 update public.abeona_legs set arrival = planned_arrival + interval '45 minutes', cancelled = true

@@ -880,6 +880,8 @@ export async function fetchAlternatives(
   trip: Pick<Trip, "id" | "legs">,
   from: { id: string | null; lat: number | null; lon: number | null },
   time: string,
+  /** The browser's position showed a short change missed (missedShortConnection): it lifts the binding. */
+  connectionMissed = false,
 ): Promise<AlternativesResponse> {
   const last = trip.legs[trip.legs.length - 1];
   const place = (stop: { id: string | null; lat: number | null; lon: number | null }) =>
@@ -893,6 +895,7 @@ export async function fetchAlternatives(
     from: origin,
     to: destination,
     time,
+    ...(connectionMissed ? { connection_missed: true } : {}),
   });
   return { allowance: result.allowance ?? null, alternatives: result.alternatives ?? [] };
 }

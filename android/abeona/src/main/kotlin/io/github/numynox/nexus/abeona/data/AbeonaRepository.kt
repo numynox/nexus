@@ -478,7 +478,7 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
      * now. One request per refresh; save the live values first, since the
      * allowance reads them.
      */
-    suspend fun alternatives(trip: Trip, from: AlternativesOrigin): AlternativesResponse {
+    suspend fun alternatives(trip: Trip, from: AlternativesOrigin, connectionMissed: Boolean = false): AlternativesResponse {
         fun place(id: String?, lat: Double?, lon: Double?) = id ?: if (lat != null && lon != null) "$lat,$lon" else null
         val origin = place(from.id, from.lat, from.lon)
         val destination = trip.legs.lastOrNull()?.to?.let { place(it.id, it.lat, it.lon) }
@@ -491,6 +491,8 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
                     put("from", origin)
                     put("to", destination)
                     put("time", from.time.toString())
+                    // The phone saw a short change missed (missedShortConnection): it lifts the binding.
+                    if (connectionMissed) put("connection_missed", true)
                 },
             ),
         )
