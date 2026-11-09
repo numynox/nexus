@@ -82,6 +82,32 @@ export function replacedRide(legs: Pick<Leg, "mode">[], day: TravelDay): number 
   return next >= 0 ? next : day.legIndex;
 }
 
+/**
+ * Taking [chosen] now, with [day] worked out on the legs as travelled: what
+ * to store (missed_leg_idx, replacement_legs). With nothing taken before, it
+ * replaces the ride replacedRide names, and followedLegs cuts the ride left
+ * early. With a connection already taken, the new one goes into that
+ * replacement at the same place, so the plan's own rides stay as they were.
+ * Null when nothing is left to replace.
+ */
+export function takeConnection(
+  legs: Leg[],
+  missedIdx: number | null,
+  replacement: Leg[] | null,
+  day: TravelDay,
+  chosen: Leg[],
+): { missedIdx: number; replacement: Leg[] } | null {
+  if (missedIdx === null || !replacement || replacement.length === 0) {
+    const k = replacedRide(legs, day);
+    return k === null ? null : { missedIdx: k, replacement: chosen };
+  }
+  const followed = followedLegs(legs, missedIdx, replacement);
+  const k = replacedRide(followed, day);
+  if (k === null) return null;
+  if (k < missedIdx) return { missedIdx: k, replacement: chosen };
+  return { missedIdx, replacement: followedLegs(followed.slice(missedIdx), k - missedIdx, chosen) };
+}
+
 /** A trip's legs as travelled (its replacement, if one was taken). */
 export function tripFollowedLegs(trip: { legs: Leg[]; missed_leg_idx?: number | null; replacement_legs?: Leg[] | null }): Leg[] {
   return followedLegs(trip.legs, trip.missed_leg_idx ?? null, trip.replacement_legs ?? null);

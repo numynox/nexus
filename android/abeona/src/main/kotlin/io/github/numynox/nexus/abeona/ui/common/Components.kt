@@ -256,7 +256,7 @@ fun OfflinePill(since: Instant?, modifier: Modifier = Modifier) {
 
 /** The rule DB applies at 20 minutes, said plainly, in amber. */
 @Composable
-fun BindingLiftedBanner(delay: Int, modifier: Modifier = Modifier) {
+fun BindingLiftedBanner(delay: Int, modifier: Modifier = Modifier, because: String? = null) {
     val colors = attention
     Surface(color = colors.container, contentColor = colors.content, shape = RoundedCornerShape(20.dp), modifier = modifier.fillMaxWidth()) {
         Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -264,7 +264,7 @@ fun BindingLiftedBanner(delay: Int, modifier: Modifier = Modifier) {
             Column {
                 Text("Train binding lifted", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
                 Text(
-                    "Expected +$delay min at your destination. Your saver ticket is valid on other trains for this route.",
+                    (because ?: "Expected +$delay min at your destination.") + " Your saver ticket is valid on other trains for this route.",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }

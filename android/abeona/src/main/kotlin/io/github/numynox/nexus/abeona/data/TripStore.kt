@@ -155,6 +155,11 @@ class TripStore(
      */
     val refreshed: SharedFlow<Trip> = _refreshed.asSharedFlow()
 
+    /** A trip changed on this phone (a connection taken or given up): the live companion takes it at once. */
+    fun publish(trip: Trip) {
+        _refreshed.tryEmit(trip)
+    }
+
     /** Live values from the provider, written to the database and the pack. */
     suspend fun refresh(trip: Trip): Trip = repository.refreshTrip(trip).also {
         pack.update(it)

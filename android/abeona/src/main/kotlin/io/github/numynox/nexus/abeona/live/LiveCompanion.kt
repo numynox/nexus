@@ -20,6 +20,7 @@ import io.github.numynox.nexus.abeona.AbeonaApplication
 import io.github.numynox.nexus.abeona.MainActivity
 import io.github.numynox.nexus.abeona.R
 import io.github.numynox.nexus.abeona.data.Trip
+import io.github.numynox.nexus.abeona.domain.followed
 import io.github.numynox.nexus.abeona.ui.common.TripFormat
 import io.github.numynox.nexus.abeona.widget.NextTripWidget
 import java.time.Duration
@@ -329,7 +330,7 @@ class LiveCompanionService : Service() {
         container.core.auth.awaitUserId() ?: return finish()
         var trip = runCatching { container.trips.trip(tripId).value }.getOrNull() ?: return finish()
         // Too late to start (a tapped reminder, a restart by Android): the trip is over.
-        if (!LiveCompanion.canFollow(trip, Instant.now())) return finish()
+        if (!LiveCompanion.canFollow(trip.followed, Instant.now())) return finish()
         var updated: Instant? = null
         var refreshedAt: Instant? = null
         // A refresh made elsewhere (the trip screen, the half-hourly job) is
@@ -338,14 +339,14 @@ class LiveCompanionService : Service() {
         // here too, and are recognised by their time.
         val elsewhere = MutableStateFlow<Trip?>(null)
         val listener = scope.launch {
-            container.trips.refreshed.collect { fresh -> if (fresh.id == tripId && fresh.refreshedAt != trip.refreshedAt) elsewhere.value = fresh }
+            container.trips.refreshed.collect { fresh -> if (fresh.id == tripId && isNews(fresh, trip)) elsewhere.value = fresh }
         }
         try {
             while (scope.isActive) {
                 val settings = container.preferences.current()
                 var now = Instant.now()
                 val taken = elsewhere.getAndUpdate { null }
-                val fresh = if (taken != null && taken.refreshedAt != trip.refreshedAt) {
+                val fresh = if (taken != null && isNews(taken, trip)) {
                     taken
                 } else if (refreshedAt == null || !now.isBefore(refreshedAt.plus(LiveCompanion.REFRESH_EVERY))) {
                     refreshedAt = now
@@ -357,7 +358,11 @@ class LiveCompanionService : Service() {
                     null
                 }
                 if (fresh != null) {
-                    if (updated != null) companionAlerts(trip, fresh, now, settings.alerts).filter { posted.add(it.key) }.forEach { post(tripId, it) }
+                    // Alerts compare ride by ride: not across a connection taken in between.
+                    val sameJourney = fresh.missedLegIdx == trip.missedLegIdx && fresh.replacementLegs?.size == trip.replacementLegs?.size
+                    if (updated != null && sameJourney) {
+                        companionAlerts(trip.followed, fresh.followed, now, settings.alerts).filter { posted.add(it.key) }.forEach { post(tripId, it) }
+                    }
                     trip = fresh
                     updated = now
                     refreshedAt = now
@@ -367,16 +372,18 @@ class LiveCompanionService : Service() {
                 }
                 val onboard = runCatching { container.onboard.status() }.getOrNull()
                 LiveSignals.setOnboard(onboard)
-                val signals = LiveSignals.forTrip(trip, now)
-                missedAlert(trip, now, settings.stationMinutes, signals, settings.alerts)?.takeIf { posted.add(it.key) }?.let { post(tripId, it) }
-                val status = companionStatus(trip, now, settings.stationMinutes, signals, LiveSignals.onboardFor(trip, now))
+                // The trains actually taken: a connection from the alternatives replaces the plan's.
+                val journey = trip.followed
+                val signals = LiveSignals.forTrip(journey, now)
+                missedAlert(journey, now, settings.stationMinutes, signals, settings.alerts)?.takeIf { posted.add(it.key) }?.let { post(tripId, it) }
+                val status = companionStatus(journey, now, settings.stationMinutes, signals, LiveSignals.onboardFor(journey, now))
                 if (LiveCompanion.canNotify(this)) {
                     NotificationManagerCompat.from(this).notify(
                         LiveCompanion.ONGOING_ID,
-                        LiveCompanion.ongoing(this, tripId, status, updated, sourceLabel(trip, now, settings.stationMinutes, signals)),
+                        LiveCompanion.ongoing(this, tripId, status, updated, sourceLabel(journey, now, settings.stationMinutes, signals)),
                     )
                 }
-                if (!LiveCompanion.canFollow(trip, now)) return finish()
+                if (!LiveCompanion.canFollow(journey, now)) return finish()
                 // The next tick, or sooner when a refresh lands from elsewhere.
                 withTimeoutOrNull(LiveCompanion.TICK.toMillis()) { elsewhere.first { it != null } }
             }
@@ -384,6 +391,12 @@ class LiveCompanionService : Service() {
             listener.cancel()
         }
     }
+
+    /** A refresh, or a connection taken or given up on the trip screen: what the companion follows changed. */
+    private fun isNews(fresh: Trip, current: Trip): Boolean =
+        fresh.refreshedAt != current.refreshedAt ||
+            fresh.missedLegIdx != current.missedLegIdx ||
+            fresh.replacementLegs != current.replacementLegs
 
     private fun post(tripId: String, alert: CompanionAlert) {
         if (!LiveCompanion.canNotify(this)) return

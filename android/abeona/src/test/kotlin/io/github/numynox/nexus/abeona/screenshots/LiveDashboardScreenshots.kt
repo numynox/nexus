@@ -69,8 +69,9 @@ class LiveDashboardScreenshots {
         locationOn: Boolean = false,
         companion: Boolean = true,
         mode: ThemeMode = ThemeMode.Light,
+        of: Trip? = null,
     ) {
-        val trip = trip()
+        val trip = of ?: trip()
         val now = at(nowMinutes)
         val day = travelDay(trip.legs, now, 15, signals)
         val view = liveView(
@@ -141,6 +142,14 @@ class LiveDashboardScreenshots {
 
     /** Standing at the stop before the last: the list still names where to get off. */
     @Test fun standingBeforeTheLastStop() = shot("59m-live-standing-before-last", "Standing at Haßfurt, Bamberg next", 147)
+
+    /** The RE 10 leaves Würzburg before the late ICE is in: no time at all, impossible. */
+    @Test fun impossibleChange() {
+        val base = grandmaTrip(t0)
+        val re = base.legs[1]
+        val trip = base.copy(legs = listOf(base.legs[0], re.copy(from = re.from.copy(current = iso(74)))))
+        shot("59n-live-impossible-change", "On board · the RE 10 leaves before the ICE is in", 46, of = trip)
+    }
 
     @Test fun missed() = shot(
         "59h-live-missed", "Still at Würzburg after the RE 10 left · by the position", 86,

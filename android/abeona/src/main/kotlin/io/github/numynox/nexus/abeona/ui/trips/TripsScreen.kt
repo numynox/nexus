@@ -70,6 +70,7 @@ import io.github.numynox.nexus.abeona.ui.common.isLiveDay
 import io.github.numynox.nexus.abeona.ui.common.rememberTicker
 import io.github.numynox.nexus.abeona.domain.TravelDay
 import io.github.numynox.nexus.abeona.domain.TravelDayRules
+import io.github.numynox.nexus.abeona.domain.followed
 import io.github.numynox.nexus.abeona.domain.travelDay
 import io.github.numynox.nexus.abeona.live.LiveSignals
 import io.github.numynox.nexus.abeona.live.OnboardStatus
@@ -142,7 +143,8 @@ fun TripsScreen(app: AppViewModel, navigator: Navigator) {
                             item(key = "empty") { EmptyTrips(onPlan = navigator::search) }
                         } else {
                             item(key = "next") {
-                                val next = upcoming.first()
+                                // As travelled: a connection taken from the alternatives replaces the plan's rides.
+                                val next = upcoming.first().followed
                                 val day = if (isLiveDay(next, now)) travelDay(next.legs, now, settings.stationMinutes, LiveSignals.forTrip(next, now, onboard, fix)) else null
                                 NextTripCard(
                                     next, now, onClick = { navigator.trip(next.id) },

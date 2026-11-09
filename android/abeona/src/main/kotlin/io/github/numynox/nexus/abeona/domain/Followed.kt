@@ -72,6 +72,24 @@ fun replacedRide(legs: List<Leg>, day: TravelDay): Int? {
     return legs.indices.firstOrNull { it > index && !legs[it].isWalk } ?: index
 }
 
+/** What to store when a connection is taken: the ride it replaces (missed_leg_idx) and the legs from there (replacement_legs). */
+data class Taken(val missedIdx: Int, val replacement: List<Leg>)
+
+/**
+ * Taking [chosen] now, with [day] worked out on the legs as travelled. With
+ * nothing taken before, it replaces the ride [replacedRide] names, and
+ * [followedLegs] cuts the ride left early. With a connection already taken,
+ * the new one goes into that replacement at the same place, so the plan's
+ * own rides stay as they were. Null when nothing is left to replace.
+ */
+fun takeConnection(legs: List<Leg>, missedIdx: Int?, replacement: List<Leg>?, day: TravelDay, chosen: List<Leg>): Taken? {
+    if (missedIdx == null || replacement.isNullOrEmpty()) return replacedRide(legs, day)?.let { Taken(it, chosen) }
+    val followed = followedLegs(legs, missedIdx, replacement)
+    val k = replacedRide(followed, day) ?: return null
+    if (k < missedIdx) return Taken(k, chosen)
+    return Taken(missedIdx, followedLegs(followed.drop(missedIdx), k - missedIdx, chosen))
+}
+
 /** The trip as travelled: its legs replaced from the missed ride on by the connection taken instead. */
 val Trip.followed: Trip
     get() {

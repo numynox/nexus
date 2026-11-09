@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { followedLegs, replacedRide } from "./followed.ts";
+import { followedLegs, replacedRide, takeConnection } from "./followed.ts";
 import type { Leg, StopTime } from "./transit.ts";
 import type { TravelDay } from "./travelday.ts";
 
@@ -73,5 +73,19 @@ for (const c of fixtures.replacedRide) {
   test(`replacedRide: ${c.name}`, () => {
     const day = { kind: c.kind, legIndex: c.legIndex } as TravelDay;
     assert.equal(replacedRide(legs, day), c.expect);
+  });
+}
+
+const id = (l: Leg) => `${l.from.id ?? "?"}>${l.to.id ?? "?"}`;
+
+for (const c of fixtures.takeConnection) {
+  test(`takeConnection: ${c.name}`, () => {
+    const replacement = c.replacement ? c.replacement.map(leg) : null;
+    const taken = takeConnection(legs, c.missedIdx, replacement, c.day as TravelDay, c.chosen.map(leg));
+    if (c.expect === null) return assert.equal(taken, null);
+    assert.ok(taken);
+    assert.equal(taken.missedIdx, c.expect.missedIdx);
+    assert.deepEqual(taken.replacement.map(id), c.expect.replacement);
+    assert.deepEqual(followedLegs(legs, taken.missedIdx, taken.replacement).map(id), c.expect.followed);
   });
 }

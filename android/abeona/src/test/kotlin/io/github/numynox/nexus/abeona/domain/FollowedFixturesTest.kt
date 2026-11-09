@@ -70,7 +70,38 @@ class FollowedFixturesTest {
     private data class ReplacedCase(val name: String, val kind: String, val legIndex: Int?, val expect: Int?)
 
     @Serializable
-    private data class Fixtures(val legs: List<FixtureLeg>, val followedLegs: List<FollowedCase>, val replacedRide: List<ReplacedCase>)
+    private data class Day(val kind: String, val legIndex: Int?)
+
+    @Serializable
+    private data class ExpectedTaken(val missedIdx: Int, val replacement: List<String>, val followed: List<String>)
+
+    @Serializable
+    private data class TakeCase(
+        val name: String,
+        val missedIdx: Int?,
+        val replacement: List<FixtureLeg>?,
+        val day: Day,
+        val chosen: List<FixtureLeg>,
+        val expect: ExpectedTaken?,
+    )
+
+    @Serializable
+    private data class Fixtures(
+        val legs: List<FixtureLeg>,
+        val followedLegs: List<FollowedCase>,
+        val replacedRide: List<ReplacedCase>,
+        val takeConnection: List<TakeCase>,
+    )
+
+    private fun kindOf(wire: String) = when (wire) {
+        "on_board" -> TravelDayKind.OnBoard
+        "changing" -> TravelDayKind.Changing
+        "at_station" -> TravelDayKind.AtStation
+        "before_leaving" -> TravelDayKind.BeforeLeaving
+        else -> TravelDayKind.Arrived
+    }
+
+    private val Leg.id get() = "${from.id ?: "?"}>${to.id ?: "?"}"
 
     private val fixtures: Fixtures = FixtureJson.decodeFromString(
         checkNotNull(javaClass.getResource("/followed.fixtures.json")) { "followed.fixtures.json is not on the test classpath" }.readText(),
@@ -98,5 +129,21 @@ class FollowedFixturesTest {
             else -> TravelDayKind.Arrived
         }
         assertEquals(c.name, c.expect, replacedRide(legs, TravelDay(kind, legIndex = c.legIndex)))
+    }
+
+    @Test
+    fun takeConnection() = fixtures.takeConnection.forEach { c ->
+        val taken = takeConnection(
+            legs, c.missedIdx, c.replacement?.map { it.toLeg() },
+            TravelDay(kindOf(c.day.kind), legIndex = c.day.legIndex), c.chosen.map { it.toLeg() },
+        )
+        val e = c.expect
+        if (e == null) {
+            assertEquals(c.name, null, taken)
+        } else {
+            assertEquals(c.name, e.missedIdx, taken?.missedIdx)
+            assertEquals(c.name, e.replacement, taken?.replacement?.map { it.id })
+            assertEquals(c.name, e.followed, followedLegs(legs, taken!!.missedIdx, taken.replacement).map { it.id })
+        }
     }
 }

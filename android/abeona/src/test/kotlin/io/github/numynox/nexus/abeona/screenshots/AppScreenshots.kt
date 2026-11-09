@@ -51,6 +51,27 @@ class AppScreenshots {
         shadowOf(ApplicationProvider.getApplicationContext<Application>()).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
     }
 
+    /**
+     * Taking a connection the ticket does not cover: the FlixTrain among the
+     * alternatives, confirmed, and then followed by the trip.
+     */
+    @Test
+    fun takeAConnection() = with(robot) {
+        waitForText("Visit grandma in Bamberg")
+        tap("Visit grandma in Bamberg")
+        waitForText("Open DB Navigator")
+        scrollTo("Alternatives")
+        tap("Alternatives")
+        waitForText("Needs another ticket")
+        tap("Take it anyway…")
+        waitForText("I understand, take it")
+        shot("03d-trip-take-anyway")
+        tap("I understand, take it")
+        waitForText("You follow another connection")
+        scrollTo("You follow another connection")
+        shot("03e-trip-following")
+    }
+
     private fun type(text: String) {
         compose.onAllNodes(hasSetTextAction()).onFirst().performTextInput(text)
         robot.settle()
