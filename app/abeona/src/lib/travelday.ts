@@ -316,12 +316,13 @@ export function alternativesOrigin(legs: DayLeg[], day: TravelDay, now: number):
   };
 }
 
-export type AlternativesReason = "missed" | "cancelled" | "at_risk";
+export type AlternativesReason = "missed" | "cancelled" | "impossible" | "at_risk";
 
 /**
  * Why the trip page should offer alternatives by itself, or null: a missed
  * change first, then a cancelled ride still ahead (the current one counts),
- * then a change still ahead that is at risk. Arrived trips never.
+ * then a change still ahead that is impossible (no time at all), then one at
+ * risk. Arrived trips never.
  */
 export function alternativesReason(legs: DayLeg[], day: TravelDay): AlternativesReason | null {
   if (day.kind === "arrived" || day.legIndex === null) return null;
@@ -329,6 +330,25 @@ export function alternativesReason(legs: DayLeg[], day: TravelDay): Alternatives
   const from = day.legIndex;
   if (legs.some((leg, i) => i >= from && leg.mode !== "walk" && leg.cancelled)) return "cancelled";
   const ahead = transfers(legs).filter((t) => (day.kind === "on_board" ? t.fromIndex >= from : t.toIndex >= from));
+  if (ahead.some((t) => t.confidence === "impossible")) return "impossible";
   if (ahead.some((t) => t.confidence === "at_risk")) return "at_risk";
   return null;
+}
+
+/** Below this many minutes for a change, missing it lifts a bound ticket's binding. */
+export const SHORT_CONNECTION_MINUTES = 5;
+
+/**
+ * The phone's position says the traveller missed a change that had less than
+ * SHORT_CONNECTION_MINUTES, by the live times: then a bound ticket's binding
+ * is lifted (trainBindingLifted's connectionBroken). Only the position counts,
+ * not the clock; and only a change, not the first train.
+ */
+export function missedShortConnection(legs: DayLeg[], day: TravelDay): boolean {
+  if (!day.missedChange || day.source !== "location" || day.legIndex === null) return false;
+  const rides = legs.map((l, i) => (l.mode === "walk" ? -1 : i)).filter((i) => i >= 0);
+  const missed = day.kind === "on_board" ? (rides.find((i) => i > (day.legIndex as number)) ?? null) : day.legIndex;
+  if (missed === null) return false;
+  const change = transfers(legs).find((t) => t.toIndex === missed);
+  return change !== undefined && change.availableMinutes < SHORT_CONNECTION_MINUTES;
 }

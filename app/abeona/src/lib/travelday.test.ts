@@ -7,6 +7,7 @@ import { test } from "node:test";
 import {
   alternativesOrigin,
   alternativesReason,
+  missedShortConnection,
   type DayLeg,
   type TravelDay,
   travelDay,
@@ -45,6 +46,7 @@ interface Fixtures {
   travelDay: (Case & { expect: TravelDay })[];
   alternativesOrigin: (Case & { expect: { id: string; name: string; time: string } | null })[];
   alternativesReason: (Case & { expect: string | null })[];
+  missedShortConnection: (Case & { expect: boolean })[];
 }
 
 const fixtures: Fixtures = JSON.parse(readFileSync(new URL("./travelday.fixtures.json", import.meta.url), "utf8"));
@@ -115,5 +117,12 @@ for (const c of fixtures.alternativesReason) {
   test(`alternativesReason: ${c.name}`, () => {
     const { list, day } = run(c);
     assert.equal(alternativesReason(list, day), c.expect);
+  });
+}
+
+for (const c of fixtures.missedShortConnection) {
+  test(`missedShortConnection: ${c.name}`, () => {
+    const { list, day } = run(c);
+    assert.equal(missedShortConnection(list, day), c.expect);
   });
 }

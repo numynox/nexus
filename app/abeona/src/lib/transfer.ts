@@ -12,7 +12,8 @@
  */
 import type { Leg } from "./transit";
 
-export type Confidence = "safe" | "tight" | "at_risk";
+/** Worst last: no time at all to change (≤ 0 min) is "impossible". */
+export type Confidence = "safe" | "tight" | "at_risk" | "impossible";
 
 /** The part of a leg the rules read; saved legs and search results both fit. */
 export type RuleLeg = Pick<Leg, "mode" | "cancelled"> & {
@@ -95,8 +96,9 @@ function plannedMinutes(leg: RuleLeg): number {
  *               changes; else 2 on the same platform; else 5. Platforms are
  *               the current one else the planned one, normalised; an unknown
  *               platform never counts as the same.
- * - confidence: either leg cancelled → at_risk; margin < 0 → at_risk;
- *               margin < 3 → tight; else safe.
+ * - confidence: either leg cancelled → at_risk; available ≤ 0 → impossible
+ *               (the train to catch leaves before the arriving one is in);
+ *               margin < 0 → at_risk; margin < 3 → tight; else safe.
  */
 export function assessTransfer(
   a: RuleLeg,
@@ -124,7 +126,9 @@ export function assessTransfer(
   const marginMinutes = availableMinutes - requiredMinutes;
 
   let confidence: Confidence;
-  if (a.cancelled || b.cancelled || marginMinutes < 0) confidence = "at_risk";
+  if (a.cancelled || b.cancelled) confidence = "at_risk";
+  else if (availableMinutes <= 0) confidence = "impossible";
+  else if (marginMinutes < 0) confidence = "at_risk";
   else if (marginMinutes < 3) confidence = "tight";
   else confidence = "safe";
 
@@ -161,6 +165,7 @@ export function transfers(legs: RuleLeg[]): Transfer[] {
 /** The worst confidence among the transfers; null without any transfer. */
 export function overallConfidence(list: Transfer[]): Confidence | null {
   if (list.length === 0) return null;
+  if (list.some((t) => t.confidence === "impossible")) return "impossible";
   if (list.some((t) => t.confidence === "at_risk")) return "at_risk";
   if (list.some((t) => t.confidence === "tight")) return "tight";
   return "safe";
@@ -176,15 +181,27 @@ export function finalArrivalDelay(legs: RuleLeg[]): number {
 
 const UNBOUND_FARES = ["regional", "deutschlandticket", "bahncard100"];
 
-/** Mirrors SQL abeona_train_binding_lifted(). */
+/**
+ * Whether a bound ticket's binding is lifted: at 20 minutes' expected delay at
+ * the destination (SQL abeona_train_binding_lifted()), or when a connection is
+ * broken: a change is impossible, or the traveller's position shows they
+ * missed a change that had less than 5 minutes (abeona_allowed_products()
+ * applies the same on the server).
+ */
 export function trainBindingLifted(
   fareType: string | null | undefined,
   trainBinding: boolean | null | undefined,
   arrivalDelayMinutes: number | null | undefined,
+  connectionBroken = false,
 ): boolean {
   return (
     trainBinding === true &&
     !UNBOUND_FARES.includes(fareType ?? "other") &&
-    (arrivalDelayMinutes ?? 0) >= 20
+    ((arrivalDelayMinutes ?? 0) >= 20 || connectionBroken)
   );
+}
+
+/** A change of the journey has no time at all: the train to catch leaves before the other is in. */
+export function hasImpossibleChange(legs: RuleLeg[]): boolean {
+  return transfers(legs).some((t) => t.confidence === "impossible");
 }

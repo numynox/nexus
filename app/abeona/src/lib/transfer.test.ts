@@ -39,7 +39,7 @@ interface Fixtures {
     overall: string | null;
   }[];
   finalArrivalDelay: { name: string; legs: FixtureLeg[]; expect: number }[];
-  trainBindingLifted: { fareType: string; trainBinding: boolean; arrivalDelayMinutes: number; expect: boolean }[];
+  trainBindingLifted: { fareType: string; trainBinding: boolean; arrivalDelayMinutes: number; connectionBroken?: boolean; expect: boolean }[];
 }
 
 const fixtures: Fixtures = JSON.parse(
@@ -94,7 +94,7 @@ for (const c of fixtures.finalArrivalDelay) {
 test("trainBindingLifted mirrors the SQL rule", () => {
   for (const c of fixtures.trainBindingLifted) {
     assert.equal(
-      trainBindingLifted(c.fareType, c.trainBinding, c.arrivalDelayMinutes),
+      trainBindingLifted(c.fareType, c.trainBinding, c.arrivalDelayMinutes, c.connectionBroken ?? false),
       c.expect,
       `${c.fareType}, binding ${c.trainBinding}, +${c.arrivalDelayMinutes}`,
     );

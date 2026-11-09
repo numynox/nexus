@@ -260,14 +260,42 @@ fun alternativesOrigin(legs: List<Leg>, day: TravelDay, now: Instant): Alternati
 }
 
 /** Why the trip should offer alternatives by itself (glossary: Alternatives). */
-enum class AlternativesReason { Missed, Cancelled, AtRisk }
+enum class AlternativesReason { Missed, Cancelled, Impossible, AtRisk }
 
-/** A missed change first, then a cancelled ride still ahead, then a change ahead at risk. Never once arrived. */
+/**
+ * A missed change first, then a cancelled ride still ahead, then a change
+ * ahead that is impossible (no time at all), then one at risk. Never once arrived.
+ */
 fun alternativesReason(legs: List<Leg>, day: TravelDay): AlternativesReason? {
     val from = day.legIndex ?: return null
     if (day.kind == TravelDayKind.Arrived) return null
     if (day.missedChange) return AlternativesReason.Missed
     if (legs.withIndex().any { (i, leg) -> i >= from && !leg.isWalk && leg.cancelled }) return AlternativesReason.Cancelled
     val ahead = transfers(legs).filter { if (day.kind == TravelDayKind.OnBoard) it.arriving >= from else it.departing >= from }
-    return if (ahead.any { it.confidence == Confidence.AT_RISK }) AlternativesReason.AtRisk else null
+    return when {
+        ahead.any { it.confidence == Confidence.IMPOSSIBLE } -> AlternativesReason.Impossible
+        ahead.any { it.confidence == Confidence.AT_RISK } -> AlternativesReason.AtRisk
+        else -> null
+    }
+}
+
+/** Below this many minutes for a change, missing it lifts a bound ticket's binding. */
+const val SHORT_CONNECTION_MINUTES = 5
+
+/**
+ * The phone's position says the traveller missed a change that had less than
+ * [SHORT_CONNECTION_MINUTES], by the live times: then a bound ticket's binding
+ * is lifted (trainBindingLifted's connectionBroken). Only the position counts,
+ * not the clock; and only a change, not the first train.
+ */
+fun missedShortConnection(legs: List<Leg>, day: TravelDay): Boolean {
+    if (!day.missedChange || day.source != TravelDaySource.Location) return false
+    val index = day.legIndex ?: return false
+    val missed = if (day.kind == TravelDayKind.OnBoard) {
+        legs.indices.firstOrNull { it > index && !legs[it].isWalk } ?: return false
+    } else {
+        index
+    }
+    val change = transfers(legs).firstOrNull { it.departing == missed } ?: return false
+    return change.availableMinutes < SHORT_CONNECTION_MINUTES
 }
