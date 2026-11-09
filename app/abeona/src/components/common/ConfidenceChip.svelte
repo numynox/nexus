@@ -13,6 +13,7 @@
     safe: { text: "Safe", tone: "bg-mint text-primary", dot: "bg-primary" },
     tight: { text: "Tight", tone: "bg-amber-soft text-amber-ink", dot: "bg-amber" },
     at_risk: { text: "At risk", tone: "bg-error/12 text-error", dot: "bg-error" },
+    impossible: { text: "Impossible", tone: "bg-error text-error-content", dot: "bg-error-content" },
   };
 </script>
 

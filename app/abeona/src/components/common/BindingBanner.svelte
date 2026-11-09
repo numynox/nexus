@@ -3,9 +3,11 @@
 
   interface Props {
     delay: number;
+    /** Why, when it is not the delay: an impossible change, a short change missed. */
+    because?: string | null;
   }
 
-  let { delay }: Props = $props();
+  let { delay, because = null }: Props = $props();
 </script>
 
 <div class="flex items-start gap-3 rounded-2xl bg-amber-soft px-4 py-3 text-amber-ink">
@@ -15,7 +17,7 @@
   <div class="text-sm leading-snug">
     <p class="font-semibold">You may take another train</p>
     <p class="opacity-90">
-      Expected {delay} min late at your destination, so the train binding of your ticket is lifted.
+      {because ?? `Expected ${delay} min late at your destination`}, so the train binding of your ticket is lifted.
     </p>
   </div>
 </div>
