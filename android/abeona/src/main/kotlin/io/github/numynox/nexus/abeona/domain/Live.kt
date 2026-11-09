@@ -45,16 +45,22 @@ fun liveUpdates(refreshed: List<Leg?>): List<LiveUpdate> =
  * coalesce), planned values and the route untouched.
  */
 fun applyRefresh(trip: Trip, refreshed: List<Leg?>, refreshedAt: String): Trip =
-    trip.copy(
-        refreshedAt = refreshedAt,
-        legs = trip.legs.mapIndexed { idx, saved ->
-            val fresh = refreshed.getOrNull(idx) ?: return@mapIndexed saved
-            saved.copy(
-                from = saved.from.copy(current = fresh.from.current, platform = fresh.from.platform ?: saved.from.platform),
-                to = saved.to.copy(current = fresh.to.current, platform = fresh.to.platform ?: saved.to.platform),
-                cancelled = fresh.cancelled,
-                realtime = fresh.realtime,
-                stopovers = fresh.stopovers,
-            )
-        },
-    )
+    trip.copy(refreshedAt = refreshedAt, legs = refreshLegs(trip.legs, refreshed))
+
+/**
+ * [saved] with the live values of [refreshed] (index-aligned, null where the
+ * provider had nothing): current times, platforms kept when the refresh has
+ * none, planned values and the route untouched. Also the connection taken
+ * instead (Trip.replacementLegs), which is refreshed leg by leg.
+ */
+fun refreshLegs(saved: List<Leg>, refreshed: List<Leg?>): List<Leg> =
+    saved.mapIndexed { idx, leg ->
+        val fresh = refreshed.getOrNull(idx) ?: return@mapIndexed leg
+        leg.copy(
+            from = leg.from.copy(current = fresh.from.current, platform = fresh.from.platform ?: leg.from.platform),
+            to = leg.to.copy(current = fresh.to.current, platform = fresh.to.platform ?: leg.to.platform),
+            cancelled = fresh.cancelled,
+            realtime = fresh.realtime,
+            stopovers = fresh.stopovers,
+        )
+    }

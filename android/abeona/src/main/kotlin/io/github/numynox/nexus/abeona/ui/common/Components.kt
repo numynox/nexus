@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.DirectionsWalk
+import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.CreditCard
@@ -186,18 +187,19 @@ fun PlatformBox(planned: String?, current: String?, changed: Boolean, modifier: 
     }
 }
 
-/** "Safe", "Tight" or "At risk", with the minutes to spare. */
+/** "Safe", "Tight", "At risk" or "Impossible" (no time at all), with the minutes to spare. */
 @Composable
 fun ConfidenceChip(confidence: Confidence, modifier: Modifier = Modifier, minutes: Int? = null) {
     val colors = when (confidence) {
         Confidence.SAFE -> calm
         Confidence.TIGHT -> attention
-        Confidence.AT_RISK -> danger
+        Confidence.AT_RISK, Confidence.IMPOSSIBLE -> danger
     }
     val icon = when (confidence) {
         Confidence.SAFE -> Icons.Rounded.CheckCircle
         Confidence.TIGHT -> Icons.Rounded.Timelapse
         Confidence.AT_RISK -> Icons.Rounded.ErrorOutline
+        Confidence.IMPOSSIBLE -> Icons.Rounded.Block
     }
     Surface(color = colors.container, contentColor = colors.content, shape = CircleShape, modifier = modifier) {
         Row(
@@ -222,6 +224,7 @@ fun confidenceSummary(changes: Int, worst: Confidence?): String = when {
         Confidence.SAFE -> if (changes == 1) "safe" else "all safe"
         Confidence.TIGHT -> "tight"
         Confidence.AT_RISK -> "at risk"
+        Confidence.IMPOSSIBLE -> "impossible"
     }
 }
 
@@ -253,7 +256,7 @@ fun OfflinePill(since: Instant?, modifier: Modifier = Modifier) {
 
 /** The rule DB applies at 20 minutes, said plainly, in amber. */
 @Composable
-fun BindingLiftedBanner(delay: Int, modifier: Modifier = Modifier) {
+fun BindingLiftedBanner(delay: Int, modifier: Modifier = Modifier, because: String? = null) {
     val colors = attention
     Surface(color = colors.container, contentColor = colors.content, shape = RoundedCornerShape(20.dp), modifier = modifier.fillMaxWidth()) {
         Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -261,7 +264,7 @@ fun BindingLiftedBanner(delay: Int, modifier: Modifier = Modifier) {
             Column {
                 Text("Train binding lifted", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
                 Text(
-                    "Expected +$delay min at your destination. Your saver ticket is valid on other trains for this route.",
+                    (because ?: "Expected +$delay min at your destination.") + " Your saver ticket is valid on other trains for this route.",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }

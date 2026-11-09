@@ -121,8 +121,10 @@ export interface Allowance {
   excluded_products: string[];
   /** The train binding holds: only the booked trains count. */
   train_bound: boolean;
-  /** The ticket was bound and DB has lifted the binding (delay or cancellation). */
+  /** The ticket was bound and DB has lifted the binding (delay, cancellation or a broken connection). */
   binding_lifted: boolean;
+  /** Why it was lifted; null while it holds, absent from an older database. */
+  binding_lifted_reason?: "delay" | "cancelled" | "impossible_connection" | "missed_connection" | null;
   arrival_delay_minutes: number;
   booked_lines: string[];
   /** English, shown as is; it ends in "check the terms". */

@@ -156,8 +156,10 @@ data class Allowance(
     @SerialName("excluded_products") val excludedProducts: List<String> = emptyList(),
     /** The train binding holds: only the booked trains count. */
     @SerialName("train_bound") val trainBound: Boolean = false,
-    /** The ticket was bound and DB has lifted the binding (delay or cancellation). */
+    /** The ticket was bound and DB has lifted the binding (delay, cancellation or a broken connection). */
     @SerialName("binding_lifted") val bindingLifted: Boolean = false,
+    /** Why: "delay", "cancelled", "impossible_connection", "missed_connection"; null while it holds or from an older database. */
+    @SerialName("binding_lifted_reason") val bindingLiftedReason: String? = null,
     @SerialName("arrival_delay_minutes") val arrivalDelayMinutes: Int = 0,
     @SerialName("booked_lines") val bookedLines: List<String> = emptyList(),
     /** English, shown as is; it ends in "check the terms". */

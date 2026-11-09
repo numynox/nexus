@@ -60,7 +60,14 @@ async function alternatives(
   supabase: any,
   time: string,
 ): Promise<AlternativesResponse> {
-  const { data, error } = await supabase.rpc("abeona_allowed_products", { p_trip_id: request.trip_id });
+  const missed = request.connection_missed === true;
+  let { data, error } = await supabase.rpc(
+    "abeona_allowed_products",
+    missed ? { p_trip_id: request.trip_id, p_connection_missed: true } : { p_trip_id: request.trip_id },
+  );
+  // A database without migration 20261109120000 has no p_connection_missed:
+  // ask as before rather than lose the allowance.
+  if (error && missed) ({ data, error } = await supabase.rpc("abeona_allowed_products", { p_trip_id: request.trip_id }));
   const allowance: Allowance | null = error ? null : (data as Allowance | null);
   const result = await transitous.journeys({
     from: request.from,

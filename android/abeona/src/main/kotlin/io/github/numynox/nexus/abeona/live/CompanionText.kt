@@ -11,6 +11,7 @@ import io.github.numynox.nexus.abeona.domain.TravelSignals
 import io.github.numynox.nexus.abeona.domain.arrivalDelay
 import io.github.numynox.nexus.abeona.domain.departureDelay
 import io.github.numynox.nexus.abeona.domain.finalArrivalDelay
+import io.github.numynox.nexus.abeona.domain.hasImpossibleChange
 import io.github.numynox.nexus.abeona.domain.normalisePlatform
 import io.github.numynox.nexus.abeona.domain.rideProgress
 import io.github.numynox.nexus.abeona.domain.trainBindingLifted
@@ -222,7 +223,17 @@ fun companionAlerts(before: Trip, after: Trip, now: Instant, settings: AlertSett
         val oldChanges = transfers(before.legs).associateBy { it.departing }
         transfers(after.legs).forEach { change ->
             val was = oldChanges[change.departing]?.confidence
-            if (change.confidence == Confidence.AT_RISK && was != Confidence.AT_RISK) {
+            if (change.confidence == Confidence.IMPOSSIBLE && was != Confidence.IMPOSSIBLE) {
+                val station = after.legs[change.departing].from.name
+                val next = after.legs[change.departing]
+                val arriving = after.legs[change.arriving]
+                alerts += CompanionAlert(
+                    "impossible-${change.departing}",
+                    "Your change at $station is impossible",
+                    "${next.label} leaves at ${TripFormat.time(next.from.expectedAt)}, before the ${arriving.label} is in (${TripFormat.time(arriving.to.expectedAt)}). " +
+                        "Abeona shows other ways to ${after.destinationName}.",
+                )
+            } else if (change.confidence == Confidence.AT_RISK && was != Confidence.AT_RISK && was != Confidence.IMPOSSIBLE) {
                 val station = after.legs[change.departing].from.name
                 alerts += CompanionAlert(
                     "risk-${change.departing}",
@@ -233,13 +244,17 @@ fun companionAlerts(before: Trip, after: Trip, now: Instant, settings: AlertSett
         }
     }
     val delay = finalArrivalDelay(after.legs)
-    if (trainBindingLifted(after.fareType, after.trainBinding, delay) &&
-        !trainBindingLifted(before.fareType, before.trainBinding, finalArrivalDelay(before.legs))
+    if (trainBindingLifted(after.fareType, after.trainBinding, delay, hasImpossibleChange(after.legs)) &&
+        !trainBindingLifted(before.fareType, before.trainBinding, finalArrivalDelay(before.legs), hasImpossibleChange(before.legs))
     ) {
         alerts += CompanionAlert(
             "binding",
             "Train binding lifted",
-            "Expected +$delay min at ${after.destinationName}: your ticket is valid on other trains for this route.",
+            if (delay >= 20) {
+                "Expected +$delay min at ${after.destinationName}: your ticket is valid on other trains for this route."
+            } else {
+                "A connection on your trip is impossible: your ticket is valid on other trains for this route."
+            },
         )
     }
     val step = settings.delayMinutes

@@ -44,7 +44,23 @@ export function mark(journey: Journey, allowance: Allowance | null): Alternative
     return result("check", "Abeona cannot tell what kind of train this is. Check the terms on your ticket.");
   }
 
-  return result("valid", allowance.binding_lifted ? "Covered: the train binding is lifted" : "Covered by your ticket");
+  return result("valid", allowance.binding_lifted ? liftedNote(allowance.binding_lifted_reason) : "Covered by your ticket");
+}
+
+/** "Covered: …" with the reason DB lifted the binding, when the database says it. */
+function liftedNote(reason: Allowance["binding_lifted_reason"]): string {
+  switch (reason) {
+    case "delay":
+      return "Covered: 20 minutes late, so the train binding is lifted";
+    case "cancelled":
+      return "Covered: a train is cancelled, so the train binding is lifted";
+    case "impossible_connection":
+      return "Covered: a change cannot be made, so the train binding is lifted";
+    case "missed_connection":
+      return "Covered: you missed a short change, so the train binding is lifted";
+    default:
+      return "Covered: the train binding is lifted";
+  }
 }
 
 function arrivalMs(journey: Journey): number {

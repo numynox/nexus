@@ -90,8 +90,14 @@ export interface Allowance {
   excluded_products: string[];
   /** The train binding holds: only the booked trains count. */
   train_bound: boolean;
-  /** The ticket was bound and DB has lifted the binding (delay or cancellation). */
+  /** The ticket was bound and DB has lifted the binding (delay, cancellation or a broken connection). */
   binding_lifted: boolean;
+  /**
+   * Why: "delay", "cancelled", "impossible_connection" (a change with no time
+   * at all) or "missed_connection" (the phone saw a short change missed); null
+   * while it holds. Absent before migration 20261109120000.
+   */
+  binding_lifted_reason?: "delay" | "cancelled" | "impossible_connection" | "missed_connection" | null;
   arrival_delay_minutes: number;
   /** The trip's rides' line names, e.g. ["ICE 25", "RE 10"]. */
   booked_lines: string[];
@@ -138,6 +144,12 @@ export type Request =
      */
     action: "alternatives";
     trip_id: string;
+    /**
+     * The phone's position showed the traveller miss a change that had less
+     * than 5 minutes (missedShortConnection): that lifts a bound ticket's
+     * binding, and only the phone can tell.
+     */
+    connection_missed?: boolean;
     /** A stop id, or "lat,lon". */
     from: string;
     to: string;

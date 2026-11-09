@@ -10,6 +10,8 @@ import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.storage.storage
 import io.github.numynox.nexus.abeona.domain.AlternativesOrigin
 import io.github.numynox.nexus.abeona.domain.applyRefresh
+import io.github.numynox.nexus.abeona.domain.followsReplacement
+import io.github.numynox.nexus.abeona.domain.refreshLegs
 import io.github.numynox.nexus.abeona.domain.intake.TransitPort
 import io.github.numynox.nexus.abeona.domain.liveUpdates
 import io.github.numynox.nexus.core.data.NexusJson
@@ -215,7 +217,32 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
                 },
             )
         }
-        return applyRefresh(trip, refreshed, now.toString())
+        val updated = applyRefresh(trip, refreshed, now.toString())
+        return if (trip.followsReplacement) refreshReplacement(updated) else updated
+    }
+
+    /**
+     * The connection taken instead (replacement_legs, a JSON column, not
+     * abeona_legs rows): refreshed leg by leg through each ride's trip ref
+     * (no refresh token belongs to it), and written back as a whole.
+     */
+    private suspend fun refreshReplacement(trip: Trip): Trip {
+        val replacement = trip.replacementLegs ?: return trip
+        val body = buildJsonObject {
+            put("action", "refresh")
+            put("refresh_token", kotlinx.serialization.json.JsonNull)
+            put(
+                "legs",
+                NexusJson.encodeToJsonElement(replacement.map { RefreshLegRef(it.tripRef, it.from.id, it.to.id, it.from.name, it.to.name) }),
+            )
+        }
+        val response = runCatching { NexusJson.decodeFromString<RefreshResponse>(transit(body)) }.getOrNull() ?: return trip
+        val fresh = refreshLegs(replacement, replacement.indices.map { response.legs.getOrNull(it) })
+        if (fresh == replacement) return trip
+        supabase.from("abeona_trips").update(
+            buildJsonObject { put("replacement_legs", NexusJson.encodeToJsonElement(fresh)) },
+        ) { filter { eq("id", trip.id) } }
+        return trip.copy(replacementLegs = fresh)
     }
 
     // ── After the ride ──────────────────────────────────────────────────────
@@ -478,7 +505,7 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
      * now. One request per refresh; save the live values first, since the
      * allowance reads them.
      */
-    suspend fun alternatives(trip: Trip, from: AlternativesOrigin): AlternativesResponse {
+    suspend fun alternatives(trip: Trip, from: AlternativesOrigin, connectionMissed: Boolean = false): AlternativesResponse {
         fun place(id: String?, lat: Double?, lon: Double?) = id ?: if (lat != null && lon != null) "$lat,$lon" else null
         val origin = place(from.id, from.lat, from.lon)
         val destination = trip.legs.lastOrNull()?.to?.let { place(it.id, it.lat, it.lon) }
@@ -491,6 +518,8 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
                     put("from", origin)
                     put("to", destination)
                     put("time", from.time.toString())
+                    // The phone saw a short change missed (missedShortConnection): it lifts the binding.
+                    if (connectionMissed) put("connection_missed", true)
                 },
             ),
         )

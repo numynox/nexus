@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowLeft, ExternalLink, RefreshCw, Ticket, Trash2 } from "lucide-svelte";
+  import { ArrowLeft, ExternalLink, RefreshCw, Shuffle, Ticket, Trash2 } from "lucide-svelte";
   import { onMount } from "svelte";
   import { getBaseUrl } from "../../lib/config";
   import {
@@ -10,16 +10,19 @@
     fetchTrip,
     fetchTripTravellers,
     fetchTripWarnings,
+    recordDisruption,
     refreshTripLive,
     type Trip,
     type TripWarning,
   } from "../../lib/data";
-  import { fareLabel, formatLongDate, formatPrice, formatTime } from "../../lib/format";
+  import { fareLabel, formatLongDate, formatPrice, formatTime, legLabel } from "../../lib/format";
   import { dbNavigatorUrl, hasArrived, isLiveWindow, LIVE_REFRESH_MS, summarise } from "../../lib/journey";
   import { FRESH_MS, type Fix, type LocationState, watchPosition } from "../../lib/position";
   import { getStationMinutes, getTripLocation, setTripLocation } from "../../lib/storage";
-  import { trainBindingLifted, transfers } from "../../lib/transfer";
-  import { alternativesOrigin, alternativesReason, travelDay } from "../../lib/travelday";
+  import { hasImpossibleChange, trainBindingLifted, transfers } from "../../lib/transfer";
+  import { takeConnection, tripFollowedLegs } from "../../lib/followed";
+  import type { Leg } from "../../lib/transit";
+  import { alternativesOrigin, alternativesReason, missedShortConnection, travelDay } from "../../lib/travelday";
   import { cardsForTrip } from "../../lib/travellers";
   import BindingBanner from "../common/BindingBanner.svelte";
   import LiveDashboard from "../live/LiveDashboard.svelte";
@@ -60,20 +63,28 @@
   let fix = $state<Fix | null>(null);
   const position = $derived(fix && now - fix.at <= FRESH_MS ? fix.position : null);
 
-  const legs = $derived(trip?.legs ?? []);
+  // The journey as travelled: a connection taken from the alternatives
+  // replaces the rest of the plan for everything live and the timeline.
+  const legs = $derived(trip ? tripFollowedLegs(trip) : []);
+  const shown = $derived(trip ? { ...trip, legs } : null);
+  const following = $derived(!!trip && trip.missed_leg_idx !== null && (trip.replacement_legs?.length ?? 0) > 0);
   const s = $derived(legs.length > 0 ? summarise(legs) : null);
   const transferByTarget = $derived(new Map(transfers(legs).map((t) => [t.toIndex, t])));
   const firstRideIndex = $derived(legs.findIndex((l) => l.mode !== "walk"));
   const lastRideIndex = $derived(legs.findLastIndex((l) => l.mode !== "walk"));
-  const bindingLifted = $derived(
-    !!trip && !!s && trainBindingLifted(trip.fare_type, trip.train_binding, s.arrivalDelay),
-  );
   const navigatorUrl = $derived(dbNavigatorUrl(legs, trip?.travel_class ?? 2));
   const arrived = $derived(legs.length > 0 && hasArrived(legs));
   // The travel day only while the trip is live: from a day before it leaves
   // until shortly after it arrives.
   const live = $derived(legs.length > 0 && isLiveWindow(legs, now));
   const day = $derived(live ? travelDay(legs, now, stationMinutes, { position }) : null);
+  // The ticket's binding is about the booked journey (as on the server), not a connection taken instead.
+  const planDelay = $derived(trip && trip.legs.length > 0 ? summarise(trip.legs).arrivalDelay : 0);
+  const missedShort = $derived(day ? missedShortConnection(legs, day) : false);
+  const connectionBroken = $derived(!!trip && (hasImpossibleChange(trip.legs) || missedShort));
+  const bindingLifted = $derived(
+    !!trip && trainBindingLifted(trip.fare_type, trip.train_binding, planDelay, connectionBroken),
+  );
 
   // Only while the trip is live, the page open, and it was asked for.
   $effect(() => {
@@ -130,6 +141,39 @@
       refreshError = describeError(e);
     } finally {
       refreshing = false;
+    }
+  }
+
+  let busyTaking = $state(false);
+
+  /** Follows [chosen] from now on: stored as the trip's replacement, which the page and Android's companion follow. */
+  async function take(chosen: Leg[]) {
+    if (!trip || !day || busyTaking) return;
+    const taken = takeConnection(trip.legs, trip.missed_leg_idx, trip.replacement_legs, day, chosen);
+    if (!taken) return;
+    busyTaking = true;
+    try {
+      await recordDisruption(trip.id, taken.missedIdx, taken.replacement);
+      trip = { ...trip, missed_leg_idx: taken.missedIdx, replacement_legs: taken.replacement };
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (e) {
+      refreshError = describeError(e);
+    } finally {
+      busyTaking = false;
+    }
+  }
+
+  /** Back to the plan: forgets the connection taken instead. */
+  async function followPlan() {
+    if (!trip || busyTaking) return;
+    busyTaking = true;
+    try {
+      await recordDisruption(trip.id, null, null);
+      trip = { ...trip, missed_leg_idx: null, replacement_legs: null };
+    } catch (e) {
+      refreshError = describeError(e);
+    } finally {
+      busyTaking = false;
     }
   }
 
@@ -286,7 +330,7 @@
 
     {#if day}
       <LiveDashboard
-        {trip}
+        trip={shown ?? trip}
         {day}
         {now}
         {stationMinutes}
@@ -300,7 +344,24 @@
     {/if}
 
     {#if bindingLifted && !arrived}
-      <BindingBanner delay={s.arrivalDelay} />
+      <BindingBanner
+        delay={planDelay}
+        because={planDelay >= 20 ? null : missedShort ? "You missed a change that had less than 5 minutes" : "A change on your trip cannot be made"}
+      />
+    {/if}
+
+    {#if following && !arrived && trip.replacement_legs}
+      {@const first = trip.replacement_legs.find((l) => l.mode !== "walk") ?? trip.replacement_legs[0]}
+      <div class="flex flex-wrap items-center gap-3 rounded-2xl bg-secondary px-4 py-3 text-secondary-content">
+        <Shuffle class="h-5 w-5 shrink-0" />
+        <div class="min-w-0 flex-1 text-sm leading-snug">
+          <p class="font-semibold">You follow another connection</p>
+          <p class="opacity-80">
+            From {first.from.name}: {trip.replacement_legs.filter((l) => l.mode !== "walk").map((l) => legLabel(l)).join(" › ")}. The page follows these trains.
+          </p>
+        </div>
+        <button class="btn btn-ghost btn-sm rounded-full" onclick={followPlan} disabled={busyTaking}>Back to the plan</button>
+      </div>
     {/if}
 
     {#if warnings.length > 0 && !arrived}
@@ -308,7 +369,15 @@
     {/if}
 
     {#if day && origin}
-      <AlternativesSection bind:this={alternativesSection} {trip} {origin} {reason} refreshKey={trip.refreshed_at} />
+      <AlternativesSection
+        bind:this={alternativesSection}
+        trip={shown ?? trip}
+        {origin}
+        {reason}
+        connectionMissed={missedShort}
+        refreshKey={trip.refreshed_at}
+        onTake={take}
+      />
     {/if}
 
     {#if arrived}

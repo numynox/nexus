@@ -21,6 +21,7 @@
   import DeadlineBanner from "./DeadlineBanner.svelte";
   import HistoryCard from "./HistoryCard.svelte";
   import TripHeroCard from "./TripHeroCard.svelte";
+  import { tripFollowedLegs } from "../../lib/followed";
   import TripListItem from "./TripListItem.svelte";
 
   const base = getBaseUrl();
@@ -39,7 +40,9 @@
   /** Ticks every half minute, so the travel day's countdowns move. */
   let now = $state(Date.now());
   let stationMinutes = $state(15);
-  const day = $derived(next && isLiveWindow(next.legs, now) ? travelDay(next.legs, now, stationMinutes) : null);
+  // As travelled: a connection taken from the alternatives replaces the plan's rides.
+  const nextLegs = $derived(next ? tripFollowedLegs(next) : []);
+  const day = $derived(next && isLiveWindow(nextLegs, now) ? travelDay(nextLegs, now, stationMinutes) : null);
   const later = $derived(upcoming.slice(1));
 
   const tripHref = (id: string) => `${base}/trip?id=${encodeURIComponent(id)}`;
@@ -148,7 +151,7 @@
     {/if}
 
     {#if next}
-      <TripHeroCard trip={next} href={tripHref(next.id)} refreshing={refreshingIds.has(next.id)} {day} {stationMinutes} {now} />
+      <TripHeroCard trip={{ ...next, legs: nextLegs }} href={tripHref(next.id)} refreshing={refreshingIds.has(next.id)} {day} {stationMinutes} {now} />
     {:else}
       <section class="grid items-center gap-8 rounded-[2rem] bg-card p-6 shadow-card sm:p-10 md:grid-cols-2">
         <Illustration name="empty-trips" class="w-full" />

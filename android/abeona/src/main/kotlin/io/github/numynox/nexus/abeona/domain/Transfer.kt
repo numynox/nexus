@@ -12,7 +12,8 @@ import java.time.Instant
 // run are in app/abeona/src/lib/transfer.fixtures.json (TransferFixturesTest).
 
 /** How likely a change is to work out (glossary: Transfer confidence). */
-enum class Confidence(val label: String) { SAFE("Safe"), TIGHT("Tight"), AT_RISK("At risk") }
+/** Worst last (worstConfidence takes the highest): no time at all to change (≤ 0 min) is impossible. */
+enum class Confidence(val label: String) { SAFE("Safe"), TIGHT("Tight"), AT_RISK("At risk"), IMPOSSIBLE("Impossible") }
 
 /** The change between arriving leg [arriving] and the next ride [departing], indices into the trip's legs. */
 data class Transfer(
@@ -83,6 +84,7 @@ private fun transferBetween(legs: List<Leg>, a: Int, b: Int): Transfer? {
     val margin = available - required
     val confidence = when {
         arriving.cancelled || departing.cancelled -> Confidence.AT_RISK
+        available <= 0 -> Confidence.IMPOSSIBLE
         margin < 0 -> Confidence.AT_RISK
         margin < 3 -> Confidence.TIGHT
         else -> Confidence.SAFE
@@ -95,13 +97,19 @@ fun worstConfidence(legs: List<Leg>): Confidence? = transfers(legs).maxOfOrNull 
 
 /**
  * DB lifts the train binding of a bound long-distance ticket once the expected
- * delay at the destination reaches 20 minutes. Regional tickets, the
- * Deutschlandticket and the BahnCard 100 have no binding to lift.
+ * delay at the destination reaches 20 minutes, or when a connection is broken:
+ * a change is impossible, or the phone's position shows the traveller missed
+ * a change that had less than 5 minutes ([connectionBroken];
+ * abeona_allowed_products() applies the same on the server). Regional
+ * tickets, the Deutschlandticket and the BahnCard 100 have no binding to lift.
  */
-fun trainBindingLifted(fareType: FareType, trainBinding: Boolean, arrivalDelayMinutes: Int): Boolean =
+fun trainBindingLifted(fareType: FareType, trainBinding: Boolean, arrivalDelayMinutes: Int, connectionBroken: Boolean = false): Boolean =
     trainBinding &&
         fareType !in setOf(FareType.Regional, FareType.Deutschlandticket, FareType.BahnCard100) &&
-        arrivalDelayMinutes >= 20
+        (arrivalDelayMinutes >= 20 || connectionBroken)
+
+/** A change of the journey has no time at all: the train to catch leaves before the other is in. */
+fun hasImpossibleChange(legs: List<Leg>): Boolean = transfers(legs).any { it.confidence == Confidence.IMPOSSIBLE }
 
 /** The delay of the last ride's arrival: what the destination will see. */
 fun finalArrivalDelay(legs: List<Leg>): Int =

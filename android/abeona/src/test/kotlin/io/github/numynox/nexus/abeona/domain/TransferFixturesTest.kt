@@ -61,7 +61,7 @@ class TransferFixturesTest {
     private data class FinalDelayCase(val name: String, val legs: List<FixtureLeg>, val expect: Int)
 
     @Serializable
-    private data class BindingCase(val fareType: FareType, val trainBinding: Boolean, val arrivalDelayMinutes: Int, val expect: Boolean)
+    private data class BindingCase(val fareType: FareType, val trainBinding: Boolean, val arrivalDelayMinutes: Int, val connectionBroken: Boolean = false, val expect: Boolean)
 
     @Serializable
     private data class Fixtures(
@@ -82,6 +82,7 @@ class TransferFixturesTest {
             Confidence.SAFE -> "safe"
             Confidence.TIGHT -> "tight"
             Confidence.AT_RISK -> "at_risk"
+            Confidence.IMPOSSIBLE -> "impossible"
         }
 
     @Test
@@ -111,6 +112,6 @@ class TransferFixturesTest {
 
     @Test
     fun trainBindingLifted() = fixtures.trainBindingLifted.forEach { c ->
-        assertEquals("${c.fareType}, binding ${c.trainBinding}, +${c.arrivalDelayMinutes}", c.expect, trainBindingLifted(c.fareType, c.trainBinding, c.arrivalDelayMinutes))
+        assertEquals("${c.fareType}, binding ${c.trainBinding}, +${c.arrivalDelayMinutes}", c.expect, trainBindingLifted(c.fareType, c.trainBinding, c.arrivalDelayMinutes, c.connectionBroken))
     }
 }

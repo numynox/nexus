@@ -1,0 +1,402 @@
+{
+  "$comment": "Followed legs, run by both clients: app/abeona/src/lib/followed.test.ts (npm run test:abeona) and android/abeona's FollowedFixturesTest (copied into its test resources by Gradle). Change followed.ts and domain/Followed.kt together, and the case here once. Each leg is written as from>to with its stopovers' ids; omitted fields are null. expect lists the legs as from>to and how many stopovers each keeps; polylineEnd is the last point of the cut ride's line.",
+  "legs": [
+    {
+      "line_name": "ICE 25",
+      "from": {
+        "id": "A",
+        "name": "Frankfurt",
+        "lat": 50.0,
+        "lon": 8.0,
+        "planned": "2026-11-03T10:00:00Z"
+      },
+      "to": {
+        "id": "X",
+        "name": "Würzburg",
+        "lat": 50.0,
+        "lon": 10.0,
+        "planned": "2026-11-03T11:00:00Z"
+      },
+      "stopovers": [
+        {
+          "id": "S1",
+          "name": "Hanau",
+          "lat": 50.0,
+          "lon": 8.5,
+          "planned_arrival": "2026-11-03T10:15:00Z",
+          "arrival": "2026-11-03T10:20:00Z"
+        },
+        {
+          "id": "S2",
+          "name": "Aschaffenburg",
+          "lat": 50.0,
+          "lon": 9.0,
+          "planned_arrival": "2026-11-03T10:30:00Z"
+        }
+      ],
+      "polyline": [
+        [
+          8.0,
+          50.0
+        ],
+        [
+          8.5,
+          50.0
+        ],
+        [
+          9.0,
+          50.0
+        ],
+        [
+          10.0,
+          50.0
+        ]
+      ]
+    },
+    {
+      "line_name": "RE 10",
+      "from": {
+        "id": "X",
+        "name": "Würzburg",
+        "lat": 50.0,
+        "lon": 10.0,
+        "planned": "2026-11-03T11:05:00Z"
+      },
+      "to": {
+        "id": "B",
+        "name": "Bamberg",
+        "lat": 50.0,
+        "lon": 11.0,
+        "planned": "2026-11-03T12:00:00Z"
+      },
+      "stopovers": [
+        {
+          "id": "S3",
+          "name": "Kitzingen",
+          "lat": 50.0,
+          "lon": 10.3,
+          "planned_arrival": "2026-11-03T11:20:00Z"
+        }
+      ],
+      "polyline": [
+        [
+          10.0,
+          50.0
+        ],
+        [
+          10.3,
+          50.0
+        ],
+        [
+          11.0,
+          50.0
+        ]
+      ]
+    }
+  ],
+  "followedLegs": [
+    {
+      "name": "nothing taken: the plan",
+      "missedIdx": null,
+      "replacement": null,
+      "expect": [
+        {
+          "leg": "A>X",
+          "stopovers": 2
+        },
+        {
+          "leg": "X>B",
+          "stopovers": 1
+        }
+      ]
+    },
+    {
+      "name": "the change missed at Würzburg: the first ride, then the train taken",
+      "missedIdx": 1,
+      "replacement": [
+        {
+          "line_name": "RB 53",
+          "from": {
+            "id": "X",
+            "name": "Würzburg"
+          },
+          "to": {
+            "id": "B",
+            "name": "Bamberg"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "leg": "A>X",
+          "stopovers": 2
+        },
+        {
+          "leg": "X>B",
+          "stopovers": 0
+        }
+      ]
+    },
+    {
+      "name": "on board, getting off at Hanau for another way: the ride is cut there",
+      "missedIdx": 1,
+      "replacement": [
+        {
+          "line_name": "RE 55",
+          "from": {
+            "id": "S1",
+            "name": "Hanau"
+          },
+          "to": {
+            "id": "Y",
+            "name": "Gemünden"
+          }
+        },
+        {
+          "line_name": "RB 53",
+          "from": {
+            "id": "Y",
+            "name": "Gemünden"
+          },
+          "to": {
+            "id": "B",
+            "name": "Bamberg"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "leg": "A>S1",
+          "stopovers": 0,
+          "polylineEnd": [
+            8.5,
+            50.0
+          ],
+          "toPlanned": "2026-11-03T10:15:00Z",
+          "toCurrent": "2026-11-03T10:20:00Z"
+        },
+        {
+          "leg": "S1>Y",
+          "stopovers": 0
+        },
+        {
+          "leg": "Y>B",
+          "stopovers": 0
+        }
+      ]
+    },
+    {
+      "name": "on the last ride, getting off at Kitzingen: that ride is cut",
+      "missedIdx": 1,
+      "replacement": [
+        {
+          "mode": "bus",
+          "line_name": "Bus 8105",
+          "from": {
+            "id": "S3",
+            "name": "Kitzingen"
+          },
+          "to": {
+            "id": "B",
+            "name": "Bamberg"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "leg": "A>X",
+          "stopovers": 2
+        },
+        {
+          "leg": "X>S3",
+          "stopovers": 0,
+          "polylineEnd": [
+            10.3,
+            50.0
+          ]
+        },
+        {
+          "leg": "S3>B",
+          "stopovers": 0
+        }
+      ]
+    },
+    {
+      "name": "stops match by name when an id is missing",
+      "missedIdx": 1,
+      "replacement": [
+        {
+          "line_name": "RE 55",
+          "from": {
+            "name": "aschaffenburg "
+          },
+          "to": {
+            "id": "B",
+            "name": "Bamberg"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "leg": "A>S2",
+          "stopovers": 1,
+          "polylineEnd": [
+            9.0,
+            50.0
+          ]
+        },
+        {
+          "leg": "?>B",
+          "stopovers": 0
+        }
+      ]
+    }
+  ],
+  "replacedRide": [
+    {
+      "name": "on board the first ride: the change after it",
+      "kind": "on_board",
+      "legIndex": 0,
+      "expect": 1
+    },
+    {
+      "name": "on board the last ride: that ride",
+      "kind": "on_board",
+      "legIndex": 1,
+      "expect": 1
+    },
+    {
+      "name": "changing: the ride to catch",
+      "kind": "changing",
+      "legIndex": 1,
+      "expect": 1
+    },
+    {
+      "name": "at the station: the first ride",
+      "kind": "at_station",
+      "legIndex": 0,
+      "expect": 0
+    },
+    {
+      "name": "arrived: nothing",
+      "kind": "arrived",
+      "legIndex": null,
+      "expect": null
+    }
+  ],
+  "takeConnection": [
+    {
+      "name": "on board the first ride, nothing taken yet: replaces the change, the ride is cut when followed",
+      "missedIdx": null,
+      "replacement": null,
+      "day": {
+        "kind": "on_board",
+        "legIndex": 0
+      },
+      "chosen": [
+        {
+          "line_name": "RE 55",
+          "from": {
+            "id": "S2",
+            "name": "Aschaffenburg"
+          },
+          "to": {
+            "id": "B",
+            "name": "Bamberg"
+          }
+        }
+      ],
+      "expect": {
+        "missedIdx": 1,
+        "replacement": [
+          "S2>B"
+        ],
+        "followed": [
+          "A>S2",
+          "S2>B"
+        ]
+      }
+    },
+    {
+      "name": "on the replacement, its second train fails too: the new one goes into it",
+      "missedIdx": 1,
+      "replacement": [
+        {
+          "line_name": "RE 55",
+          "from": {
+            "id": "X",
+            "name": "Würzburg"
+          },
+          "to": {
+            "id": "Y",
+            "name": "Gemünden"
+          }
+        },
+        {
+          "line_name": "RB 53",
+          "from": {
+            "id": "Y",
+            "name": "Gemünden"
+          },
+          "to": {
+            "id": "B",
+            "name": "Bamberg"
+          }
+        }
+      ],
+      "day": {
+        "kind": "changing",
+        "legIndex": 2
+      },
+      "chosen": [
+        {
+          "mode": "bus",
+          "line_name": "Bus 8105",
+          "from": {
+            "id": "Y",
+            "name": "Gemünden"
+          },
+          "to": {
+            "id": "B",
+            "name": "Bamberg"
+          }
+        }
+      ],
+      "expect": {
+        "missedIdx": 1,
+        "replacement": [
+          "X>Y",
+          "Y>B"
+        ],
+        "followed": [
+          "A>X",
+          "X>Y",
+          "Y>B"
+        ]
+      }
+    },
+    {
+      "name": "arrived: nothing to take",
+      "missedIdx": null,
+      "replacement": null,
+      "day": {
+        "kind": "arrived",
+        "legIndex": null
+      },
+      "chosen": [
+        {
+          "line_name": "RE 55",
+          "from": {
+            "id": "X",
+            "name": "Würzburg"
+          },
+          "to": {
+            "id": "B",
+            "name": "Bamberg"
+          }
+        }
+      ],
+      "expect": null
+    }
+  ]
+}

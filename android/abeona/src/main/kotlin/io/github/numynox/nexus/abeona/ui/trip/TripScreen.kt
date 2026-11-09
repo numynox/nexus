@@ -99,6 +99,10 @@ import io.github.numynox.nexus.abeona.domain.TravelDayKind
 import io.github.numynox.nexus.abeona.domain.alternativesOrigin
 import io.github.numynox.nexus.abeona.domain.alternativesReason
 import io.github.numynox.nexus.abeona.domain.travelDay
+import io.github.numynox.nexus.abeona.domain.missedShortConnection
+import io.github.numynox.nexus.abeona.domain.hasImpossibleChange
+import io.github.numynox.nexus.abeona.domain.followsReplacement
+import io.github.numynox.nexus.abeona.domain.followed
 import io.github.numynox.nexus.abeona.live.Background
 import io.github.numynox.nexus.abeona.live.CompanionOffer
 import io.github.numynox.nexus.abeona.live.companionOffer
@@ -256,7 +260,9 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                 is Loadable.Failed -> ErrorState(state.message, onRetry = { viewModel.load() })
                 is Loadable.Ready -> TripContent(
                     detail = state.value,
-                    live = state.value.trip.let { trip ->
+                    // The live part follows the trains actually taken: a connection
+                    // chosen from the alternatives replaces the rest of the plan.
+                    live = state.value.trip.followed.let { trip ->
                         if (!isLiveDay(trip, now)) {
                             null
                         } else {
@@ -268,14 +274,15 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                             val following = companion == tripId
                             val locationOn = settings.tripLocation && TripLocation(context).hasPermission()
                             LiveDay(
-                                liveView(
+                                missedShort = missedShortConnection(trip.legs, day),
+                                view = liveView(
                                     trip, day, now, settings.stationMinutes,
                                     evidence(trip, day, now, onboard, fix, locationOn, following),
                                     LiveSignals.onboardFor(trip, now, onboard),
                                     signals.position,
                                     reason,
                                 ),
-                                searchable,
+                                searchable = searchable,
                             )
                         }
                     },
@@ -340,6 +347,7 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                         if (state.value.trip.ticketPath != null) navigator.ticket(tripId)
                         else pickTicket.launch(arrayOf("application/pdf", "image/png", "image/jpeg"))
                     },
+                    onFollowPlan = { viewModel.followPlan(showError) },
                     onCompanion = {
                         if (companion == tripId) {
                             LiveCompanion.stop(context)
@@ -357,7 +365,7 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
     }
 
     if (showAlternatives) {
-        val trip = (detail as? Loadable.Ready)?.value?.trip
+        val trip = (detail as? Loadable.Ready)?.value?.trip?.followed
         val reason = trip?.let { t ->
             if (isLiveDay(t, now)) alternativesReason(t.legs, travelDay(t.legs, now, settings.stationMinutes, LiveSignals.forTrip(t, now, onboard, fix))) else null
         }
@@ -367,6 +375,13 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
             destination = trip?.destinationName.orEmpty(),
             onSearchAgain = { viewModel.findAlternatives() },
             onDismiss = { showAlternatives = false },
+            onTake = { alternative ->
+                viewModel.takeConnection(alternative, showError) {
+                    showAlternatives = false
+                    val first = alternative.legs.firstOrNull { !it.isWalk }
+                    scope.launch { snackbar.showSnackbar("Following the ${first?.label ?: "new connection"} from now on") }
+                }
+            },
         )
     }
 
@@ -419,6 +434,8 @@ private class AfterRideActions(
 /** The travel day as the trip screen shows it, while the trip is live. */
 private data class LiveDay(
     val view: LiveView,
+    /** The position saw a short change missed: the binding is lifted (missedShortConnection). */
+    val missedShort: Boolean = false,
     /** False once the only stop left is the destination: there is nothing to find another way to. */
     val searchable: Boolean,
 ) {
@@ -447,10 +464,16 @@ private fun TripContent(
     onDbNavigator: () -> Unit,
     onTicket: () -> Unit,
     onCompanion: () -> Unit,
+    /** Forget the connection taken instead, and follow the plan again. */
+    onFollowPlan: () -> Unit,
 ) {
     val trip = detail.trip
-    val changes = remember(trip) { transfers(trip.legs) }
+    // The journey as travelled: the plan, or the connection taken instead.
+    val journey = remember(trip) { trip.followed }
+    val changes = remember(journey) { transfers(journey.legs) }
+    // The ticket's binding is about the booked journey (as on the server), not a connection taken instead.
     val arrivalDelay = finalArrivalDelay(trip.legs)
+    val connectionBroken = hasImpossibleChange(trip.legs) || live?.missedShort == true
     LazyColumn(
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -461,8 +484,20 @@ private fun TripContent(
             item(key = "travel-day") { LiveNow(l.view, onAlternatives = onAlternatives, onUseLocation = onUseLocation) }
         }
         val over = trip.expectedArrival.plus(Duration.ofHours(1)).isBefore(java.time.Instant.now())
-        if (!over && trainBindingLifted(trip.fareType, trip.trainBinding, arrivalDelay)) {
-            item(key = "binding") { BindingLiftedBanner(arrivalDelay) }
+        if (!over && trainBindingLifted(trip.fareType, trip.trainBinding, arrivalDelay, connectionBroken)) {
+            item(key = "binding") {
+                BindingLiftedBanner(
+                    arrivalDelay,
+                    because = when {
+                        arrivalDelay >= 20 -> null
+                        live?.missedShort == true -> "You missed a change that had less than 5 minutes."
+                        else -> "A change on your trip cannot be made."
+                    },
+                )
+            }
+        }
+        if (!over && trip.followsReplacement) {
+            item(key = "following") { FollowingCard(trip, onFollowPlan) }
         }
         if (!people?.warnings.isNullOrEmpty() && trip.expectedArrival.isAfter(java.time.Instant.now())) {
             item(key = "warnings") { TripWarningsBanner(people.warnings) }
@@ -527,16 +562,16 @@ private fun TripContent(
         // While the trip is live the dashboard has the map, with the traveller on it.
         if (live == null || live.day.kind == TravelDayKind.Arrived) {
             item(key = "map") {
-                TripMap(trip.legs, Modifier.fillMaxWidth().height(220.dp).padding(top = 4.dp))
+                TripMap(journey.legs, Modifier.fillMaxWidth().height(220.dp).padding(top = 4.dp))
             }
         }
         item(key = "timeline-head") { SectionHeader("Your journey", supporting = timelineSummary(trip)) }
-        trip.legs.forEachIndexed { index, leg ->
+        journey.legs.forEachIndexed { index, leg ->
             if (leg.isWalk) {
                 item(key = "walk-$index") { WalkRow(leg) }
             } else {
                 changes.firstOrNull { it.departing == index }?.let { change ->
-                    item(key = "change-$index") { TransferRow(change, trip.legs) }
+                    item(key = "change-$index") { TransferRow(change, journey.legs) }
                 }
                 item(key = "leg-$index") { LegCard(leg) }
             }
@@ -837,5 +872,27 @@ private fun LiveUpdatesOff(onSettings: () -> Unit) {
             modifier = Modifier.weight(1f),
         )
         TextButton(onClick = onSettings) { Text("Turn on") }
+    }
+}
+
+/** A connection from the alternatives was taken: which, and the way back to the plan. */
+@Composable
+private fun FollowingCard(trip: Trip, onFollowPlan: () -> Unit) {
+    val replacement = trip.replacementLegs.orEmpty()
+    val first = replacement.firstOrNull { !it.isWalk } ?: replacement.firstOrNull() ?: return
+    NexusCard(Modifier.fillMaxWidth(), containerColor = MaterialTheme.colorScheme.secondaryContainer) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.Shuffle, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+            Column(Modifier.weight(1f)) {
+                Text("You follow another connection", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    "From ${first.from.name}: " + replacement.filter { !it.isWalk }.joinToString(" › ") { it.label } +
+                        ". The dashboard and the live companion follow these trains.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+            }
+        }
+        TextButton(onClick = onFollowPlan, modifier = Modifier.align(Alignment.End)) { Text("Back to the plan") }
     }
 }

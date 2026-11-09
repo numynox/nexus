@@ -840,10 +840,50 @@ export async function refreshTripLive(trip: Trip): Promise<boolean> {
     )
     .filter((u) => u !== null && u.idx < trip.legs.length);
 
-  if (updates.length === 0) return false;
-
   const sb = getSupabaseClient();
-  const { error } = await sb.rpc("abeona_update_trip_live", { p_trip_id: trip.id, p_legs: updates });
+  if (updates.length > 0) {
+    const { error } = await sb.rpc("abeona_update_trip_live", { p_trip_id: trip.id, p_legs: updates });
+    if (error) throw error;
+  }
+  const replaced = await refreshReplacement(trip).catch(() => false);
+  return updates.length > 0 || replaced;
+}
+
+/**
+ * The connection taken instead (replacement_legs, a JSON column, not legs
+ * rows): refreshed leg by leg through each ride's trip ref, and written back
+ * as a whole. Android does the same (AbeonaRepository.refreshReplacement).
+ */
+async function refreshReplacement(trip: Trip): Promise<boolean> {
+  const replacement = trip.replacement_legs;
+  if (trip.missed_leg_idx === null || !replacement || replacement.length === 0) return false;
+  const result = await invokeTransit<RefreshResponse>({
+    action: "refresh",
+    refresh_token: null,
+    legs: replacement.map((leg) => ({
+      trip_ref: leg.trip_ref,
+      from_id: leg.from.id,
+      to_id: leg.to.id,
+      from_name: leg.from.name,
+      to_name: leg.to.name,
+    })),
+  });
+  let changed = false;
+  const fresh = replacement.map((leg, i) => {
+    const live = result.legs?.[i];
+    if (!live) return leg;
+    changed = true;
+    return {
+      ...leg,
+      from: { ...leg.from, current: live.from.current, platform: live.from.platform ?? leg.from.platform },
+      to: { ...leg.to, current: live.to.current, platform: live.to.platform ?? leg.to.platform },
+      cancelled: live.cancelled,
+      realtime: live.realtime,
+      stopovers: live.stopovers,
+    };
+  });
+  if (!changed) return false;
+  const { error } = await getSupabaseClient().from("abeona_trips").update({ replacement_legs: fresh }).eq("id", trip.id);
   if (error) throw error;
   return true;
 }
@@ -880,6 +920,8 @@ export async function fetchAlternatives(
   trip: Pick<Trip, "id" | "legs">,
   from: { id: string | null; lat: number | null; lon: number | null },
   time: string,
+  /** The browser's position showed a short change missed (missedShortConnection): it lifts the binding. */
+  connectionMissed = false,
 ): Promise<AlternativesResponse> {
   const last = trip.legs[trip.legs.length - 1];
   const place = (stop: { id: string | null; lat: number | null; lon: number | null }) =>
@@ -893,6 +935,7 @@ export async function fetchAlternatives(
     from: origin,
     to: destination,
     time,
+    ...(connectionMissed ? { connection_missed: true } : {}),
   });
   return { allowance: result.allowance ?? null, alternatives: result.alternatives ?? [] };
 }

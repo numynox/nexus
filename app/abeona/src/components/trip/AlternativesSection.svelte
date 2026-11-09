@@ -14,9 +14,38 @@
     reason: AlternativesReason | null;
     /** Changes whenever the trip's live values were refreshed: one search per refresh. */
     refreshKey: string | null;
+    /** The browser's position saw a short change missed: the server lifts the binding. */
+    connectionMissed?: boolean;
+    /** Follow this connection from now on. */
+    onTake?: (legs: Alternative["legs"]) => void;
   }
 
-  let { trip, origin, reason, refreshKey }: Props = $props();
+  let { trip, origin, reason, refreshKey, connectionMissed = false, onTake }: Props = $props();
+
+  /** A connection the ticket may not cover waits here for the traveller's yes. */
+  let confirming = $state<Alternative | null>(null);
+  let confirmDialog: HTMLDialogElement | undefined = $state();
+
+  function choose(alt: Alternative) {
+    if (!onTake) return;
+    if (alt.validity === "valid") return onTake(alt.legs);
+    confirming = alt;
+    confirmDialog?.showModal();
+  }
+
+  function confirmTake() {
+    const alt = confirming;
+    confirmDialog?.close();
+    confirming = null;
+    if (alt && onTake) onTake(alt.legs);
+  }
+
+  const liftedBecause: Record<string, string> = {
+    impossible_connection: "a change cannot be made",
+    missed_connection: "you missed a short change",
+    cancelled: "a train is cancelled",
+    delay: "you are expected 20 minutes late",
+  };
 
   let loading = $state(false);
   let error = $state("");
@@ -32,6 +61,8 @@
         return "Looks like you missed a connection";
       case "cancelled":
         return "A train on your trip is cancelled";
+      case "impossible":
+        return "A change on your trip is impossible";
       case "at_risk":
         return "A change on your trip is at risk";
       default:
@@ -50,7 +81,7 @@
     loading = true;
     error = "";
     try {
-      const result = await fetchAlternatives(trip, origin, origin.time);
+      const result = await fetchAlternatives(trip, origin, origin.time, connectionMissed);
       alternatives = result.alternatives;
       allowance = result.allowance;
       searchedFrom = `${origin.name}, ${formatTime(origin.time)}`;
@@ -131,13 +162,23 @@
               {#if alt.validity !== "valid"}
                 <p class="mt-1.5 text-xs text-base-content/60">{alt.validity_note}</p>
               {/if}
+              {#if onTake}
+                <button
+                  class="btn btn-sm mt-2 rounded-full {alt.validity === 'valid' ? 'btn-primary' : 'btn-ghost border-base-300'}"
+                  onclick={() => choose(alt)}
+                >
+                  {alt.validity === "valid" ? "Take this connection" : "Take it anyway…"}
+                </button>
+              {/if}
             </li>
           {/each}
         </ul>
       {/if}
       <p class="mt-4 text-xs leading-relaxed text-base-content/55">
         {allowance?.hint ?? "Check the terms of your ticket before you board another train."}
-        {#if allowance?.binding_lifted}The binding is lifted at {allowance.arrival_delay_minutes} min expected delay or a cancellation.{/if}
+        {#if allowance?.binding_lifted}
+          The train binding is lifted{allowance.binding_lifted_reason ? `: ${liftedBecause[allowance.binding_lifted_reason] ?? "other trains on your route count"}` : ""}.
+        {/if}
       </p>
     {:else if !loading}
       <p class="mt-3 text-sm text-base-content/60">
@@ -146,3 +187,20 @@
     {/if}
   </section>
 {/if}
+
+<dialog bind:this={confirmDialog} class="modal modal-bottom sm:modal-middle" onclose={() => (confirming = null)}>
+  <div class="modal-box rounded-t-[2rem] sm:rounded-[2rem]">
+    <h3 class="text-lg font-semibold text-ink">
+      {confirming?.validity === "invalid" ? "Your ticket does not cover this" : "Your ticket may not cover this"}
+    </h3>
+    <p class="mt-2 text-sm text-base-content/70">
+      {confirming?.validity_note || "Abeona cannot tell whether your ticket covers this connection."}
+    </p>
+    <p class="mt-2 text-sm text-base-content/70">You may need to buy a ticket for it. Abeona follows this connection from now on.</p>
+    <div class="modal-action">
+      <form method="dialog"><button class="btn btn-ghost rounded-full">Cancel</button></form>
+      <button class="btn btn-primary rounded-full" onclick={confirmTake}>I understand, take it</button>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>

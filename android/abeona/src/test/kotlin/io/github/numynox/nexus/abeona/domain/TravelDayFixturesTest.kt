@@ -116,10 +116,21 @@ class TravelDayFixturesTest {
     )
 
     @Serializable
+    private data class ShortCase(
+        val name: String,
+        val now: String,
+        val stationMinutes: Int,
+        val signals: Signals? = null,
+        val legs: List<FixtureLeg>,
+        val expect: Boolean,
+    )
+
+    @Serializable
     private data class Fixtures(
         val travelDay: List<DayCase>,
         val alternativesOrigin: List<OriginCase>,
         val alternativesReason: List<ReasonCase>,
+        val missedShortConnection: List<ShortCase>,
     )
 
     private val fixtures: Fixtures = FixtureJson.decodeFromString(
@@ -140,6 +151,7 @@ class TravelDayFixturesTest {
         get() = when (this) {
             AlternativesReason.Missed -> "missed"
             AlternativesReason.Cancelled -> "cancelled"
+            AlternativesReason.Impossible -> "impossible"
             AlternativesReason.AtRisk -> "at_risk"
         }
 
@@ -184,5 +196,11 @@ class TravelDayFixturesTest {
     fun alternativesReason() = fixtures.alternativesReason.forEach { c ->
         val legs = c.legs.map { it.toLeg() }
         assertEquals(c.name, c.expect, alternativesReason(legs, day(c.now, c.stationMinutes, c.signals, legs))?.wire)
+    }
+
+    @Test
+    fun missedShortConnection() = fixtures.missedShortConnection.forEach { c ->
+        val legs = c.legs.map { it.toLeg() }
+        assertEquals(c.name, c.expect, missedShortConnection(legs, day(c.now, c.stationMinutes, c.signals, legs)))
     }
 }

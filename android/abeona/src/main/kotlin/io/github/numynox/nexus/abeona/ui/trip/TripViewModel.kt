@@ -21,6 +21,10 @@ import io.github.numynox.nexus.abeona.domain.TravelDay
 import io.github.numynox.nexus.abeona.domain.alternativesOrigin
 import io.github.numynox.nexus.abeona.domain.alternativesReason
 import io.github.numynox.nexus.abeona.domain.travelDay
+import io.github.numynox.nexus.abeona.data.Alternative
+import io.github.numynox.nexus.abeona.domain.takeConnection
+import io.github.numynox.nexus.abeona.domain.missedShortConnection
+import io.github.numynox.nexus.abeona.domain.followed
 import io.github.numynox.nexus.abeona.live.LiveSignals
 import io.github.numynox.nexus.abeona.ui.common.PickedFile
 import io.github.numynox.nexus.abeona.ui.common.isLiveDay
@@ -350,15 +354,17 @@ class TripViewModel(
     }
 
     /** The travel day of [trip] now, with this phone's settings and signals; null outside its live window. */
+    /** The travel day on the legs as travelled: a connection taken from the alternatives replaces the plan's. */
     private suspend fun dayOf(trip: Trip, now: Instant = Instant.now()): TravelDay? {
-        if (!isLiveDay(trip, now)) return null
-        return travelDay(trip.legs, now, container.preferences.current().stationMinutes, LiveSignals.forTrip(trip, now))
+        val followed = trip.followed
+        if (!isLiveDay(followed, now)) return null
+        return travelDay(followed.legs, now, container.preferences.current().stationMinutes, LiveSignals.forTrip(followed, now))
     }
 
     /** By itself only when a change is at risk, missed, or a train cancelled — and once per refresh. */
     private suspend fun searchIfNeeded(trip: Trip) {
         val day = dayOf(trip) ?: return
-        if (alternativesReason(trip.legs, day) == null || trip.refreshedAt == searchedFor) return
+        if (alternativesReason(trip.followed.legs, day) == null || trip.refreshedAt == searchedFor) return
         searchedFor = trip.refreshedAt
         findAlternatives()
     }
@@ -368,17 +374,56 @@ class TripViewModel(
         val trip = _detail.value.valueOrNull?.trip ?: return@launch
         val now = Instant.now()
         val day = dayOf(trip, now) ?: return@launch
-        val origin = alternativesOrigin(trip.legs, day, now) ?: return@launch
+        val followed = trip.followed
+        val origin = alternativesOrigin(followed.legs, day, now) ?: return@launch
+        // The position saw a short change missed: DB's binding is lifted, the server marks accordingly.
+        val missedShort = missedShortConnection(followed.legs, day)
         searching?.cancel()
         _alternatives.value = AlternativesState(origin, loading = true, result = _alternatives.value?.result)
         searching = launch {
             _alternatives.value = try {
-                AlternativesState(origin, loading = false, result = container.repository.alternatives(trip, origin))
+                AlternativesState(origin, loading = false, result = container.repository.alternatives(followed, origin, missedShort))
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
                 AlternativesState(origin, loading = false, result = _alternatives.value?.result, error = e.describe())
             }
+        }
+    }
+
+    /**
+     * Follows [alternative] from now on: stored as the trip's replacement
+     * (missed_leg_idx, replacement_legs), which the dashboard, the companion
+     * and the compensation all read. A connection the ticket may not cover is
+     * only taken after the traveller confirmed it on the screen.
+     */
+    fun takeConnection(alternative: Alternative, onError: (String) -> Unit, onDone: () -> Unit) {
+        val trip = _detail.value.valueOrNull?.trip ?: return
+        viewModelScope.launch {
+            val day = dayOf(trip) ?: return@launch onError("This trip is not under way.")
+            val taken = takeConnection(trip.legs, trip.missedLegIdx, trip.replacementLegs, day, alternative.legs)
+                ?: return@launch onError("There is no ride left to replace.")
+            runCatching { container.repository.recordDisruption(tripId, taken.missedIdx, taken.replacement) }
+                .onSuccess {
+                    updateTrip { it.copy(missedLegIdx = taken.missedIdx, replacementLegs = taken.replacement) }
+                    _detail.value.valueOrNull?.trip?.let { store.publish(it) }
+                    _alternatives.value = null
+                    NextTripWidget.refresh(application)
+                    onDone()
+                }
+                .onFailure { onError(it.describe()) }
+        }
+    }
+
+    /** Back to the plan: forgets the connection taken instead. */
+    fun followPlan(onError: (String) -> Unit) {
+        viewModelScope.launch {
+            runCatching { container.repository.recordDisruption(tripId, null, null) }
+                .onSuccess {
+                    updateTrip { it.copy(missedLegIdx = null, replacementLegs = null) }
+                    _detail.value.valueOrNull?.trip?.let { store.publish(it) }
+                }
+                .onFailure { onError(it.describe()) }
         }
     }
 
