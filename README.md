@@ -246,6 +246,9 @@ apps' Settings instead.
 npm run test:db               # pgTAP tests against the local Supabase stack
 ```
 
+CI runs the same tests on every pull request that touches `supabase/`
+(`.github/workflows/database-tests.yml`).
+
 `supabase/tests/` covers Vibilia's refuel statistics arithmetic, its drive
 tracking (deduplication, attribution to days, the model, the fuel estimate)
 and the RLS policies of every app. Each file runs in a transaction that is rolled back,

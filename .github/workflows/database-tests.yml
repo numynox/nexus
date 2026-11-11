@@ -1,0 +1,48 @@
+name: Database tests
+
+# The pgTAP suite in supabase/tests/ against a fresh local Supabase stack, on
+# every pull request that touches the database. Runs only locally in the
+# runner: no secret, no connection to the live project. Migrations reach the
+# live database only from deploy-pages.yml, on main
+# (decisions/2026-11-11-migrations-deployed-by-ci.md).
+
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/tests/**"
+      - "supabase/seed.sql"
+      - "supabase/config.toml"
+      - ".github/workflows/database-tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: database-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.116.0
+
+      # Only the database and the services whose schemas migrations use
+      # (auth, storage); the rest is not needed to run SQL tests.
+      - name: Start local Supabase
+        run: supabase start -x studio,imgproxy,mailpit,logflare,vector,edge-runtime,realtime,supavisor,postgres-meta
+
+      - name: Run database tests
+        run: supabase test db
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop --no-backup
