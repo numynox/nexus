@@ -55,3 +55,21 @@ only when they change.
   parallel. Nothing depends on their order.
 - Watch `pg_stat_archiver.archived_count` (per day) to see the effect. The
   segment count, not bytes written, is the number that matters on this tier.
+
+## Outcome (2026-11-11)
+It worked: no Disk IO warnings since, and over 24 hours the dashboard's disk
+charts stay flat (peak ~3 IOPS and ~143 KB/s, against a 5 MB/s baseline).
+
+Two parts of the reasoning above were wrong, both on the pessimistic side:
+- **Segments fell from 18 to ~14 an hour, not to ~6.** Each 10-minute job run
+  costs *two* segments: one for the job's own window, then a second for the
+  timed checkpoint that follows (`checkpoint_timeout = 300 s` — it runs
+  because there was WAL, and its own record opens a new window). The logs
+  show `distance=32768 kB` (two segments) per checkpoint, every 10 minutes.
+  The schedule alone therefore costs ~12 segments an hour.
+- **A segment does not cost 16 MB of disk IO.** Forced switches leave most of
+  the segment empty and the archiver reads it from cache, so the GB-a-day
+  figures above were upper bounds. Segment count shows the trend, not the cost.
+
+If the warnings return, the levers left are those listed under "Not done
+here"; halving how often a job runs halves its segments.
