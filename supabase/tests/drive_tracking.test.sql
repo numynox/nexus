@@ -16,7 +16,7 @@ begin;
 
 create extension if not exists pgtap;
 
-select plan(45);
+select plan(51);
 
 -- ── Fixtures ───────────────────────────────────────────────────────────────
 -- Owner, a member the car is shared with, and a stranger.
@@ -386,6 +386,43 @@ select is(
   'cost stays on the day it was paid'
 );
 
+-- Distance driven per day: Bluetooth days only, refuel-day lumps left out
+select is(
+  (select min(day) from public.get_car_distance_driven_per_day('eeee0000-0000-4000-8000-000000000001')),
+  '2025-12-31'::date,
+  'the days start at the first recorded drive'
+);
+
+select is(
+  (select km from public.get_car_distance_driven_per_day('eeee0000-0000-4000-8000-000000000001') where day = '2026-01-30'),
+  200.0,
+  'a tracked leg''s share of a day counts'
+);
+
+select is(
+  (select km from public.get_car_distance_driven_per_day('eeee0000-0000-4000-8000-000000000001') where day = '2026-02-05'),
+  140.6,
+  'the open leg''s estimate counts'
+);
+
+select is(
+  (select km from public.get_car_distance_driven_per_day('eeee0000-0000-4000-8000-000000000001') where day = '2026-02-03'),
+  0.0,
+  'a day without driving is there, at 0'
+);
+
+select is(
+  (select sum(km) from public.get_car_distance_driven_per_day('eeee0000-0000-4000-8000-000000000005')),
+  0.0,
+  'a leg booked on its refuel day (tracking began inside it) is left out'
+);
+
+select is(
+  (select count(*)::int from public.get_car_distance_driven_per_day('eeee0000-0000-4000-8000-000000000002')),
+  0,
+  'a car without drives has no days at all'
+);
+
 -- ── As the member the car is shared with ──────────────────────────────────
 set local request.jwt.claims to '{"sub":"dddd0000-0000-4000-8000-000000000002","role":"authenticated"}';
 
@@ -410,6 +447,7 @@ select is(
   (select count(*)::int from public.vibilia_drive_intervals where car_id = 'eeee0000-0000-4000-8000-000000000001')
   + (select count(*)::int from public.get_car_drive_periods('eeee0000-0000-4000-8000-000000000001'))
   + (select count(*)::int from public.get_car_daily_distance('eeee0000-0000-4000-8000-000000000001'))
+  + (select count(*)::int from public.get_car_distance_driven_per_day('eeee0000-0000-4000-8000-000000000001'))
   + (select count(*)::int from public.get_car_drive_model('eeee0000-0000-4000-8000-000000000001'))
   + (select count(*)::int from public.get_car_fuel_level_estimate('eeee0000-0000-4000-8000-000000000001')),
   0,

@@ -56,6 +56,7 @@ the app's DataStore instead of `localStorage` — still per device.
 | drive period | Drive | intervals merged across phones (`get_car_drive_periods`) — what the UI calls a drive |
 | leg | — | the stretch between two consecutive refuels; **tracked** when drive tracking was already running at its start |
 | drive model | Driving | per car: km per drive from an assumed average speed by drive duration, scaled by tracked legs; litres at the car's L/100 km (`get_car_drive_model`) |
+| distance driven per day | Distance driven | derived (`get_car_distance_driven_per_day`): a day's kilometres from Bluetooth drives only — tracked legs spread over their days plus the open leg's estimate, never a leg booked whole on its refuel day. The logbook's square graph (Android) |
 | `vibilia_commutes` | Commute | one person's commute in one car: weekdays, a window each way, home and work with a radius. Private to that person |
 | `to_work` / `to_home` | To work / Home | the two directions of a commute, in columns (`to_work_from`), the RPC's `direction` and the Android code (`CommuteDirection`) |
 | expected travel time | Travel time | median of your own drives that started in the window (`get_vibilia_commute_expectation`) |
