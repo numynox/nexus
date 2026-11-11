@@ -89,6 +89,14 @@ class AppScreenshots {
         tab("Nearby")
         waitFor(hasText("TotalEnergies"))
         shot("03-nearby")
+        // The preview opens full screen; a station tapped there closes it and
+        // is selected in the list and centred on the preview.
+        robot.tapIcon("Map of nearby stations")
+        waitFor(hasContentDescription("Close map"))
+        shot("03a-nearby-map")
+        robot.tapIcon("Shell")
+        waitFor(hasText("Shell"))
+        shot("03b-nearby-picked")
 
         tab("History")
         settle()

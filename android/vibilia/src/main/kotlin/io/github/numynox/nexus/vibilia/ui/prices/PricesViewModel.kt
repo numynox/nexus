@@ -170,4 +170,9 @@ class NearbyViewModel(private val container: AppContainer) : ViewModel() {
     fun select(id: String?) {
         _state.update { it.copy(selectedId = if (it.selectedId == id) null else id) }
     }
+
+    /** Selects [id] without toggling — a station picked on the full-screen map. */
+    fun show(id: String) {
+        _state.update { it.copy(selectedId = id) }
+    }
 }

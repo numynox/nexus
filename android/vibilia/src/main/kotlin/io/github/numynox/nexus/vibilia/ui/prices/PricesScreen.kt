@@ -45,6 +45,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -296,10 +298,29 @@ private fun NearbyTab(fuelType: String) {
     val stations = state.stations.valueOrNull.orEmpty().sortedWith(stationOrder)
     val lowest = stations.firstNotNullOfOrNull { it.effectivePrice }
     val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    var mapOpen by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(state.selectedId) {
         val index = stations.indexOfFirst { it.id == state.selectedId }
         if (index >= 0) listState.animateScrollToItem(index)
+    }
+
+    if (mapOpen) {
+        FullScreenStationsMap(
+            stations = stations,
+            userLocation = state.location,
+            selectedId = state.selectedId,
+            lowestPrice = lowest,
+            onPick = { id ->
+                mapOpen = false
+                viewModel.show(id)
+                // Also when it was selected already and the list has moved on.
+                val index = stations.indexOfFirst { it.id == id }
+                if (index >= 0) scope.launch { listState.animateScrollToItem(index) }
+            },
+            onDismiss = { mapOpen = false },
+        )
     }
 
     Column(Modifier.fillMaxSize().padding(top = 12.dp)) {
@@ -317,6 +338,7 @@ private fun NearbyTab(fuelType: String) {
                 lowestPrice = lowest,
                 onSelect = viewModel::select,
                 modifier = Modifier.fillMaxSize(),
+                onExpand = { mapOpen = true },
             )
             if (state.locating || state.stations is Loadable.Loading) {
                 LoadingIndicator(Modifier.align(Alignment.Center))

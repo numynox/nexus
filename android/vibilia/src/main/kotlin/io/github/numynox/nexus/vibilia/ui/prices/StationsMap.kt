@@ -8,6 +8,21 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.Icon
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -101,6 +116,10 @@ private fun basemapStyle(dark: Boolean): String {
  * The nearby stations on a map, each a price pill drawn in Compose and kept in
  * place through the map's projection. Tapping one selects it, and selecting
  * one in the list glides the map there.
+ *
+ * With [onExpand] set the map is a preview: it takes no gestures, so it never
+ * catches a scroll meant for the screen, and a tap anywhere on it calls
+ * [onExpand] — the screen then opens [FullScreenStationsMap].
  */
 @Composable
 fun StationsMap(
@@ -110,12 +129,78 @@ fun StationsMap(
     lowestPrice: Double?,
     onSelect: (String) -> Unit,
     modifier: Modifier = Modifier,
+    onExpand: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
-    if ((context.applicationContext as? VibiliaApplication)?.mapsAvailable == false) {
-        SchematicStationsMap(stations, userLocation, selectedId, lowestPrice, onSelect, modifier)
-        return
+    val interactive = onExpand == null
+    Box(modifier) {
+        if ((context.applicationContext as? VibiliaApplication)?.mapsAvailable == false) {
+            SchematicStationsMap(stations, userLocation, selectedId, lowestPrice, onSelect.takeIf { interactive }, Modifier.fillMaxSize())
+        } else {
+            LiveStationsMap(stations, userLocation, selectedId, lowestPrice, onSelect.takeIf { interactive }, Modifier.fillMaxSize())
+        }
+        if (onExpand != null) {
+            // Above the pills too: in the preview a tap opens the map, never selects.
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .semantics { contentDescription = "Map of nearby stations" }
+                    .clickable(onClickLabel = "Open map", role = Role.Button, onClick = onExpand),
+            )
+        }
     }
+}
+
+/**
+ * The map full screen, to pan and zoom. Tapping a station hands it to [onPick]
+ * — the screen closes this and shows the station in the list and the preview.
+ */
+@Composable
+fun FullScreenStationsMap(
+    stations: List<StationPrice>,
+    userLocation: LatLng?,
+    selectedId: String?,
+    lowestPrice: Double?,
+    onPick: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+    ) {
+        Box(Modifier.fillMaxSize()) {
+            StationsMap(
+                stations = stations,
+                userLocation = userLocation,
+                selectedId = selectedId,
+                lowestPrice = lowestPrice,
+                onSelect = onPick,
+                modifier = Modifier.fillMaxSize(),
+            )
+            FilledTonalIconButton(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(12.dp),
+            ) {
+                Icon(Icons.Rounded.Close, contentDescription = "Close map")
+            }
+        }
+    }
+}
+
+@Composable
+private fun LiveStationsMap(
+    stations: List<StationPrice>,
+    userLocation: LatLng?,
+    selectedId: String?,
+    lowestPrice: Double?,
+    onSelect: ((String) -> Unit)?,
+    modifier: Modifier,
+) {
+    val interactive = onSelect != null
+    val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val mapView = remember { MapView(context).apply { onCreate(null) } }
@@ -150,6 +235,11 @@ fun StationsMap(
             m.uiSettings.isRotateGesturesEnabled = false
             m.uiSettings.isTiltGesturesEnabled = false
             m.uiSettings.isLogoEnabled = false
+            m.uiSettings.isScrollGesturesEnabled = interactive
+            m.uiSettings.isZoomGesturesEnabled = interactive
+            m.uiSettings.isDoubleTapGesturesEnabled = interactive
+            m.uiSettings.isQuickZoomGesturesEnabled = interactive
+            m.uiSettings.isAttributionEnabled = interactive
             m.addOnCameraMoveListener { cameraTick++ }
             m.addOnCameraIdleListener { cameraTick++ }
             m.setStyle(Style.Builder().fromJson(basemapStyle(dark))) {
@@ -204,7 +294,8 @@ fun StationsMap(
                 price = price,
                 cheapest = price != null && lowestPrice != null && kotlin.math.abs(price - lowestPrice) < 1e-6,
                 selected = station.id == selectedId,
-                onClick = { onSelect(station.id) },
+                label = station.displayName,
+                onClick = onSelect?.let { select -> { select(station.id) } },
                 modifier = Modifier.centeredAt(point),
             )
         }
@@ -220,7 +311,14 @@ private fun Modifier.centeredAt(point: PointF): Modifier = layout { measurable, 
 }
 
 @Composable
-private fun PricePill(price: Double?, cheapest: Boolean, selected: Boolean, onClick: () -> Unit, modifier: Modifier) {
+private fun PricePill(
+    price: Double?,
+    cheapest: Boolean,
+    selected: Boolean,
+    label: String,
+    onClick: (() -> Unit)?,
+    modifier: Modifier,
+) {
     val scale by animateFloatAsState(if (selected) 1.18f else 1f, label = "pill")
     val container by animateColorAsState(
         when {
@@ -235,14 +333,7 @@ private fun PricePill(price: Double?, cheapest: Boolean, selected: Boolean, onCl
         cheapest -> MaterialTheme.colorScheme.onPrimary
         else -> MaterialTheme.colorScheme.onSurface
     }
-    Surface(
-        onClick = onClick,
-        modifier = modifier.scale(scale),
-        shape = CircleShape,
-        color = container,
-        contentColor = content,
-        shadowElevation = if (selected) 8.dp else 3.dp,
-    ) {
+    val body: @Composable () -> Unit = {
         if (price != null) {
             PriceText(
                 price,
@@ -253,6 +344,28 @@ private fun PricePill(price: Double?, cheapest: Boolean, selected: Boolean, onCl
         } else {
             Box(Modifier.size(12.dp).padding(4.dp))
         }
+    }
+    val elevation = if (selected) 8.dp else 3.dp
+    if (onClick != null) {
+        Surface(
+            onClick = onClick,
+            modifier = modifier.scale(scale).semantics { contentDescription = label },
+            shape = CircleShape,
+            color = container,
+            contentColor = content,
+            shadowElevation = elevation,
+            content = body,
+        )
+    } else {
+        // In the preview the whole map is one button; the pills are only a picture.
+        Surface(
+            modifier = modifier.scale(scale).clearAndSetSemantics {},
+            shape = CircleShape,
+            color = container,
+            contentColor = content,
+            shadowElevation = elevation,
+            content = body,
+        )
     }
 }
 
@@ -278,7 +391,7 @@ private fun SchematicStationsMap(
     userLocation: LatLng?,
     selectedId: String?,
     lowestPrice: Double?,
-    onSelect: (String) -> Unit,
+    onSelect: ((String) -> Unit)?,
     modifier: Modifier,
 ) {
     val grid = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
@@ -314,7 +427,8 @@ private fun SchematicStationsMap(
                 price = price,
                 cheapest = price != null && lowestPrice != null && kotlin.math.abs(price - lowestPrice) < 1e-6,
                 selected = station.id == selectedId,
-                onClick = { onSelect(station.id) },
+                label = station.displayName,
+                onClick = onSelect?.let { select -> { select(station.id) } },
                 modifier = Modifier.centeredAt(place(LatLng(lat, lng))),
             )
         }
