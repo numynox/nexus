@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import io.github.numynox.nexus.vibilia.AppContainer
 import io.github.numynox.nexus.vibilia.data.CarExpense
 import io.github.numynox.nexus.vibilia.data.DistanceMonth
+import io.github.numynox.nexus.vibilia.data.DrivenDay
+import java.time.LocalDate
 import io.github.numynox.nexus.vibilia.data.RefuelEvent
 import io.github.numynox.nexus.core.ui.Loadable
 import io.github.numynox.nexus.core.ui.loadable
@@ -52,7 +54,12 @@ data class LogMonth(
     val other: Double get() = spent - fuel
 }
 
-data class Logbook(val months: List<LogMonth>, val averageConsumption: Double?)
+data class Logbook(
+    val months: List<LogMonth>,
+    val averageConsumption: Double?,
+    /** The "Distance driven" graph's days; empty hides it. */
+    val drivenDays: List<DrivenDay> = emptyList(),
+)
 
 /** Refuels and expenses of one car, newest first, grouped by month. */
 class LogbookViewModel(private val container: AppContainer) : ViewModel() {
@@ -79,7 +86,10 @@ class LogbookViewModel(private val container: AppContainer) : ViewModel() {
                 val distance = async {
                     runCatching { container.statistics.distancePerMonth(carId, Instant.EPOCH, Instant.now()) }.getOrDefault(emptyList())
                 }
-                build(refuels.await(), expenses.await(), distance.await())
+                val driven = async {
+                    container.statistics.distanceDrivenPerDay(carId, DrivenWeeks.since(LocalDate.now(), ZoneId.systemDefault()))
+                }
+                build(refuels.await(), expenses.await(), distance.await()).copy(drivenDays = driven.await())
             }
             // A refresh that failed leaves the logbook that was there.
             if (!(force && result is Loadable.Failed && _state.value is Loadable.Ready)) _state.value = result

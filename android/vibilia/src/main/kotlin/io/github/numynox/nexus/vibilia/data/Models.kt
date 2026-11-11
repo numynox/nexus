@@ -324,6 +324,10 @@ data class DistanceMonth(
     @SerialName("driving_hours") val drivingHours: Double = 0.0,
 )
 
+/** One day of the logbook's "Distance driven" graph: Bluetooth drives only (`get_car_distance_driven_per_day`). */
+@Serializable
+data class DrivenDay(val day: LocalDate, val km: Double = 0.0)
+
 @Serializable
 data class DailyDistance(
     val day: LocalDate,

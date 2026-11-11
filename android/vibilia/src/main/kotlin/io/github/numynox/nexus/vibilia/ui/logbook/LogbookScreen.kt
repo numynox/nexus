@@ -179,6 +179,9 @@ internal fun LogbookList(
         verticalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
+        if (logbook.drivenDays.isNotEmpty()) {
+            item(key = "distance-driven") { DistanceDrivenGraph(logbook.drivenDays) }
+        }
         logbook.months.forEach { month ->
             stickyHeader(key = month.month.toString()) {
                 Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {

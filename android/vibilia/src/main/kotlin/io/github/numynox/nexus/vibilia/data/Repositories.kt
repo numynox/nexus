@@ -243,6 +243,12 @@ class StatisticsRepository(private val supabase: SupabaseClient) {
             supabase.postgrest.rpc("get_car_daily_distance", carParams(carId, since, until)).decodeList<DailyDistance>()
         }.getOrDefault(emptyList())
 
+    /** Empty without drives — or against a database without the function yet. */
+    suspend fun distanceDrivenPerDay(carId: String, since: Instant): List<DrivenDay> =
+        runCatching {
+            supabase.postgrest.rpc("get_car_distance_driven_per_day", carParams(carId, since)).decodeList<DrivenDay>()
+        }.getOrDefault(emptyList())
+
     suspend fun driveModel(carId: String): DriveModel? =
         runCatching {
             supabase.postgrest.rpc("get_car_drive_model", carParams(carId)).decodeList<DriveModel>().firstOrNull()

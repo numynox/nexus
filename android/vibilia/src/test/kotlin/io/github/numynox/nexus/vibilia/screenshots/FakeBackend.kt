@@ -57,6 +57,7 @@ object FakeBackend {
             path.endsWith("/rpc/get_car_refuel_year_bounds") -> """[{"min_year": ${LocalDate.now().year - 2}, "max_year": ${LocalDate.now().year}}]"""
             path.endsWith("/rpc/get_car_drive_model") -> driveModel().toString()
             path.endsWith("/rpc/get_car_daily_distance") -> dailyDistance().toString()
+            path.endsWith("/rpc/get_car_distance_driven_per_day") -> drivenDays().toString()
             path.endsWith("/rpc/get_car_drive_periods") -> drivePeriods().toString()
             path.endsWith("/rpc/get_car_refuel_plot_events") -> plotEvents().toString()
             path.endsWith("/rpc/get_car_distance_per_month") -> months().toString()
@@ -222,6 +223,20 @@ object FakeBackend {
                 put("estimated_km", if (i < 3 && i != 1) 72.0 else 0.0); put("estimated_liters", if (i < 3 && i != 1) 4.6 else 0.0)
                 put("driving_seconds", (km.coerceAtLeast(if (i < 3 && i != 1) 72.0 else 0.0) / 68.2 * 3600).toInt())
             }
+        }
+    }
+
+    /** About 21 weeks of Bluetooth days: commutes on weekdays, the odd long weekend drive. */
+    private fun drivenDays() = buildJsonArray {
+        for (i in 146 downTo 0) {
+            val day = LocalDate.now(zone).minusDays(i.toLong())
+            val weekend = day.dayOfWeek.value >= 6
+            val km = when {
+                weekend -> if (i % 5 == 0) 160.0 + 40 * sin(i.toDouble()) else if (i % 3 == 0) 18.0 else 0.0
+                i % 11 == 0 -> 0.0
+                else -> 34.0 + 12 * sin(i * 0.7)
+            }
+            addJsonObject { put("day", day.toString()); put("km", km) }
         }
     }
 
