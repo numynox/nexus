@@ -97,6 +97,12 @@ export interface CarDailyDistance {
   driving_seconds: number;
 }
 
+/** One day of the logbook's "Distance driven" graph: Bluetooth drives only. */
+export interface CarDrivenDay {
+  day: string;
+  km: number;
+}
+
 /** Driving time merged across every phone that reported it. */
 export interface CarDrivePeriod {
   started_at: string;
@@ -648,6 +654,28 @@ async function computeFuelLevelEstimateInBrowser(
     speedAssumed: false,
     rangeKm: null,
   };
+}
+
+/**
+ * Kilometres per day from Bluetooth drives (tracked legs spread over their
+ * days, plus the open leg's estimate), one row per day from the first drive.
+ * Empty without drives, or against a database without the function yet.
+ */
+export async function fetchCarDistanceDrivenPerDay(
+  carId: string,
+  sinceIso: string,
+): Promise<CarDrivenDay[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc(
+    "get_car_distance_driven_per_day",
+    { p_car_id: carId, p_since: sinceIso },
+  );
+
+  if (error) return [];
+  return (data || []).map((row: any) => ({
+    day: row.day,
+    km: Number(row.km) || 0,
+  }));
 }
 
 /**

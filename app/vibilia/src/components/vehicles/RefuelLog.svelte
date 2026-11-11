@@ -9,11 +9,16 @@
     ReceiptText,
   } from "lucide-svelte";
   import {
+    fetchCarDistanceDrivenPerDay,
     fetchCarExpensesForCar,
     fetchCarKmPerMonth,
     fetchRefuelEventsForCar,
     type CarDistanceMonth,
+    type CarDrivenDay,
   } from "../../lib/data";
+  import DistanceDrivenGraph, {
+    drivenSince,
+  } from "./DistanceDrivenGraph.svelte";
   import ExpenseForm from "./ExpenseForm.svelte";
   import RefuelForm from "./RefuelForm.svelte";
 
@@ -28,6 +33,8 @@
   let refuelEvents = $state<any[]>([]);
   /** Distance and driving time per month, keyed "YYYY-MM". */
   let distanceByMonth = $state<Record<string, CarDistanceMonth>>({});
+  /** The "Distance driven" graph's days; empty hides it. */
+  let drivenDays = $state<CarDrivenDay[]>([]);
   let loading = $state(true);
   let showForm = $state(false);
   let formType = $state<"refuel" | "expense">("refuel");
@@ -70,7 +77,7 @@
 
   async function fetchEvents() {
     loading = true;
-    const [refuels, expenses, months] = await Promise.all([
+    const [refuels, expenses, months, driven] = await Promise.all([
       fetchRefuelEventsForCar(car.id),
       fetchCarExpensesForCar(car.id),
       // Extra detail: the log still loads without it.
@@ -79,7 +86,11 @@
         new Date(0).toISOString(),
         new Date().toISOString(),
       ).catch(() => [] as CarDistanceMonth[]),
+      fetchCarDistanceDrivenPerDay(car.id, drivenSince()).catch(
+        () => [] as CarDrivenDay[],
+      ),
     ]);
+    drivenDays = driven;
     distanceByMonth = Object.fromEntries(
       months.map((month) => [month.month_key.slice(0, 7), month]),
     );
@@ -447,6 +458,7 @@
       <span class="loading loading-spinner text-primary"></span>
     </div>
   {:else}
+    <DistanceDrivenGraph days={drivenDays} />
     <div class="relative">
       {#if events.length > 0}
         <div
