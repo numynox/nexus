@@ -10,12 +10,46 @@ permissions:
   pages: write
   id-token: write
 
+# Never cancel a run in progress: it may be applying migrations. A newer push
+# waits instead, and only the latest one waiting runs.
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
+  # The database first, so a published site never runs against a schema that
+  # does not have its migrations yet (decisions/2026-11-11-migrations-deployed-by-ci.md).
+  # Only on main: pull requests run the tests in database-tests.yml and never
+  # touch the live database. Edge Functions stay manual (DEPLOYMENT.md).
+  migrate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.116.0
+
+      - name: Check the secret
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::error::The repository secret SUPABASE_DB_URL is not set (DEPLOYMENT.md, 'Migrations')."
+            exit 1
+          fi
+
+      # Applies only the migrations missing from the live history
+      # (supabase_migrations.schema_migrations); with none missing it changes
+      # nothing.
+      - name: Push migrations
+        run: supabase db push --db-url "$SUPABASE_DB_URL" --yes
+
   build:
+    needs: migrate
     runs-on: ubuntu-latest
     env:
       PUBLIC_SUPABASE_URL: ${{ vars.PUBLIC_SUPABASE_URL }}
