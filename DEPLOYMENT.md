@@ -324,6 +324,41 @@ identifies callers by User-Agent. Nor does `abeona-transit`: Transitous is
 public, free for non-commercial use, and asks for attribution, which both
 Abeona clients show in Settings.
 
+### From a cloud session (Claude on the web or phone)
+
+A cloud session has no Supabase login for the CLI, but the **Supabase
+connector** (claude.ai → Settings → Connectors) deploys a function directly:
+its `deploy_edge_function` tool uploads the files and makes the new version
+live at once. That is the easiest way without a laptop. Ask for it in the
+chat ("deploy abeona-transit"). It is a production change that takes effect
+at once, so the deploy should be confirmed first.
+
+To match what `npm run db:functions:deploy` produces, the deploy must:
+
+1. **Lay files out as the CLI does:** names relative to `supabase/`, e.g.
+   `functions/abeona-refresh-trips/index.ts`, with `entrypoint_path` set to
+   that index file.
+2. **Include every file the function imports, recursively, and nothing
+   else.** Tests (`*.test.ts`) and `fixtures/` stay out. The Abeona functions
+   import from `functions/abeona-transit/` (`contract.ts`, `transitous.ts`,
+   `cache.ts`, `refresh.ts`, `polyline.ts`, …), so those files go with
+   `abeona-import`, `abeona-public` and `abeona-refresh-trips` too; after a
+   change to a shared file, deploy every function that imports it.
+3. **Take `verify_jwt` from `supabase/config.toml`, never the tool's default
+   (`true`).** `fetch-rss`, `refresh-fuel-prices`, `abeona-refresh-trips` and
+   `abeona-public` need `false`: with `true` the scheduled jobs and share
+   links stop working.
+4. **Pass the import map** where `config.toml` names one (`fetch-rss` and
+   `refresh-fuel-prices`: their `deno.json`, uploaded and given as
+   `import_map_path`).
+5. **Deploy from committed code.** Deploy what is on `main` (or about to merge),
+   so the repository stays the authoritative copy (`supabase/README.md`).
+
+Afterwards, `get_edge_function` shows the deployed version, its `verify_jwt`
+and its files: compare them with the plan. Secrets are separate: the
+connector does not set them (dashboard → Edge Functions → Secrets, or
+`supabase secrets set` from a laptop).
+
 **Abeona's first release** needs its database half first: push
 `20261102120000_abeona_foundation.sql` (it also creates the private
 `abeona-tickets` Storage bucket and its policies), then deploy

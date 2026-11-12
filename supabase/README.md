@@ -23,10 +23,12 @@ supabase/
 
 - **`db-info.json` is out of date.** It predates Vibilia and Annona. Read the
   migrations instead; do not extend it.
-- **Edge Functions cannot be pulled.** The CLI has no command that fetches
-  remote function source. Everything under `functions/` must stay the
-  authoritative copy — if a function only exists in the dashboard, paste it in
-  here before touching it.
+- **Edge Functions cannot be pulled with the CLI.** It has no command that
+  fetches remote function source (the Supabase connector's
+  `get_edge_function` can read a deployed version, to compare). Everything
+  under `functions/` must stay the authoritative copy — if a function only
+  exists in the dashboard, paste it in here before touching it. Deploying from
+  a cloud session: `DEPLOYMENT.md`, "Edge Function deploy".
 - **Syncing a schema changed outside migrations:** `supabase db remote commit`
   is deprecated; use `npx supabase db pull` to generate a migration from the
   remote schema, then inspect and commit it. This should be rare — schema
