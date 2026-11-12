@@ -4,8 +4,8 @@ import io.github.numynox.nexus.abeona.data.FareType
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-// What intake reads out of a DB Navigator share text or a DB ticket's text
-// layer, before anything is looked up. Parsing happens on the phone only,
+// What intake reads out of a DB Navigator share text or a ticket's text
+// layer (DB, Trenitalia), before anything is looked up. Parsing happens on the phone only,
 // never in an Edge Function (decisions/2026-11-04-abeona-intake.md).
 //
 // This mirrors app/abeona/src/lib/intake/parsed.ts; both run the cases in
@@ -54,10 +54,11 @@ data class ParsedShare(
     val vbid: String? = null,
 ) : Parsed
 
-/** A DB Online-Ticket (the PDF's text layer). */
+/** A ticket PDF's text layer: DB's Online-Ticket (DbTicket.kt) or Trenitalia's (TrenitaliaTicket.kt). */
 @Serializable
 data class ParsedTicket(
     val kind: String = "ticket",
+    /** "db" or "trenitalia". */
     val operator: String = "db",
     @SerialName("fare_name") val fareName: String? = null,
     @SerialName("fare_type") val fareType: FareType,
@@ -77,6 +78,7 @@ data class ParsedTicket(
     val destination: String? = null,
     val date: String? = null,
     override val legs: List<ParsedLeg>,
+    /** What this ticket cost; Trenitalia's: every passenger's "Betrag" in the PDF, added up. */
     @SerialName("price_cents") val priceCents: Int? = null,
     val reservation: String? = null,
 ) : Parsed

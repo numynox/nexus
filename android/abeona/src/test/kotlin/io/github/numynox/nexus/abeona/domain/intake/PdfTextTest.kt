@@ -10,13 +10,13 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/** PdfBox on the synthetic ticket PDF reads to text that parses like pdftotext's (intake.fixtures.json, "pdf"). */
+/** PdfBox on the synthetic ticket PDFs reads to text that parses like pdftotext's (intake.fixtures.json, "pdf"). */
 @RunWith(RobolectricTestRunner::class)
 @Config(application = Application::class)
 class PdfTextTest {
     @Serializable private data class PdfCase(val name: String, val file: String, @SerialName("same_as") val sameAs: String)
     @Serializable private data class TicketCase(val file: String, val expect: ParsedTicket)
-    @Serializable private data class Fixtures(val pdf: List<PdfCase>, val ticket: List<TicketCase>)
+    @Serializable private data class Fixtures(val pdf: List<PdfCase>, val ticket: List<TicketCase>, val trenitalia: List<TicketCase>)
 
     @Test
     fun syntheticTicket() {
@@ -25,8 +25,8 @@ class PdfTextTest {
         fixtures.pdf.forEach { c ->
             val bytes = checkNotNull(javaClass.getResource("/${c.file}")).readBytes()
             val text = PdfText.extract(context, bytes)
-            val expected = fixtures.ticket.first { it.file == c.sameAs }.expect
-            assertEquals(c.name, expected, parseDbTicket(text))
+            val expected = (fixtures.ticket + fixtures.trenitalia).first { it.file == c.sameAs }.expect
+            assertEquals(c.name, listOf(expected), parseTicketTrips(text))
         }
     }
 }

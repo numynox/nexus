@@ -57,6 +57,7 @@ import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -192,8 +193,8 @@ fun SearchScreen(app: AppViewModel, navigator: Navigator) {
         }
     }
 
-    val draft = (intakeState as? IntakeState.Ready)?.draft
-    if (intakeOpen && draft == null) {
+    val ready = intakeState as? IntakeState.Ready
+    if (intakeOpen && ready == null) {
         IntakeSheet(
             state = intakeState,
             onReadText = intake::readText,
@@ -201,16 +202,18 @@ fun SearchScreen(app: AppViewModel, navigator: Navigator) {
             onDismiss = { intakeOpen = false; if (intakeState !is IntakeState.Working) intake.dismiss() },
         )
     }
-    draft?.let { ready ->
+    // A sheet of its own for each of a ticket's trips, so its fields start from that trip.
+    if (ready != null) key(ready.draft) {
         val travellers by viewModel.travellers.collectAsStateWithLifecycle()
         val cards by viewModel.cards.collectAsStateWithLifecycle()
-        LaunchedEffect(ready) { viewModel.loadTravellers() }
+        LaunchedEffect(ready.draft) { viewModel.loadTravellers() }
         SaveTripSheet(
-            journey = ready.match.journey,
+            journey = ready.draft.match.journey,
             travellers = travellers,
             cards = cards,
             me = viewModel.userId,
-            intake = ready,
+            intake = ready.draft,
+            more = ready.queued.size,
             onSave = { input ->
                 intake.save(
                     ready, input,
@@ -367,7 +370,7 @@ private fun IntakeEntry(onClick: () -> Unit) {
             Column(Modifier.padding(start = 14.dp).weight(1f)) {
                 Text("Add from a ticket or share", style = MaterialTheme.typography.titleSmall)
                 Text(
-                    "A DB Navigator share or a DB ticket PDF, read on this phone.",
+                    "A DB Navigator share or a DB or Trenitalia ticket PDF, read on this phone.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

@@ -1,0 +1,77 @@
+                                                              Online-Ticket
+CIV 1080
+
+
+
+
+                                                                                                   Barcode bitte nicht knicken!
+ICE Fahrkarte
+Gültigkeit: 13.11.2026 00:00 Uhr bis 16.11.2026 10:00 Uhr
+Sie können alle Züge nutzen, die auf Ihrer Fahrkarte angegeben sind. Für Züge des Nahverkehrs
+(z.B. RE, RB, S) besteht keine Zugbindung.
+
+Super Sparpreis (Hin- und Rückfahrt)
+Klasse        2. Klasse
+Reisende      2 Personen (27-64 J.) mit 2 BC25
+Hinfahrt      Nürnberg Hbf     Hanau Hbf mit ICE
+              Via: <1080>(AN*STEI/FUE)*WUE*GEM*AB
+Zugbindung    ICE 528, 17:13 Uhr am 13.11.2026
+Rückfahrt     Hanau Hbf      Nürnberg Hbf mit ICE
+              Via: <1080>AB*GEM*WUE*(FUE/STEI*AN)
+Zugbindung    ICE 625, 13:15 Uhr am 15.11.2026
+Eine Stornierung Ihrer Fahrkarte ist ausgeschlossen.
+
+Gesamtpreis 91,46 €. Gebucht am 09.11.2026 um 21:10 Uhr.                                                                           Zangenabdruck Hinfahrt
+Dieses Dokument ist nicht vorsteuerabzugsfähig.
+
+
+
+
+                                                                                                                                  Zangenabdruck Rückfahrt
+
+                                                                                                   Erika Mustermann
+                                                                                                   Auftragsnummer: 100000000000
+
+Ihre Reiseverbindung und Reservierung - Hinfahrt am 13.11.2026
+Halt                                   Datum           Zeit    Gleis      Produkte         Reservierung / Hinweise
+Erlangen Paul-Gossen-Straße            13.11.          ab 16:30 3         S1               Die Fahrkarte ist für diesen Abschnitt nicht gültig. Hier ist
+Nürnberg Hbf                           13.11.          an 16:58 3                          eine weitere Fahrkarte erforderlich.
+Nürnberg Hbf                           13.11.          ab 17:13 7         ICE 528
+Hanau Hbf                              13.11.          an 19:41 102
+
+Ihre Reiseverbindung und Reservierung - Rückfahrt am 15.11.2026
+Halt                                   Datum           Zeit    Gleis      Produkte         Reservierung / Hinweise
+Hanau Hbf                              15.11.          ab 13:15 103       ICE 625
+Nürnberg Hbf                           15.11.          an 15:35 9
+Nürnberg Hbf                           15.11.          ab 15:41 1         S1               Die Fahrkarte ist für diesen Abschnitt nicht gültig. Hier ist
+Erlangen Paul-Gossen-Straße            15.11.          an 16:05 2                          eine weitere Fahrkarte erforderlich.
+
+
+
+
+Ticketcode: XXXXXXXX                                                                                                                           Seite 1 / 2
+Wichtige Nutzungshinweise:
+- Ihre Fahrkarte ist nur gültig mit einem amtlichen Lichtbildausweis. Dieser ist bei der Kontrolle vorzuzeigen.
+- Bei Fahrkarten mit BahnCard-Rabatt zeigen Sie bitte zusätzlich Ihre gültige BahnCard vor.
+- Es gelten die nationalen und internationalen Beförderungsbedingungen der DB AG. Innerhalb von
+  Verkehrsverbünden und Tarifgemeinschaften gelten deren Bestimmungen. Alle Bedingungen finden Sie unter
+  www.bahn.de/agb und www.diebefoerderer.de.
+- Eine Fahrkarte entspricht grundsätzlich einem Beförderungsvertrag, mehrere Fahrkarten mehreren
+  Beförderungsverträgen. Vertraglicher Beförderer können dabei ein oder mehrere Verkehrsunternehmen sein. Für
+  die Eisenbahnfahrt handelt es sich bei dieser Fahrkarte um eine Durchgangsfahrkarte gemäß der Fahrgastrechte-
+  Verordnung (EU) 2021/782 für den Eisenbahnverkehr. Für eine Fahrkarte, die neben der Eisenbahnfahrt noch
+  die Fahrt mit einem anderen Verkehrsträger umfasst (z.B. Schiff zu den Nordseeinseln; ÖPNV) gilt: Die Fahrkarte
+  dokumentiert dann je einen gesonderten Beförderungsvertrag pro Richtung und pro Verkehrsträger. Die Haftung
+  für fahrgastrechtliche Ansprüche gilt dann auch nur für den jeweiligen Beförderungsvertrag.
+- Bei einer zu erwartenden Verspätung ab 20 Minuten am Zielbahnhof Ihrer Fahrkarte ist die Zugbindung Ihrer Fahrt
+  ohne besondere Bescheinigung aufgehoben.
+- Kleinkindabteile, Rollstuhlplätze und Vorrangplätze für Personen mit eingeschränkter Mobilität sowie Plätze für
+  Reisende mit BahnBonus Gold- oder Platinstatus sind bei Bedarf für diese Personengruppen freizugeben.
+Bitte informieren Sie sich kurz vor Reisebeginn auf unserer Website oder in der App, ob kurzfristige Fahrplanänderungen vorliegen. Wir
+danken Ihnen für Ihre Buchung und wünschen eine angenehme Reise.
+
+
+
+
+                                                                                                                               Seite 2 / 2
+
