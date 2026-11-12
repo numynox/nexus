@@ -41,7 +41,7 @@ jobs:
       - name: Check the secret
         run: |
           if [ -z "$SUPABASE_DB_URL" ]; then
-            echo "::error::The repository secret SUPABASE_DB_URL is not set (DEPLOYMENT.md, 'Migrations')."
+            echo "::error::The secret SUPABASE_DB_URL is not set on the GitHub environment main (DEPLOYMENT.md, 'Database deploy (automated)')."
             exit 1
           fi
 
