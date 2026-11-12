@@ -18,7 +18,10 @@ and `main` being the release branch.
 ## Decision
 - **Migrations (#54 M1):** a `migrate` job in `deploy-pages.yml`, only on
   `refs/heads/main`, runs `supabase db push --db-url` with the session pooler
-  connection string (`SUPABASE_DB_URL` secret). The website jobs `need` it, so
+  connection string (`SUPABASE_DB_URL`, a secret of the GitHub environment
+  `main`, which only this job names: a repository secret would be readable by
+  any workflow on any branch of the repository, pull requests included). The
+  website jobs `need` it, so
   the database always goes first and a failed migration publishes nothing.
   It runs on every push to `main`: with nothing to apply it changes nothing.
 - **No approval gate** (the owner's choice): merging is the approval.

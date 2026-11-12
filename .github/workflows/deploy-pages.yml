@@ -21,8 +21,11 @@ jobs:
   # does not have its migrations yet (decisions/2026-11-11-migrations-deployed-by-ci.md).
   # Only on main: pull requests run the tests in database-tests.yml and never
   # touch the live database. Edge Functions stay manual (DEPLOYMENT.md).
+  # The secret lives on the GitHub environment `main` (no reviewers), so only
+  # jobs that name it can read it — never a pull request's workflow.
   migrate:
     if: github.ref == 'refs/heads/main'
+    environment: main
     runs-on: ubuntu-latest
     env:
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}

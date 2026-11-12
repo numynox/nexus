@@ -212,15 +212,18 @@ The `migrate` job in `deploy-pages.yml` runs `supabase db push --db-url
 It uses the same history as the manual methods below, so they can be mixed.
 Reasoning: `.agents/brain/decisions/2026-11-11-migrations-deployed-by-ci.md`.
 
-### Required GitHub repository secret
+### Required GitHub environment secret
 
-- `SUPABASE_DB_URL` — the **session pooler** connection string, from the
+- `SUPABASE_DB_URL`, on the GitHub **environment `main`** — the **session pooler** connection string, from the
   Supabase dashboard → **Connect** → *Session pooler*:
   `postgresql://postgres.<project-ref>:<password>@aws-<n>-<region>.pooler.supabase.com:5432/postgres`.
   Not the direct connection: on the free plan it is IPv6-only, and GitHub's
   runners have no IPv6. Percent-encode special characters in the password.
-  Set it under Settings → Secrets and variables → Actions → **Secrets** (not
-  variables: it is the database password).
+  Set it under Settings → Environments → `main` → **Environment secrets** (not
+  a repository secret, not a variable: it is the database password). Only the
+  `migrate` job names that environment, so no other workflow — a pull
+  request's included — can read it. The environment has no required
+  reviewers: merging is the approval.
 
 ### Pull requests
 
