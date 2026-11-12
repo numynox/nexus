@@ -24,14 +24,32 @@ and `main` being the release branch.
   website jobs `need` it, so
   the database always goes first and a failed migration publishes nothing.
   It runs on every push to `main`: with nothing to apply it changes nothing.
+  The steps, the secret and the failure modes are in `DEPLOYMENT.md`,
+  "Database deploy (automated)".
+- **Session pooler, not the direct connection:** on the free plan the direct
+  connection is IPv6-only, and GitHub-hosted runners have no IPv6. Do not
+  "fix" the URL to the direct host.
+- **The manual methods stay valid** (`npm run db:push`, the one-statement
+  paste): they write the same history (`supabase_migrations.schema_migrations`),
+  so CI skips what was applied by hand, e.g. a migration pushed before its
+  merge.
 - **No approval gate** (the owner's choice): merging is the approval.
 - **Pull requests (#54 M3, tests only):** `database-tests.yml` runs
   `supabase test db` against a local stack in the runner. No dry run against
   production: that would put the database password into pull-request
   workflows, for little more than the PR's file list shows.
 - **Edge Functions (#54 F3):** stay manual. Deploying them from CI needs a
-  personal access token that controls the whole Supabase account.
+  personal access token that controls the whole Supabase account. From a
+  cloud session, the Supabase connector deploys them without the CLI
+  (`DEPLOYMENT.md`, "From a cloud session").
 - The Supabase CLI is pinned (2.116.0) in both workflows.
+
+## Outcome
+Merged on 2026-11-12 (PR #55). The first migration CI applied was
+`20261112090000_ci_migration_smoke_test`, a deliberate no-op (`select 1`)
+that proved the job can reach the live database and record a version; the
+next push reported "Remote database is up to date". Keep that file: it is in
+the live history.
 
 ## Consequences
 - A merge to `main` changes the live database at once, unreviewed by anyone
