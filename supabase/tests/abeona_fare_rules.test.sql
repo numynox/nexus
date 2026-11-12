@@ -109,8 +109,11 @@ select is((public.abeona_allowed_products((select id from fr_ids where key = 'sa
   'a cancelled ride lifts the binding');
 
 -- Nothing cancelled, on time, but the ICE comes in just as the RE leaves: an
--- impossible connection lifts it.
-update public.abeona_legs l set cancelled = false, arrival = (
+-- impossible connection lifts it. Every leg is uncancelled first: the step
+-- before cancelled the RE (idx 1), and a cancellation outranks the change.
+update public.abeona_legs set cancelled = false
+where trip_id = (select id from fr_ids where key = 'saver');
+update public.abeona_legs l set arrival = (
   select coalesce(r.departure, r.planned_departure) from public.abeona_legs r where r.trip_id = l.trip_id and r.idx = 1)
 where trip_id = (select id from fr_ids where key = 'saver') and idx = 0;
 select is((public.abeona_allowed_products((select id from fr_ids where key = 'saver'))->>'binding_lifted_reason'), 'impossible_connection',

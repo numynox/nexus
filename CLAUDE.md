@@ -39,8 +39,10 @@ Start with `.agents/brain/architecture.md` for anything structural and
   `main` — there are no release tags. Only merge work that is ready to be live,
   and never merge on someone else's behalf
   (`.agents/brain/decisions/2026-09-04-main-is-the-release-branch.md`).
-- Migrations and Edge Functions are **not** deployed by CI. If a change needs
-  both, push the database half before the frontend half (`DEPLOYMENT.md`).
+- Migrations **are** deployed by CI: a merge to `main` applies them, then
+  publishes the websites. Pull requests only run the database tests locally.
+  Edge Functions are **not** deployed by CI: deploy one by hand before merging
+  the frontend that needs it (`DEPLOYMENT.md`).
 - Small, focused commits — one concern each.
 - Trailer for AI-assisted commits:
   `Co-Authored-By: Claude <model> <noreply@anthropic.com>`

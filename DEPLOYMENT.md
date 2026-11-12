@@ -3,20 +3,23 @@
 How Nexus is hosted, released and recovered. `README.md` covers local
 development; the reasoning behind these choices is in `.agents/brain/decisions/`.
 
-There are **two independent deployment tracks** — the frontends, which CI
-publishes, and the backend, which is pushed by hand:
+CI publishes the frontends and applies migrations; Edge Functions and secrets
+are still pushed by hand:
 
 | What | How | Automated? |
 | :--- | :--- | :--- |
+| Database migrations | GitHub Actions, on push to `main`, before the websites | yes |
 | The websites | GitHub Actions → GitHub Pages | yes |
 | The Android apps | GitHub Actions → GitHub Releases, sideloaded | yes |
-| Database migrations | `npm run db:push` from a laptop | no |
 | Edge Functions | `npm run db:functions:deploy` from a laptop | no |
 | Vault / function secrets | Supabase dashboard or CLI | no |
 
-A frontend change ships on its own. A change that also touches the schema or a
-function needs the manual half pushed **first**, or the newly published site
-runs against a database that does not have it yet.
+A merge to `main` applies its migrations and only then publishes the websites,
+so a schema change and the frontend that needs it can merge together. A change
+that touches an **Edge Function** still needs the function deployed by hand
+**first**, or the newly published site calls a function that does not have it
+yet. Pull requests never touch the live database: they run the database tests
+against a local stack (`database-tests.yml`).
 
 ---
 
@@ -50,11 +53,17 @@ the apps only work under those paths.
 `.github/workflows/deploy-pages.yml`:
 
 1. Triggers on **push to `main`**, or manually via `workflow_dispatch`.
-2. Node 22, `npm ci` at the repository root (one workspace install for every
+2. Job `migrate` (main only) applies the migrations the live database lacks
+   (see "Database deploy" below). The website jobs wait for it; if it fails,
+   nothing is published.
+3. Node 22, `npm ci` at the repository root (one workspace install for every
    app). Astro 7 requires Node ≥ 22.12.
-3. `npm run build:websites` — builds Noctua, Vibilia, Annona and Abeona in sequence into
+4. `npm run build:websites` — builds Noctua, Vibilia, Annona and Abeona in sequence into
    `output/pages/<app>`, then writes the landing page at `output/pages/index.html`.
-4. Uploads `output/pages` as the Pages artifact and deploys it.
+5. Uploads `output/pages` as the Pages artifact and deploys it.
+
+Runs are never cancelled midway (one may be applying a migration); a newer
+push waits for the running one.
 
 > **A merge to `main` is a release.** There are no release tags; `main` is
 > always what is live. Merge only work that is ready to be published — see
@@ -194,8 +203,48 @@ Nexus apps.
 
 ---
 
+## Database deploy (automated)
+
+The `migrate` job in `deploy-pages.yml` runs `supabase db push --db-url
+"$SUPABASE_DB_URL" --yes` on every push to `main`: it applies the files in
+`supabase/migrations/` that are missing from the live history
+(`supabase_migrations.schema_migrations`) and changes nothing when none are.
+It uses the same history as the manual methods below, so they can be mixed.
+Reasoning: `.agents/brain/decisions/2026-11-11-migrations-deployed-by-ci.md`.
+
+### Required GitHub environment secret
+
+- `SUPABASE_DB_URL`, on the GitHub **environment `main`** — the **session pooler** connection string, from the
+  Supabase dashboard → **Connect** → *Session pooler*:
+  `postgresql://postgres.<project-ref>:<password>@aws-<n>-<region>.pooler.supabase.com:5432/postgres`.
+  Not the direct connection: on the free plan it is IPv6-only, and GitHub's
+  runners have no IPv6. Percent-encode special characters in the password.
+  Set it under Settings → Environments → `main` → **Environment secrets** (not
+  a repository secret, not a variable: it is the database password). Only the
+  `migrate` job names that environment, so no other workflow — a pull
+  request's included — can read it. The environment has no required
+  reviewers: merging is the approval.
+
+### Pull requests
+
+`.github/workflows/database-tests.yml` starts a local Supabase stack in the
+runner, applies every migration to it and runs `supabase/tests/` — on every
+pull request that touches migrations, tests, the seed or `config.toml`. It has
+no secret and never connects to the live project.
+
+### Failure modes
+
+- Without `SUPABASE_DB_URL` the `migrate` job fails with an error naming the
+  secret, and the websites are not published. Nothing is half-done.
+- A migration that fails rolls back on its own; the job fails and the websites
+  are not published. Migrations before it in the same push stay applied.
+- The rule from the Android section still holds: a migration must not drop or
+  rename anything an older app still reads. CI applies it the moment it
+  merges.
+
 ## Database deploy (manual)
 
+Still useful to apply a migration before its merge, or without GitHub.
 Requires the Supabase CLI logged in and the project linked:
 
 ```bash
