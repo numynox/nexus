@@ -40,17 +40,26 @@
   /** Set while the save sheet shows a share or ticket that was read (intake). */
   let draft = $state<IntakeDraft | null>(null);
   let draftFile = $state<File | null>(null);
+  /** The trips still to save after this one: the return of a ticket for both directions. */
+  let queued = $state<IntakeDraft[]>([]);
+  /** The first trip saved from the queue: where Abeona goes once all are saved. */
+  let firstSaved: string | null = null;
+  /** A new sheet for each queued trip, so its fields start from that trip. */
+  let sheetKey = $state(0);
 
-  function openDraft(next: IntakeDraft, file: File | null) {
-    draft = next;
+  function openDrafts(drafts: IntakeDraft[], file: File | null) {
+    [draft, ...queued] = drafts;
     draftFile = file;
-    chosen = next.match.journey;
+    firstSaved = null;
+    chosen = draft?.match.journey ?? null;
   }
 
   function closeSheet() {
     chosen = null;
     draft = null;
     draftFile = null;
+    queued = [];
+    firstSaved = null;
   }
 
   const canSearch = $derived(!!from && !!to && from.id !== to.id && !!date && !!time);
@@ -115,7 +124,17 @@
   }
 
   function onSaved(id: string) {
-    window.location.href = `${base}/trip?id=${encodeURIComponent(id)}`;
+    firstSaved ??= id;
+    const [next, ...rest] = queued;
+    if (next) {
+      // The same ticket, the other direction: its own sheet, the same PDF.
+      draft = next;
+      queued = rest;
+      chosen = next.match.journey;
+      sheetKey++;
+      return;
+    }
+    window.location.href = `${base}/trip?id=${encodeURIComponent(firstSaved)}`;
   }
 </script>
 
@@ -184,7 +203,7 @@
     <p class="rounded-2xl bg-error/10 px-5 py-4 text-sm text-error" role="alert">{error}</p>
   {/if}
 
-  <IntakeCard onDraft={openDraft} />
+  <IntakeCard onDrafts={openDrafts} />
 
   {#if searching && journeys.length === 0}
     <div class="space-y-3" aria-busy="true">
@@ -231,4 +250,6 @@
   {/if}
 </div>
 
-<SaveSheet journey={chosen} intake={draft} ticketFile={draftFile} onClose={closeSheet} {onSaved} />
+{#key sheetKey}
+  <SaveSheet journey={chosen} intake={draft} ticketFile={draftFile} more={queued.length} onClose={closeSheet} {onSaved} />
+{/key}

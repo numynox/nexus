@@ -32,9 +32,27 @@ class TicketFile(val name: String, val mimeType: String, val bytes: ByteArray)
 
 /** A pasted or shared text: a DB Navigator share, or a ticket's text. Null when it is neither. */
 fun parseText(text: String): Parsed? = when {
+    isTrenitaliaTicket(text) -> parseTrenitaliaTicket(text)
     isShareText(text) && !isDbTicket(text) -> parseShareText(text)
     isDbTicket(text) -> parseDbTicket(text)
     else -> parseShareText(text)
+}
+
+/**
+ * A ticket PDF's text: Trenitalia's or DB's, else whatever [parseText] makes
+ * of it. One trip per direction the ticket is for, so a DB ticket for both
+ * directions gives two that share it; empty when nothing was found.
+ */
+fun parseTicketTrips(text: String): List<Parsed> = when {
+    isTrenitaliaTicket(text) -> listOfNotNull(parseTrenitaliaTicket(text))
+    else -> parseDbTickets(text).ifEmpty { listOfNotNull(parseText(text)) }
+}
+
+/** "Outward journey" / "Return journey" for one direction of a ticket; null otherwise. The web says the same. */
+fun directionLabel(parsed: Parsed): String? = when ((parsed as? ParsedTicket)?.direction) {
+    "outward" -> "Outward journey"
+    "return" -> "Return journey"
+    else -> null
 }
 
 fun prefillOf(parsed: Parsed): Prefill = when (parsed) {

@@ -2,38 +2,43 @@
   import { ClipboardPaste, FileText, Ticket } from "lucide-svelte";
   import { onMount } from "svelte";
   import { describeError, transitPort } from "../../lib/data";
-  import { parseDbTicket } from "../../lib/intake/dbTicket";
-  import { intake, parseText, type IntakeDraft } from "../../lib/intake/intake";
+  import { intake, parseText, parseTicketTrips, type IntakeDraft } from "../../lib/intake/intake";
+  import type { Parsed } from "../../lib/intake/parsed";
   import { browserPdfText } from "../../lib/intake/pdfText";
   import { takeSharedIntake } from "../../lib/intake/shared";
 
   interface Props {
-    /** A share or ticket was read and looked up: open the save sheet with it. */
-    onDraft: (draft: IntakeDraft, file: File | null) => void;
+    /**
+     * A share or ticket was read and looked up: open the save sheet with it.
+     * A ticket for both directions gives two drafts, saved one after the other.
+     */
+    onDrafts: (drafts: IntakeDraft[], file: File | null) => void;
   }
 
-  let { onDraft }: Props = $props();
+  let { onDrafts }: Props = $props();
 
   let text = $state("");
   let busy = $state<"reading" | "matching" | null>(null);
   let error = $state("");
   let fileInput: HTMLInputElement | undefined = $state();
 
-  async function run(source: "share" | "pdf", read: () => Promise<ReturnType<typeof parseText>>, file: File | null) {
+  async function run(source: "share" | "pdf", read: () => Promise<Parsed[]>, file: File | null) {
     if (busy) return;
     error = "";
     busy = "reading";
     try {
-      const parsed = await read();
-      if (!parsed || parsed.legs.length === 0) {
+      const trips = (await read()).filter((p) => p.legs.length > 0);
+      if (trips.length === 0) {
         error =
           source === "pdf"
-            ? "Abeona could not find a journey in this PDF. It reads DB Online-Tickets."
+            ? "Abeona could not find a journey in this PDF. It reads DB Online-Tickets and Trenitalia tickets."
             : "Abeona could not find a journey in this text. Paste what DB Navigator's \"Share\" gives you.";
         return;
       }
       busy = "matching";
-      onDraft(await intake(parsed, source, transitPort), file);
+      const drafts: IntakeDraft[] = [];
+      for (const parsed of trips) drafts.push(await intake(parsed, source, transitPort));
+      onDrafts(drafts, file);
       text = "";
     } catch (e) {
       error = describeError(e);
@@ -45,7 +50,16 @@
   function readText(event?: Event) {
     event?.preventDefault();
     const value = text.trim();
-    if (value) void run("share", async () => parseText(value), null);
+    if (value) {
+      void run(
+        "share",
+        async () => {
+          const parsed = parseText(value);
+          return parsed ? [parsed] : [];
+        },
+        null,
+      );
+    }
   }
 
   function readPdf(file: File) {
@@ -57,7 +71,7 @@
       "pdf",
       async () => {
         const extracted = await browserPdfText(file);
-        return parseDbTicket(extracted) ?? parseText(extracted);
+        return parseTicketTrips(extracted);
       },
       file,
     );
@@ -89,7 +103,7 @@
     <div>
       <h2 id="intake-title" class="font-semibold text-ink">Add from a ticket or a share</h2>
       <p class="mt-0.5 text-sm text-base-content/60">
-        Paste what DB Navigator's "Share" gives you, or choose a DB ticket PDF. It is read on this device.
+        Paste what DB Navigator's "Share" gives you, or choose a DB or Trenitalia ticket PDF. It is read on this device.
       </p>
     </div>
   </div>

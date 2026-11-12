@@ -40,6 +40,7 @@ import io.github.numynox.nexus.abeona.ui.common.TravellerPicker
 import io.github.numynox.nexus.abeona.domain.intake.IntakeDraft
 import io.github.numynox.nexus.abeona.domain.intake.ParsedTicket
 import io.github.numynox.nexus.abeona.domain.intake.MatchStatus
+import io.github.numynox.nexus.abeona.domain.intake.directionLabel
 import io.github.numynox.nexus.abeona.domain.intake.matchSummary
 import androidx.compose.material3.Surface
 import io.github.numynox.nexus.abeona.ui.AbeonaColors
@@ -51,15 +52,19 @@ private fun euros(cents: Int): String = String.format(java.util.Locale.ROOT, "%d
 
 /** What intake read, and how well the timetable knows it. */
 @Composable
-private fun IntakeBanner(draft: IntakeDraft) {
+private fun IntakeBanner(draft: IntakeDraft, more: Int) {
     val full = draft.match.status == MatchStatus.Full
     Surface(
         color = if (full) MaterialTheme.colorScheme.secondaryContainer else AbeonaColors.Amber.copy(alpha = 0.22f),
         shape = MaterialTheme.shapes.large,
     ) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(if (draft.parsed is ParsedTicket) "Read from your ticket" else "Read from DB Navigator", style = MaterialTheme.typography.titleSmall)
+            val source = if (draft.parsed is ParsedTicket) "Read from your ticket" else "Read from DB Navigator"
+            Text(directionLabel(draft.parsed)?.let { "$source · $it" } ?: source, style = MaterialTheme.typography.titleSmall)
             Text(matchSummary(draft.match), style = MaterialTheme.typography.bodyMedium)
+            if (more > 0) {
+                Text("The ticket is for both directions: the return comes next, with the same PDF.", style = MaterialTheme.typography.bodyMedium)
+            }
             if (draft.ticket != null) {
                 Text("The PDF goes into the trip's ticket wallet.", style = MaterialTheme.typography.bodySmall)
             }
@@ -85,6 +90,8 @@ fun SaveTripSheet(
     onDismiss: () -> Unit,
     /** Set when the journey came from a share text or a ticket: the fields start from what was read. */
     intake: IntakeDraft? = null,
+    /** How many trips from the same ticket follow this one (the return of a ticket for both directions). */
+    more: Int = 0,
 ) {
     val prefill = intake?.prefill
     var title by remember { mutableStateOf("") }
@@ -130,7 +137,7 @@ fun SaveTripSheet(
         ) {
             Text(if (past) "Save past trip" else "Save trip", style = MaterialTheme.typography.headlineSmall)
             JourneyCard(journey, onClick = null)
-            intake?.let { IntakeBanner(it) }
+            intake?.let { IntakeBanner(it, more) }
             if (past) {
                 Surface(color = AbeonaColors.Amber.copy(alpha = 0.22f), shape = MaterialTheme.shapes.large) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -248,7 +255,7 @@ fun SaveTripSheet(
                         )
                     },
                     enabled = !saving,
-                ) { Text(if (past) "Save past trip" else "Save trip") }
+                ) { Text((if (past) "Save past trip" else "Save trip") + if (more > 0) " · then the return" else "") }
             }
         }
     }

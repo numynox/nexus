@@ -5,6 +5,9 @@
  * Mirrored in Kotlin (domain/intake/DbTicket.kt); both run the cases in
  * intake.fixtures.json.
  *
+ * A ticket for both directions ("Hin- und Rückfahrt") has a stop table for
+ * each; it is read as two trips that share the ticket (parseDbTickets).
+ *
  * Read line by line and tolerant of spacing: `pdftotext -layout` keeps the
  * columns apart with runs of spaces, pdf.js and PdfBox may leave just one.
  * One operator only; ÖBB, SBB, Trenitalia and SNCF would each be a parser
@@ -26,6 +29,8 @@ const TABLE_TITLE = /Reiseverbindung.*?(Hinfahrt|Rückfahrt)?\s+am\s+(\d{1,2})\.
 const ROW = /^(.+?)\s+(\d{1,2})\.(\d{1,2})\.(\d{2,4})?\s+(ab|an)\s+(\d{1,2}:\d{2})\s*(.*)$/;
 const ROW_REST = /^(?:(\d{1,3}[a-z]?)(?=\s|$)\s*)?(?:([A-Z][A-Za-z]{0,4}\s?\d{1,6})(?=\s|$)\s*)?(.*)$/;
 const DIRECTION = /\((Hinfahrt|Rückfahrt)\)/i;
+/** What the fare name says about the direction, removed from the name: also "(Hin- und Rückfahrt)". */
+const FARE_DIRECTION = /\((?:Hinfahrt|Rückfahrt|Hin-\s*und\s*Rückfahrt)\)/i;
 const ANY_DATE = /(\d{1,2})\.(\d{1,2})\.(\d{4})/;
 
 /** Whether the text looks like a DB ticket: a "Klasse" and a fare or a stop table. */
@@ -53,8 +58,24 @@ function rowDate(day: string, month: string, year: string | undefined, context: 
   return isoDate(day, month, String(Number(month) < contextMonth ? y + 1 : y));
 }
 
-/** Null when the text is not a ticket Abeona can read anything from. */
+/** Null when the text is not a ticket Abeona can read anything from. The first trip of parseDbTickets. */
 export function parseDbTicket(text: string): ParsedTicket | null {
+  return parseDbTickets(text)[0] ?? null;
+}
+
+/** One stop table: the rides of one direction. */
+interface Table {
+  direction: "outward" | "return" | null;
+  date: string | null;
+  rows: Row[];
+}
+
+/**
+ * Every trip the ticket is for: one, or two for a ticket with both directions
+ * (a stop table each). They share the fare, class, travellers and the PDF;
+ * the price is split between them. Empty when there is nothing to read.
+ */
+export function parseDbTickets(text: string): ParsedTicket[] {
   const all = lines(text).map((l) => l.trim());
 
   // The fare is the title right above "Klasse …".
@@ -70,7 +91,7 @@ export function parseDbTicket(text: string): ParsedTicket | null {
   }
   if (!fareLine) fareLine = all.find((l) => l.length < 60 && fareOf(l).fare_type !== "other") ?? null;
   const direction = fareLine ? DIRECTION.exec(fareLine)?.[1] ?? null : null;
-  const fareName = fareLine ? squash(fareLine.replace(DIRECTION, "")) : null;
+  const fareName = fareLine ? squash(fareLine.replace(FARE_DIRECTION, "")) : null;
   const fare = fareOf(fareName);
 
   const classMatch = (classIdx >= 0 ? CLASS.exec(all[classIdx]) : null) ?? all.map((l) => CLASS.exec(l)).find(Boolean) ?? null;
@@ -93,20 +114,19 @@ export function parseDbTicket(text: string): ParsedTicket | null {
     while (travellers !== null && discounts.length < travellers) discounts.push(null);
   }
 
-  // "Zugbindung  ICE 17, 15:14 Uhr am 16.11.2025" and the lines below it.
-  const booked: string[] = [];
-  let bindingDate: string | null = null;
-  const bindingIdx = all.findIndex((l) => BINDING_START.test(l));
-  if (bindingIdx >= 0) {
-    for (let i = bindingIdx; i < all.length; i++) {
+  // "Zugbindung  ICE 17, 15:14 Uhr am 16.11.2025" and the lines below it; a
+  // ticket for both directions has a "Zugbindung" for each.
+  const booked: { line: string; date: string | null }[] = [];
+  for (let start = 0; start < all.length; start++) {
+    if (!BINDING_START.test(all[start])) continue;
+    for (let i = start; i < all.length; i++) {
       const found = [...all[i].matchAll(BOUND_TRAIN)];
       if (found.length === 0) break;
-      for (const m of found) {
-        booked.push(squash(m[1]));
-        if (!bindingDate && m[3]) bindingDate = isoDate(m[3], m[4], m[5]);
-      }
+      for (const m of found) booked.push({ line: squash(m[1]), date: m[3] ? isoDate(m[3], m[4], m[5]) : null });
+      start = i;
     }
   }
+  const bindingDate = booked.find((b) => b.date)?.date ?? null;
 
   let price: number | null = null;
   for (const l of all) {
@@ -117,16 +137,7 @@ export function parseDbTicket(text: string): ParsedTicket | null {
     }
   }
 
-  // The stop table, and the date its title gives.
-  let tableDate: string | null = null;
-  for (const l of all) {
-    const m = TABLE_TITLE.exec(l);
-    if (m) {
-      tableDate = isoDate(m[2], m[3], m[4]);
-      break;
-    }
-  }
-  const context = tableDate ?? bindingDate ?? (() => {
+  const anyDate = (() => {
     for (const l of all) {
       const m = ANY_DATE.exec(l);
       if (m) return isoDate(m[1], m[2], m[3]);
@@ -134,20 +145,33 @@ export function parseDbTicket(text: string): ParsedTicket | null {
     return null;
   })();
 
-  const rows: Row[] = [];
-  const headIdx = all.findIndex((l) => TABLE_HEAD.test(l));
-  if (headIdx >= 0) {
-    for (let i = headIdx + 1; i < all.length; i++) {
+  // The stop tables, each under a title that gives its direction and date.
+  const tables: Table[] = [];
+  let title: { direction: Table["direction"]; date: string | null } | null = null;
+  for (let index = 0; index < all.length; index++) {
+    const t = TABLE_TITLE.exec(all[index]);
+    if (t) {
+      title = {
+        direction: t[1] ? (t[1].toLowerCase() === "hinfahrt" ? "outward" : "return") : null,
+        date: isoDate(t[2], t[3], t[4]),
+      };
+      continue;
+    }
+    if (!TABLE_HEAD.test(all[index])) continue;
+    const table: Table = { direction: title?.direction ?? null, date: title?.date ?? null, rows: [] };
+    const context = table.date ?? bindingDate ?? anyDate;
+    let i = index + 1;
+    for (; i < all.length; i++) {
       const m = ROW.exec(all[i]);
       if (!m) {
-        if (rows.length > 0) break;
+        if (table.rows.length > 0) break;
         continue;
       }
       const time = hhmm(m[6]);
       const date = rowDate(m[2], m[3], m[4], context);
       if (!time || !date) continue;
       const rest = ROW_REST.exec(m[7].trim());
-      rows.push({
+      table.rows.push({
         station: squash(m[1]),
         date,
         kind: m[5] as "ab" | "an",
@@ -157,8 +181,52 @@ export function parseDbTicket(text: string): ParsedTicket | null {
         note: rest?.[3] ? squash(rest[3]) || null : null,
       });
     }
+    tables.push(table);
+    title = null;
+    index = i - 1;
   }
+  // A ticket without a stop table still says what it is.
+  if (tables.length === 0) tables.push({ direction: null, date: null, rows: [] });
 
+  const two = tables.length > 1;
+  const trips: ParsedTicket[] = [];
+  tables.forEach((table, n) => {
+    const legs = legsOf(table.rows, booked.map((b) => b.line));
+    // With two directions, each binds to the trains booked for its day, or that it rides.
+    const own = two
+      ? booked
+          .filter((b) => (b.date ? legs.some((l) => l.date === b.date) : legs.some((l) => l.line === b.line)))
+          .map((b) => b.line)
+      : booked.map((b) => b.line);
+    const tableLegs = two ? legsOf(table.rows, own) : legs;
+    if (!fareName && tableLegs.length === 0) return;
+    const reservations = tableLegs.filter((l) => l.reservation).map((l) => `${l.line}: ${l.reservation}`);
+    const tripDirection = two ? table.direction : direction ? (direction.toLowerCase() === "hinfahrt" ? "outward" : "return") : null;
+    trips.push({
+      kind: "ticket",
+      operator: "db",
+      fare_name: fareName,
+      fare_type: fare.fare_type,
+      direction: tripDirection,
+      travel_class: travelClass,
+      travellers,
+      discounts: [...discounts],
+      train_binding: own.length > 0 || fare.binding,
+      booked_lines: own,
+      origin: tableLegs[0]?.from ?? null,
+      destination: tableLegs[tableLegs.length - 1]?.to ?? null,
+      date: tableLegs[0]?.date ?? table.date ?? bindingDate,
+      legs: tableLegs,
+      // The whole booking's price, split evenly between the directions; the first takes an odd cent.
+      price_cents: price === null || !two ? price : Math.floor(price / tables.length) + (n === 0 ? price % tables.length : 0),
+      reservation: reservations.length > 0 ? reservations.join("; ") : null,
+    });
+  });
+  return trips;
+}
+
+/** "ab" and "an" rows → rides; a ride without a product in its row takes the next booked train. */
+function legsOf(rows: Row[], booked: string[]): ParsedLeg[] {
   const legs: ParsedLeg[] = [];
   let open: Row | null = null;
   for (const row of rows) {
@@ -187,26 +255,5 @@ export function parseDbTicket(text: string): ParsedTicket | null {
     });
     open = null;
   }
-
-  if (!fareName && legs.length === 0) return null;
-  const reservations = legs.filter((l) => l.reservation).map((l) => `${l.line}: ${l.reservation}`);
-
-  return {
-    kind: "ticket",
-    operator: "db",
-    fare_name: fareName,
-    fare_type: fare.fare_type,
-    direction: direction ? (direction.toLowerCase() === "hinfahrt" ? "outward" : "return") : null,
-    travel_class: travelClass,
-    travellers,
-    discounts,
-    train_binding: booked.length > 0 || fare.binding,
-    booked_lines: booked,
-    origin: legs[0]?.from ?? null,
-    destination: legs[legs.length - 1]?.to ?? null,
-    date: legs[0]?.date ?? tableDate ?? bindingDate,
-    legs,
-    price_cents: price,
-    reservation: reservations.length > 0 ? reservations.join("; ") : null,
-  };
+  return legs;
 }

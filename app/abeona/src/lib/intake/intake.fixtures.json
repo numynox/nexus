@@ -1,5 +1,5 @@
 {
-  "$comment": "Intake's shared cases: the web (intake.test.ts) and Android (IntakeFixturesTest) both run every one. The files in fixtures/ are real DB Navigator shares and a real ticket's `pdftotext -layout` text, anonymised (name, order number, ticket code replaced); synthetic-ticket.pdf is generated from that text by fixtures/make-synthetic-pdf.mjs. Add a case here, not to either test.",
+  "$comment": "Intake's shared cases: the web (intake.test.ts) and Android (IntakeFixturesTest) both run every one. The files in fixtures/ are real DB Navigator shares and real tickets' `pdftotext -layout` text (DB, Trenitalia), anonymised (names, order and ticket numbers, ticket code replaced); the synthetic-*.pdf files are generated from those texts by fixtures/make-synthetic-pdf.mjs. Add a case here, not to either test.",
   "share": [
     {
       "name": "outward, 4 rides, bracketed train number, headsigns, platforms with sectors, last ride without headsign",
@@ -333,11 +333,177 @@
       }
     }
   ],
+  "trenitalia": [
+    {
+      "name": "Super Economy, one Frecciarossa ride, two passengers on two pages (bought on bahn.de, German)",
+      "file": "trenitalia-ticket-super-economy-2-passengers.txt",
+      "expect": {
+        "kind": "ticket",
+        "operator": "trenitalia",
+        "fare_name": "Super Economy",
+        "fare_type": "saver",
+        "direction": null,
+        "travel_class": 2,
+        "travellers": 2,
+        "discounts": [
+          null,
+          null
+        ],
+        "train_binding": true,
+        "booked_lines": [
+          "FR 9715"
+        ],
+        "origin": "Brescia",
+        "destination": "Verona Porta Nuova",
+        "date": "2027-01-10",
+        "legs": [
+          {
+            "line": "FR 9715",
+            "product": "FR",
+            "number": "9715",
+            "headsign": null,
+            "from": "Brescia",
+            "to": "Verona Porta Nuova",
+            "date": "2027-01-10",
+            "departure": "09:53",
+            "arrival_date": "2027-01-10",
+            "arrival": "10:28",
+            "from_platform": null,
+            "to_platform": null,
+            "reservation": "Coach 7, seats 10C, 10D"
+          }
+        ],
+        "price_cents": 3180,
+        "reservation": "FR 9715: Coach 7, seats 10C, 10D"
+      }
+    }
+  ],
+  "trips": [
+    {
+      "name": "Super Sparpreis for both directions in one ticket: two stop tables, a Zugbindung each, an S-Bahn the ticket does not cover; two trips, the price split",
+      "file": "db-ticket-super-sparpreis-outward-and-return.txt",
+      "expect": [
+        {
+          "kind": "ticket",
+          "operator": "db",
+          "fare_name": "Super Sparpreis",
+          "fare_type": "saver",
+          "direction": "outward",
+          "travel_class": 2,
+          "travellers": 2,
+          "discounts": [
+            25,
+            25
+          ],
+          "train_binding": true,
+          "booked_lines": [
+            "ICE 528"
+          ],
+          "origin": "Erlangen Paul-Gossen-Straße",
+          "destination": "Hanau Hbf",
+          "date": "2026-11-13",
+          "legs": [
+            {
+              "line": "S1",
+              "product": "S",
+              "number": null,
+              "headsign": null,
+              "from": "Erlangen Paul-Gossen-Straße",
+              "to": "Nürnberg Hbf",
+              "date": "2026-11-13",
+              "departure": "16:30",
+              "arrival_date": "2026-11-13",
+              "arrival": "16:58",
+              "from_platform": "3",
+              "to_platform": "3",
+              "reservation": "Die Fahrkarte ist für diesen Abschnitt nicht gültig. Hier ist"
+            },
+            {
+              "line": "ICE 528",
+              "product": "ICE",
+              "number": null,
+              "headsign": null,
+              "from": "Nürnberg Hbf",
+              "to": "Hanau Hbf",
+              "date": "2026-11-13",
+              "departure": "17:13",
+              "arrival_date": "2026-11-13",
+              "arrival": "19:41",
+              "from_platform": "7",
+              "to_platform": "102",
+              "reservation": null
+            }
+          ],
+          "price_cents": 4573,
+          "reservation": "S1: Die Fahrkarte ist für diesen Abschnitt nicht gültig. Hier ist"
+        },
+        {
+          "kind": "ticket",
+          "operator": "db",
+          "fare_name": "Super Sparpreis",
+          "fare_type": "saver",
+          "direction": "return",
+          "travel_class": 2,
+          "travellers": 2,
+          "discounts": [
+            25,
+            25
+          ],
+          "train_binding": true,
+          "booked_lines": [
+            "ICE 625"
+          ],
+          "origin": "Hanau Hbf",
+          "destination": "Erlangen Paul-Gossen-Straße",
+          "date": "2026-11-15",
+          "legs": [
+            {
+              "line": "ICE 625",
+              "product": "ICE",
+              "number": null,
+              "headsign": null,
+              "from": "Hanau Hbf",
+              "to": "Nürnberg Hbf",
+              "date": "2026-11-15",
+              "departure": "13:15",
+              "arrival_date": "2026-11-15",
+              "arrival": "15:35",
+              "from_platform": "103",
+              "to_platform": "9",
+              "reservation": null
+            },
+            {
+              "line": "S1",
+              "product": "S",
+              "number": null,
+              "headsign": null,
+              "from": "Nürnberg Hbf",
+              "to": "Erlangen Paul-Gossen-Straße",
+              "date": "2026-11-15",
+              "departure": "15:41",
+              "arrival_date": "2026-11-15",
+              "arrival": "16:05",
+              "from_platform": "1",
+              "to_platform": "2",
+              "reservation": "Die Fahrkarte ist für diesen Abschnitt nicht gültig. Hier ist"
+            }
+          ],
+          "price_cents": 4573,
+          "reservation": "S1: Die Fahrkarte ist für diesen Abschnitt nicht gültig. Hier ist"
+        }
+      ]
+    }
+  ],
   "pdf": [
     {
       "name": "the synthetic PDF of the ticket text extracts to text that parses the same",
       "file": "synthetic-ticket.pdf",
       "same_as": "db-ticket-super-sparpreis-europa-return.txt"
+    },
+    {
+      "name": "the synthetic PDF of the Trenitalia ticket text, two pages, extracts to text that parses the same",
+      "file": "synthetic-trenitalia-ticket.pdf",
+      "same_as": "trenitalia-ticket-super-economy-2-passengers.txt"
     }
   ],
   "fares": [
@@ -409,6 +575,21 @@
     {
       "name": null,
       "fare_type": "other",
+      "binding": false
+    },
+    {
+      "name": "Super Economy",
+      "fare_type": "saver",
+      "binding": true
+    },
+    {
+      "name": "Economy",
+      "fare_type": "saver",
+      "binding": true
+    },
+    {
+      "name": "Base",
+      "fare_type": "flex",
       "binding": false
     }
   ],

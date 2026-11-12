@@ -5,18 +5,22 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { lineKey, platformOf } from "./common.ts";
-import { isDbTicket, parseDbTicket } from "./dbTicket.ts";
+import { isDbTicket, parseDbTicket, parseDbTickets } from "./dbTicket.ts";
 import { fareOf } from "./fare.ts";
+import { parseText, parseTicketTrips } from "./intake.ts";
 import { localToInstant, matchConnection, type TransitPort } from "./match.ts";
 import type { ParsedShare, ParsedTicket } from "./parsed.ts";
 import { pdfText, type PdfJsLike } from "./pdfText.ts";
 import { isShareText, parseShareText } from "./shareText.ts";
+import { isTrenitaliaTicket, parseTrenitaliaTicket } from "./trenitaliaTicket.ts";
 import type { Journey, Station } from "../transit.ts";
 import { nextDiscount, type Discount } from "../travellers.ts";
 
 interface Fixtures {
   share: { name: string; file: string; expect: ParsedShare }[];
   ticket: { name: string; file: string; expect: ParsedTicket }[];
+  trenitalia: { name: string; file: string; expect: ParsedTicket }[];
+  trips: { name: string; file: string; expect: ParsedTicket[] }[];
   pdf: { name: string; file: string; same_as: string }[];
   fares: { name: string | null; fare_type: string; binding: boolean }[];
   platforms: { value: string | null; expect: string | null }[];
@@ -60,7 +64,9 @@ for (const c of fixtures.ticket) {
     const text = read(c.file);
     assert.equal(isDbTicket(text), true);
     assert.equal(isShareText(text), false);
+    assert.equal(isTrenitaliaTicket(text), false);
     assert.deepEqual(parseDbTicket(text), c.expect);
+    assert.deepEqual(parseTicketTrips(text), [c.expect]);
   });
 
   test(`ticket, every run of spaces collapsed (what PdfBox gives): ${c.name}`, () => {
@@ -69,13 +75,41 @@ for (const c of fixtures.ticket) {
   });
 }
 
+for (const c of fixtures.trenitalia) {
+  test(`trenitalia ticket: ${c.name}`, () => {
+    const text = read(c.file);
+    assert.equal(isTrenitaliaTicket(text), true);
+    assert.equal(isDbTicket(text), false);
+    assert.equal(isShareText(text), false);
+    assert.deepEqual(parseTrenitaliaTicket(text), c.expect);
+    assert.deepEqual(parseTicketTrips(text), [c.expect]);
+    assert.deepEqual(parseText(text), c.expect);
+  });
+
+  test(`trenitalia ticket, every run of spaces collapsed (what PdfBox gives): ${c.name}`, () => {
+    const text = read(c.file).replace(/[ \t]+/g, " ");
+    assert.deepEqual(parseTrenitaliaTicket(text), c.expect);
+  });
+}
+
+for (const c of fixtures.trips) {
+  test(`ticket for both directions: ${c.name}`, () => {
+    const text = read(c.file);
+    assert.equal(isDbTicket(text), true);
+    assert.equal(isTrenitaliaTicket(text), false);
+    assert.deepEqual(parseDbTickets(text), c.expect);
+    assert.deepEqual(parseTicketTrips(text), c.expect);
+    assert.deepEqual(parseTicketTrips(text.replace(/[ \t]+/g, " ")), c.expect);
+  });
+}
+
 for (const c of fixtures.pdf) {
   test(`pdf: ${c.name}`, async () => {
     const pdfjs = (await import("pdfjs-dist/legacy/build/pdf.mjs")) as unknown as PdfJsLike;
     const data = new Uint8Array(readFileSync(new URL(c.file, dir)));
     const text = await pdfText(data, pdfjs);
-    const expected = fixtures.ticket.find((t) => t.file === c.same_as)!.expect;
-    assert.deepEqual(parseDbTicket(text), expected);
+    const expected = [...fixtures.ticket, ...fixtures.trenitalia].find((t) => t.file === c.same_as)!.expect;
+    assert.deepEqual(parseTicketTrips(text), [expected]);
   });
 }
 

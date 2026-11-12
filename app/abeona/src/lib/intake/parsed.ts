@@ -1,6 +1,6 @@
 /**
- * What intake reads out of a DB Navigator share text or a DB ticket's text
- * layer, before anything is looked up. Parsing happens on the device only —
+ * What intake reads out of a DB Navigator share text or a ticket's text
+ * layer (DB, Trenitalia), before anything is looked up. Parsing happens on the device only —
  * never in an Edge Function (decisions/2026-11-04-abeona-intake.md).
  *
  * The Kotlin copy is android/abeona/.../domain/intake/Parsed.kt. Both run the
@@ -53,17 +53,17 @@ export interface ParsedShare {
   vbid: string | null;
 }
 
-/** A DB Online-Ticket (the PDF's text layer). */
+/** A ticket PDF's text layer: DB's Online-Ticket (dbTicket.ts) or Trenitalia's (trenitaliaTicket.ts). */
 export interface ParsedTicket {
   kind: "ticket";
-  operator: "db";
+  operator: "db" | "trenitalia";
   /** "Super Sparpreis Europa", without "(Rückfahrt)". */
   fare_name: string | null;
   fare_type: FareTypeValue;
   /** Which half of a return booking this ticket is; null for a single. */
   direction: "outward" | "return" | null;
   travel_class: 1 | 2 | null;
-  /** "2 Personen" → 2. A hint for "Who travels", not a list of names. */
+  /** "2 Personen" → 2; one per passenger's page on Trenitalia's. A hint for "Who travels", not a list of names. */
   travellers: number | null;
   /**
    * One BahnCard discount per person the ticket prints, null for one without:
@@ -81,7 +81,10 @@ export interface ParsedTicket {
   /** Local date of the first departure. */
   date: string | null;
   legs: ParsedLeg[];
-  /** "Gesamtpreis": what this ticket cost, also when it is one direction of a return booking. */
+  /**
+   * "Gesamtpreis": what this ticket cost, also when it is one direction of a
+   * return booking. Trenitalia's: every passenger's "Betrag" in the PDF, added up.
+   */
   price_cents: number | null;
   /** Seat reservations as printed, one per ride that has one. */
   reservation: string | null;

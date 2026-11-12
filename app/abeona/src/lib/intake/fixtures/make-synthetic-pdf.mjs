@@ -1,12 +1,15 @@
 #!/usr/bin/env node
-// Writes synthetic-ticket.pdf: the anonymised ticket text
-// (db-ticket-super-sparpreis-europa-return.txt) drawn as a text PDF, so the
-// extraction tests (pdf.js on the web, PdfBox on Android) have a PDF to read
-// without committing anyone's real ticket. Columns are placed where the
-// `pdftotext -layout` text has them, in a proportional font (Helvetica), so
-// the gaps between them are uneven the way a real DB PDF's are.
+// Writes the synthetic ticket PDFs: the anonymised ticket texts drawn as text
+// PDFs, so the extraction tests (pdf.js on the web, PdfBox on Android) have a
+// PDF to read without committing anyone's real ticket. Columns are placed
+// where the `pdftotext -layout` text has them, in a proportional font
+// (Helvetica), so the gaps between them are uneven the way a real PDF's are.
+// A form feed in the text starts a new page.
 //
-// It also carries a made-up barcode, embedded the way DB's tickets embed their
+//   synthetic-ticket.pdf            ← db-ticket-super-sparpreis-europa-return.txt
+//   synthetic-trenitalia-ticket.pdf ← trenitalia-ticket-super-economy-2-passengers.txt
+//
+// The DB one also carries a made-up barcode, embedded the way DB's tickets embed their
 // Aztec code: a 1-bit image in "[/Indexed /DeviceGray 1 <00FF>]", Flate
 // compressed. PdfBox-Android draws that as a blank bitmap, so the ticket
 // viewer decodes it itself (TicketCode.kt, lib/ticketCode.ts). The pattern is
@@ -19,10 +22,7 @@ import { fileURLToPath } from "node:url";
 import { deflateSync } from "node:zlib";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const text = readFileSync(join(here, "db-ticket-super-sparpreis-europa-return.txt"), "utf8").replace(/\f/g, "");
 
-const FONT_SIZE = 6;
-const CHAR = 3.4; // points per column of the layout text
 const LEFT = 12;
 const TOP = 810;
 const LEADING = 12;
@@ -39,22 +39,6 @@ function pdfString(s) {
   }
   return `(${out})`;
 }
-
-const ops = ["BT", `/F1 ${FONT_SIZE} Tf`];
-text.split("\n").forEach((line, row) => {
-  // Segments are what a run of two or more spaces separates: the columns.
-  const re = /\S+(?: \S+)*/g;
-  let m;
-  while ((m = re.exec(line))) {
-    const x = LEFT + m.index * CHAR;
-    const y = TOP - row * LEADING;
-    ops.push(`1 0 0 1 ${x.toFixed(2)} ${y.toFixed(2)} Tm ${pdfString(m[0])} Tj`);
-  }
-});
-ops.push("ET");
-// The barcode, top right, where DB prints it.
-ops.push("q 150 0 0 150 420 650 cm /Im1 Do Q");
-const content = ops.join("\n");
 
 const CODE = 120; // pixels a side
 function codeBits() {
@@ -73,28 +57,77 @@ function codeBits() {
   }
   return Buffer.from(deflateSync(bytes));
 }
-const code = codeBits();
 
-const objects = [
-  "<< /Type /Catalog /Pages 2 0 R >>",
-  "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-  "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> /XObject << /Im1 7 0 R >> >> /Contents 5 0 R >>",
-  "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
-  `<< /Length ${Buffer.byteLength(content, "latin1")} >>\nstream\n${content}\nendstream`,
-  "<< /Producer (Nexus Abeona synthetic fixture) /Title (Synthetic DB ticket, anonymised) >>",
-  `<< /Type /XObject /Subtype /Image /Width ${CODE} /Height ${CODE} /BitsPerComponent 1 /ColorSpace [/Indexed /DeviceGray 1 <00FF>] /Filter /FlateDecode /Length ${code.length} >>\nstream\n${code.toString("latin1")}\nendstream`,
-];
+/** One page's content stream: the text, and the barcode when given. */
+function pageContent(text, { fontSize, char, barcode }) {
+  const ops = ["BT", `/F1 ${fontSize} Tf`];
+  text.split("\n").forEach((line, row) => {
+    // Segments are what a run of two or more spaces separates: the columns.
+    const re = /\S+(?: \S+)*/g;
+    let m;
+    while ((m = re.exec(line))) {
+      const x = LEFT + m.index * char;
+      const y = TOP - row * LEADING;
+      ops.push(`1 0 0 1 ${x.toFixed(2)} ${y.toFixed(2)} Tm ${pdfString(m[0])} Tj`);
+    }
+  });
+  ops.push("ET");
+  // The barcode, top right, where DB prints it.
+  if (barcode) ops.push("q 150 0 0 150 420 650 cm /Im1 Do Q");
+  return ops.join("\n");
+}
 
-let pdf = "%PDF-1.4\n%\xe2\xe3\xcf\xd3\n";
-const offsets = [];
-objects.forEach((body, i) => {
-  offsets.push(Buffer.byteLength(pdf, "latin1"));
-  pdf += `${i + 1} 0 obj\n${body}\nendobj\n`;
+function writePdf(source, target, options) {
+  const pages = readFileSync(join(here, source), "utf8")
+    .split("\f")
+    .filter((page) => page.trim() !== "")
+    .map((page) => pageContent(page.replace(/^\n/, ""), options));
+  const code = options.barcode ? codeBits() : null;
+
+  // 1 catalog, 2 pages, 3 font, 4 info, 5 barcode (or an empty dictionary), then a page and its content each.
+  const pageObject = (n) => 6 + n * 2;
+  const resources = `<< /Font << /F1 3 0 R >>${code ? " /XObject << /Im1 5 0 R >>" : ""} >>`;
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    `<< /Type /Pages /Kids [${pages.map((_, n) => `${pageObject(n)} 0 R`).join(" ")}] /Count ${pages.length} >>`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+    `<< /Producer (Nexus Abeona synthetic fixture) /Title (${options.title}) >>`,
+    code
+      ? `<< /Type /XObject /Subtype /Image /Width ${CODE} /Height ${CODE} /BitsPerComponent 1 /ColorSpace [/Indexed /DeviceGray 1 <00FF>] /Filter /FlateDecode /Length ${code.length} >>\nstream\n${code.toString("latin1")}\nendstream`
+      : "<< >>",
+  ];
+  pages.forEach((content, n) => {
+    objects.push(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources ${resources} /Contents ${pageObject(n) + 1} 0 R >>`,
+      `<< /Length ${Buffer.byteLength(content, "latin1")} >>\nstream\n${content}\nendstream`,
+    );
+  });
+
+  let pdf = "%PDF-1.4\n%\xe2\xe3\xcf\xd3\n";
+  const offsets = [];
+  objects.forEach((body, i) => {
+    offsets.push(Buffer.byteLength(pdf, "latin1"));
+    pdf += `${i + 1} 0 obj\n${body}\nendobj\n`;
+  });
+  const xref = Buffer.byteLength(pdf, "latin1");
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const o of offsets) pdf += `${String(o).padStart(10, "0")} 00000 n \n`;
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R /Info 4 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+
+  writeFileSync(join(here, target), Buffer.from(pdf, "latin1"));
+  console.log(`wrote ${target}`);
+}
+
+writePdf("db-ticket-super-sparpreis-europa-return.txt", "synthetic-ticket.pdf", {
+  fontSize: 6,
+  char: 3.4, // points per column of the layout text
+  barcode: true,
+  title: "Synthetic DB ticket, anonymised",
 });
-const xref = Buffer.byteLength(pdf, "latin1");
-pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-for (const o of offsets) pdf += `${String(o).padStart(10, "0")} 00000 n \n`;
-pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R /Info 6 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
-
-writeFileSync(join(here, "synthetic-ticket.pdf"), Buffer.from(pdf, "latin1"));
-console.log("wrote synthetic-ticket.pdf");
+// Trenitalia's lines are wider: a smaller font, so they fit the page.
+writePdf("trenitalia-ticket-super-economy-2-passengers.txt", "synthetic-trenitalia-ticket.pdf", {
+  fontSize: 5,
+  char: 2.9,
+  barcode: false,
+  title: "Synthetic Trenitalia ticket, anonymised",
+});

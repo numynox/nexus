@@ -31,6 +31,7 @@ internal fun resourceText(name: String): String =
 class IntakeFixturesTest {
     @Serializable private data class ShareCase(val name: String, val file: String, val expect: ParsedShare)
     @Serializable private data class TicketCase(val name: String, val file: String, val expect: ParsedTicket)
+    @Serializable private data class TripsCase(val name: String, val file: String, val expect: List<ParsedTicket>)
     @Serializable private data class PdfCase(val name: String, val file: String, @SerialName("same_as") val sameAs: String)
     @Serializable private data class FareCase(val name: String?, @SerialName("fare_type") val fareType: FareType, val binding: Boolean)
     @Serializable private data class PlatformCase(val value: String?, val expect: String?)
@@ -63,6 +64,8 @@ class IntakeFixturesTest {
     private data class Fixtures(
         val share: List<ShareCase>,
         val ticket: List<TicketCase>,
+        val trenitalia: List<TicketCase>,
+        val trips: List<TripsCase>,
         val pdf: List<PdfCase>,
         val fares: List<FareCase>,
         val platforms: List<PlatformCase>,
@@ -96,9 +99,33 @@ class IntakeFixturesTest {
         val text = resourceText(c.file)
         assertTrue(c.name, isDbTicket(text))
         assertFalse(c.name, isShareText(text))
+        assertFalse(c.name, isTrenitaliaTicket(text))
         assertEquals(c.name, c.expect, parseDbTicket(text))
+        assertEquals(c.name, listOf(c.expect), parseTicketTrips(text))
         // What PdfBox gives: one space where pdftotext keeps columns apart.
         assertEquals("${c.name}, spaces collapsed", c.expect, parseDbTicket(text.replace(Regex("[ \\t]+"), " ")))
+    }
+
+    @Test
+    fun trenitaliaTickets() = fixtures.trenitalia.forEach { c ->
+        val text = resourceText(c.file)
+        assertTrue(c.name, isTrenitaliaTicket(text))
+        assertFalse(c.name, isDbTicket(text))
+        assertFalse(c.name, isShareText(text))
+        assertEquals(c.name, c.expect, parseTrenitaliaTicket(text))
+        assertEquals(c.name, listOf(c.expect), parseTicketTrips(text))
+        assertEquals(c.name, c.expect, parseText(text))
+        assertEquals("${c.name}, spaces collapsed", c.expect, parseTrenitaliaTicket(text.replace(Regex("[ \\t]+"), " ")))
+    }
+
+    @Test
+    fun ticketsForBothDirections() = fixtures.trips.forEach { c ->
+        val text = resourceText(c.file)
+        assertTrue(c.name, isDbTicket(text))
+        assertFalse(c.name, isTrenitaliaTicket(text))
+        assertEquals(c.name, c.expect, parseDbTickets(text))
+        assertEquals(c.name, c.expect, parseTicketTrips(text))
+        assertEquals("${c.name}, spaces collapsed", c.expect, parseTicketTrips(text.replace(Regex("[ \\t]+"), " ")))
     }
 
     @Test

@@ -16,7 +16,7 @@
   import { FARE_TYPES, formatDuration, formatLongDate, formatTime } from "../../lib/format";
   import { session } from "../../lib/stores";
   import { summarise } from "../../lib/journey";
-  import { matchSummary, type IntakeDraft } from "../../lib/intake/intake";
+  import { directionLabel, matchSummary, type IntakeDraft } from "../../lib/intake/intake";
   import type { Journey } from "../../lib/transit";
   import LegChip from "../common/LegChip.svelte";
   import { nextDiscount } from "../../lib/travellers";
@@ -28,11 +28,13 @@
     intake?: IntakeDraft | null;
     /** The ticket PDF the intake read; attached to the trip once it is saved. */
     ticketFile?: File | null;
+    /** How many trips from the same ticket follow this one (the return of a ticket for both directions). */
+    more?: number;
     onClose: () => void;
     onSaved: (tripId: string) => void;
   }
 
-  let { journey, intake = null, ticketFile = null, onClose, onSaved }: Props = $props();
+  let { journey, intake = null, ticketFile = null, more = 0, onClose, onSaved }: Props = $props();
 
   let dialog: HTMLDialogElement | undefined = $state();
   let title = $state("");
@@ -219,9 +221,13 @@
             role="status"
           >
             <p class="font-semibold">
-              {intake.parsed.kind === "ticket" ? "Read from your ticket" : "Read from DB Navigator"}
+              {intake.parsed.kind === "ticket" ? "Read from your ticket" : "Read from DB Navigator"}{#if directionLabel(intake.parsed)}
+                · {directionLabel(intake.parsed)}{/if}
             </p>
             <p class="mt-1">{matchSummary(intake.match)}</p>
+            {#if more > 0}
+              <p class="mt-1">The ticket is for both directions: the return comes next, with the same PDF.</p>
+            {/if}
             {#if ticketFile}
               <p class="mt-2 inline-flex items-center gap-1.5"><FileText class="h-4 w-4" /> The PDF goes into the trip's ticket wallet.</p>
             {/if}
@@ -316,7 +322,7 @@
         <button type="button" class="btn btn-ghost flex-1 rounded-full" onclick={() => dialog?.close()}>Cancel</button>
         <button type="submit" class="btn btn-primary flex-[2] rounded-full" disabled={saving}>
           {#if saving}<span class="loading loading-spinner loading-sm"></span>{/if}
-          {past ? "Save past trip" : "Save trip"}
+          {past ? "Save past trip" : "Save trip"}{more > 0 ? " · then the return" : ""}
         </button>
       </div>
     </form>

@@ -1,7 +1,7 @@
 # ADR: Abeona's intake — parsed on the device, matched ride by ride, the price confirmed
 
 **Date:** 2026-11-04
-**Status:** Accepted
+**Status:** Accepted — extended to Trenitalia tickets and to DB tickets for both directions by `2026-11-12-abeona-trenitalia-and-two-way-tickets.md`
 
 ## Context
 #37 phase 2: a trip from a DB Navigator share text or a DB ticket PDF

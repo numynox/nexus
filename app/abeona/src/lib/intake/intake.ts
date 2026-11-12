@@ -3,11 +3,12 @@
  * what was read, the connection found for it, and what the save sheet starts
  * with. Mirrored in Kotlin (domain/intake/Intake.kt).
  */
-import { isDbTicket, parseDbTicket } from "./dbTicket.ts";
+import { isDbTicket, parseDbTicket, parseDbTickets } from "./dbTicket.ts";
 import type { FareTypeValue } from "./fare.ts";
 import { matchConnection, type MatchResult, type TransitPort } from "./match.ts";
 import type { Parsed, ParsedTicket } from "./parsed.ts";
 import { isShareText, parseShareText } from "./shareText.ts";
+import { isTrenitaliaTicket, parseTrenitaliaTicket } from "./trenitaliaTicket.ts";
 
 /** What the save sheet starts with; the user can change every field. */
 export interface Prefill {
@@ -31,9 +32,32 @@ export interface IntakeDraft {
 
 /** Reads a pasted or shared text: a DB Navigator share, or a ticket's text. Null when it is neither. */
 export function parseText(text: string): Parsed | null {
+  if (isTrenitaliaTicket(text)) return parseTrenitaliaTicket(text);
   if (isShareText(text) && !isDbTicket(text)) return parseShareText(text);
   if (isDbTicket(text)) return parseDbTicket(text);
   return parseShareText(text);
+}
+
+/**
+ * Reads a ticket PDF's text: Trenitalia's or DB's, else whatever `parseText`
+ * makes of it. One trip per direction the ticket is for, so a DB ticket for
+ * both directions gives two that share it; empty when nothing was found.
+ */
+export function parseTicketTrips(text: string): Parsed[] {
+  if (isTrenitaliaTicket(text)) {
+    const ticket = parseTrenitaliaTicket(text);
+    return ticket ? [ticket] : [];
+  }
+  const db = parseDbTickets(text);
+  if (db.length > 0) return db;
+  const other = parseText(text);
+  return other ? [other] : [];
+}
+
+/** "Outward journey" / "Return journey" for one direction of a ticket; null otherwise. */
+export function directionLabel(parsed: Parsed): string | null {
+  if (parsed.kind !== "ticket" || !parsed.direction) return null;
+  return parsed.direction === "outward" ? "Outward journey" : "Return journey";
 }
 
 export function prefillOf(parsed: Parsed): Prefill {
