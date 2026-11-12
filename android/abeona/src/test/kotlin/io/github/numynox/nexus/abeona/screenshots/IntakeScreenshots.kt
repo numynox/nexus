@@ -99,7 +99,8 @@ class IntakeScreenshots {
         val bytes = checkNotNull(javaClass.getResource("/synthetic-ticket.pdf")).readBytes()
         shadowOf(ApplicationProvider.getApplicationContext<Application>().contentResolver).registerInputStream(uri, ByteArrayInputStream(bytes))
         share(Intent(Intent.ACTION_SEND).setType("application/pdf").putExtra(Intent.EXTRA_STREAM, uri))
-        waitForText("Read from your ticket")
+        // "Read from your ticket · Return journey": the sample is the return half of a booking.
+        waitFor(hasText("Read from your ticket", substring = true))
         shot("82-intake-ticket")
         scrollIntoView("Price (optional)")
         shot("83-intake-ticket-price")
