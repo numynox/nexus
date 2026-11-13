@@ -11,7 +11,7 @@ data class Prefill(
     val travelClass: Int? = null,
     /** One discount per person the ticket prints ([ParsedTicket.discounts]); empty for a share. */
     val discounts: List<Int?> = emptyList(),
-    /** How many people the ticket is for: a hint next to "Who travels". */
+    /** How many people the ticket is for, as printed; null when it does not say. */
     val travellers: Int? = null,
     val priceCents: Int? = null,
 )

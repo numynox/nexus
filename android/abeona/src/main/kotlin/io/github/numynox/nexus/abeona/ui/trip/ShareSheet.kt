@@ -5,9 +5,11 @@ import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Close
@@ -18,9 +20,11 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,8 +37,6 @@ import io.github.numynox.nexus.abeona.data.ShareLink
 import io.github.numynox.nexus.abeona.data.Trip
 import io.github.numynox.nexus.abeona.data.toInstantOrNull
 import io.github.numynox.nexus.abeona.ui.common.TripFormat
-import io.github.numynox.nexus.core.ui.components.NexusCard
-import io.github.numynox.nexus.core.ui.components.SectionHeader
 
 /** What the share card can do; the screen wires it to the view model. */
 class ShareActions(
@@ -73,13 +75,33 @@ fun shareLinkIntent(context: Context, trip: Trip, link: ShareLink) {
     context.startActivity(Intent.createChooser(send, if (link.kind == "ics") "Share the calendar" else "Share the live status"))
 }
 
-/** Share links for someone outside the household: make, share, revoke. */
+/**
+ * Share links for someone outside the household: make, share, revoke. A
+ * sheet opened from the trip's ⋮ menu; [actions] is null while the links
+ * load or without a connection.
+ */
 @Composable
-fun ShareCard(actions: ShareActions) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-        SectionHeader("Share", supporting = "Anyone with a link sees the route and the times, nothing else")
-        NexusCard(Modifier.fillMaxWidth()) {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+fun ShareSheet(actions: ShareActions?, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(
+            Modifier.padding(horizontal = 24.dp).navigationBarsPadding().padding(bottom = 24.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Share", style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    "Anyone with a link sees the route and the times, nothing else.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (actions == null) {
+                Text(
+                    "Share links need a connection. Try again when you are online.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
                 Kinds.forEach { kind ->
                     val link = actions.links.firstOrNull { it.kind == kind.kind }
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {

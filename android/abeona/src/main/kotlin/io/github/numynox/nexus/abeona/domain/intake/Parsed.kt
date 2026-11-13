@@ -68,8 +68,8 @@ data class ParsedTicket(
     val travellers: Int? = null,
     /**
      * One BahnCard discount per person the ticket prints, null for one
-     * without: "3 Personen … mit 1 BC25, 1 BC50" → [25, 50, null]. Which
-     * traveller holds which the save sheet works out (domain/Travellers.kt).
+     * without: "3 Personen … mit 1 BC25, 1 BC50" → [25, 50, null]. The save
+     * sheet turns it into the trip's count and cards (domain/TicketNeeds.kt).
      */
     val discounts: List<Int?> = emptyList(),
     @SerialName("train_binding") val trainBinding: Boolean,

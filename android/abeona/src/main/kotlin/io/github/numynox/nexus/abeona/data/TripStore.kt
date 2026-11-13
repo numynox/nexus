@@ -160,6 +160,18 @@ class TripStore(
         _refreshed.tryEmit(trip)
     }
 
+    /**
+     * The trip's title and ticket facts, changed on this phone: written to the
+     * database, put into the pack, and handed to whoever shows or follows it.
+     */
+    suspend fun edit(trip: Trip, edit: TripEdit): Trip {
+        repository.editTrip(trip.id, edit)
+        val updated = edit.applyTo(trip)
+        pack.update(updated)
+        _refreshed.tryEmit(updated)
+        return updated
+    }
+
     /** Live values from the provider, written to the database and the pack. */
     suspend fun refresh(trip: Trip): Trip = repository.refreshTrip(trip).also {
         pack.update(it)

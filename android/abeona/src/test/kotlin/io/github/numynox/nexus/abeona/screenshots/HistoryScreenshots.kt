@@ -6,7 +6,6 @@ import io.github.numynox.nexus.abeona.data.Journey
 import io.github.numynox.nexus.abeona.data.Leg
 import io.github.numynox.nexus.abeona.data.LegMode
 import io.github.numynox.nexus.abeona.data.StopTime
-import io.github.numynox.nexus.abeona.data.Traveller
 import io.github.numynox.nexus.abeona.ui.AbeonaPalette
 import io.github.numynox.nexus.abeona.ui.search.SaveTripSheet
 import io.github.numynox.nexus.core.ui.theme.NexusTheme
@@ -50,9 +49,6 @@ class HistoryScreenshots {
             NexusTheme(AbeonaPalette) {
                 SaveTripSheet(
                     journey = journey,
-                    travellers = listOf(Traveller("tr1", "h", "Jannis", "u1")),
-                    cards = emptyList(),
-                    me = "u1",
                     onSave = {},
                     onDismiss = {},
                 )

@@ -82,6 +82,7 @@ import androidx.lifecycle.viewModelScope
 import io.github.numynox.nexus.abeona.AppContainer
 import io.github.numynox.nexus.abeona.data.FareType
 import io.github.numynox.nexus.abeona.data.Trip
+import io.github.numynox.nexus.abeona.domain.TicketNeeds
 import io.github.numynox.nexus.abeona.ui.AbeonaColors
 import io.github.numynox.nexus.abeona.ui.AppViewModel
 import io.github.numynox.nexus.abeona.ui.Navigator
@@ -142,35 +143,33 @@ class TicketViewModel(
     private val _ticket = MutableStateFlow<Loadable<TicketPages>>(Loadable.Loading)
     val ticket: StateFlow<Loadable<TicketPages>> = _ticket.asStateFlow()
 
-    /** The BahnCards of the trip's travellers that have a file, loaded after the ticket. */
+    /** The household's BahnCards the ticket needs, those with a file, loaded after the ticket. */
     private val _cards = MutableStateFlow<List<TicketDocument>>(emptyList())
     val cards: StateFlow<List<TicketDocument>> = _cards.asStateFlow()
 
     /**
-     * One card per traveller on the trip: valid on the day, and of at least
-     * their discount when they have one. Offline, without the trip's
-     * travellers, every card valid on the day. A card that fails to load is
-     * left out; the ticket stands on its own.
+     * The cards the ticket was booked with (TicketNeeds.cardsForTrip): one
+     * per BahnCard on the trip, valid on the day; a BahnCard 100 fare one per
+     * traveller. A card that fails to load is left out; the ticket stands on
+     * its own.
      */
     private suspend fun loadCards(trip: Trip) {
-        val cards = runCatching { container.trips.bahnCards().value }.getOrDefault(emptyList()).filter { it.filePath != null }
-        if (cards.isEmpty()) return
+        val cards = runCatching { container.trips.bahnCards().value }.getOrDefault(emptyList())
+        if (cards.none { it.filePath != null }) return
         val day = trip.departureAt.atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-        val riders = runCatching { container.repository.tripTravellers(trip.id) }.getOrNull()
-        val names = runCatching { container.repository.travellers().associate { it.id to it.name } }.getOrDefault(emptyMap())
-        val chosen = cards
-            .filter { !it.from.isAfter(day) && !it.to.isBefore(day) }
-            .filter { card -> riders == null || riders.any { it.travellerId == card.travellerId } }
-            .groupBy { it.travellerId }
-            .mapNotNull { (traveller, own) ->
-                val need = riders?.firstOrNull { it.travellerId == traveller }?.bahncardDiscount ?: 0
-                own.filter { it.kind >= need }.maxByOrNull { it.kind } ?: own.maxByOrNull { it.kind }
-            }
+        val ids = TicketNeeds.cardsForTrip(
+            cards.map { TicketNeeds.CardOnFile(it.id, it.kind, it.from, it.to, it.filePath != null) },
+            trip.bahncardDiscounts,
+            trip.travellerCount,
+            trip.fareType == FareType.BahnCard100,
+            day,
+        )
+        val chosen = ids.mapNotNull { id -> cards.firstOrNull { it.id == id } }
         _cards.value = chosen.mapNotNull { card ->
             runCatching {
                 val file = container.trips.bahnCardFile(card)
                 val (pages, code) = withContext(Dispatchers.Default) { TicketRenderer.render(file) to TicketCode.extract(context, file) }
-                TicketDocument(card.id, listOfNotNull(names[card.travellerId], "BahnCard ${card.kind}").joinToString(" · "), pages, code)
+                TicketDocument(card.id, listOfNotNull(card.name?.takeIf { it.isNotBlank() }, "BahnCard ${card.kind}").joinToString(" · "), pages, code)
             }.getOrNull()?.takeIf { it.pages.isNotEmpty() }
         }
     }

@@ -82,7 +82,7 @@ object BahnCardReminders {
         if (due.isEmpty()) return null
         val title = if (due.size == 1) {
             val d = due.single()
-            "${d.travellerName}'s BahnCard ${d.kind} renews unless cancelled"
+            "${cardName(d)} renews unless cancelled"
         } else {
             "${due.size} BahnCards renew unless cancelled"
         }
@@ -90,8 +90,15 @@ object BahnCardReminders {
         return title to if (due.size == 1) {
             listOf("${deadlineText(due.single())}.")
         } else {
-            due.map { "${it.travellerName}'s BahnCard ${it.kind}: ${deadlineText(it)}" }
+            due.map { "${cardName(it)}: ${deadlineText(it)}" }
         }
+    }
+
+    /** "BahnCard 25", or with the household's name for it "Ada (BahnCard 25)". */
+    fun cardName(d: BahnCardDeadline): String {
+        val kind = "BahnCard ${d.kind}"
+        val name = d.displayName
+        return if (name == kind) kind else "$name ($kind)"
     }
 
     /** The notification itself; built here so the screenshot test draws the real one. */

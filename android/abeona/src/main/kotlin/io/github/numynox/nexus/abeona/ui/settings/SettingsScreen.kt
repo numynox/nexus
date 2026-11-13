@@ -25,7 +25,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Map
 import androidx.compose.material.icons.rounded.PersonAdd
 import androidx.compose.material3.AlertDialog
@@ -33,7 +32,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -63,7 +61,6 @@ import io.github.numynox.nexus.abeona.data.BahnCard
 import io.github.numynox.nexus.abeona.data.STATION_MINUTES_CHOICES
 import io.github.numynox.nexus.abeona.live.TripLocation
 import io.github.numynox.nexus.abeona.data.HouseholdMember
-import io.github.numynox.nexus.abeona.data.Traveller
 import io.github.numynox.nexus.abeona.ui.AppViewModel
 import io.github.numynox.nexus.abeona.ui.Navigator
 import io.github.numynox.nexus.abeona.ui.bahncards.BahnCardRow
@@ -83,8 +80,7 @@ import io.github.numynox.nexus.core.ui.settings.SettingSwitch
 
 private sealed interface Editing {
     data object Invite : Editing
-    data class TravellerEdit(val traveller: Traveller?) : Editing
-    data class CardEdit(val traveller: Traveller, val card: BahnCard?) : Editing
+    data class CardEdit(val card: BahnCard?) : Editing
     data object Import : Editing
 }
 
@@ -224,8 +220,8 @@ fun SettingsScreen(app: AppViewModel, navigator: Navigator) {
                         }
                     }
                     item {
-                        SectionHeader("Travellers", supporting = "Everyone who rides, with or without an account", trailing = {
-                            FilledTonalButton(onClick = { editing = Editing.TravellerEdit(null) }) {
+                        SectionHeader("BahnCards", supporting = "The household's cards; only DB Navigator's counts as proof", trailing = {
+                            FilledTonalButton(onClick = { editing = Editing.CardEdit(null) }) {
                                 Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Text("Add", modifier = Modifier.padding(start = 6.dp))
                             }
@@ -233,50 +229,18 @@ fun SettingsScreen(app: AppViewModel, navigator: Navigator) {
                     }
                     item {
                         NexusCard {
-                            if (state.value.travellers.isEmpty()) Text("Nobody yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            state.value.travellers.forEachIndexed { index, traveller ->
-                                if (index > 0) HorizontalDivider(Modifier.padding(vertical = 2.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Initial(traveller.name)
-                                    Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                                        Text(traveller.name, style = MaterialTheme.typography.titleSmall)
-                                        if (traveller.userId != null) {
-                                            Text("Has an account", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        }
-                                    }
-                                    IconButton(onClick = { editing = Editing.TravellerEdit(traveller) }) {
-                                        Icon(Icons.Rounded.Edit, contentDescription = "Edit ${traveller.name}")
-                                    }
-                                }
+                            val cards = state.value.cards
+                            if (cards.isEmpty()) {
+                                Text("No BahnCard yet", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                        }
-                    }
-                    item {
-                        SectionHeader("BahnCards", supporting = "Checked against your trips; only DB Navigator's counts as proof")
-                    }
-                    item {
-                        NexusCard {
-                            state.value.travellers.forEachIndexed { index, traveller ->
-                                if (index > 0) HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(traveller.name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                                    TextButton(onClick = { editing = Editing.CardEdit(traveller, null) }) {
-                                        Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                                        Text("Add BahnCard", modifier = Modifier.padding(start = 6.dp))
-                                    }
-                                }
-                                val cards = state.value.cardsOf(traveller)
-                                if (cards.isEmpty()) {
-                                    Text("No BahnCard", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                                cards.forEach { card ->
-                                    BahnCardRow(
-                                        card,
-                                        onShow = { navigator.bahnCard(card.id) },
-                                        onEdit = { editing = Editing.CardEdit(traveller, card) },
-                                        onDbNavigator = { DbNavigator.open(context) },
-                                    )
-                                }
+                            cards.forEachIndexed { index, card ->
+                                if (index > 0) HorizontalDivider(Modifier.padding(vertical = 2.dp))
+                                BahnCardRow(
+                                    card,
+                                    onShow = { navigator.bahnCard(card.id) },
+                                    onEdit = { editing = Editing.CardEdit(card) },
+                                    onDbNavigator = { DbNavigator.open(context) },
+                                )
                             }
                             HorizontalDivider(Modifier.padding(vertical = 8.dp))
                             SettingSwitch(
@@ -375,22 +339,7 @@ fun SettingsScreen(app: AppViewModel, navigator: Navigator) {
             onDelete = null,
             onDismiss = { editing = null },
         )
-        is Editing.TravellerEdit -> TextSheet(
-            title = if (current.traveller == null) "New traveller" else "Edit traveller",
-            help = "Travellers are who rides: you, and children or partners without an account.",
-            label = "Name",
-            initial = current.traveller?.name.orEmpty(),
-            keyboard = KeyboardType.Text,
-            confirm = "Save",
-            onSave = { name ->
-                current.traveller?.let { viewModel.renameTraveller(it.id, name) } ?: viewModel.addTraveller(name)
-                editing = null
-            },
-            onDelete = current.traveller?.takeIf { it.userId == null }?.let { traveller -> { viewModel.deleteTraveller(traveller.id); editing = null } },
-            onDismiss = { editing = null },
-        )
         is Editing.CardEdit -> BahnCardSheet(
-            traveller = current.traveller,
             card = current.card,
             onSave = { input, file, removeFile ->
                 viewModel.saveCard(input, current.card?.id, file, removeFile)

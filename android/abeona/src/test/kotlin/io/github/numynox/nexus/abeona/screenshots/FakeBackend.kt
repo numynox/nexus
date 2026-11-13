@@ -130,6 +130,8 @@ object FakeBackend {
         Trip(
             NEXT, HOUSEHOLD, "Visit grandma in Bamberg", "planned", frankfurt.name, bamberg.name, at(50), at(203),
             io.github.numynox.nexus.abeona.data.FareType.Saver, true, 2, 3490, "$HOUSEHOLD/$NEXT/sparpreis.png", "tok-1", at(-1), nextLegs,
+            // Three on one ticket, booked with a BahnCard 25 and a BahnCard 50.
+            travellerCount = 3, bahncardDiscounts = listOf(25, 50),
         ),
         Trip(
             "33333333-3333-4333-8333-000000000002", HOUSEHOLD, "Hamburg conference", "planned", berlin.name, hamburg.name, at(2 * 1440 + 120), at(2 * 1440 + 233),
@@ -286,38 +288,33 @@ object FakeBackend {
     private val today = LocalDate.now()
 
     /**
-     * Jannis's BahnCard 50 renews unless cancelled within twelve days (the
-     * Trips banner); Alex's BahnCard 25 ran out yesterday (a trip warning);
-     * Mila has none.
+     * The household's cards: Jannis's BahnCard 50 renews unless cancelled
+     * within twelve days (the Trips banner); a BahnCard 25 without a name
+     * runs for half a year; Alex's ran out yesterday.
      */
     val bahnCards = listOf(
         BahnCard(
-            CARD_JANNIS, "tr1", 50, 2, today.minusDays(325).toString(), today.plusDays(40).toString(), "7081 4111 2233 4455",
+            id = CARD_JANNIS, householdId = HOUSEHOLD, name = "Jannis", kind = 50, travelClass = 2,
+            validFrom = today.minusDays(325).toString(), validTo = today.plusDays(40).toString(), cardNumber = "7081 4111 2233 4455",
             subscription = true, noticeWeeks = 4, filePath = "$HOUSEHOLD/bahncards/$CARD_JANNIS/bahncard-50.png",
         ),
         BahnCard(
-            "44444444-4444-4444-8444-000000000002", "tr2", 25, 2, today.minusYears(1).toString(), today.minusDays(1).toString(),
+            id = "44444444-4444-4444-8444-000000000003", householdId = HOUSEHOLD, name = null, kind = 25, travelClass = 2,
+            validFrom = today.minusDays(180).toString(), validTo = today.plusDays(185).toString(),
+            subscription = true, noticeWeeks = 4,
+        ),
+        BahnCard(
+            id = "44444444-4444-4444-8444-000000000002", householdId = HOUSEHOLD, name = "Alex", kind = 25, travelClass = 2,
+            validFrom = today.minusYears(1).toString(), validTo = today.minusDays(1).toString(),
             subscription = false,
         ),
     )
 
     private val deadlines = buildJsonArray {
         addJsonObject {
-            put("card_id", CARD_JANNIS); put("traveller_id", "tr1"); put("traveller_name", "Jannis"); put("kind", 50)
+            put("card_id", CARD_JANNIS); put("name", "Jannis"); put("kind", 50)
             put("travel_class", 2); put("valid_to", today.plusDays(40).toString()); put("notice_weeks", 4)
             put("deadline", today.plusDays(12).toString()); put("days_left", 12)
-        }
-    }
-
-    /** What abeona_trip_warnings says about the next trip, in its own words. */
-    private val warnings = buildJsonArray {
-        addJsonObject {
-            put("kind", "expired"); put("traveller_id", "tr2"); put("traveller_name", "Alex")
-            put("card_id", "44444444-4444-4444-8444-000000000002")
-            put("message", "Alex's BahnCard 25 expires on ${java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.ENGLISH).format(today.minusDays(1))}, before this trip.")
-        }
-        addJsonObject {
-            put("kind", "no_card"); put("traveller_id", "tr3"); put("traveller_name", "Mila"); put("message", "Mila has no BahnCard 25.")
         }
     }
 
@@ -350,14 +347,6 @@ object FakeBackend {
             path.endsWith("/rest/v1/abeona_claims") -> buildJsonObject {
                 put("id", "55555555-5555-4555-8555-000000000002"); put("trip_id", PAST_LATE); put("status", "claimed"); put("claimed_at", at(0))
             }
-            path.endsWith("/rpc/abeona_trip_warnings") -> if (request.text().contains(NEXT)) warnings else "[]"
-            path.endsWith("/rpc/abeona_save_trip_travellers") -> "null"
-            path.endsWith("/rest/v1/abeona_trip_travellers") -> buildJsonArray {
-                // Everyone on the trip to grandma, on one ticket with a BahnCard 25,
-                // a BahnCard 50 and one without; the saver alone on the others.
-                val riders = if (params["trip_id"]?.removePrefix("eq.") == NEXT) listOf("tr1" to 25, "tr2" to 50, "tr3" to null) else listOf("tr1" to null)
-                riders.forEach { (id, discount) -> addJsonObject { put("traveller_id", id); put("bahncard_discount", discount) } }
-            }
             path.endsWith("/rest/v1/abeona_bahncards") && request.method == HttpMethod.Get -> NexusJson.encodeToJsonElement(bahnCards)
             path.endsWith("/rest/v1/abeona_bahncards") && request.method != HttpMethod.Delete -> NexusJson.encodeToJsonElement(bahnCards.first())
             path.endsWith("/rpc/abeona_ensure_household") -> "\"$HOUSEHOLD\""
@@ -368,11 +357,6 @@ object FakeBackend {
             }
             path.endsWith("/rpc/abeona_statistics") -> statistics()
             path.endsWith("/rpc/abeona_update_trip_live") -> "null"
-            path.endsWith("/rest/v1/abeona_travellers") -> buildJsonArray {
-                addJsonObject { put("id", "tr1"); put("household_id", HOUSEHOLD); put("name", "Jannis"); put("user_id", FakeSupabase.USER_ID) }
-                addJsonObject { put("id", "tr2"); put("household_id", HOUSEHOLD); put("name", "Alex"); put("user_id", "u2") }
-                addJsonObject { put("id", "tr3"); put("household_id", HOUSEHOLD); put("name", "Mila") }
-            }
             path.endsWith("/rest/v1/abeona_trips") && request.method == HttpMethod.Get -> {
                 val id = params["id"]?.removePrefix("eq.")
                 val all = shownTrips + savedTrip + pastTrips
@@ -620,7 +604,8 @@ private fun tripRow(trip: Trip) = buildJsonObject {
     put("planned_departure", trip.plannedDeparture); put("planned_arrival", trip.plannedArrival)
     put("fare_type", trip.fareType.wire); put("train_binding", trip.trainBinding); put("travel_class", trip.travelClass)
     put("price_cents", trip.priceCents); put("ticket_path", trip.ticketPath); put("refresh_token", trip.refreshToken); put("refreshed_at", trip.refreshedAt)
-    put("bahncard_discount", trip.bahncardDiscount)
+    put("traveller_count", trip.travellerCount)
+    put("bahncard_discounts", JsonArray(trip.bahncardDiscounts.map { kotlinx.serialization.json.JsonPrimitive(it) }))
     put("finalized_at", trip.finalizedAt); put("missed_leg_idx", trip.missedLegIdx); put("force_majeure", trip.forceMajeure)
     put("replacement_legs", trip.replacementLegs?.let { NexusJson.encodeToJsonElement(it) } ?: kotlinx.serialization.json.JsonNull)
     putJsonArray("abeona_legs") {
