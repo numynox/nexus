@@ -1,7 +1,7 @@
 # ADR: BahnCards belong to travellers, and their files follow the card
 
 **Date:** 2026-11-03
-**Status:** Accepted
+**Status:** Accepted; cards belong to the household since `2026-11-13-abeona-no-travellers.md` (the file path rule stands)
 
 ## Context
 Phase 3 of #37 adds BahnCards: a card per traveller, with the PDF or
