@@ -103,7 +103,7 @@ class TravelDayScreenshots {
 
     @Test fun atTheStation() = shot(
         "51-hero-at-the-station", "At the station · by the position", 1,
-        signals = TravelSignals(position = Position(50.1068, 8.6630, 0.0)),
+        signals = TravelSignals(position = Position(50.1068, 8.6630, 0.0, 10.0)),
     )
 
     @Test fun onBoard() = shot("52-hero-on-board", "On board · the change ahead is tight", 40)
@@ -114,7 +114,7 @@ class TravelDayScreenshots {
 
     @Test fun missed() = shot(
         "55-hero-missed", "Still at Würzburg after the RE 10 left · by the position", 86,
-        signals = TravelSignals(position = Position(49.8018, 9.9355, 0.0)),
+        signals = TravelSignals(position = Position(49.8018, 9.9355, 0.0, 10.0)),
     )
 
     @Test fun cancelled() = shot("56-hero-cancelled", "The ICE is cancelled", -5, trip = trip(firstCancelled = true))

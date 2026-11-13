@@ -68,7 +68,7 @@ class CompanionTextTest {
 
     @Test
     fun standingAtTheChangeAfterTheTrainLeftLooksMissed() {
-        val signals = TravelSignals(position = Position(50.1071, 8.6636, 0.0))
+        val signals = TravelSignals(position = Position(50.1071, 8.6636, 0.0, 10.0))
         val placed = trip.copy(legs = trip.legs.map { it.copy(from = it.from.copy(lat = 50.1071, lon = 8.6636)) })
         val status = companionStatus(placed, t0.plusSeconds(52 * 60), signals = signals)
         assertEquals("Looks like you missed the ICE 25", status.title)
