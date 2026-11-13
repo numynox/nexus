@@ -1,7 +1,7 @@
 # ADR: Abeona's companion starts from an exact alarm, refreshes every minute, and shows a dashboard
 
 **Date:** 2026-11-07
-**Status:** Accepted; the notification's chronometer superseded by `2026-11-13-abeona-notification-leads-with-the-next-thing.md`
+**Status:** Accepted; the notification's chronometer superseded by `2026-11-13-abeona-notification-leads-with-the-next-thing.md`, the dashboard's layout by `2026-11-13-abeona-one-live-card.md`
 
 ## Context
 The live companion (`2026-11-02-abeona-train-companion.md`) did not switch on
