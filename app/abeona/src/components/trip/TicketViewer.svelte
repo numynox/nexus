@@ -7,7 +7,8 @@
   interface Props {
     path: string;
     title: string;
-    navigatorUrl: string;
+    /** "Open DB Navigator" beside the ticket; left out for a BahnCard, which DB Navigator cannot open directly. */
+    navigatorUrl?: string;
     /** What the file is, for screen readers: "Ticket" or "BahnCard". */
     label?: string;
     /** A line under the header, e.g. where the file counts as proof. */
@@ -121,9 +122,11 @@
       <X class="h-5 w-5" />
     </button>
     <p class="min-w-0 flex-1 truncate font-semibold">{title}</p>
-    <a href={navigatorUrl} target="_blank" rel="noopener" class="btn btn-sm rounded-full border-[#1f6f5c]/30 bg-white text-[#1f6f5c]">
-      <ExternalLink class="h-4 w-4" /> {label === "Ticket" ? "DB Navigator" : "Open in DB Navigator"}
-    </a>
+    {#if navigatorUrl}
+      <a href={navigatorUrl} target="_blank" rel="noopener" class="btn btn-sm rounded-full border-[#1f6f5c]/30 bg-white text-[#1f6f5c]">
+        <ExternalLink class="h-4 w-4" /> DB Navigator
+      </a>
+    {/if}
   </header>
   {#if documents.length > 1}
     <div class="flex gap-2 overflow-x-auto border-b border-black/5 px-4 py-2">

@@ -151,14 +151,6 @@ fun BahnCardScreen(app: AppViewModel, cardId: String, navigator: Navigator) {
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
-                    Button(
-                        onClick = { DbNavigator.open(context) },
-                        colors = ButtonDefaults.buttonColors(containerColor = AbeonaColors.Green, contentColor = Color.White),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Text("Open in DB Navigator", modifier = Modifier.padding(start = 8.dp))
-                    }
                 }
             }
         }

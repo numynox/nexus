@@ -365,7 +365,6 @@ object FakeBackend {
                 }
             }
             path.endsWith("/functions/v1/abeona-transit") -> transit(NexusJson.decodeFromString(request.text()))
-            path.endsWith("/functions/v1/abeona-import") -> imported()
             path.endsWith("/rpc/abeona_travel_map") -> travelMap()
             path.endsWith("/rest/v1/abeona_share_links") && request.method == HttpMethod.Get -> buildJsonArray {
                 addJsonObject {
@@ -491,32 +490,6 @@ object FakeBackend {
         line(frankfurt, berlin, 2, "ICE", 0.3)
         line(berlin, hamburg, 1, "ICE", 0.1)
         line(muenchen, Place("sbg", "Salzburg Hbf", 47.8131, 13.0458), 1, "RJX", 0.05)
-    }
-
-    /** Träwelling's check-ins as abeona-import answers them: two new trips, one saved already. */
-    private fun imported() = buildJsonObject {
-        fun ride(line: String, product: String, a: Place, b: Place, dep: Long, arr: Long, late: Long) = buildJsonObject {
-            put("mode", "train"); put("product", product); put("line_name", line)
-            putJsonObject("from") { put("name", a.name); put("lat", a.lat); put("lon", a.lon); put("planned", at(dep)); put("current", at(dep + 1)) }
-            putJsonObject("to") { put("name", b.name); put("lat", b.lat); put("lon", b.lon); put("planned", at(arr)); put("current", at(arr + late)) }
-            put("distance_km", 120.5)
-        }
-        fun trip(id: String, legs: List<JsonObject>, duplicate: Boolean, delay: Int?) = buildJsonObject {
-            put("external_id", "traewelling:$id")
-            put("origin", legs.first()["from"]!!.jsonObject["name"]!!.jsonPrimitive.content)
-            put("destination", legs.last()["to"]!!.jsonObject["name"]!!.jsonPrimitive.content)
-            put("planned_departure", legs.first()["from"]!!.jsonObject["planned"]!!.jsonPrimitive.content)
-            put("planned_arrival", legs.last()["to"]!!.jsonObject["planned"]!!.jsonPrimitive.content)
-            put("arrival_delay_minutes", delay)
-            put("legs", JsonArray(legs)); put("duplicate", duplicate)
-        }
-        val d = -60L * 24 * 40
-        putJsonArray("trips") {
-            add(trip("101,102", listOf(ride("ICE 25", "ICE", frankfurt, wuerzburg, d, d + 68, 0), ride("RE 10", "RE", wuerzburg, bamberg, d + 80, d + 140, 17)), false, 17))
-            add(trip("117", listOf(ride("ICE 597", "ICE", muenchen, nuernberg, d + 2900, d + 2962, 0)), false, null))
-            add(trip("120", listOf(ride("ICE 28", "ICE", wuerzburg, frankfurt, d + 4400, d + 4468, 4)), true, 4))
-        }
-        put("statuses", 4); put("skipped", 0); put("truncated", false)
     }
 
     private fun statistics() = buildJsonObject {

@@ -1,8 +1,7 @@
 <script lang="ts">
-  import { CreditCard, ExternalLink, Maximize2, Pencil } from "lucide-svelte";
+  import { CreditCard, Maximize2, Pencil } from "lucide-svelte";
   import type { BahnCard } from "../../lib/data";
   import { bahnCardLabel, bahnCardName, formatDay, parseDay, toDay } from "../../lib/format";
-  import { DB_NAVIGATOR_HOME } from "../../lib/journey";
 
   interface Props {
     card: BahnCard;
@@ -63,8 +62,5 @@
         <CreditCard class="h-4 w-4" /> Add the card file
       </button>
     {/if}
-    <a href={DB_NAVIGATOR_HOME} target="_blank" rel="noopener" class="btn btn-sm rounded-full border-base-300 bg-card">
-      <ExternalLink class="h-4 w-4" /> Open in DB Navigator
-    </a>
   </div>
 </div>

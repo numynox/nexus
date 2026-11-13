@@ -49,14 +49,6 @@ enabled = true
 verify_jwt = false
 entrypoint = "./functions/abeona-refresh-trips/index.ts"
 
-# Abeona's imports (Träwelling for now), called from both clients with the
-# signed-in user's JWT, re-checked with auth.getUser(). The Träwelling token
-# travels in the request body and is never stored.
-[functions.abeona-import]
-enabled = true
-verify_jwt = true
-entrypoint = "./functions/abeona-import/index.ts"
-
 # Abeona's share links (.ics and the status page's JSON), opened by anyone
 # holding the link: no JWT. The unguessable token is the credential, looked
 # up with the service role through abeona_shared_trip(), which opens only a

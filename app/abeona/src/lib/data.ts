@@ -190,26 +190,6 @@ export interface SharedStatusStop {
   platform: string | null;
 }
 
-/** A trip abeona-import read from Träwelling, not saved yet. */
-export interface ImportedTrip {
-  external_id: string;
-  origin: string;
-  destination: string;
-  planned_departure: string;
-  planned_arrival: string;
-  arrival_delay_minutes: number | null;
-  legs: Leg[];
-  /** A trip with the same origin and departure is saved already. */
-  duplicate: boolean;
-}
-
-export interface ImportResult {
-  trips: ImportedTrip[];
-  statuses: number;
-  skipped: number;
-  truncated: boolean;
-}
-
 export interface SaveTripInput {
   title?: string | null;
   fare_type: FareTypeValue;
@@ -1038,40 +1018,6 @@ export async function fetchSharedStatus(token: string): Promise<SharedStatus> {
   const body = await response.json().catch(() => null);
   if (!response.ok) throw new Error(typeof body?.error === "string" ? body.error : "This link could not be opened.");
   return body as SharedStatus;
-}
-
-// ── Imports (abeona-import) ────────────────────────────────────────
-
-/**
- * Reads the Träwelling check-ins between two dates (yyyy-mm-dd) as trips.
- * The token goes to the Edge Function in this one request and is kept
- * nowhere — not here, not there.
- */
-export async function readTraewelling(token: string, from: string, to: string): Promise<ImportResult> {
-  const sb = getSupabaseClient();
-  const { data, error } = await sb.functions.invoke("abeona-import", {
-    body: { action: "import_traewelling", token: token.trim(), from, to },
-  });
-  if (error) throw new Error(await describeFunctionError(error));
-  const r = (data ?? {}) as Partial<ImportResult>;
-  return { trips: r.trips ?? [], statuses: Number(r.statuses ?? 0), skipped: Number(r.skipped ?? 0), truncated: !!r.truncated };
-}
-
-/** Saves an imported trip: final from the start, never refreshed. */
-export async function saveImportedTrip(trip: ImportedTrip): Promise<string> {
-  await ensureHousehold();
-  const sb = getSupabaseClient();
-  const { data, error } = await sb.rpc("abeona_save_trip", {
-    p_trip: {
-      source: "import",
-      provider: "traewelling",
-      fare_type: "other",
-      ...(trip.arrival_delay_minutes !== null ? { arrival_delay_minutes: trip.arrival_delay_minutes } : {}),
-    },
-    p_legs: trip.legs,
-  });
-  if (error) throw error;
-  return data as string;
 }
 
 // ── Tickets (Storage) ──────────────────────────────────────────────

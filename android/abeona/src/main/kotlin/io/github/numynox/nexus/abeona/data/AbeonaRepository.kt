@@ -332,43 +332,6 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
         supabase.from("abeona_share_links").delete { filter { eq("token", token) } }
     }
 
-    // ── Imports (the abeona-import Edge Function) ───────────────────────────
-
-    /**
-     * Reads the Träwelling check-ins between [from] and [to] as trips. The
-     * token goes to the Edge Function in this one request and is kept nowhere.
-     */
-    suspend fun readTraewelling(token: String, from: java.time.LocalDate, to: java.time.LocalDate): ImportResult =
-        NexusJson.decodeFromString(
-            supabase.functions.invoke(
-                function = "abeona-import",
-                body = buildJsonObject {
-                    put("action", "import_traewelling")
-                    put("token", token.trim())
-                    put("from", from.toString())
-                    put("to", to.toString())
-                },
-            ).bodyAsText(),
-        )
-
-    /** Saves an imported trip, final from the start; its legs go in as the function gave them. */
-    suspend fun saveImportedTrip(trip: ImportedTrip): String {
-        householdId()
-        val params = buildJsonObject {
-            put(
-                "p_trip",
-                buildJsonObject {
-                    put("source", "import")
-                    put("provider", "traewelling")
-                    put("fare_type", "other")
-                    trip.arrivalDelayMinutes?.let { put("arrival_delay_minutes", it) }
-                },
-            )
-            put("p_legs", JsonArray(trip.legs))
-        }
-        return NexusJson.decodeFromString<String>(supabase.postgrest.rpc("abeona_save_trip", params).data)
-    }
-
     // ── BahnCards ──────────────────────────────────────────────────────────
 
     /** Every card of the household, the one running longest first. */
