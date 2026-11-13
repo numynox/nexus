@@ -112,8 +112,13 @@ class AppScreenshots {
         compose.onNode(hasContentDescription("Add entry")).performClick()
         settle()
         shot("06-logbook-add")
-        compose.onNode(hasContentDescription("Close")).performClick()
+        compose.onNode(hasText("Odometer reading") and hasClickAction()).performClick()
+        waitFor(hasText("Log odometer reading"))
+        shot("06a-reading-form")
+        compose.onNode(hasText("Cancel") and hasClickAction()).performClick()
         settle()
+        scrollTo("Service record")
+        shot("06b-logbook-reading")
 
         tab("Statistics")
         waitFor(hasText("FUEL COST"))
@@ -122,6 +127,8 @@ class AppScreenshots {
         shot("08-statistics-driving")
         scrollTo("Kilometres per month")
         shot("09-statistics-charts")
+        scrollTo("Mileage at each refuel and reading")
+        shot("09a-statistics-odometer")
 
         tab("Settings")
         waitFor(hasText("Drive tracking"))

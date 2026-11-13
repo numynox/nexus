@@ -1,6 +1,7 @@
 package io.github.numynox.nexus.vibilia.ui
 
 import io.github.numynox.nexus.vibilia.data.CarExpense
+import io.github.numynox.nexus.vibilia.data.OdometerReading
 import io.github.numynox.nexus.vibilia.data.RefuelEvent
 import io.github.numynox.nexus.vibilia.ui.logbook.LogEntry
 import io.github.numynox.nexus.vibilia.ui.logbook.LogbookViewModel
@@ -9,6 +10,7 @@ import java.time.YearMonth
 import java.time.ZoneOffset
 import java.util.Locale
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -56,6 +58,34 @@ class LogbookBuildTest {
         assertEquals(48.0, byMonth.getValue("2026-02").fuel, 1e-9)
         assertEquals(20.0, byMonth.getValue("2026-02").other, 1e-9)
         assertEquals("60 € more than March", byMonth.getValue("2026-04").comparison)
+    }
+
+    @Test
+    fun `odometer readings are listed but cost nothing`() {
+        val logbook = LogbookViewModel.build(
+            listOf(
+                refuel(1, "2026-01-10T10:00:00Z", 10_000, 40.0), // 60 €
+                refuel(2, "2026-03-10T10:00:00Z", 10_500, 32.0), // 48 €
+            ),
+            emptyList(),
+            zone = ZoneOffset.UTC,
+            readings = listOf(
+                OdometerReading(1, "c", Instant.parse("2019-05-02T09:00:00Z"), 3_100, "Service record"),
+                OdometerReading(2, "c", Instant.parse("2026-02-05T09:00:00Z"), 10_200),
+                OdometerReading(3, "c", Instant.parse("2026-03-20T09:00:00Z"), 10_700),
+            ),
+        )
+        val byMonth = logbook.months.associateBy { it.month.toString() }
+        assertEquals(listOf("2026-03", "2026-02", "2026-01", "2019-05"), logbook.months.map { it.month.toString() })
+        assertFalse("a month with only a reading spent nothing to show", byMonth.getValue("2019-05").hasSpend)
+        assertNull("an old reading starts no comparison", byMonth.getValue("2026-01").comparison)
+        assertFalse(byMonth.getValue("2026-02").hasSpend)
+        assertNull("a month with only a reading gets no comparison", byMonth.getValue("2026-02").comparison)
+        assertEquals(48.0, byMonth.getValue("2026-03").spent, 1e-9)
+        assertEquals("48 € more than February", byMonth.getValue("2026-03").comparison)
+        assertEquals(2, byMonth.getValue("2026-03").entries.size)
+        assertEquals("a reading between refuels leaves the refuel interval alone", 500, logbook.months.flatMap { it.entries }
+            .filterIsInstance<LogEntry.Refuel>().single { it.event.id == 2L }.kmSincePrevious)
     }
 
     @Test

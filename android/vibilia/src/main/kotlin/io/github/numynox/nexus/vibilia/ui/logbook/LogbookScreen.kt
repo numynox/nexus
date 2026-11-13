@@ -29,6 +29,7 @@ import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.ShoppingBag
+import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Toll
 import androidx.compose.material.icons.rounded.Handyman
 import androidx.compose.material3.FloatingActionButtonMenu
@@ -72,7 +73,7 @@ import io.github.numynox.nexus.core.ui.valueOrNull
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** The web app's Vehicle Logs: every refuel and expense of a car, newest first. */
+/** The web app's Vehicle Logs: every refuel, expense and odometer reading of a car, newest first. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun LogbookScreen(app: AppViewModel) {
@@ -107,6 +108,14 @@ fun LogbookScreen(app: AppViewModel) {
                     }
                 },
             ) {
+                FloatingActionButtonMenuItem(
+                    onClick = {
+                        menuOpen = false
+                        app.newReading(selected.id)
+                    },
+                    icon = { Icon(Icons.Rounded.Speed, contentDescription = null) },
+                    text = { Text("Odometer reading") },
+                )
                 FloatingActionButtonMenuItem(
                     onClick = {
                         menuOpen = false
@@ -148,7 +157,7 @@ fun LogbookScreen(app: AppViewModel) {
                                 "Log your first refuel or expense with the + button.",
                             )
                         } else {
-                            LogbookList(logbook.value, onRefuel = app::edit, onExpense = app::edit)
+                            LogbookList(logbook.value, onRefuel = app::edit, onExpense = app::edit, onReading = app::edit)
                         }
                     }
                 }
@@ -172,6 +181,7 @@ internal fun LogbookList(
     logbook: Logbook,
     onRefuel: (io.github.numynox.nexus.vibilia.data.RefuelEvent) -> Unit,
     onExpense: (io.github.numynox.nexus.vibilia.data.CarExpense) -> Unit,
+    onReading: (io.github.numynox.nexus.vibilia.data.OdometerReading) -> Unit = {},
 ) {
     val monthFormat = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
     LazyColumn(
@@ -200,7 +210,7 @@ internal fun LogbookList(
                                 )
                             }
                         }
-                        Column(horizontalAlignment = Alignment.End) {
+                        if (month.hasSpend) Column(horizontalAlignment = Alignment.End) {
                             Text(
                                 NexusFormat.euro(month.spent),
                                 style = MaterialTheme.typography.labelLarge.tabular(),
@@ -221,6 +231,7 @@ internal fun LogbookList(
                 when (entry) {
                     is LogEntry.Refuel -> RefuelCard(entry, logbook.averageConsumption, Modifier.animateItem()) { onRefuel(entry.event) }
                     is LogEntry.Expense -> ExpenseCard(entry, Modifier.animateItem()) { onExpense(entry.expense) }
+                    is LogEntry.Reading -> ReadingCard(entry, Modifier.animateItem()) { onReading(entry.reading) }
                 }
             }
         }
@@ -329,6 +340,35 @@ private fun ExpenseCard(entry: LogEntry.Expense, modifier: Modifier, onClick: ()
                     expense.mileage?.takeIf { it > 0 }?.let { Fact(NexusFormat.km(it.toDouble())) }
                 }
                 expense.notes?.takeIf { it.isNotBlank() }?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+    }
+}
+
+/** An odometer value without a cost: no amount, the kilometres take its place. */
+@Composable
+private fun ReadingCard(entry: LogEntry.Reading, modifier: Modifier, onClick: () -> Unit) {
+    val reading = entry.reading
+    NexusCard(modifier = modifier.fillMaxWidth(), onClick = onClick) {
+        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            EntryIcon(Icons.Rounded.Speed, MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        NexusFormat.km(reading.mileage.toDouble()),
+                        style = MaterialTheme.typography.titleMedium.tabular(),
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        NexusFormat.date(reading.readAt),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Text("Odometer reading", style = MaterialTheme.typography.bodyMedium)
+                reading.notes?.takeIf { it.isNotBlank() }?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }

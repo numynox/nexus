@@ -13,6 +13,7 @@ import io.github.numynox.nexus.core.ui.valueOrNull
 import io.github.numynox.nexus.vibilia.AppContainer
 import io.github.numynox.nexus.vibilia.data.Car
 import io.github.numynox.nexus.vibilia.data.CarExpense
+import io.github.numynox.nexus.vibilia.data.OdometerReading
 import io.github.numynox.nexus.vibilia.data.RefuelEvent
 import io.github.numynox.nexus.vibilia.data.VibiliaSettings
 import io.github.numynox.nexus.vibilia.reminders.RefuelReminders
@@ -40,6 +41,8 @@ sealed interface EditorRequest {
     data class EditRefuel(val event: RefuelEvent) : EditorRequest
     data class NewExpense(val carId: String) : EditorRequest
     data class EditExpense(val expense: CarExpense) : EditorRequest
+    data class NewReading(val carId: String) : EditorRequest
+    data class EditReading(val reading: OdometerReading) : EditorRequest
 }
 
 /**
@@ -174,6 +177,14 @@ class AppViewModel(private val container: AppContainer, private val application:
 
     fun edit(expense: CarExpense) {
         _editor.value = EditorRequest.EditExpense(expense)
+    }
+
+    fun newReading(carId: String) {
+        _editor.value = EditorRequest.NewReading(carId)
+    }
+
+    fun edit(reading: OdometerReading) {
+        _editor.value = EditorRequest.EditReading(reading)
     }
 
     fun closeEditor(saved: Boolean) {
