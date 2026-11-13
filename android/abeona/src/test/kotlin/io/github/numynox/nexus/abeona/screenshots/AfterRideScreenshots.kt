@@ -2,6 +2,7 @@ package io.github.numynox.nexus.abeona.screenshots
 
 import android.Manifest
 import android.app.Application
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.core.app.ApplicationProvider
 import io.github.numynox.nexus.abeona.MainActivity
@@ -45,7 +46,7 @@ class AfterRideScreenshots {
         shot("61-claims-list")
 
         tap("Visit grandma in Bamberg")
-        waitForText("Open DB Navigator")
+        waitFor(hasContentDescription("More"))
         waitForText("Your claim")
         scrollTo("Your claim")
         shot("62-compensation-eligible")

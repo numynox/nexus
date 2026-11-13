@@ -79,8 +79,8 @@ import io.github.numynox.nexus.abeona.domain.finalArrivalDelay
 import io.github.numynox.nexus.abeona.domain.worstConfidence
 import io.github.numynox.nexus.abeona.ui.AppViewModel
 import io.github.numynox.nexus.abeona.ui.Navigator
+import io.github.numynox.nexus.abeona.ui.common.ShiftedTime
 import io.github.numynox.nexus.abeona.ui.common.ConfidenceChip
-import io.github.numynox.nexus.abeona.ui.common.DelayBadge
 import io.github.numynox.nexus.abeona.ui.common.LegChips
 import io.github.numynox.nexus.abeona.ui.common.TripFormat
 import io.github.numynox.nexus.abeona.ui.common.containerViewModel
@@ -437,11 +437,9 @@ fun JourneyCard(journey: Journey, onClick: (() -> Unit)?, modifier: Modifier = M
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(TripFormat.time(first.from.plannedAt), style = MaterialTheme.typography.headlineSmall.tabular())
-                    DelayBadge(departureDelay(first))
+                    ShiftedTime(first.from.plannedAt, first.from.expectedAt, MaterialTheme.typography.headlineSmall, block = false)
                     Text("→", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(TripFormat.time(last.to.plannedAt), style = MaterialTheme.typography.headlineSmall.tabular())
-                    DelayBadge(finalArrivalDelay(journey.legs))
+                    ShiftedTime(last.to.plannedAt, last.to.expectedAt, MaterialTheme.typography.headlineSmall, block = false)
                 }
                 Text(
                     listOfNotNull(

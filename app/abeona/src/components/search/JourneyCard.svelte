@@ -3,7 +3,7 @@
   import { summarise } from "../../lib/journey";
   import type { Journey } from "../../lib/transit";
   import ConfidenceChip from "../common/ConfidenceChip.svelte";
-  import DelayBadge from "../common/DelayBadge.svelte";
+  import ShiftedTime from "../common/ShiftedTime.svelte";
   import LegChip from "../common/LegChip.svelte";
 
   interface Props {
@@ -23,11 +23,9 @@
 >
   <div class="flex items-start justify-between gap-4">
     <div class="tabular flex items-baseline gap-2 text-2xl font-semibold tracking-tight text-ink sm:text-[1.7rem]">
-      <span>{formatTime(s.departure.planned)}</span>
-      <DelayBadge minutes={s.departureDelay} cancelled={s.cancelled} />
+      <ShiftedTime planned={s.departure.planned} current={s.departure.current} block={false} cancelled={s.cancelled} />
       <span class="px-1 text-base-content/30">→</span>
-      <span>{formatTime(s.arrival.planned)}</span>
-      <DelayBadge minutes={s.arrivalDelay} />
+      <ShiftedTime planned={s.arrival.planned} current={s.arrival.current} block={false} cancelled={s.cancelled} />
     </div>
     <div class="text-right">
       <p class="tabular text-sm font-semibold text-ink">{formatDuration(s.plannedMinutes)}</p>

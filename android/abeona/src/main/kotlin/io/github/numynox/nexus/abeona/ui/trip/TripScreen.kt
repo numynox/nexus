@@ -1,5 +1,11 @@
 package io.github.numynox.nexus.abeona.ui.trip
 
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.foundation.layout.widthIn
+import io.github.numynox.nexus.abeona.ui.common.ShiftedTime
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -108,8 +114,9 @@ import io.github.numynox.nexus.abeona.live.CompanionOffer
 import io.github.numynox.nexus.abeona.live.companionOffer
 import io.github.numynox.nexus.abeona.live.LiveCompanion
 import io.github.numynox.nexus.abeona.live.evidence
-import io.github.numynox.nexus.abeona.ui.live.LiveDetails
-import io.github.numynox.nexus.abeona.ui.live.LiveNow
+import io.github.numynox.nexus.abeona.ui.live.LiveMap
+import io.github.numynox.nexus.abeona.ui.live.LiveCard
+import io.github.numynox.nexus.abeona.ui.live.LiveStatus
 import io.github.numynox.nexus.abeona.ui.live.LiveView
 import io.github.numynox.nexus.abeona.ui.live.liveView
 import io.github.numynox.nexus.abeona.live.LiveSignals
@@ -125,12 +132,10 @@ import io.github.numynox.nexus.abeona.ui.danger
 import io.github.numynox.nexus.abeona.ui.common.BindingLiftedBanner
 import io.github.numynox.nexus.abeona.ui.common.ConfidenceChip
 import io.github.numynox.nexus.abeona.ui.common.DbNavigator
-import io.github.numynox.nexus.abeona.ui.common.DelayBadge
 import io.github.numynox.nexus.abeona.ui.common.LineChip
 import io.github.numynox.nexus.abeona.ui.common.OfflinePill
 import io.github.numynox.nexus.abeona.ui.common.PlatformBox
 import io.github.numynox.nexus.abeona.ui.common.StatusPill
-import io.github.numynox.nexus.abeona.ui.common.TimeWithDelay
 import io.github.numynox.nexus.abeona.ui.common.PickedFile
 import io.github.numynox.nexus.abeona.ui.common.TripFormat
 import io.github.numynox.nexus.abeona.ui.common.TripWarningsBanner
@@ -237,14 +242,81 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
         }
     }
 
+    // The trip's actions live in the top bar: the ticket one tap away, the rest under ⋮.
+    val openTicket: () -> Unit = {
+        if (ready?.ticketPath != null) navigator.ticket(tripId)
+        else pickTicket.launch(arrayOf("application/pdf", "image/png", "image/jpeg"))
+    }
+    val toggleCompanion: () -> Unit = {
+        if (companion == tripId) {
+            LiveCompanion.stop(context)
+        } else if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            LiveCompanion.start(context, tripId)
+        }
+    }
+    val openAlternatives: () -> Unit = {
+        showAlternatives = true
+        if (alternatives?.result == null && alternatives?.loading != true) viewModel.findAlternatives()
+    }
+    val offer = ready?.let {
+        companionOffer(it, now, settings.liveCompanion, settings.stationMinutes, running = companion == tripId, stoppedByHand = stoppedByHand == tripId)
+    }
+    val over = ready?.expectedArrival?.plus(Duration.ofHours(1))?.isBefore(java.time.Instant.now()) ?: true
+    // Nothing to search once the only stop left is the destination.
+    val searchable = ready?.followed?.takeIf { isLiveDay(it, now) }?.let { t ->
+        alternativesOrigin(t.legs, travelDay(t.legs, now, settings.stationMinutes, LiveSignals.forTrip(t, now, onboard, fix)), now) != null
+    } == true
+    var menu by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {},
                 navigationIcon = { IconButton(onClick = navigator.back) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back") } },
                 actions = {
+                    if (ready != null) {
+                        IconButton(onClick = openTicket) {
+                            Icon(Icons.Rounded.ConfirmationNumber, contentDescription = if (ready.ticketPath != null) "Ticket" else "Add ticket")
+                        }
+                    }
                     IconButton(onClick = { viewModel.refresh() }) { Icon(Icons.Rounded.Refresh, contentDescription = "Refresh") }
-                    IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Rounded.DeleteOutline, contentDescription = "Delete trip") }
+                    Box {
+                        IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, contentDescription = "More") }
+                        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Open DB Navigator") },
+                                leadingIcon = { Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null) },
+                                onClick = { menu = false; DbNavigator.open(context) },
+                            )
+                            if (!over && searchable) {
+                                DropdownMenuItem(
+                                    text = { Text("Alternatives") },
+                                    leadingIcon = { Icon(Icons.Rounded.Shuffle, contentDescription = null) },
+                                    onClick = { menu = false; openAlternatives() },
+                                )
+                            }
+                            // Only when pressing it does something the app would not do by
+                            // itself: stop the companion, or start it on the day.
+                            if (offer is CompanionOffer.Running || offer is CompanionOffer.Manual) {
+                                val on = offer is CompanionOffer.Running
+                                DropdownMenuItem(
+                                    text = { Text(if (on) "Stop live companion" else "Start live companion") },
+                                    leadingIcon = { Icon(if (on) Icons.Rounded.NotificationsOff else Icons.Rounded.NotificationsActive, contentDescription = null) },
+                                    onClick = { menu = false; toggleCompanion() },
+                                )
+                            }
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text("Delete trip", color = MaterialTheme.colorScheme.error) },
+                                leadingIcon = { Icon(Icons.Rounded.DeleteOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                onClick = { menu = false; confirmDelete = true },
+                            )
+                        }
+                    }
                 },
             )
         },
@@ -300,10 +372,7 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                             companion != tripId -> runCatching { LiveCompanion.start(context, tripId) }
                         }
                     },
-                    onAlternatives = {
-                        showAlternatives = true
-                        if (alternatives?.result == null && alternatives?.loading != true) viewModel.findAlternatives()
-                    },
+                    onAlternatives = openAlternatives,
                     people = people,
                     afterRide = afterRide?.let { state ->
                         AfterRideActions(
@@ -328,10 +397,7 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                     },
                     onToggleTraveller = { id -> viewModel.toggleTraveller(id) { scope.launch { snackbar.showSnackbar(it) } } },
                     onDiscount = { id, value -> viewModel.setDiscount(id, value) { scope.launch { snackbar.showSnackbar(it) } } },
-                    companion = companionOffer(
-                        state.value.trip, now, settings.liveCompanion, settings.stationMinutes,
-                        running = companion == tripId, stoppedByHand = stoppedByHand == tripId,
-                    ),
+                    companion = offer ?: CompanionOffer.Hidden,
                     liveUpdatesOff = Build.VERSION.SDK_INT >= 36 &&
                         !context.getSystemService(android.app.NotificationManager::class.java).canPostPromotedNotifications(),
                     onLiveUpdatesSettings = {
@@ -342,23 +408,7 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                             )
                         }
                     },
-                    onDbNavigator = { DbNavigator.open(context) },
-                    onTicket = {
-                        if (state.value.trip.ticketPath != null) navigator.ticket(tripId)
-                        else pickTicket.launch(arrayOf("application/pdf", "image/png", "image/jpeg"))
-                    },
                     onFollowPlan = { viewModel.followPlan(showError) },
-                    onCompanion = {
-                        if (companion == tripId) {
-                            LiveCompanion.stop(context)
-                        } else if (Build.VERSION.SDK_INT >= 33 &&
-                            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-                        ) {
-                            notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        } else {
-                            LiveCompanion.start(context, tripId)
-                        }
-                    },
                 )
             }
         }
@@ -461,9 +511,6 @@ private fun TripContent(
     /** Android 16+ with Live Updates turned off for Abeona: no status bar chip, not pinned on the lock screen. */
     liveUpdatesOff: Boolean,
     onLiveUpdatesSettings: () -> Unit,
-    onDbNavigator: () -> Unit,
-    onTicket: () -> Unit,
-    onCompanion: () -> Unit,
     /** Forget the connection taken instead, and follow the plan again. */
     onFollowPlan: () -> Unit,
 ) {
@@ -479,80 +526,57 @@ private fun TripContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
-        item(key = "header") { TripHeader(detail) }
-        live?.let { l ->
-            item(key = "travel-day") { LiveNow(l.view, onAlternatives = onAlternatives, onUseLocation = onUseLocation) }
-        }
         val over = trip.expectedArrival.plus(Duration.ofHours(1)).isBefore(java.time.Instant.now())
-        if (!over && trainBindingLifted(trip.fareType, trip.trainBinding, arrivalDelay, connectionBroken)) {
-            item(key = "binding") {
-                BindingLiftedBanner(
-                    arrivalDelay,
-                    because = when {
-                        arrivalDelay >= 20 -> null
-                        live?.missedShort == true -> "You missed a change that had less than 5 minutes."
-                        else -> "A change on your trip cannot be made."
-                    },
+        val binding = !over && trainBindingLifted(trip.fareType, trip.trainBinding, arrivalDelay, connectionBroken)
+        val following = !over && trip.followsReplacement
+        val warnings = people?.warnings?.takeIf { it.isNotEmpty() && trip.expectedArrival.isAfter(java.time.Instant.now()) }
+        // The binding, a connection taken instead and the travellers' warnings: in the live card while live.
+        val notices: @Composable () -> Unit = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (binding) {
+                    BindingLiftedBanner(
+                        arrivalDelay,
+                        because = when {
+                            arrivalDelay >= 20 -> null
+                            live?.missedShort == true -> "You missed a change that had less than 5 minutes."
+                            else -> "A change on your trip cannot be made."
+                        },
+                    )
+                }
+                if (following) FollowingCard(trip, onFollowPlan)
+                warnings?.let { TripWarningsBanner(it) }
+            }
+        }
+        val anyNotice = binding || following || warnings != null
+        // While the trip is live, everything live is in the one card; above it only what does not change.
+        item(key = "header") { TripHeader(detail, live = live != null) }
+        if (live != null) {
+            item(key = "travel-day") {
+                LiveCard(
+                    live.view,
+                    status = liveStatus(detail),
+                    onAlternatives = onAlternatives,
+                    onUseLocation = onUseLocation,
+                    notices = if (anyNotice) notices else null,
                 )
             }
-        }
-        if (!over && trip.followsReplacement) {
-            item(key = "following") { FollowingCard(trip, onFollowPlan) }
-        }
-        if (!people?.warnings.isNullOrEmpty() && trip.expectedArrival.isAfter(java.time.Instant.now())) {
-            item(key = "warnings") { TripWarningsBanner(people.warnings) }
-        }
-        item(key = "actions") {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = onDbNavigator, modifier = Modifier.weight(1f)) {
-                        Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Text("Open DB Navigator", modifier = Modifier.padding(start = 8.dp), maxLines = 1)
-                    }
-                    FilledTonalButton(onClick = onTicket) {
-                        Icon(Icons.Rounded.ConfirmationNumber, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Text(if (trip.ticketPath != null) "Ticket" else "Add ticket", modifier = Modifier.padding(start = 8.dp))
-                    }
-                }
-                // The companion's button only when pressing it does something
-                // the app would not do by itself: stop it, or start it on the day.
-                val companionButton = companion is CompanionOffer.Running || companion is CompanionOffer.Manual
-                val alternativesButton = !over && live != null && live.searchable
-                if (companionButton || alternativesButton) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (companionButton) {
-                        val on = companion is CompanionOffer.Running
-                        OutlinedButton(onClick = onCompanion, modifier = Modifier.weight(1f)) {
-                            Icon(
-                                if (on) Icons.Rounded.NotificationsOff else Icons.Rounded.NotificationsActive,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                            )
-                            Text(
-                                if (on) "Stop live companion" else "Start live companion",
-                                modifier = Modifier.padding(start = 8.dp),
-                                maxLines = 1,
-                            )
-                        }
-                    }
-                    if (alternativesButton) {
-                        OutlinedButton(onClick = onAlternatives) {
-                            Icon(Icons.Rounded.Shuffle, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Text("Alternatives", modifier = Modifier.padding(start = 8.dp), maxLines = 1)
-                        }
-                    }
-                }
-                if (companion is CompanionOffer.Automatic) CompanionSmallPrint(companion)
-                if (liveUpdatesOff && (companion is CompanionOffer.Running || companion is CompanionOffer.Automatic)) {
-                    LiveUpdatesOff(onLiveUpdatesSettings)
-                }
-            }
+        } else if (anyNotice) {
+            item(key = "notices") { notices() }
         }
         live?.let { l ->
-            // The ticket and DB Navigator stay one tap from the top; the
-            // rest of the dashboard follows them.
-            item(key = "live-details") { LiveDetails(l.view) }
+            item(key = "live-map") { LiveMap(l.view) }
             if (askLocation && l.day.kind != TravelDayKind.Arrived) {
                 item(key = "location") { LocationPrompt(onAllow = onAllowLocation, onDismiss = onDismissLocation) }
+            }
+        }
+        val smallPrint = companion is CompanionOffer.Automatic
+        val updatesOff = liveUpdatesOff && (companion is CompanionOffer.Running || companion is CompanionOffer.Automatic)
+        if (smallPrint || updatesOff) {
+            item(key = "companion") {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (companion is CompanionOffer.Automatic) CompanionSmallPrint(companion)
+                    if (updatesOff) LiveUpdatesOff(onLiveUpdatesSettings)
+                }
             }
         }
         afterRide?.let { a ->
@@ -642,29 +666,56 @@ private fun timelineSummary(trip: Trip): String {
     ).joinToString(" · ")
 }
 
+/** The live card's last line: how fresh the live values are, or why there are none. */
+private fun liveStatus(detail: TripDetail): LiveStatus? {
+    val trip = detail.trip
+    val timetableOnly = trip.legs.none { it.realtime } && trip.legs.any { !it.isWalk }
+    val base = when {
+        detail.offlineSince != null -> LiveStatus("Offline · updated ${TripFormat.time(detail.offlineSince)}", offline = true)
+        detail.refreshError != null -> LiveStatus("Live data unavailable", offline = true)
+        trip.refreshedAt != null -> LiveStatus("Live · updated ${TripFormat.time(trip.refreshedAt.toInstantOrNull())}")
+        else -> null
+    }
+    return when {
+        !timetableOnly -> base
+        base == null -> LiveStatus("Timetable only")
+        else -> base.copy(text = base.text + " · timetable only")
+    }
+}
+
+/**
+ * The trip's name, day and price. While the trip is live that is all: its
+ * times and how fresh they are are in the live card. Otherwise the board
+ * times with their delays, and the status pills.
+ */
 @Composable
-private fun TripHeader(detail: TripDetail) {
+private fun TripHeader(detail: TripDetail, live: Boolean) {
     val trip = detail.trip
     val first = trip.legs.firstOrNull { !it.isWalk }
     val last = trip.legs.lastOrNull { !it.isWalk }
     Column(Modifier.padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(TripFormat.longDay(trip.departureAt), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        Text(
+            listOfNotNull(TripFormat.longDay(trip.departureAt), trip.priceCents?.takeIf { live }?.let { TripFormat.price(it) }).joinToString(" · "),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+        )
         Text(trip.displayTitle, style = MaterialTheme.typography.headlineMedium)
         if (!trip.title.isNullOrBlank()) {
             Text("${trip.originName} → ${trip.destinationName}", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        if (live) return@Column
         Row(
             Modifier.fillMaxWidth().padding(top = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Column(Modifier.weight(1f)) {
-                HeaderTime(first?.from?.plannedAt, first?.let(::departureDelay) ?: 0)
+                ShiftedTime(first?.from?.plannedAt, first?.from?.expectedAt, MaterialTheme.typography.displaySmall)
                 Text(trip.originName, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Text("→", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
-                HeaderTime(last?.to?.plannedAt, last?.let(::arrivalDelay) ?: 0)
+                ShiftedTime(last?.to?.plannedAt, last?.to?.expectedAt, MaterialTheme.typography.displaySmall)
                 Text(trip.destinationName, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
@@ -678,15 +729,6 @@ private fun TripHeader(detail: TripDetail) {
             if (trip.legs.none { it.realtime } && trip.legs.any { !it.isWalk }) StatusPill("Timetable only")
             trip.priceCents?.let { StatusPill(TripFormat.price(it)) }
         }
-    }
-}
-
-/** A big board time with its delay as a badge; the expected time itself is in the timeline below. */
-@Composable
-private fun HeaderTime(planned: java.time.Instant?, delay: Int) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(TripFormat.time(planned), style = MaterialTheme.typography.displaySmall.tabular())
-        DelayBadge(delay)
     }
 }
 
@@ -745,11 +787,13 @@ private fun LegCard(leg: Leg) {
                                 val planned = (stop.plannedArrival ?: stop.plannedDeparture).toInstantOrNull()
                                 val current = (stop.arrival ?: stop.departure).toInstantOrNull()
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        TripFormat.time(planned),
-                                        style = MaterialTheme.typography.bodySmall.tabular(),
+                                    ShiftedTime(
+                                        planned,
+                                        current,
+                                        MaterialTheme.typography.bodySmall,
+                                        block = false,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.width(44.dp),
+                                        modifier = Modifier.widthIn(min = 44.dp).padding(end = 6.dp),
                                     )
                                     Text(
                                         stop.name,
@@ -758,7 +802,6 @@ private fun LegCard(leg: Leg) {
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                     )
-                                    DelayBadge(delayMinutes(planned, current))
                                 }
                             }
                         }
@@ -776,7 +819,7 @@ private fun LegCard(leg: Leg) {
 private fun StopRow(stop: StopTime, delay: Int, cancelled: Boolean) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            TimeWithDelay(stop.plannedAt, stop.currentAt, delay, MaterialTheme.typography.titleLarge, cancelled = cancelled)
+            ShiftedTime(stop.plannedAt, stop.expectedAt, MaterialTheme.typography.titleLarge, cancelled = cancelled)
             Text(stop.name, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         PlatformBox(stop.plannedPlatform, stop.platform, platformChanged(stop.plannedPlatform, stop.platform))

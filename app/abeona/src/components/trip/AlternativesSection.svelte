@@ -5,7 +5,7 @@
   import { summarise } from "../../lib/journey";
   import type { AlternativesOrigin, AlternativesReason } from "../../lib/travelday";
   import type { Alternative, Allowance, Validity } from "../../lib/transit";
-  import DelayBadge from "../common/DelayBadge.svelte";
+  import ShiftedTime from "../common/ShiftedTime.svelte";
   import LegChip from "../common/LegChip.svelte";
 
   interface Props {
@@ -140,10 +140,11 @@
             {@const s = summarise(alt.legs)}
             <li class="rounded-2xl border border-base-300/70 px-4 py-3 {alt.validity === 'invalid' ? 'opacity-60' : ''}">
               <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-                <span class="tabular text-lg font-semibold text-ink">
-                  {formatTime(s.departure.current ?? s.departure.planned)} – {formatTime(s.arrival.current ?? s.arrival.planned)}
+                <span class="inline-flex items-baseline gap-1.5 text-lg font-semibold text-ink">
+                  <ShiftedTime planned={s.departure.planned} current={s.departure.current} block={false} cancelled={s.cancelled} />
+                  –
+                  <ShiftedTime planned={s.arrival.planned} current={s.arrival.current} block={false} cancelled={s.cancelled} />
                 </span>
-                <DelayBadge minutes={s.arrivalDelay} cancelled={s.cancelled} />
                 <span class="text-sm text-base-content/60">
                   {formatDuration(s.plannedMinutes)} · {s.changes === 0 ? "direct" : s.changes === 1 ? "1 change" : `${s.changes} changes`}
                 </span>

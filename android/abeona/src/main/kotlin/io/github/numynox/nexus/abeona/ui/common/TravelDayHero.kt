@@ -153,11 +153,11 @@ fun TravelDayHero(
                 }
                 day.kind == TravelDayKind.AtStation || day.kind == TravelDayKind.Changing -> {
                     Headline(leg.from.shownPlatform?.let { "Platform $it" } ?: leg.label)
-                    DetailWithDelay(
+                    DetailWithTime(
                         "${leg.label}${leg.headsign?.let { " to $it" } ?: ""} leaves " +
                             (if (day.kind == TravelDayKind.Changing) "${leg.from.name} " else "") +
-                            "${inMinutes(day.minutesToDeparture)}, ${TripFormat.time(leg.from.expectedAt)}",
-                        departureDelay(leg),
+                            "${inMinutes(day.minutesToDeparture)},",
+                        leg.from,
                     )
                     if (day.kind == TravelDayKind.Changing && change != null) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
@@ -204,11 +204,15 @@ private fun Detail(text: String) {
     Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
+/** [before], the time with its delay inline (ShiftedTime), then [after]. */
 @Composable
-private fun DetailWithDelay(text: String, delay: Int) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f, fill = false))
-        DelayBadge(delay)
+private fun DetailWithTime(before: String, stop: io.github.numynox.nexus.abeona.data.StopTime?, after: String = "") {
+    val style = MaterialTheme.typography.bodyMedium
+    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (before.isNotEmpty()) Text(before, style = style, color = color, modifier = Modifier.weight(1f, fill = false))
+        ShiftedTime(stop?.plannedAt, stop?.expectedAt, style, block = false, color = color)
+        if (after.isNotEmpty()) Text(after, style = style, color = color, maxLines = 1)
     }
 }
 
@@ -227,10 +231,10 @@ private fun OnBoard(
     rideProgress(leg, now)
         ?.let(::nextStopLine)
         ?.let { Text(it, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)) }
-    DetailWithDelay(
-        "${if (next != null) "Get off at" else "Arrives at"} ${leg.to.name} ${inMinutes(day.minutesToArrival)}, ${TripFormat.time(leg.to.expectedAt)}" +
-            (leg.to.shownPlatform?.let { " · Pl. $it" } ?: ""),
-        arrivalDelay(leg),
+    DetailWithTime(
+        "${if (next != null) "Get off at" else "Arrives at"} ${leg.to.name} ${inMinutes(day.minutesToArrival)},",
+        leg.to,
+        leg.to.shownPlatform?.let { "· Pl. $it" } ?: "",
     )
     if (next != null && available != null && confidence != null) {
         Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f), contentColor = MaterialTheme.colorScheme.onSurface, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
@@ -241,11 +245,11 @@ private fun OnBoard(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp),
                 )
-                Text(
-                    "Then ${next.label} at ${TripFormat.time(next.from.expectedAt)}" + (next.from.shownPlatform?.let { ", Pl. $it" } ?: ""),
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f),
-                )
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Then ${next.label} at", style = MaterialTheme.typography.bodyMedium)
+                    ShiftedTime(next.from.plannedAt, next.from.expectedAt, MaterialTheme.typography.bodyMedium, block = false)
+                    next.from.shownPlatform?.let { Text("· Pl. $it", style = MaterialTheme.typography.bodyMedium, maxLines = 1) }
+                }
                 ConfidenceChip(confidence, minutes = available)
             }
         }
@@ -263,7 +267,7 @@ private fun OnBoard(
 private fun Arrived(trip: Trip) {
     val last = trip.legs.lastOrNull { !it.isWalk }
     Headline(trip.destinationName)
-    DetailWithDelay("At ${TripFormat.time(trip.expectedArrival)}", last?.let(::arrivalDelay) ?: 0)
+    DetailWithTime("At", last?.to)
 }
 
 /** Speed and next stop from the train's Wi-Fi: what the seat-back screen says. */

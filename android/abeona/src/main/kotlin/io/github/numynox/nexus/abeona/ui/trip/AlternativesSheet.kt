@@ -47,7 +47,7 @@ import io.github.numynox.nexus.abeona.domain.arrivalDelay
 import io.github.numynox.nexus.abeona.domain.changes
 import io.github.numynox.nexus.abeona.ui.attention
 import io.github.numynox.nexus.abeona.ui.calm
-import io.github.numynox.nexus.abeona.ui.common.DelayBadge
+import io.github.numynox.nexus.abeona.ui.common.ShiftedTime
 import io.github.numynox.nexus.abeona.ui.common.LegChips
 import io.github.numynox.nexus.abeona.ui.common.TripFormat
 import io.github.numynox.nexus.core.ui.theme.tabular
@@ -203,11 +203,9 @@ private fun AlternativeRow(alternative: Alternative, onTake: (() -> Unit)? = nul
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    "${TripFormat.time(first.from.expectedAt)} – ${TripFormat.time(last.to.expectedAt)}",
-                    style = MaterialTheme.typography.titleLarge.tabular(),
-                )
-                DelayBadge(arrivalDelay(last))
+                ShiftedTime(first.from.plannedAt, first.from.expectedAt, MaterialTheme.typography.titleLarge, block = false)
+                Text("–", style = MaterialTheme.typography.titleLarge)
+                ShiftedTime(last.to.plannedAt, last.to.expectedAt, MaterialTheme.typography.titleLarge, block = false)
                 Text(
                     listOfNotNull(minutes?.let { TripFormat.duration(it) }, if (n == 0) "direct" else if (n == 1) "1 change" else "$n changes").joinToString(" · "),
                     style = MaterialTheme.typography.bodySmall,
