@@ -206,6 +206,25 @@ class LogbookRepository(private val supabase: SupabaseClient) {
     suspend fun updateExpense(id: Long, draft: ExpenseDraft) {
         supabase.from("car_expenses").update(draft.toJsonObject()) { filter { eq("id", id) } }
     }
+
+    suspend fun readings(carId: String): List<OdometerReading> =
+        supabase.from("vibilia_odometer_readings").select(Columns.list("id", "car_id", "read_at", "mileage", "notes")) {
+            filter { eq("car_id", carId) }
+            order("read_at", Order.DESCENDING)
+        }.decodeList()
+
+    /** user_id defaults to the caller in the database. */
+    suspend fun createReading(carId: String, draft: OdometerReadingDraft) {
+        supabase.from("vibilia_odometer_readings").insert(draft.toJsonObject().with("car_id" to carId))
+    }
+
+    suspend fun updateReading(id: Long, draft: OdometerReadingDraft) {
+        supabase.from("vibilia_odometer_readings").update(draft.toJsonObject()) { filter { eq("id", id) } }
+    }
+
+    suspend fun deleteReading(id: Long) {
+        supabase.from("vibilia_odometer_readings").delete { filter { eq("id", id) } }
+    }
 }
 
 /**
@@ -230,6 +249,10 @@ class StatisticsRepository(private val supabase: SupabaseClient) {
 
     suspend fun plotEvents(carId: String, since: Instant, until: Instant): List<PlotEvent> =
         supabase.postgrest.rpc("get_car_refuel_plot_events", carParams(carId, since, until)).decodeList()
+
+    /** Refuels and odometer readings, oldest first: the odometer chart. */
+    suspend fun odometer(carId: String, since: Instant, until: Instant): List<OdometerPoint> =
+        supabase.postgrest.rpc("get_car_odometer_plot", carParams(carId, since, until)).decodeList()
 
     suspend fun distancePerMonth(carId: String, since: Instant, until: Instant): List<DistanceMonth> =
         runCatching {

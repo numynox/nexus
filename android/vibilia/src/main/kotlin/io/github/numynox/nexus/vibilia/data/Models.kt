@@ -128,6 +128,35 @@ data class ExpenseDraft(
     val notes: String?,
 )
 
+/**
+ * A dated odometer value without a cost (`vibilia_odometer_readings`): from a
+ * service record, say. Plotted on the odometer chart, never counted in
+ * statistics or spend.
+ */
+@Serializable
+data class OdometerReading(
+    val id: Long,
+    @SerialName("car_id") val carId: String,
+    @SerialName("read_at") val readAt: Instant,
+    val mileage: Int,
+    val notes: String? = null,
+)
+
+@Serializable
+data class OdometerReadingDraft(
+    @SerialName("read_at") val readAt: Instant,
+    val mileage: Int,
+    val notes: String?,
+)
+
+/** One point of the odometer chart (`get_car_odometer_plot`): a refuel or a reading. */
+@Serializable
+data class OdometerPoint(
+    @SerialName("read_at") val readAt: Instant,
+    val mileage: Int,
+    val source: String = "refuel",
+)
+
 /** The fixed list the web app offers, in its order. */
 val ExpenseCategories = listOf(
     "Service", "Maintenance", "Insurance", "Tax", "Parking",

@@ -40,6 +40,28 @@ interface CarExpenseUpdate {
   notes: string | null;
 }
 
+/** A dated odometer value without a cost (`vibilia_odometer_readings`). */
+export interface OdometerReading {
+  id: number;
+  car_id: string;
+  read_at: string;
+  mileage: number;
+  notes: string | null;
+}
+
+export interface OdometerReadingMutation {
+  read_at: string;
+  mileage: number;
+  notes: string | null;
+}
+
+/** One point of the odometer chart: a refuel or a reading. */
+export interface OdometerPoint {
+  read_at: string;
+  mileage: number;
+  source: "refuel" | "reading";
+}
+
 /**
  * Re-exported so every call site can keep importing it from the data layer,
  * while the shell components in @nexus/ui use the same implementation — the
@@ -795,6 +817,55 @@ export async function updateCarExpense(
   if (error) throw error;
 }
 
+export async function fetchOdometerReadingsForCar(
+  carId: string,
+): Promise<OdometerReading[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("vibilia_odometer_readings")
+    .select("id, car_id, read_at, mileage, notes")
+    .eq("car_id", carId)
+    .order("read_at", { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function createOdometerReading(
+  carId: string,
+  payload: OdometerReadingMutation,
+) {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from("vibilia_odometer_readings")
+    .insert([{ car_id: carId, ...payload }]);
+
+  if (error) throw error;
+}
+
+export async function updateOdometerReading(
+  readingId: number,
+  payload: OdometerReadingMutation,
+) {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from("vibilia_odometer_readings")
+    .update(payload)
+    .eq("id", readingId);
+
+  if (error) throw error;
+}
+
+export async function deleteOdometerReading(readingId: number) {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from("vibilia_odometer_readings")
+    .delete()
+    .eq("id", readingId);
+
+  if (error) throw error;
+}
+
 export async function createRefuelEvent(payload: RefuelEventInsert) {
   const supabase = getSupabaseClient();
   const { error } = await supabase.from("refuel_events").insert([payload]);
@@ -861,6 +932,23 @@ export async function fetchCarRefuelPlotEvents(
       p_until: untilIso,
     },
   );
+
+  if (error) throw error;
+  return data || [];
+}
+
+/** Refuels and odometer readings, oldest first: the odometer chart. */
+export async function fetchCarOdometerPlot(
+  carId: string,
+  sinceIso: string,
+  untilIso: string,
+): Promise<OdometerPoint[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await (supabase as any).rpc("get_car_odometer_plot", {
+    p_car_id: carId,
+    p_since: sinceIso,
+    p_until: untilIso,
+  });
 
   if (error) throw error;
   return data || [];

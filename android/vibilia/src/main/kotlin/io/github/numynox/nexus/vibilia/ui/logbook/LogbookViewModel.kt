@@ -6,6 +6,7 @@ import io.github.numynox.nexus.vibilia.AppContainer
 import io.github.numynox.nexus.vibilia.data.CarExpense
 import io.github.numynox.nexus.vibilia.data.DistanceMonth
 import io.github.numynox.nexus.vibilia.data.DrivenDay
+import io.github.numynox.nexus.vibilia.data.OdometerReading
 import java.time.LocalDate
 import io.github.numynox.nexus.vibilia.data.RefuelEvent
 import io.github.numynox.nexus.core.ui.Loadable
@@ -35,12 +36,19 @@ sealed interface LogEntry {
         override val at: Instant get() = expense.expensedAt
         override val key: String get() = "expense-${expense.id}"
     }
+
+    /** Costs nothing: counted in no month's spend. */
+    data class Reading(val reading: OdometerReading) : LogEntry {
+        override val at: Instant get() = reading.readAt
+        override val key: String get() = "reading-${reading.id}"
+    }
 }
 
 /**
  * One month of the diary. [distance] is the month's share of the odometer and
  * its driving time, when the server has it; [comparison] the one line that
- * sets its spend against the month before.
+ * sets its spend against the month before. [hasSpend] is false for a month
+ * with only odometer readings: it shows no spend at all, not 0 €.
  */
 data class LogMonth(
     val month: YearMonth,
@@ -50,6 +58,7 @@ data class LogMonth(
     /** What went into the tank; [spent] minus this is everything else. */
     val fuel: Double = spent,
     val comparison: String? = null,
+    val hasSpend: Boolean = true,
 ) {
     val other: Double get() = spent - fuel
 }
@@ -61,7 +70,7 @@ data class Logbook(
     val drivenDays: List<DrivenDay> = emptyList(),
 )
 
-/** Refuels and expenses of one car, newest first, grouped by month. */
+/** Refuels, expenses and odometer readings of one car, newest first, grouped by month. */
 class LogbookViewModel(private val container: AppContainer) : ViewModel() {
     private val _state = MutableStateFlow<Loadable<Logbook>>(Loadable.Loading)
     val state: StateFlow<Loadable<Logbook>> = _state.asStateFlow()
@@ -82,6 +91,7 @@ class LogbookViewModel(private val container: AppContainer) : ViewModel() {
             val result = loadable {
                 val refuels = async { container.logbook.refuels(carId) }
                 val expenses = async { container.logbook.expenses(carId) }
+                val readings = async { container.logbook.readings(carId) }
                 // Extra detail: the logbook still loads without it.
                 val distance = async {
                     runCatching { container.statistics.distancePerMonth(carId, Instant.EPOCH, Instant.now()) }.getOrDefault(emptyList())
@@ -89,7 +99,7 @@ class LogbookViewModel(private val container: AppContainer) : ViewModel() {
                 val driven = async {
                     container.statistics.distanceDrivenPerDay(carId, DrivenWeeks.since(LocalDate.now(), ZoneId.systemDefault()))
                 }
-                build(refuels.await(), expenses.await(), distance.await()).copy(drivenDays = driven.await())
+                build(refuels.await(), expenses.await(), distance.await(), readings = readings.await()).copy(drivenDays = driven.await())
             }
             // A refresh that failed leaves the logbook that was there.
             if (!(force && result is Loadable.Failed && _state.value is Loadable.Ready)) _state.value = result
@@ -124,6 +134,7 @@ class LogbookViewModel(private val container: AppContainer) : ViewModel() {
             expenses: List<CarExpense>,
             distance: List<DistanceMonth> = emptyList(),
             zone: ZoneId = ZoneId.systemDefault(),
+            readings: List<OdometerReading> = emptyList(),
         ): Logbook {
             val distanceByMonth = distance.associateBy { YearMonth.from(it.month) }
             val newestFirst = refuels.sortedByDescending { it.fueledAt }
@@ -142,7 +153,8 @@ class LogbookViewModel(private val container: AppContainer) : ViewModel() {
                 }
                 LogEntry.Refuel(event, km, consumption)
             }
-            val entries = (refuelEntries + expenses.map { LogEntry.Expense(it) }).sortedByDescending { it.at }
+            val entries = (refuelEntries + expenses.map { LogEntry.Expense(it) } + readings.map { LogEntry.Reading(it) })
+                .sortedByDescending { it.at }
             val grouped = entries
                 .groupBy { YearMonth.from(it.at.atZone(zone)) }
                 .map { (month, items) ->
@@ -153,19 +165,22 @@ class LogbookViewModel(private val container: AppContainer) : ViewModel() {
                             when (it) {
                                 is LogEntry.Refuel -> it.event.totalPrice
                                 is LogEntry.Expense -> it.expense.amount
+                                is LogEntry.Reading -> 0.0
                             }
                         },
                         distance = distanceByMonth[month],
                         fuel = items.filterIsInstance<LogEntry.Refuel>().sumOf { it.event.totalPrice },
+                        hasSpend = items.any { it !is LogEntry.Reading },
                     )
                 }
-            val spentByMonth = grouped.associate { it.month to it.spent }
-            val first = grouped.minOfOrNull { it.month }
+            val spentByMonth = grouped.filter { it.hasSpend }.associate { it.month to it.spent }
+            // Readings cost nothing: they neither start the comparisons nor get one.
+            val first = spentByMonth.keys.minOrNull()
             val current = YearMonth.now(zone)
             val months = grouped
                 .map { month ->
                     // A month before the first entry is not a month with nothing spent: no line.
-                    val previous = month.month.minusMonths(1).takeIf { first != null && it >= first }
+                    val previous = month.month.minusMonths(1).takeIf { month.hasSpend && first != null && it >= first }
                     month.copy(comparison = previous?.let { spendComparison(month.spent, spentByMonth[it] ?: 0.0, it, month.month == current) })
                 }
                 .sortedByDescending { it.month }

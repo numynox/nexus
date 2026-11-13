@@ -12,6 +12,8 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.core.app.ApplicationProvider
 import io.github.numynox.nexus.core.testing.ScreenshotRobot
@@ -112,8 +114,13 @@ class AppScreenshots {
         compose.onNode(hasContentDescription("Add entry")).performClick()
         settle()
         shot("06-logbook-add")
-        compose.onNode(hasContentDescription("Close")).performClick()
+        compose.onNode(hasText("Odometer reading") and hasClickAction()).performClick()
+        waitFor(hasText("Log odometer reading"))
+        shot("06a-reading-form")
+        compose.onNode(hasText("Cancel") and hasClickAction()).performClick()
         settle()
+        scrollTo("Service record")
+        shot("06b-logbook-reading")
 
         tab("Statistics")
         waitFor(hasText("FUEL COST"))
@@ -122,6 +129,10 @@ class AppScreenshots {
         shot("08-statistics-driving")
         scrollTo("Kilometres per month")
         shot("09-statistics-charts")
+        // The odometer is the last chart: swipe to the end so all of it shows.
+        compose.onAllNodes(hasScrollToNodeAction()).onFirst().performTouchInput { swipeUp() }
+        settle()
+        shot("09a-statistics-odometer")
 
         tab("Settings")
         waitFor(hasText("Drive tracking"))

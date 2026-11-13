@@ -15,6 +15,7 @@ import kotlinx.serialization.json.add
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
@@ -60,6 +61,7 @@ object FakeBackend {
             path.endsWith("/rpc/get_car_distance_driven_per_day") -> drivenDays().toString()
             path.endsWith("/rpc/get_car_drive_periods") -> drivePeriods().toString()
             path.endsWith("/rpc/get_car_refuel_plot_events") -> plotEvents().toString()
+            path.endsWith("/rpc/get_car_odometer_plot") -> odometer().toString()
             path.endsWith("/rpc/get_car_distance_per_month") -> months().toString()
             path.endsWith("/rpc/list_car_members") -> members().toString()
             path.endsWith("/rpc/get_vibilia_commute_expectation") ->
@@ -69,6 +71,7 @@ object FakeBackend {
             path.endsWith("/rest/v1/refuel_events") && params["limit"] == "1" -> JsonArray(refuels().take(1)).toString()
             path.endsWith("/rest/v1/refuel_events") -> JsonArray(refuels()).toString()
             path.endsWith("/rest/v1/car_expenses") -> expenses().toString()
+            path.endsWith("/rest/v1/vibilia_odometer_readings") -> readings().toString()
             path.endsWith("/rest/v1/fuel_stations") -> stations().toString()
             path.endsWith("/rest/v1/vibilia_car_bluetooth_devices") ->
                 buildJsonArray { links.forEach { addJsonObject { put("car_id", it.carId); put("address", it.address); put("name", it.name) } } }.toString()
@@ -183,6 +186,20 @@ object FakeBackend {
         addJsonObject { put("id", 7); put("car_id", GOLF); put("expensed_at", daysAgo(12)); put("title", "Annual inspection"); put("amount", 189.90); put("mileage", 44_900); put("category", "Service"); put("notes", "Brakes checked, wipers replaced") }
         addJsonObject { put("id", 6); put("car_id", GOLF); put("expensed_at", daysAgo(40)); put("title", "Car wash"); put("amount", 14.0); put("category", "Vehicle Wash") }
         addJsonObject { put("id", 5); put("car_id", GOLF); put("expensed_at", daysAgo(95)); put("title", "Insurance"); put("amount", 412.0); put("category", "Insurance") }
+    }
+
+    /** From the service record, before the first refuel in the logbook. */
+    private fun readings() = buildJsonArray {
+        addJsonObject { put("id", 3); put("car_id", GOLF); put("read_at", daysAgo(340, 10)); put("mileage", 34_800); put("notes", "Service record") }
+    }
+
+    private fun odometer() = buildJsonArray {
+        readings().reversed().forEach { r ->
+            addJsonObject { put("read_at", r.jsonObject["read_at"]!!); put("mileage", r.jsonObject["mileage"]!!); put("source", "reading") }
+        }
+        refuels().reversed().forEach { r ->
+            addJsonObject { put("read_at", r["fueled_at"]!!); put("mileage", r["mileage"]!!); put("source", "refuel") }
+        }
     }
 
     private fun fuelLevel() = buildJsonArray {

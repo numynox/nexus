@@ -7,6 +7,7 @@
     fetchCarDriveModel,
     fetchCarDrivePeriods,
     fetchCarKmPerMonth,
+    fetchCarOdometerPlot,
     fetchCarRefuelPlotEvents,
     fetchCarRefuelStatistics,
     fetchCarRefuelYearBounds,
@@ -16,6 +17,7 @@
     type CarDistanceMonth,
     type CarDriveModel,
     type CarDrivePeriod,
+    type OdometerPoint,
   } from "../../lib/data";
   import {
     clearLastSelectedCarId,
@@ -41,6 +43,8 @@
   let loadingPlots = $state(true);
   let stats = $state<any | null>(null);
   let plotEvents = $state<any[]>([]);
+  /** Refuels and odometer readings: the odometer chart. */
+  let odometerPoints = $state<OdometerPoint[]>([]);
   let kmPerMonth = $state<CarDistanceMonth[]>([]);
   let driveModel = $state<CarDriveModel | null>(null);
   let recentDays = $state<CarDailyDistance[]>([]);
@@ -218,8 +222,9 @@
         ? Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
         : "UTC";
 
-    const [eventRows, monthlyRows, weeklyRows] = await Promise.all([
+    const [eventRows, odometerRows, monthlyRows, weeklyRows] = await Promise.all([
       fetchCarRefuelPlotEvents(carId, sinceIso, untilIso),
+      fetchCarOdometerPlot(carId, sinceIso, untilIso),
       fetchCarKmPerMonth(carId, sinceIso, untilIso),
       fetchFuelPriceWeeklyMinima(fuelType, sinceIso, untilIso, timeZone),
     ]);
@@ -227,6 +232,7 @@
     if (token !== plotsLoadToken) return;
 
     plotEvents = eventRows;
+    odometerPoints = odometerRows;
     kmPerMonth = monthlyRows;
     weeklyMarketMinPrices = weeklyRows;
     loadingPlots = false;
@@ -317,10 +323,10 @@
   );
 
   const mileagePoints = $derived.by(() =>
-    plotEvents
+    odometerPoints
       .filter((entry) => Number.isFinite(Number(entry.mileage)))
       .map((entry) => ({
-        x: dayjs(entry.fueled_at).valueOf(),
+        x: dayjs(entry.read_at).valueOf(),
         y: Number(entry.mileage),
       })),
   );
@@ -827,7 +833,7 @@
 
         <VehicleStatsChart
           title="Total mileage over time"
-          subtitle="Odometer value at each refuel"
+          subtitle="Odometer value at each refuel and reading"
           points={mileagePoints}
           yDecimals={0}
           yUnit="km"

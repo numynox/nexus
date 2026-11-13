@@ -8,6 +8,7 @@ import io.github.numynox.nexus.vibilia.data.DailyDistance
 import io.github.numynox.nexus.vibilia.data.DistanceMonth
 import io.github.numynox.nexus.vibilia.data.DriveModel
 import io.github.numynox.nexus.vibilia.data.DrivePeriod
+import io.github.numynox.nexus.vibilia.data.OdometerPoint
 import io.github.numynox.nexus.vibilia.data.PlotEvent
 import io.github.numynox.nexus.vibilia.data.WeeklyMinimum
 import io.github.numynox.nexus.core.ui.Loadable
@@ -46,6 +47,8 @@ data class Plots(
     val events: List<PlotEvent>,
     val months: List<DistanceMonth>,
     val weeklyMinima: List<WeeklyMinimum>,
+    /** Refuels and odometer readings: the odometer chart. */
+    val odometer: List<OdometerPoint> = emptyList(),
 )
 
 data class StatisticsState(
@@ -123,7 +126,8 @@ class StatisticsViewModel(private val container: AppContainer) : ViewModel() {
                 val events = async { container.statistics.plotEvents(carId, since, until) }
                 val months = async { container.statistics.distancePerMonth(carId, since, until) }
                 val weekly = async { runCatching { container.prices.weeklyMinima(fuelType, since, until) }.getOrDefault(emptyList()) }
-                Plots(events.await(), months.await(), weekly.await())
+                val odometer = async { container.statistics.odometer(carId, since, until) }
+                Plots(events.await(), months.await(), weekly.await(), odometer.await())
             }
             _state.update { it.copy(plots = plots) }
         }

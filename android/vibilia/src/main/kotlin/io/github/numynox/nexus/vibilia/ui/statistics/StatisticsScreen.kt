@@ -130,7 +130,7 @@ internal fun StatisticsContent(overview: CarOverview, state: StatisticsState, fu
                 item(key = "consumption") { ChartCardPlaceholder("Consumption", "Litres per 100 km between refuels", 220.dp) }
                 item(key = "prices") { ChartCardPlaceholder("Fuel prices", "What you paid per litre, and the weekly $fuelType market low", 220.dp) }
                 item(key = "months") { ChartCardPlaceholder("Kilometres per month", monthsSubtitle(estimated = overview.model != null), 220.dp) }
-                item(key = "mileage") { ChartCardPlaceholder("Odometer", "Mileage at each refuel", 200.dp) }
+                item(key = "mileage") { ChartCardPlaceholder("Odometer", "Mileage at each refuel and reading", 200.dp) }
             }
             is Loadable.Failed -> item(key = "plots-error") { Text(plots.message, color = MaterialTheme.colorScheme.error) }
             is Loadable.Ready -> {
@@ -410,10 +410,12 @@ private fun MonthsChart(plots: Plots, estimated: Boolean) {
 @Composable
 private fun MileageChart(plots: Plots) {
     val color = MaterialTheme.colorScheme.tertiary
-    val points = plots.events.mapNotNull { e -> e.mileage?.let { ChartPoint(epochDay(e.fueledAt), it.toDouble()) } }
-    ChartCard("Odometer", "Mileage at each refuel", points.isEmpty()) {
+    val points = plots.odometer.map { ChartPoint(epochDay(it.readAt), it.mileage.toDouble()) }
+    ChartCard("Odometer", "Mileage at each refuel and reading", points.isEmpty()) {
+        // Straight, not stepped: readings can be years apart, and the car was
+        // driven in between, not all on the day of the next reading.
         NexusChart(
-            series = listOf(ChartSeries("Odometer", points, color, SeriesStyle.SteppedLine, fill = true)),
+            series = listOf(ChartSeries("Odometer", points, color, SeriesStyle.Line, fill = true)),
             xFormatter = ::dayLabel,
             tooltipXFormatter = ::dayTooltip,
             yFormatter = { NexusFormat.number(it / 1000, 0) + "k" },

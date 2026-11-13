@@ -20,7 +20,7 @@ import io.github.numynox.nexus.core.ui.valueOrNull
 import kotlinx.coroutines.launch
 
 /**
- * The refuel and expense forms, as one bottom sheet above every screen — so
+ * The refuel, expense and odometer reading forms, as one bottom sheet above every screen — so
  * "Refuel" on the prices page and in the logbook open the same thing.
  */
 @Composable
@@ -60,6 +60,10 @@ private fun EditorContent(current: EditorRequest, carList: List<Car>, close: (Bo
         is EditorRequest.NewExpense, is EditorRequest.EditExpense -> {
             val viewModel = containerViewModel { ExpenseEditorViewModel(it, current) }
             ExpenseEditor(viewModel, onCancel = { close(false) }, onSaved = { close(true) })
+        }
+        is EditorRequest.NewReading, is EditorRequest.EditReading -> {
+            val viewModel = containerViewModel { OdometerReadingEditorViewModel(it, current) }
+            OdometerReadingEditor(viewModel, onCancel = { close(false) }, onSaved = { close(true) })
         }
     }
 }
