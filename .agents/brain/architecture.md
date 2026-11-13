@@ -318,7 +318,6 @@ Deno, in `supabase/functions/`, deployed manually. Two authentication styles:
 | `lookup-food-product` | called from Annona's scanner | the end user's JWT, verified with `auth.getUser()` | asks Open Food Facts about a barcode Annona has no product for (`decisions/2026-09-05-open-food-facts-lookup.md`) |
 | `abeona-transit` | called from both Abeona clients | the end user's JWT, verified with `auth.getUser()` | station search, journey search, live refresh and alternatives (marked against `abeona_allowed_products`, asked as the caller; `validity.ts`) against Transitous, normalised to `contract.ts`, which both clients mirror by hand; writes nothing (`decisions/2026-11-02-abeona-transit-providers.md`, `decisions/2026-11-03-abeona-fare-rules-and-device-signals.md`) |
 | `abeona-refresh-trips` | `pg_cron`, every 15 min | shared secret (bearer or `x-invoke-secret`) | refreshes trips that arrived 15–90 min ago through `abeona-transit/refresh.ts` (imported by relative path) and freezes their legs (`abeona_finalize_trip`); at most 10 trips a run (`decisions/2026-11-03-abeona-final-snapshot-job.md`); then removes up to 20 orphaned files from `abeona-tickets` |
-| `abeona-import` | called from both Abeona clients | the end user's JWT, verified with `auth.getUser()` | reads a user's Träwelling check-ins with a personal token sent in the request (never stored) and answers them as trips in the contract's shape; the client saves them (`decisions/2026-11-04-abeona-history-and-imports.md`) |
 | `abeona-public` | anyone with a share link | none: the token in the link, looked up with the service role | a trip's `.ics` or the status page's JSON, live around the trip; writes nothing (`decisions/2026-11-04-abeona-share-links.md`) |
 
 The scheduled ones (`fetch-rss`, `refresh-fuel-prices`, `abeona-refresh-trips`) use the service-role key and must never be reachable without the
@@ -495,7 +494,7 @@ Things that differ from the web on purpose:
   alerts, household, the household's BahnCards, compensation claims and
   their reminder). After a trip, its screen shows Compensation and What
   happened; the claims list opens from a bar under the year in review. A BahnCard opens
-  like a ticket (`ui/bahncards/`), with "Open in DB Navigator" beside it; the
+  like a ticket (`ui/bahncards/`); the
   cards and their files are kept on the phone like the trip pack
   (`files/offline/bahncards.json`, `files/bahncards/<card_id>/`). The
   **BahnCard reminder** (`reminders/`, WorkManager, device-local and off by
@@ -543,7 +542,7 @@ Things that differ from the web on purpose:
   interactive inside the pager, the schematic fallback in tests), CO₂ saved
   and countries; a journey found for a past date is saved as a past trip with
   its delay; the trip screen makes, shares (Android's share sheet) and revokes
-  share links; Settings imports from Träwelling. The web has all four, and the
+  share links. The web has all three, and the
   share links' status page (`/status`) lives only there.
   **Intake** (`domain/intake/`, `ui/intake/`): a share from DB Navigator or a
   ticket PDF arrives by `ACTION_SEND` (or "Add from a ticket or share" on
@@ -651,8 +650,7 @@ final, the statistics' additions, the map's household scoping, share links
 under RLS and what a token opens, the cache and share-link pruning, the
 orphaned-file finder). The Abeona Edge Functions have Deno tests beside them
 (`deno test --allow-read --allow-env supabase/functions/abeona-*/`): the
-snapshot job, the cache and a stop's country, the orphan sweep, the
-Träwelling mapping against a fixture of real statuses, and the `.ics` and
+snapshot job, the cache and a stop's country, the orphan sweep, and the `.ics` and
 status rendering.
 
 Still absent: any linter or formatter, any test of the components or of the

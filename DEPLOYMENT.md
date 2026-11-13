@@ -309,7 +309,6 @@ npm run db:functions:list                        # what is deployed
 | `lookup-food-product` | Annona's browser UI | the signed-in user's JWT |
 | `abeona-transit` | both Abeona clients | the signed-in user's JWT |
 | `abeona-refresh-trips` | `pg_cron`, every 10 minutes | `ABEONA_REFRESH_INVOKE_SECRET`, bearer or `x-invoke-secret` |
-| `abeona-import` | both Abeona clients (Träwelling import) | the signed-in user's JWT |
 | `abeona-public` | anyone holding an Abeona share link | nothing: the token in the link (`verify_jwt = false`) |
 
 `supabase/config.toml` sets `verify_jwt = false` for the three scheduled functions
@@ -342,7 +341,7 @@ To match what `npm run db:functions:deploy` produces, the deploy must:
    else.** Tests (`*.test.ts`) and `fixtures/` stay out. The Abeona functions
    import from `functions/abeona-transit/` (`contract.ts`, `transitous.ts`,
    `cache.ts`, `refresh.ts`, `polyline.ts`, …), so those files go with
-   `abeona-import`, `abeona-public` and `abeona-refresh-trips` too; after a
+   `abeona-public` and `abeona-refresh-trips` too; after a
    change to a shared file, deploy every function that imports it.
 3. **Take `verify_jwt` from `supabase/config.toml`, never the tool's default
    (`true`).** `fetch-rss`, `refresh-fuel-prices`, `abeona-refresh-trips` and

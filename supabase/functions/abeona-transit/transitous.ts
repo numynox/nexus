@@ -74,7 +74,7 @@ async function fetchJson(path: string, params: Record<string, string | undefined
       const message = typeof body?.error === "string" ? body.error : "";
       if (message.includes("outside of loaded timetable window")) {
         throw new ProviderError(
-          "Transitous only has timetables from about a month ago onwards. Older trips can be imported from Träwelling or a CSV file.",
+          "Transitous only has timetables from about a month ago onwards. Older trips can be imported from a CSV file.",
           400,
         );
       }

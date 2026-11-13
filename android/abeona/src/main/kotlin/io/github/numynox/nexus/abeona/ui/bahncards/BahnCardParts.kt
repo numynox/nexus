@@ -80,7 +80,8 @@ fun BahnCardBadge(kind: Int, modifier: Modifier = Modifier) {
 
 /**
  * One card in the household's list: its name, what it is, until when, when to cancel it,
- * and the two ways to show it — the stored copy, and DB Navigator next to it.
+ * and the stored copy to show. (DB Navigator cannot open one card, so there
+ * is no button for it here.)
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -88,7 +89,6 @@ fun BahnCardRow(
     card: BahnCard,
     onShow: () -> Unit,
     onEdit: () -> Unit,
-    onDbNavigator: () -> Unit,
     today: LocalDate = LocalDate.now(),
 ) {
     val expired = card.to.isBefore(today)
@@ -120,17 +120,10 @@ fun BahnCardRow(
             }
             IconButton(onClick = onEdit) { Icon(Icons.Rounded.Edit, contentDescription = "Edit ${card.displayName}") }
         }
-        // Wraps rather than cutting "Open in DB Navigator" short on a narrow phone.
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (card.filePath != null) {
-                FilledTonalButton(onClick = onShow) {
-                    Icon(Icons.Rounded.Fullscreen, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Text("Show", modifier = Modifier.padding(start = 6.dp))
-                }
-            }
-            OutlinedButton(onClick = onDbNavigator) {
-                Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
-                Text("Open in DB Navigator", modifier = Modifier.padding(start = 6.dp), maxLines = 1)
+        if (card.filePath != null) {
+            FilledTonalButton(onClick = onShow) {
+                Icon(Icons.Rounded.Fullscreen, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text("Show", modifier = Modifier.padding(start = 6.dp))
             }
         }
     }

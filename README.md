@@ -237,8 +237,7 @@ mail is sent — through `abeona_save_trip`, so they land in their household,
 final and never refreshed. Rows the household already has (same origin and
 departure) are skipped. Add `--geocode` to look each station up once at
 Transitous, so the trips get coordinates and a country (the map and the
-year in review's countries). Träwelling check-ins are imported from the
-apps' Settings instead.
+year in review's countries).
 
 ## Tests
 

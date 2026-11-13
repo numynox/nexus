@@ -377,37 +377,6 @@ data class ShareLink(
     @SerialName("expires_at") val expiresAt: String,
 )
 
-/** A trip abeona-import read from Träwelling, not saved yet. */
-@Serializable
-data class ImportedTrip(
-    @SerialName("external_id") val externalId: String,
-    val origin: String,
-    val destination: String,
-    @SerialName("planned_departure") val plannedDeparture: String,
-    @SerialName("planned_arrival") val plannedArrival: String,
-    @SerialName("arrival_delay_minutes") val arrivalDelayMinutes: Int? = null,
-    val legs: List<kotlinx.serialization.json.JsonObject> = emptyList(),
-    /** A trip with the same origin and departure is saved already. */
-    val duplicate: Boolean = false,
-) {
-    /** "ICE 25, RE 10" */
-    val lines: String get() = legs.joinToString(", ") {
-        (it["line_name"] as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNullSafe()
-            ?: (it["product"] as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNullSafe() ?: "?"
-    }
-}
-
-private fun kotlinx.serialization.json.JsonPrimitive.contentOrNullSafe(): String? =
-    if (this is kotlinx.serialization.json.JsonNull) null else content
-
-@Serializable
-data class ImportResult(
-    val trips: List<ImportedTrip> = emptyList(),
-    val statuses: Int = 0,
-    val skipped: Int = 0,
-    val truncated: Boolean = false,
-)
-
 /** abeona_compensation(trip_id); [reasons] and [hints] are English sentences, shown as is, the same on the web. */
 @Serializable
 data class Compensation(

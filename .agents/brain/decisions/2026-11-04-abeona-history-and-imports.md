@@ -28,6 +28,8 @@ dates in the search, Träwelling, a CSV file). Four questions needed an answer.
   `arrival_delay_minutes` sets the real arrival. Transitous plans about a
   month back (its loaded timetable window, checked 2026-11-03), so the search
   covers recent trips and says so for older dates.
+- (Removed 2026-11-13: the Träwelling import, its Edge Function and its
+  Settings entry, unused. Past trips come from the search or the CSV script.)
 - **Träwelling through a function, the token never kept.** `abeona-import`
   (user JWT) takes a personal access token with each request, reads
   `/v1/auth/user` and `/v1/user/{username}/statuses` (API "1.0.0 - alpha",

@@ -15,9 +15,7 @@
   import { bahnCardLabel, bahnCardName } from "../../lib/format";
   import BahnCardItem from "../bahncards/BahnCardItem.svelte";
   import BahnCardSheet from "../bahncards/BahnCardSheet.svelte";
-  import ImportSection from "./ImportSection.svelte";
   import TicketViewer from "../trip/TicketViewer.svelte";
-  import { DB_NAVIGATOR_HOME } from "../../lib/journey";
   import { session } from "../../lib/stores";
   import { getStationMinutes, getTheme, setStationMinutes, setTheme, STATION_MINUTES_CHOICES } from "../../lib/storage";
   import { ABEONA_THEMES } from "../../lib/themes";
@@ -203,8 +201,6 @@
     {/if}
   </section>
 
-  <ImportSection />
-
   <section class="scroll-mt-6 rounded-[2rem] bg-card p-6 shadow-card sm:p-8" id="device">
     <div class="flex items-center gap-2">
       <DoorOpen class="h-5 w-5 text-primary" />
@@ -256,7 +252,6 @@
     <TicketViewer
       path={shownCard.file_path}
       title={shownCard.name ? `${bahnCardName(shownCard)} · ${bahnCardLabel(shownCard)}` : bahnCardLabel(shownCard)}
-      navigatorUrl={DB_NAVIGATOR_HOME}
       label="BahnCard"
       note="This copy is for your reference. The digital BahnCard only counts as proof inside the DB Navigator app."
       onClose={() => (shownCard = null)}
