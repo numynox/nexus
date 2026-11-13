@@ -200,6 +200,8 @@
    */
   function formatSpendComparison(key: string): string {
     const months = Object.keys(spendByMonth).sort();
+    // A month with only odometer readings spent nothing to compare.
+    if (spendByMonth[key] === undefined) return "";
     const previous = dayjs(`${key}-01`).subtract(1, "month");
     const previousKey = previous.format("YYYY-MM");
     if (!months.length || previousKey < months[0]) return "";
