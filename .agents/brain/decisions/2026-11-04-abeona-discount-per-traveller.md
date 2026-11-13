@@ -1,7 +1,7 @@
 # ADR: Abeona's BahnCard discount is per traveller
 
 **Date:** 2026-11-04
-**Status:** Accepted
+**Status:** Superseded by `2026-11-13-abeona-no-travellers.md`
 
 ## Context
 A trip had one `bahncard_discount`. A DB ticket for several people can mix

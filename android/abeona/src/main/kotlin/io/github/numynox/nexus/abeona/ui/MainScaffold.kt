@@ -96,7 +96,7 @@ class Navigator(
 private data class TopLevel(val route: NavKey, val label: String, val icon: ImageVector, val selectedIcon: ImageVector)
 
 // Trips is home: the next ride first. Search plans a new one; Review is the
-// year in rails; Settings holds the household and travellers.
+// year in rails; Settings holds the household and BahnCards.
 private val TopLevels = listOf(
     TopLevel(TripsRoute, "Trips", Icons.Outlined.Train, Icons.Rounded.Train),
     TopLevel(SearchRoute, "Search", Icons.Outlined.Search, Icons.Rounded.Search),

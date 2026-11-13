@@ -1,21 +1,38 @@
 <script lang="ts">
-  import { ArrowLeft, EllipsisVertical, ExternalLink, RefreshCw, Shuffle, Ticket, Trash2 } from "lucide-svelte";
+  import {
+    ArrowLeft,
+    CreditCard,
+    EllipsisVertical,
+    ExternalLink,
+    Pencil,
+    RefreshCw,
+    Share2,
+    Shuffle,
+    Ticket,
+    Trash2,
+    User,
+  } from "lucide-svelte";
   import { onMount } from "svelte";
   import { getBaseUrl } from "../../lib/config";
   import {
     deleteTrip,
     describeError,
     fetchBahnCards,
-    fetchTravellers,
     fetchTrip,
-    fetchTripTravellers,
-    fetchTripWarnings,
     recordDisruption,
     refreshTripLive,
     type Trip,
-    type TripWarning,
   } from "../../lib/data";
-  import { fareLabel, formatLongDate, formatPrice, formatTime, legLabel } from "../../lib/format";
+  import {
+    bahnCardName,
+    bahnCardsShort,
+    fareLabel,
+    formatLongDate,
+    formatPrice,
+    formatTime,
+    legLabel,
+    ticketNeedsLabel,
+  } from "../../lib/format";
   import { dbNavigatorUrl, hasArrived, isLiveWindow, LIVE_REFRESH_MS, summarise } from "../../lib/journey";
   import { FRESH_MS, type Fix, type LocationState, watchPosition } from "../../lib/position";
   import { getStationMinutes, getTripLocation, setTripLocation } from "../../lib/storage";
@@ -23,7 +40,7 @@
   import { takeConnection, tripFollowedLegs } from "../../lib/followed";
   import type { Leg } from "../../lib/transit";
   import { alternativesOrigin, alternativesReason, missedShortConnection, travelDay } from "../../lib/travelday";
-  import { cardsForTrip } from "../../lib/travellers";
+  import { cardsForTrip } from "../../lib/ticketNeeds";
   import BindingBanner from "../common/BindingBanner.svelte";
   import LiveDashboard from "../live/LiveDashboard.svelte";
   import ShiftedTime from "../common/ShiftedTime.svelte";
@@ -32,12 +49,11 @@
   import DisruptionCard from "./DisruptionCard.svelte";
   import Illustration from "../common/Illustration.svelte";
   import LegCard from "./LegCard.svelte";
-  import ShareCard from "./ShareCard.svelte";
+  import EditTripSheet from "./EditTripSheet.svelte";
+  import ShareSheet from "./ShareSheet.svelte";
   import TicketCard from "./TicketCard.svelte";
   import TicketViewer from "./TicketViewer.svelte";
   import TransferRow from "./TransferRow.svelte";
-  import TravellersCard from "./TravellersCard.svelte";
-  import TripWarnings from "./TripWarnings.svelte";
   import TripMap from "./TripMap.svelte";
   import WalkRow from "./WalkRow.svelte";
 
@@ -52,7 +68,8 @@
   let deleting = $state(false);
   let confirmDialog: HTMLDialogElement | undefined = $state();
   let ticketCard: ReturnType<typeof TicketCard> | undefined = $state();
-  let warnings = $state<TripWarning[]>([]);
+  let editing = $state(false);
+  let sharing = $state(false);
   let alternativesSection: ReturnType<typeof AlternativesSection> | undefined = $state();
   let compensationCard: ReturnType<typeof CompensationCard> | undefined = $state();
   /** Ticks every 15 seconds, so the countdowns and the train on its line move. */
@@ -120,7 +137,7 @@
     }
     return null;
   });
-  const anyNotice = $derived(!!trip && !arrived && (bindingLifted || (following && !!trip.replacement_legs) || warnings.length > 0 || (liveCard && !!refreshError)));
+  const anyNotice = $derived(!!trip && !arrived && (bindingLifted || (following && !!trip.replacement_legs) || (liveCard && !!refreshError)));
   let menu: HTMLDetailsElement | undefined = $state();
   function closeMenu() {
     if (menu) menu.open = false;
@@ -131,10 +148,7 @@
     try {
       trip = await fetchTrip(id);
       if (!trip) error = "This trip does not exist, or it belongs to another household.";
-      else {
-        void loadWarnings(trip.id);
-        void loadTicketCards(trip);
-      }
+      else void loadTicketCards(trip);
     } catch (e) {
       error = describeError(e);
     } finally {
@@ -142,10 +156,27 @@
     }
   }
 
-  async function loadWarnings(id: string) {
-    // Warnings are advice: a failure leaves the trip page as it is.
-    warnings = await fetchTripWarnings(id).catch(() => warnings);
+  /** After "Edit trip": the trip as stored, and everything worked out from its ticket. */
+  async function reloadTrip() {
+    if (!trip) return;
+    // The edit is saved either way; without a fresh copy the page catches up on its next load.
+    const fresh = await fetchTrip(trip.id).catch(() => null);
+    if (!fresh) return;
+    trip = fresh;
+    void loadTicketCards(fresh);
+    void compensationCard?.reload();
   }
+
+  /** How many travellers the ticket is for and its BahnCards, small: "2", "BC25 · BC50"; null when nothing is known. */
+  const ticketNeeds = $derived(
+    trip && (trip.traveller_count !== null || trip.bahncard_discounts.length > 0)
+      ? {
+          count: trip.traveller_count,
+          cards: bahnCardsShort(trip.bahncard_discounts),
+          label: ticketNeedsLabel(trip.traveller_count, trip.bahncard_discounts),
+        }
+      : null,
+  );
 
   async function refresh() {
     if (!trip || refreshing) return;
@@ -209,21 +240,16 @@
     }
   }
 
-  /** The travellers' BahnCards to show with the ticket, one tap apart in the viewer. */
+  /** The household's BahnCards the ticket was booked with, one tap apart in the viewer. */
   let ticketCards = $state<{ key: string; label: string; path: string }[]>([]);
 
   async function loadTicketCards(t: Trip) {
     try {
-      const [cards, riders, people] = await Promise.all([
-        fetchBahnCards(),
-        fetchTripTravellers(t.id).catch(() => null),
-        fetchTravellers().catch(() => []),
-      ]);
+      const cards = await fetchBahnCards();
       const day = new Date(t.planned_departure).toLocaleDateString("sv-SE");
-      const names = new Map(people.map((p) => [p.id, p.name]));
-      ticketCards = cardsForTrip(cards, riders, day).map((c) => ({
+      ticketCards = cardsForTrip(cards, t.bahncard_discounts, t.traveller_count, t.fare_type, day).map((c) => ({
         key: c.id,
-        label: [names.get(c.traveller_id), `BahnCard ${c.kind}`].filter(Boolean).join(" · "),
+        label: bahnCardName(c),
         path: c.file_path as string,
       }));
     } catch {
@@ -274,6 +300,20 @@
   });
 </script>
 
+{#snippet needs(tone: string)}
+  {#if ticketNeeds}
+    <!-- Small on purpose: what the ticket was booked for, not something to act on. -->
+    <span class="inline-flex items-center gap-2 normal-case tracking-normal {tone}" role="img" aria-label={ticketNeeds.label} title={ticketNeeds.label}>
+      {#if ticketNeeds.count !== null}
+        <span class="inline-flex items-center gap-0.5"><User class="h-3.5 w-3.5" />{ticketNeeds.count}</span>
+      {/if}
+      {#if ticketNeeds.cards}
+        <span class="inline-flex items-center gap-1"><CreditCard class="h-3.5 w-3.5" />{ticketNeeds.cards}</span>
+      {/if}
+    </span>
+  {/if}
+{/snippet}
+
 {#snippet tripNotices()}
   {#if trip}
   <div class="space-y-3">
@@ -299,10 +339,6 @@
         </div>
         <button class="btn btn-ghost btn-sm rounded-full" onclick={followPlan} disabled={busyTaking}>Back to the plan</button>
       </div>
-    {/if}
-
-    {#if warnings.length > 0 && !arrived}
-      <TripWarnings {warnings} settingsHref={`${base}/settings#bahncards`} />
     {/if}
   </div>
   {/if}
@@ -339,6 +375,12 @@
           <li>
             <a href={navigatorUrl} target="_blank" rel="noopener" onclick={closeMenu}><ExternalLink class="h-4 w-4" /> Open DB Navigator</a>
           </li>
+          <li>
+            <button onclick={() => { closeMenu(); editing = true; }}><Pencil class="h-4 w-4" /> Edit trip</button>
+          </li>
+          <li>
+            <button onclick={() => { closeMenu(); sharing = true; }}><Share2 class="h-4 w-4" /> Share</button>
+          </li>
           {#if day && origin && !arrived}
             <li>
               <button onclick={() => { closeMenu(); alternativesSection?.reveal(); }}><Shuffle class="h-4 w-4" /> Alternatives</button>
@@ -354,8 +396,12 @@
     {#if liveCard}
       <!-- While the trip is live, everything live is in the one card below; here only what does not change. -->
       <header class="px-1">
-        <p class="text-xs font-semibold uppercase tracking-[0.12em] text-primary">
-          {formatLongDate(trip.planned_departure)}{trip.price_cents !== null ? ` · ${formatPrice(trip.price_cents)}` : ""}
+        <p class="flex flex-wrap items-center gap-x-1 text-xs font-semibold uppercase tracking-[0.12em] text-primary">
+          <span>{formatLongDate(trip.planned_departure)}{trip.price_cents !== null ? ` · ${formatPrice(trip.price_cents)}` : ""}</span>
+          {#if ticketNeeds}
+            <span aria-hidden="true">·</span>
+            {@render needs("text-primary/70")}
+          {/if}
         </p>
         <h1 class="mt-2 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
           {trip.title ?? `${trip.origin_name} → ${trip.destination_name}`}
@@ -385,11 +431,11 @@
           {#if trip.price_cents !== null}
             <span class="tabular rounded-full bg-card px-3 py-1 text-ink">{formatPrice(trip.price_cents)}</span>
           {/if}
-          {#if trip.bahncard_discount}
-            <span class="rounded-full bg-card px-3 py-1 text-ink">BahnCard {trip.bahncard_discount} discount</span>
-          {/if}
           {#if trip.train_binding}
             <span class="rounded-full bg-card px-3 py-1 text-ink">Train-bound</span>
+          {/if}
+          {#if ticketNeeds}
+            <span class="rounded-full bg-card/60 px-3 py-1">{@render needs("text-ink/70")}</span>
           {/if}
         </div>
       </header>
@@ -475,14 +521,6 @@
           onChanged={(path) => trip && (trip = { ...trip, ticket_path: path })}
           onShow={() => (showTicket = true)}
         />
-        <TravellersCard
-          {trip}
-          onChanged={(changed) => {
-            trip = changed;
-            void loadWarnings(changed.id);
-          }}
-        />
-        <ShareCard {trip} />
       </aside>
     </div>
   </div>
@@ -496,6 +534,9 @@
       onClose={() => (showTicket = false)}
     />
   {/if}
+
+  <EditTripSheet trip={editing ? trip : null} onClose={() => (editing = false)} onSaved={reloadTrip} />
+  <ShareSheet {trip} open={sharing} onClose={() => (sharing = false)} />
 
   <dialog bind:this={confirmDialog} class="modal modal-bottom sm:modal-middle">
     <div class="modal-box rounded-t-[2rem] sm:rounded-[2rem]">

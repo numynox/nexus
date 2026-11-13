@@ -14,7 +14,7 @@ import { pdfText, type PdfJsLike } from "./pdfText.ts";
 import { isShareText, parseShareText } from "./shareText.ts";
 import { isTrenitaliaTicket, parseTrenitaliaTicket } from "./trenitaliaTicket.ts";
 import type { Journey, Station } from "../transit.ts";
-import { nextDiscount, type Discount } from "../travellers.ts";
+import { cardsForTrip, ticketSummary, type CardOnFile } from "../ticketNeeds.ts";
 
 interface Fixtures {
   share: { name: string; file: string; expect: ParsedShare }[];
@@ -26,7 +26,16 @@ interface Fixtures {
   platforms: { value: string | null; expect: string | null }[];
   lines: { a: string; b: string; same: boolean }[];
   zones: { date: string; time: string; expect: string }[];
-  discounts: { name: string; ticket: Discount[]; given: Discount[]; held: number[]; expect: Discount }[];
+  ticket_summary: { name: string; travellers: number | null; discounts: (number | null)[]; expect: { traveller_count: number | null; bahncard_discounts: number[] } }[];
+  ticket_cards: {
+    name: string;
+    cards: { id: string; kind: number; valid_from: string; valid_to: string; file: boolean }[];
+    discounts: number[];
+    traveller_count: number | null;
+    fare_type: string;
+    day: string;
+    expect: string[];
+  }[];
   matching: {
     name: string;
     share: string;
@@ -129,8 +138,15 @@ test("line names compare without spaces or case", () => {
   for (const c of fixtures.lines) assert.equal(lineKey(c.a) === lineKey(c.b), c.same, `${c.a} / ${c.b}`);
 });
 
-test("a ticket's discounts go to the travellers who hold the cards", () => {
-  for (const c of fixtures.discounts) assert.equal(nextDiscount(c.ticket, c.given, c.held), c.expect, c.name);
+test("a ticket's travellers and BahnCards, from what it printed", () => {
+  for (const c of fixtures.ticket_summary) assert.deepEqual(ticketSummary(c.travellers, c.discounts), c.expect, c.name);
+});
+
+test("the household's BahnCards shown with a ticket", () => {
+  for (const c of fixtures.ticket_cards) {
+    const cards: CardOnFile[] = c.cards.map((k) => ({ ...k, file_path: k.file ? `h/bahncards/${k.id}/card.pdf` : null }));
+    assert.deepEqual(cardsForTrip(cards, c.discounts, c.traveller_count, c.fare_type, c.day).map((k) => k.id), c.expect, c.name);
+  }
 });
 
 test("local times are read in Europe/Berlin", () => {

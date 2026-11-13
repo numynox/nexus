@@ -3,24 +3,20 @@
   import {
     describeError,
     ensureHousehold,
-    fetchBahnCards,
-    fetchTravellers,
     isPastJourney,
     saveTrip,
     uploadTicket,
     type BahnCardKind,
     type FareTypeValue,
-    type Traveller,
-    type TripTraveller,
   } from "../../lib/data";
-  import { FARE_TYPES, formatDuration, formatLongDate, formatTime } from "../../lib/format";
-  import { session } from "../../lib/stores";
+  import { centsToEuros, formatDuration, formatLongDate, formatTime, parseEuros } from "../../lib/format";
   import { summarise } from "../../lib/journey";
   import { directionLabel, matchSummary, type IntakeDraft } from "../../lib/intake/intake";
   import type { Journey } from "../../lib/transit";
   import LegChip from "../common/LegChip.svelte";
-  import { nextDiscount } from "../../lib/travellers";
-  import TravellerPicker from "../trip/TravellerPicker.svelte";
+  import { ticketSummary } from "../../lib/ticketNeeds";
+  import TicketFields, { discountsApply } from "../trip/TicketFields.svelte";
+  import TicketNeedsEditor from "../trip/TicketNeedsEditor.svelte";
 
   interface Props {
     journey: Journey | null;
@@ -43,20 +39,14 @@
   let bindingTouched = $state(false);
   let travelClass = $state<1 | 2>(2);
   let price = $state("");
-  let travellers = $state<Traveller[]>([]);
-  /** Null until the travellers are loaded: then the RPC's default (the caller) applies. */
-  let selected = $state<TripTraveller[] | null>(null);
-  /** The kinds of BahnCard each traveller holds on the day of the journey. */
-  let held = new Map<string, number[]>();
+  /** What the ticket needs: from a ticket what it printed, else one traveller without a BahnCard. */
+  let travellerCount = $state<number | null>(1);
+  let discounts = $state<BahnCardKind[]>([]);
   let saving = $state(false);
   /** For a journey that has already arrived: how late it really was, typed by hand. */
   let delay = $state("");
   let error = $state("");
   let fromIntake = false;
-
-  function euros(cents: number): string {
-    return (cents / 100).toFixed(2);
-  }
 
   function applyIntake(draft: IntakeDraft | null) {
     const p = draft?.prefill;
@@ -65,7 +55,10 @@
     trainBinding = p?.train_binding ?? fareType === "saver";
     bindingTouched = p?.train_binding != null;
     travelClass = p?.travel_class ?? 2;
-    price = p?.price_cents != null ? euros(p.price_cents) : "";
+    price = p?.price_cents != null ? centsToEuros(p.price_cents) : "";
+    const needs = ticketSummary(p?.travellers ?? null, p?.discounts ?? []);
+    travellerCount = needs.traveller_count ?? 1;
+    discounts = needs.bahncard_discounts as BahnCardKind[];
   }
 
   const s = $derived(journey ? summarise(journey.legs) : null);
@@ -79,80 +72,23 @@
       // A normal search keeps the last choices; an intake starts from what it read (and leaves none behind).
       if (intake || fromIntake) applyIntake(intake);
       fromIntake = !!intake;
+      if (!intake) {
+        // Who rides is not a habit worth keeping: every plain search starts at one, without BahnCards.
+        travellerCount = 1;
+        discounts = [];
+      }
       dialog.showModal();
-      void loadTravellers();
     } else if (!journey && dialog.open) {
       dialog.close();
     }
   });
 
-  async function loadTravellers() {
-    try {
-      const [all, cards] = await Promise.all([fetchTravellers(), fetchBahnCards().catch(() => [])]);
-      const day = journey?.legs[0]?.from.planned?.slice(0, 10) ?? "";
-      held = new Map();
-      for (const c of cards) {
-        if (c.kind === 100 || c.valid_from > day || c.valid_to < day) continue;
-        held.set(c.traveller_id, [...(held.get(c.traveller_id) ?? []), c.kind]);
-      }
-      travellers = all;
-      // Whoever saves the trip travels on it, unless they say otherwise.
-      const me = $session?.user?.id;
-      selected = [];
-      for (const t of all.filter((t) => t.user_id === me)) selected = [...selected, withDiscount(t.id)];
-    } catch {
-      // Without the list, the trip simply gets the caller's own traveller.
-      travellers = [];
-      selected = null;
-    }
-  }
-
-  /**
-   * A traveller joining the trip, with a first guess at their discount: from a
-   * ticket, one of the discounts it prints (lib/travellers.ts); from a search,
-   * the BahnCard they hold, since that is usually what they bought with.
-   */
-  function withDiscount(id: string): TripTraveller {
-    const own = held.get(id) ?? [];
-    const ticket = intake?.prefill.discounts ?? [];
-    const discount = ticket.length > 0
-      ? nextDiscount(ticket, (selected ?? []).map((s) => s.bahncard_discount as 25 | 50 | null), own)
-      : ((own.includes(50) ? 50 : own.includes(25) ? 25 : null) as BahnCardKind | null);
-    return { traveller_id: id, bahncard_discount: discount };
-  }
-
-  function toggleTraveller(t: Traveller) {
-    const list = selected ?? [];
-    selected = list.some((s) => s.traveller_id === t.id)
-      ? list.filter((s) => s.traveller_id !== t.id)
-      : [...list, withDiscount(t.id)];
-  }
-
-  function setDiscount(id: string, discount: BahnCardKind | null) {
-    selected = (selected ?? []).map((s) => (s.traveller_id === id ? { ...s, bahncard_discount: discount } : s));
-  }
-
-  const showDiscount = $derived(fareType !== "bahncard100" && fareType !== "deutschlandticket");
-
-  function chooseFare(value: FareTypeValue) {
-    fareType = value;
-    // Saver fares are bound to their train; others are not, unless said so.
-    if (!bindingTouched) trainBinding = value === "saver";
-  }
-
-  function parsePrice(raw: string): number | null | "invalid" {
-    const cleaned = raw.trim().replace(/€/g, "").replace(/\s/g, "");
-    if (cleaned === "") return null;
-    const normalised = cleaned.includes(",") ? cleaned.replace(/\./g, "").replace(",", ".") : cleaned;
-    const value = Number(normalised);
-    if (!Number.isFinite(value) || value < 0) return "invalid";
-    return Math.round(value * 100);
-  }
+  const showDiscount = $derived(discountsApply(fareType));
 
   async function save(event: Event) {
     event.preventDefault();
     if (!journey || saving) return;
-    const cents = parsePrice(price);
+    const cents = parseEuros(price);
     if (cents === "invalid") {
       error = "Enter the price as a number, e.g. 29.90.";
       return;
@@ -175,9 +111,8 @@
         train_binding: trainBinding,
         travel_class: travelClass,
         price_cents: cents,
-        ...(selected
-          ? { travellers: selected.map((t) => ({ ...t, bahncard_discount: showDiscount ? t.bahncard_discount : null })) }
-          : {}),
+        traveller_count: travellerCount,
+        bahncard_discounts: showDiscount ? discounts : [],
         ...(intake ? { source: intake.source } : {}),
       });
       if (ticketFile) {
@@ -248,70 +183,15 @@
           <input class="input w-full rounded-2xl bg-card" placeholder="e.g. Weekend in Berlin" bind:value={title} maxlength="80" />
         </label>
 
+        <TicketFields bind:fareType bind:trainBinding bind:bindingTouched bind:travelClass bind:price />
+
         <fieldset>
-          <legend class="px-1 pb-2 text-xs font-semibold uppercase tracking-wider text-base-content/55">Ticket</legend>
-          <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {#each FARE_TYPES as fare (fare.value)}
-              <button
-                type="button"
-                class="rounded-2xl border px-3 py-2.5 text-sm font-medium transition
-                  {fareType === fare.value ? 'border-primary bg-mint text-primary' : 'border-base-300 bg-card hover:border-base-content/30'}"
-                aria-pressed={fareType === fare.value}
-                onclick={() => chooseFare(fare.value)}
-              >
-                {fare.label}
-              </button>
-            {/each}
-          </div>
+          <legend class="px-1 pb-2 text-xs font-semibold uppercase tracking-wider text-base-content/55">
+            Travellers &amp; BahnCards
+            {#if intake?.parsed.kind === "ticket"}<span class="normal-case font-normal tracking-normal">· from the ticket</span>{/if}
+          </legend>
+          <TicketNeedsEditor bind:travellerCount bind:discounts showDiscounts={showDiscount} />
         </fieldset>
-
-        <label class="flex cursor-pointer items-start gap-3 rounded-2xl bg-card p-4">
-          <input
-            type="checkbox"
-            class="toggle toggle-primary mt-0.5"
-            bind:checked={trainBinding}
-            onchange={() => (bindingTouched = true)}
-          />
-          <span>
-            <span class="block font-medium">Bound to these trains</span>
-            <span class="block text-sm text-base-content/60">Abeona tells you when a delay of 20 minutes or more lifts the binding.</span>
-          </span>
-        </label>
-
-        <div class="grid grid-cols-2 gap-4">
-          <fieldset>
-            <legend class="px-1 pb-1 text-xs font-semibold uppercase tracking-wider text-base-content/55">Class</legend>
-            <div class="join w-full">
-              {#each [1, 2] as const as c (c)}
-                <button
-                  type="button"
-                  class="btn join-item flex-1 {travelClass === c ? 'btn-primary' : 'bg-card'}"
-                  aria-pressed={travelClass === c}
-                  onclick={() => (travelClass = c)}
-                >{c === 1 ? "1st" : "2nd"}</button>
-              {/each}
-            </div>
-          </fieldset>
-          <label class="block">
-            <span class="block px-1 pb-1 text-xs font-semibold uppercase tracking-wider text-base-content/55">Price <span class="normal-case font-normal tracking-normal">(optional)</span></span>
-            <span class="input w-full rounded-2xl bg-card">
-              <span class="text-base-content/50">€</span>
-              <input inputmode="decimal" placeholder="0.00" bind:value={price} class="tabular" />
-            </span>
-          </label>
-        </div>
-
-        {#if selected && (travellers.length > 1 || showDiscount)}
-          <fieldset>
-            <legend class="px-1 pb-2 text-xs font-semibold uppercase tracking-wider text-base-content/55">
-              {travellers.length > 1 ? "Who travels" : "BahnCard discount"}
-              {#if intake?.prefill.travellers}
-                <span class="normal-case font-normal tracking-normal">· the ticket is for {intake.prefill.travellers === 1 ? "1 person" : `${intake.prefill.travellers} people`}</span>
-              {/if}
-            </legend>
-            <TravellerPicker {travellers} {selected} {showDiscount} onToggle={toggleTraveller} onDiscount={setDiscount} />
-          </fieldset>
-        {/if}
 
         {#if error}
           <p class="rounded-2xl bg-error/10 px-4 py-3 text-sm text-error" role="alert">{error}</p>

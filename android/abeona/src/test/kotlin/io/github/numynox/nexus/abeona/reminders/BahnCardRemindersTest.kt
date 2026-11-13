@@ -10,8 +10,8 @@ import org.junit.Test
 class BahnCardRemindersTest {
     private val today = LocalDate.of(2026, 11, 3)
 
-    private fun deadline(name: String, kind: Int, daysLeft: Int) = BahnCardDeadline(
-        cardId = "c-$name", travellerId = "t-$name", travellerName = name, kind = kind,
+    private fun deadline(name: String?, kind: Int, daysLeft: Int) = BahnCardDeadline(
+        cardId = "c-$name", name = name, kind = kind,
         validTo = today.plusDays(daysLeft + 28L).toString(), deadline = today.plusDays(daysLeft.toLong()).toString(),
         daysLeft = daysLeft,
     )
@@ -20,7 +20,7 @@ class BahnCardRemindersTest {
     fun speaksUpOnlyOnTheReminderDays() {
         assertNull(BahnCardReminders.message(listOf(deadline("Ada", 25, 13), deadline("Ben", 50, -2))))
         BahnCardReminders.NOTIFY_ON.forEach { days ->
-            assertEquals("Ada's BahnCard 25 renews unless cancelled", BahnCardReminders.message(listOf(deadline("Ada", 25, days)))?.first)
+            assertEquals("Ada (BahnCard 25) renews unless cancelled", BahnCardReminders.message(listOf(deadline("Ada", 25, days)))?.first)
         }
     }
 
@@ -29,9 +29,14 @@ class BahnCardRemindersTest {
         val (title, lines) = BahnCardReminders.message(listOf(deadline("Ada", 25, 7), deadline("Ben", 50, 1), deadline("Cy", 100, 5)))!!
         assertEquals("2 BahnCards renew unless cancelled", title)
         assertEquals(
-            listOf("Ben's BahnCard 50: Cancel by tomorrow, 4 Nov 2026", "Ada's BahnCard 25: Cancel by 10 Nov 2026 (in 7 days)"),
+            listOf("Ben (BahnCard 50): Cancel by tomorrow, 4 Nov 2026", "Ada (BahnCard 25): Cancel by 10 Nov 2026 (in 7 days)"),
             lines,
         )
+    }
+
+    @Test
+    fun aCardWithoutANameIsCalledByItsKind() {
+        assertEquals("BahnCard 50 renews unless cancelled", BahnCardReminders.message(listOf(deadline(null, 50, 1)))?.first)
     }
 
     @Test

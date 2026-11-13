@@ -58,7 +58,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.numynox.nexus.abeona.data.BahnCard
 import io.github.numynox.nexus.abeona.data.BahnCardInput
-import io.github.numynox.nexus.abeona.data.Traveller
 import io.github.numynox.nexus.abeona.ui.AbeonaColors
 import io.github.numynox.nexus.abeona.ui.common.PickedFile
 import io.github.numynox.nexus.abeona.ui.common.TripFormat
@@ -80,7 +79,7 @@ fun BahnCardBadge(kind: Int, modifier: Modifier = Modifier) {
 }
 
 /**
- * One card in a traveller's list: what it is, until when, when to cancel it,
+ * One card in the household's list: its name, what it is, until when, when to cancel it,
  * and the two ways to show it — the stored copy, and DB Navigator next to it.
  */
 @OptIn(ExperimentalLayoutApi::class)
@@ -97,7 +96,11 @@ fun BahnCardRow(
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             BahnCardBadge(card.kind)
             Column(Modifier.weight(1f)) {
-                Text(card.label, style = MaterialTheme.typography.titleSmall)
+                val named = !card.name.isNullOrBlank()
+                Text(if (named) card.displayName else card.label, style = MaterialTheme.typography.titleSmall)
+                if (named) {
+                    Text(card.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 Text(
                     when {
                         expired -> "Expired ${TripFormat.date(card.to)}"
@@ -115,7 +118,7 @@ fun BahnCardRow(
                     )
                 }
             }
-            IconButton(onClick = onEdit) { Icon(Icons.Rounded.Edit, contentDescription = "Edit ${card.label}") }
+            IconButton(onClick = onEdit) { Icon(Icons.Rounded.Edit, contentDescription = "Edit ${card.displayName}") }
         }
         // Wraps rather than cutting "Open in DB Navigator" short on a narrow phone.
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -133,16 +136,16 @@ fun BahnCardRow(
     }
 }
 
-/** Adding or editing a card: kind, class, validity, subscription and its notice period, and the file. */
+/** Adding or editing a card: name, kind, class, validity, subscription and its notice period, and the file. */
 @Composable
 fun BahnCardSheet(
-    traveller: Traveller,
     card: BahnCard?,
     onSave: (input: BahnCardInput, file: Uri?, removeFile: Boolean) -> Unit,
     onDelete: (() -> Unit)?,
     onDismiss: () -> Unit,
     today: LocalDate = LocalDate.now(),
 ) {
+    var name by remember { mutableStateOf(card?.name.orEmpty()) }
     var kind by remember { mutableStateOf(card?.kind ?: 25) }
     var travelClass by remember { mutableStateOf(card?.travelClass ?: 2) }
     var from by remember { mutableStateOf(card?.from ?: today) }
@@ -165,8 +168,17 @@ fun BahnCardSheet(
             Modifier.padding(horizontal = 24.dp).navigationBarsPadding().imePadding().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(traveller.name, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             Text(if (card == null) "Add a BahnCard" else "Edit BahnCard", style = MaterialTheme.typography.headlineSmall)
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it.take(60) },
+                label = { Text("Name") },
+                placeholder = { Text("BahnCard $kind") },
+                supportingText = { Text("Whose card it is, or what it is for. Empty shows the kind.") },
+                singleLine = true,
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth(),
+            )
             ConnectedChoiceRow(
                 options = listOf(25, 50, 100),
                 selected = kind,
@@ -248,7 +260,7 @@ fun BahnCardSheet(
                         onClick = {
                             saving = true
                             onSave(
-                                BahnCardInput(traveller.id, kind, travelClass, from, to, number, subscription, notice),
+                                BahnCardInput(name.trim().ifEmpty { null }, kind, travelClass, from, to, number, subscription, notice),
                                 file,
                                 removeFile,
                             )

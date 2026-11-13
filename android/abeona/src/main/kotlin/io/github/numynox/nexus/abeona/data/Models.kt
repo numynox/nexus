@@ -48,8 +48,10 @@ data class Trip(
     val refreshToken: String? = null,
     val refreshedAt: String? = null,
     val legs: List<Leg> = emptyList(),
-    /** The BahnCard discount the fare was bought with (25, 50, 100); a BahnCard 100 is also a [FareType]. */
-    val bahncardDiscount: Int? = null,
+    /** How many people the ticket is for; null when unknown. */
+    val travellerCount: Int? = null,
+    /** The BahnCard discounts the ticket was booked with, one per card, ascending; a BahnCard 100 fare is a [FareType]. */
+    val bahncardDiscounts: List<Int> = emptyList(),
     /** Set once the snapshot job froze every ride's actual values. */
     val finalizedAt: String? = null,
     /** The ride (index into [legs]) that was missed or cancelled under the traveller. */
@@ -92,7 +94,8 @@ internal data class TripRow(
     @SerialName("ticket_path") val ticketPath: String? = null,
     @SerialName("refresh_token") val refreshToken: String? = null,
     @SerialName("refreshed_at") val refreshedAt: String? = null,
-    @SerialName("bahncard_discount") val bahncardDiscount: Int? = null,
+    @SerialName("traveller_count") val travellerCount: Int? = null,
+    @SerialName("bahncard_discounts") val bahncardDiscounts: List<Int> = emptyList(),
     @SerialName("finalized_at") val finalizedAt: String? = null,
     @SerialName("missed_leg_idx") val missedLegIdx: Int? = null,
     @SerialName("replacement_legs") val replacementLegs: List<Leg>? = null,
@@ -116,7 +119,8 @@ internal data class TripRow(
         refreshToken = refreshToken,
         refreshedAt = refreshedAt,
         legs = legs.sortedBy { it.idx }.map { it.toLeg() },
-        bahncardDiscount = bahncardDiscount,
+        travellerCount = travellerCount,
+        bahncardDiscounts = bahncardDiscounts,
         finalizedAt = finalizedAt,
         missedLegIdx = missedLegIdx,
         replacementLegs = replacementLegs,
@@ -171,27 +175,17 @@ internal data class LegRow(
     )
 }
 
-/** Someone who rides: a member, or a child or partner without an account (glossary: Traveller). */
-@Serializable
-data class Traveller(
-    val id: String,
-    @SerialName("household_id") val householdId: String,
-    val name: String,
-    @SerialName("user_id") val userId: String? = null,
-)
-
-/** What the save sheet knows about a new trip's ticket and who travels on it. */
+/** What the save sheet knows about a new trip's ticket. */
 data class SaveTripInput(
     val title: String?,
     val fareType: FareType,
     val trainBinding: Boolean,
     val travelClass: Int,
     val priceCents: Int?,
-    /**
-     * Who travels, each with the BahnCard discount of their share; null leaves
-     * it to the database, which puts the caller's own traveller on.
-     */
-    val travellers: List<TripTraveller>? = null,
+    /** How many people the ticket is for; null when unknown. */
+    val travellerCount: Int? = null,
+    /** The BahnCard discounts the ticket was booked with, one per card. */
+    val bahncardDiscounts: List<Int> = emptyList(),
     /**
      * A journey that already arrived: saved as source "import", final, never
      * refreshed; [arrivalDelayMinutes] is the delay typed by hand.
@@ -202,15 +196,41 @@ data class SaveTripInput(
     val source: String? = null,
 )
 
+/** What the trip's "Edit trip" sheet changes: the title and the ticket's facts. */
+data class TripEdit(
+    /** Null or blank shows origin → destination. */
+    val title: String?,
+    val fareType: FareType,
+    val trainBinding: Boolean,
+    val travelClass: Int,
+    val priceCents: Int?,
+    /** Null when unknown. */
+    val travellerCount: Int?,
+    /** One per BahnCard the ticket was booked with. */
+    val bahncardDiscounts: List<Int>,
+) {
+    /** [trip] with these values, as the database now holds them. */
+    fun applyTo(trip: Trip): Trip = trip.copy(
+        title = title?.trim()?.takeIf { it.isNotEmpty() },
+        fareType = fareType,
+        trainBinding = trainBinding,
+        travelClass = travelClass,
+        priceCents = priceCents,
+        travellerCount = travellerCount,
+        bahncardDiscounts = bahncardDiscounts.sorted(),
+    )
+}
+
 /**
- * A BahnCard (glossary: BahnCard). It belongs to a traveller, and through
- * them to a household; a merge on invite carries it along. Dates are the
- * first and last day it is valid.
+ * A BahnCard (glossary: BahnCard). It belongs to the household; a merge on
+ * invite carries it along. [name] is what the household calls it, null shows
+ * the kind. Dates are the first and last day it is valid.
  */
 @Serializable
 data class BahnCard(
     val id: String,
-    @SerialName("traveller_id") val travellerId: String,
+    @SerialName("household_id") val householdId: String? = null,
+    val name: String? = null,
     val kind: Int,
     @SerialName("travel_class") val travelClass: Int = 2,
     @SerialName("valid_from") val validFrom: String,
@@ -225,13 +245,16 @@ data class BahnCard(
     val to: LocalDate get() = LocalDate.parse(validTo)
     /** The last day to cancel a subscription. */
     val deadline: LocalDate get() = to.minusWeeks(noticeWeeks.toLong())
+    /** The card's name, else its kind ("BahnCard 25"). */
+    val displayName: String get() = bahnCardName(name, kind)
     val label: String get() = "BahnCard $kind · ${if (travelClass == 1) "1st" else "2nd"} class"
     val fileName: String? get() = filePath?.substringAfterLast('/')
 }
 
 /** What the BahnCard sheet edits: a card without its id and file. */
 data class BahnCardInput(
-    val travellerId: String,
+    /** Null or blank shows the kind. */
+    val name: String?,
     val kind: Int,
     val travelClass: Int,
     val validFrom: LocalDate,
@@ -245,8 +268,7 @@ data class BahnCardInput(
 @Serializable
 data class BahnCardDeadline(
     @SerialName("card_id") val cardId: String,
-    @SerialName("traveller_id") val travellerId: String,
-    @SerialName("traveller_name") val travellerName: String,
+    val name: String? = null,
     val kind: Int,
     @SerialName("travel_class") val travelClass: Int = 2,
     @SerialName("valid_to") val validTo: String,
@@ -254,28 +276,13 @@ data class BahnCardDeadline(
     val deadline: String,
     /** Negative once the deadline has passed. */
     @SerialName("days_left") val daysLeft: Int,
-)
+) {
+    /** The card's name, else its kind ("BahnCard 25"). */
+    val displayName: String get() = bahnCardName(name, kind)
+}
 
-/** A row of abeona_trip_warnings(); [message] is shown as is, the same on the web. */
-@Serializable
-data class TripWarning(
-    val kind: String,
-    @SerialName("traveller_id") val travellerId: String? = null,
-    @SerialName("traveller_name") val travellerName: String? = null,
-    @SerialName("card_id") val cardId: String? = null,
-    val message: String,
-)
-
-/**
- * abeona_trip_travellers: someone on a trip, with the BahnCard discount (25, 50
- * or null) their share of the fare was bought with. A BahnCard 100 is a
- * [FareType] and needs nothing here.
- */
-@Serializable
-data class TripTraveller(
-    @SerialName("traveller_id") val travellerId: String,
-    @SerialName("bahncard_discount") val bahncardDiscount: Int? = null,
-)
+/** A BahnCard's name, else its kind: "BahnCard 25". */
+fun bahnCardName(name: String?, kind: Int): String = name?.trim()?.takeIf { it.isNotEmpty() } ?: "BahnCard $kind"
 
 @Serializable
 data class HouseholdMember(

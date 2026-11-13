@@ -204,14 +204,8 @@ fun SearchScreen(app: AppViewModel, navigator: Navigator) {
     }
     // A sheet of its own for each of a ticket's trips, so its fields start from that trip.
     if (ready != null) key(ready.draft) {
-        val travellers by viewModel.travellers.collectAsStateWithLifecycle()
-        val cards by viewModel.cards.collectAsStateWithLifecycle()
-        LaunchedEffect(ready.draft) { viewModel.loadTravellers() }
         SaveTripSheet(
             journey = ready.draft.match.journey,
-            travellers = travellers,
-            cards = cards,
-            me = viewModel.userId,
             intake = ready.draft,
             more = ready.queued.size,
             onSave = { input ->
@@ -242,14 +236,8 @@ fun SearchScreen(app: AppViewModel, navigator: Navigator) {
     }
 
     saving?.let { journey ->
-        val travellers by viewModel.travellers.collectAsStateWithLifecycle()
-        val cards by viewModel.cards.collectAsStateWithLifecycle()
-        LaunchedEffect(journey) { viewModel.loadTravellers() }
         SaveTripSheet(
             journey = journey,
-            travellers = travellers,
-            cards = cards,
-            me = viewModel.userId,
             onSave = { input ->
                 viewModel.save(
                     journey, input,

@@ -44,8 +44,10 @@ export interface Trip {
   train_binding: boolean;
   travel_class: 1 | 2;
   price_cents: number | null;
-  /** The BahnCard discount the fare was bought with; a BahnCard 100 is a fare_type. */
-  bahncard_discount: BahnCardKind | null;
+  /** How many people the ticket is for; null when unknown. */
+  traveller_count: number | null;
+  /** The BahnCard discounts the ticket was booked with, one per card, ascending. A BahnCard 100 is a fare_type. */
+  bahncard_discounts: BahnCardKind[];
   ticket_path: string | null;
   refreshed_at: string | null;
   /** Set once the snapshot job froze every ride's actual values. */
@@ -104,14 +106,6 @@ export interface HouseholdMember {
   full_name: string | null;
   role: "owner" | "member";
   joined_at: string;
-}
-
-export interface Traveller {
-  id: string;
-  household_id: string;
-  name: string;
-  user_id: string | null;
-  created_at: string;
 }
 
 export interface Statistics {
@@ -222,8 +216,10 @@ export interface SaveTripInput {
   train_binding: boolean;
   travel_class: 1 | 2;
   price_cents?: number | null;
-  /** Who travels, each with the BahnCard discount of their share. Left out, the trip gets the caller's own traveller. */
-  travellers?: TripTraveller[];
+  /** How many people the ticket is for; null when unknown. */
+  traveller_count: number | null;
+  /** The BahnCard discounts the ticket was booked with, one per card. */
+  bahncard_discounts: BahnCardKind[];
   /**
    * A trip that already happened: saved as source "import", final, never
    * refreshed. The delay, in minutes at the destination, is entered by hand.
@@ -235,10 +231,12 @@ export interface SaveTripInput {
 
 export type BahnCardKind = 25 | 50 | 100;
 
-/** abeona_bahncards: belongs to a traveller, and through them to a household. */
+/** abeona_bahncards: one of the household's cards. */
 export interface BahnCard {
   id: string;
-  traveller_id: string;
+  household_id: string;
+  /** What the household calls it; null shows the kind ("BahnCard 25"). */
+  name: string | null;
   kind: BahnCardKind;
   travel_class: 1 | 2;
   /** yyyy-mm-dd */
@@ -256,14 +254,14 @@ export interface BahnCard {
 
 export type BahnCardInput = Pick<
   BahnCard,
-  "traveller_id" | "kind" | "travel_class" | "valid_from" | "valid_to" | "card_number" | "subscription" | "notice_weeks"
+  "name" | "kind" | "travel_class" | "valid_from" | "valid_to" | "card_number" | "subscription" | "notice_weeks"
 >;
 
 /** A row of abeona_bahncard_deadlines(). */
 export interface BahnCardDeadline {
   card_id: string;
-  traveller_id: string;
-  traveller_name: string;
+  /** Null shows the kind. */
+  name: string | null;
   kind: BahnCardKind;
   travel_class: 1 | 2;
   valid_to: string;
@@ -272,15 +270,6 @@ export interface BahnCardDeadline {
   deadline: string;
   /** Negative once the deadline has passed. */
   days_left: number;
-}
-
-/** A row of abeona_trip_warnings(); the message is shown as is. */
-export interface TripWarning {
-  kind: "no_travellers" | "no_card" | "expired" | "not_yet_valid" | "class";
-  traveller_id: string | null;
-  traveller_name: string | null;
-  card_id: string | null;
-  message: string;
 }
 
 export type CompensationVerdict = "eligible" | "not_eligible" | "below_minimum" | "unknown_price" | "unknown_arrival";
@@ -420,44 +409,6 @@ export async function leaveHousehold(): Promise<void> {
   householdPromise = Promise.resolve(data as string);
 }
 
-// ── Travellers ─────────────────────────────────────────────────────
-
-export async function fetchTravellers(): Promise<Traveller[]> {
-  const household = await ensureHousehold();
-  const sb = getSupabaseClient();
-  const { data, error } = await sb
-    .from("abeona_travellers")
-    .select("*")
-    .eq("household_id", household)
-    .order("created_at", { ascending: true });
-  if (error) throw error;
-  return (data ?? []) as Traveller[];
-}
-
-export async function addTraveller(name: string): Promise<Traveller> {
-  const household = await ensureHousehold();
-  const sb = getSupabaseClient();
-  const { data, error } = await sb
-    .from("abeona_travellers")
-    .insert({ household_id: household, name: name.trim() })
-    .select()
-    .single();
-  if (error) throw error;
-  return data as Traveller;
-}
-
-export async function renameTraveller(id: string, name: string): Promise<void> {
-  const sb = getSupabaseClient();
-  const { error } = await sb.from("abeona_travellers").update({ name: name.trim() }).eq("id", id);
-  if (error) throw error;
-}
-
-export async function deleteTraveller(id: string): Promise<void> {
-  const sb = getSupabaseClient();
-  const { error } = await sb.from("abeona_travellers").delete().eq("id", id);
-  if (error) throw error;
-}
-
 // ── Trips ──────────────────────────────────────────────────────────
 
 function legFromRow(row: LegRow): Leg {
@@ -572,10 +523,8 @@ export async function saveTrip(journey: Journey, input: SaveTripInput): Promise<
       train_binding: input.train_binding,
       travel_class: input.travel_class,
       price_cents: input.price_cents ?? null,
-      // Each traveller's own discount; the RPC keeps the shared one on the trip for older APKs.
-      ...(input.travellers
-        ? { travellers: input.travellers.map((t) => ({ id: t.traveller_id, bahncard_discount: t.bahncard_discount })) }
-        : {}),
+      traveller_count: input.traveller_count,
+      bahncard_discounts: [...input.bahncard_discounts].sort((a, b) => a - b),
     },
     // The contract's Leg is exactly what the RPC reads.
     p_legs: journey.legs,
@@ -594,63 +543,62 @@ export async function deleteTrip(trip: Pick<Trip, "id" | "ticket_path">): Promis
   if (error) throw error;
 }
 
-/** abeona_trip_travellers: someone on a trip, with the BahnCard discount their share was bought with. */
-export interface TripTraveller {
-  traveller_id: string;
-  bahncard_discount: BahnCardKind | null;
+/** What "Edit trip" changes: the title and the ticket's facts. */
+export interface TripEdit {
+  /** Blank clears it: the trip is then called by its route. */
+  title: string | null;
+  fare_type: FareTypeValue;
+  train_binding: boolean;
+  travel_class: 1 | 2;
+  price_cents: number | null;
+  /** How many people the ticket is for; null when unknown. */
+  traveller_count: number | null;
+  /** The BahnCard discounts the ticket was booked with, one per card. */
+  bahncard_discounts: BahnCardKind[];
 }
 
-/** Who travels on a trip, and with which discount. */
-export async function fetchTripTravellers(tripId: string): Promise<TripTraveller[]> {
+/** Saves "Edit trip" in one update; household members may edit any of the household's trips. */
+export async function updateTrip(tripId: string, edit: TripEdit): Promise<void> {
   const sb = getSupabaseClient();
-  const { data, error } = await sb
-    .from("abeona_trip_travellers")
-    .select("traveller_id, bahncard_discount")
-    .eq("trip_id", tripId);
+  const { error } = await sb
+    .from("abeona_trips")
+    .update({
+      title: edit.title?.trim() || null,
+      fare_type: edit.fare_type,
+      train_binding: edit.train_binding,
+      travel_class: edit.travel_class,
+      price_cents: edit.price_cents,
+      traveller_count: edit.traveller_count,
+      bahncard_discounts: [...edit.bahncard_discounts].sort((a, b) => a - b),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", tripId);
   if (error) throw error;
-  return (data ?? []) as TripTraveller[];
-}
-
-/** Replaces who travels on a trip and with which discount, in one call. */
-export async function saveTripTravellers(tripId: string, travellers: TripTraveller[]): Promise<void> {
-  const sb = getSupabaseClient();
-  const { error } = await sb.rpc("abeona_save_trip_travellers", {
-    p_trip_id: tripId,
-    p_travellers: travellers.map((t) => ({ id: t.traveller_id, bahncard_discount: t.bahncard_discount })),
-  });
-  if (error) throw error;
-}
-
-/** What is wrong with the trip's BahnCards; the same rows the app shows. */
-export async function fetchTripWarnings(tripId: string): Promise<TripWarning[]> {
-  const sb = getSupabaseClient();
-  const { data, error } = await sb.rpc("abeona_trip_warnings", { p_trip_id: tripId });
-  if (error) throw error;
-  return (data ?? []) as TripWarning[];
 }
 
 // ── BahnCards ──────────────────────────────────────────────────────
 
-/** Every card of the household's travellers, soonest-ending last. */
+/** Every card of the household, the one running longest first. */
 export async function fetchBahnCards(): Promise<BahnCard[]> {
   const household = await ensureHousehold();
   const sb = getSupabaseClient();
   const { data, error } = await sb
     .from("abeona_bahncards")
-    .select("*, abeona_travellers!inner(household_id)")
-    .eq("abeona_travellers.household_id", household)
+    .select("*")
+    .eq("household_id", household)
     .order("valid_to", { ascending: false });
   if (error) throw error;
-  return ((data ?? []) as (BahnCard & { abeona_travellers?: unknown })[]).map(({ abeona_travellers: _, ...card }) => card);
+  return (data ?? []) as BahnCard[];
 }
 
-/** Inserts a card, or updates it when an id is given. */
+/** Inserts a card into the caller's household, or updates it when an id is given. */
 export async function saveBahnCard(input: BahnCardInput, id?: string): Promise<BahnCard> {
   const sb = getSupabaseClient();
-  const row = { ...input, card_number: input.card_number?.trim() || null };
+  // A blank name is rejected by the table; null shows the kind.
+  const row = { ...input, name: input.name?.trim() || null, card_number: input.card_number?.trim() || null };
   const query = id
     ? sb.from("abeona_bahncards").update({ ...row, updated_at: new Date().toISOString() }).eq("id", id)
-    : sb.from("abeona_bahncards").insert(row);
+    : sb.from("abeona_bahncards").insert({ ...row, household_id: await ensureHousehold() });
   const { data, error } = await query.select().single();
   if (error) throw error;
   return data as BahnCard;

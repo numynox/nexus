@@ -1,7 +1,7 @@
 <script lang="ts">
   import { CalendarClock } from "lucide-svelte";
   import type { BahnCardDeadline } from "../../lib/data";
-  import { deadlineText } from "../../lib/format";
+  import { bahnCardName, deadlineText } from "../../lib/format";
 
   interface Props {
     deadlines: BahnCardDeadline[];
@@ -21,7 +21,7 @@
     </p>
     <ul class="mt-1 space-y-0.5 opacity-90">
       {#each deadlines as d (d.card_id)}
-        <li>{d.traveller_name}'s BahnCard {d.kind}: {deadlineText(d)}.</li>
+        <li>{d.name ? `${bahnCardName(d)} (BahnCard ${d.kind})` : bahnCardName(d)}: {deadlineText(d)}.</li>
       {/each}
     </ul>
     <a href={settingsHref} class="mt-1 inline-block font-medium underline underline-offset-2">

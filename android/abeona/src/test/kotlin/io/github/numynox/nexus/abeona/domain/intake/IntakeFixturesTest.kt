@@ -4,7 +4,8 @@ import io.github.numynox.nexus.abeona.data.FareType
 import io.github.numynox.nexus.abeona.data.Journey
 import io.github.numynox.nexus.abeona.data.LegMode
 import io.github.numynox.nexus.abeona.data.Station
-import io.github.numynox.nexus.abeona.domain.Travellers
+import io.github.numynox.nexus.abeona.domain.TicketNeeds
+import java.time.LocalDate
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -72,16 +73,37 @@ class IntakeFixturesTest {
         val lines: List<LineCase>,
         val zones: List<ZoneCase>,
         val matching: List<MatchCase>,
-        val discounts: List<DiscountCase>,
+        @SerialName("ticket_summary") val ticketSummary: List<SummaryCase>,
+        @SerialName("ticket_cards") val ticketCards: List<CardsCase>,
     )
 
     @Serializable
-    private data class DiscountCase(
+    private data class SummaryExpect(
+        @SerialName("traveller_count") val travellerCount: Int?,
+        @SerialName("bahncard_discounts") val bahncardDiscounts: List<Int>,
+    )
+
+    @Serializable
+    private data class SummaryCase(val name: String, val travellers: Int?, val discounts: List<Int?>, val expect: SummaryExpect)
+
+    @Serializable
+    private data class FixtureCard(
+        val id: String,
+        val kind: Int,
+        @SerialName("valid_from") val validFrom: String,
+        @SerialName("valid_to") val validTo: String,
+        val file: Boolean,
+    )
+
+    @Serializable
+    private data class CardsCase(
         val name: String,
-        val ticket: List<Int?>,
-        val given: List<Int?>,
-        val held: List<Int>,
-        val expect: Int?,
+        val cards: List<FixtureCard>,
+        val discounts: List<Int>,
+        @SerialName("traveller_count") val travellerCount: Int?,
+        @SerialName("fare_type") val fareType: String,
+        val day: String,
+        val expect: List<String>,
     )
 
     private val fixtures: Fixtures = IntakeJson.decodeFromString(resourceText("intake.fixtures.json"))
@@ -145,8 +167,14 @@ class IntakeFixturesTest {
     }
 
     @Test
-    fun discounts() = fixtures.discounts.forEach { c ->
-        assertEquals(c.name, c.expect, Travellers.nextDiscount(c.ticket, c.given, c.held))
+    fun ticketSummary() = fixtures.ticketSummary.forEach { c ->
+        assertEquals(c.name, TicketNeeds.Summary(c.expect.travellerCount, c.expect.bahncardDiscounts), TicketNeeds.summary(c.travellers, c.discounts))
+    }
+
+    @Test
+    fun ticketCards() = fixtures.ticketCards.forEach { c ->
+        val cards = c.cards.map { TicketNeeds.CardOnFile(it.id, it.kind, LocalDate.parse(it.validFrom), LocalDate.parse(it.validTo), it.file) }
+        assertEquals(c.name, c.expect, TicketNeeds.cardsForTrip(cards, c.discounts, c.travellerCount, c.fareType == "bahncard100", LocalDate.parse(c.day)))
     }
 
     /** The key the fixtures use: the web's `toISOString()`, with milliseconds. */

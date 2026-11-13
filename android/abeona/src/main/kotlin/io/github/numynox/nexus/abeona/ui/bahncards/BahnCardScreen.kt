@@ -61,8 +61,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** A BahnCard ready to show: its file as images, and whose it is. */
-data class BahnCardPages(val card: BahnCard, val owner: String?, val pages: List<Bitmap>, val code: Bitmap?, val offlineSince: Instant?)
+/** A BahnCard ready to show: its file as images. */
+data class BahnCardPages(val card: BahnCard, val pages: List<Bitmap>, val code: Bitmap?, val offlineSince: Instant?)
 
 class BahnCardViewModel(
     private val container: AppContainer,
@@ -77,15 +77,10 @@ class BahnCardViewModel(
         _card.value = try {
             val fetched = container.trips.bahnCards()
             val card = fetched.value.firstOrNull { it.id == cardId } ?: error("This BahnCard no longer exists.")
-            val owner = if (fetched.offlineSince == null) {
-                runCatching { container.repository.travellers().firstOrNull { it.id == card.travellerId }?.name }.getOrNull()
-            } else {
-                null
-            }
             val file = container.trips.bahnCardFile(card)
             val (pages, code) = withContext(Dispatchers.Default) { TicketRenderer.render(file) to TicketCode.extract(context, file) }
             if (pages.isEmpty()) error("This file could not be opened.")
-            Loadable.Ready(BahnCardPages(card, owner, pages, code, fetched.offlineSince))
+            Loadable.Ready(BahnCardPages(card, pages, code, fetched.offlineSince))
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -118,7 +113,7 @@ fun BahnCardScreen(app: AppViewModel, cardId: String, navigator: Navigator) {
                 val ready = (state as? Loadable.Ready)?.value
                 Column(Modifier.weight(1f)) {
                     Text(
-                        listOfNotNull(ready?.owner, ready?.card?.label).joinToString(" · ").ifEmpty { "BahnCard" },
+                        listOfNotNull(ready?.card?.name?.takeIf { it.isNotBlank() }, ready?.card?.label).joinToString(" · ").ifEmpty { "BahnCard" },
                         style = MaterialTheme.typography.titleMedium,
                         color = AbeonaColors.Ink,
                         maxLines = 1,
@@ -142,7 +137,7 @@ fun BahnCardScreen(app: AppViewModel, cardId: String, navigator: Navigator) {
                         TextButton(onClick = { viewModel.load() }) { Text("Try again") }
                     }
                     is Loadable.Ready -> DocumentView(
-                        TicketDocument(current.value.card.id, current.value.card.label, current.value.pages, current.value.code),
+                        TicketDocument(current.value.card.id, current.value.card.displayName, current.value.pages, current.value.code),
                         description = "BahnCard",
                     )
                 }

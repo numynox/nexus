@@ -222,7 +222,7 @@ Annona namespaces everything with `annona_`. **New tables get a prefix.**
 | Noctua | `feeds`, `articles`, `sections`, `sections_feeds`, `article_reads`, `article_stars` |
 | Vibilia | `cars`, `car_access`, `refuel_events`, `car_expenses`, `fuel_stations`, `fuel_prices`, `fuel_prices_daily`, `vibilia_car_bluetooth_devices`, `vibilia_drive_intervals`, `vibilia_commutes`, `vibilia_odometer_readings` |
 | Annona | `annona_categories`, `annona_storage_locations`, `annona_products`, `annona_items`, `annona_item_log` |
-| Abeona | `abeona_households`, `abeona_household_members`, `abeona_travellers`, `abeona_trips`, `abeona_trip_travellers`, `abeona_legs`, `abeona_bahncards`, `abeona_fare_rules` and `abeona_compensation_rules` (reference data), `abeona_claims`, `abeona_share_links`, `abeona_transit_cache` (service role only); Storage bucket `abeona-tickets` (tickets and BahnCard files) |
+| Abeona | `abeona_households`, `abeona_household_members`, `abeona_trips`, `abeona_legs`, `abeona_bahncards`, `abeona_fare_rules` and `abeona_compensation_rules` (reference data), `abeona_claims`, `abeona_share_links`, `abeona_transit_cache` (service role only); Storage bucket `abeona-tickets` (tickets and BahnCard files) |
 
 `profiles` is the one genuinely shared table: `id` matches `auth.users.id`, and
 `on_auth_user_created → public.handle_new_user_profile()` fills it on signup.
@@ -244,7 +244,7 @@ access. All four apps share one user pool, but they scope data differently:
 | Noctua | per-user | `sections` and `article_reads` are filtered by `auth.uid()`. `feeds` is readable by any authenticated user — the catalogue is common property — but `articles` is **not**: a row is visible only while some section *you* own contains its feed. Unsubscribe from a feed and its articles disappear from your queries |
 | Vibilia | per-car ACL | `cars.owner_id` plus rows in `car_access`, both funnelled through `public.user_can_access_car(car_id, user_id)`; every policy on refuel events and expenses defers to that helper |
 | Annona | shared household | any authenticated user may read and write everything; `annona_item_log.user_id` records who did what (`decisions/2026-04-30-annona-shared-household-data.md`) |
-| Abeona | bounded household | `abeona_households` with members; every trip, traveller and ticket object carries a household, and every policy defers to `public.abeona_user_in_household(household_id, user_id)`. BahnCards carry none: they belong to a traveller and follow its household. Storage objects follow the row their path names — a ticket its trip, a card file its card (`abeona_user_in_household_path`, `decisions/2026-11-03-abeona-bahncard-files-follow-the-card.md`). Unlike Annona, strangers see nothing (`decisions/2026-11-02-abeona-train-companion.md`, `decisions/2026-11-02-abeona-ticket-storage.md`). The exceptions are `abeona_fare_rules` and `abeona_compensation_rules`, reference data every signed-in user reads and nobody writes through the API. Claims and share links carry no household either: they follow their trip. A share link's token is opened by `abeona-public` with the service role, for anyone holding it (`decisions/2026-11-04-abeona-share-links.md`) |
+| Abeona | bounded household | `abeona_households` with members; every trip, BahnCard and ticket object carries a household, and every policy defers to `public.abeona_user_in_household(household_id, user_id)`. BahnCards carry none: they belong to a traveller and follow its household. Storage objects follow the row their path names — a ticket its trip, a card file its card (`abeona_user_in_household_path`, `decisions/2026-11-03-abeona-bahncard-files-follow-the-card.md`). Unlike Annona, strangers see nothing (`decisions/2026-11-02-abeona-train-companion.md`, `decisions/2026-11-02-abeona-ticket-storage.md`). The exceptions are `abeona_fare_rules` and `abeona_compensation_rules`, reference data every signed-in user reads and nobody writes through the API. Claims and share links carry no household either: they follow their trip. A share link's token is opened by `abeona-public` with the service role, for anyone holding it (`decisions/2026-11-04-abeona-share-links.md`) |
 
 Because there is no server, **RLS is the whole authorization story.** The anon
 key is public by design; a policy gap is a data leak. Treat every new table's
@@ -280,9 +280,7 @@ Anything aggregating, joining or crossing a permission boundary is a
 - Abeona: `abeona_ensure_household` (called once after sign-in), `abeona_invite_to_household`,
   `abeona_leave_household`, `abeona_list_household_members`, `abeona_current_household`,
   `abeona_user_in_household`, `abeona_save_trip` and `abeona_update_trip_live` (run as the
-  caller, so RLS decides), `abeona_set_trip_travellers`, the BahnCard RPCs
-  `abeona_bahncard_deadlines` and `abeona_trip_warnings` (as the caller; the warnings' English
-  messages are written in SQL so both clients say the same), `abeona_statistics` (history card and year in review),
+  caller, so RLS decides), `abeona_bahncard_deadlines` (as the caller), `abeona_statistics` (history card and year in review),
   `abeona_train_binding_lifted` (also mirrored in both clients), `abeona_allowed_products`
   (what a trip's ticket covers now, from the rows of `abeona_fare_rules`; as the caller),
   the distance helpers `abeona_haversine_km` / `abeona_polyline_km`, and after the ride
@@ -494,7 +492,7 @@ Things that differ from the web on purpose:
 - **Abeona** — Trips (a BahnCard deadline banner, next trip hero, upcoming,
   a history card), Search, Review (the year in review as a pager), Settings
   (live companion, time to the station, time-to-leave reminder, location,
-  alerts, household, travellers, their BahnCards, compensation claims and
+  alerts, household, the household's BahnCards, compensation claims and
   their reminder). After a trip, its screen shows Compensation and What
   happened; the claims list opens from a bar under the year in review. A BahnCard opens
   like a ticket (`ui/bahncards/`), with "Open in DB Navigator" beside it; the
@@ -645,7 +643,7 @@ either test. Then
 `abeona.test.sql`
 (household scoping, the merge on invite, distances, statistics, the binding
 rule, ticket storage paths), `abeona_bahncards.test.sql` (card RLS across
-households, deadline boundaries, trip warnings, card file paths after a merge)
+households, names, deadline boundaries, a trip's travellers and BahnCards, card file paths after a merge)
 and `abeona_fare_rules.test.sql` (the rules are read-only, the binding held,
 lifted by delay or cancellation, never IC/ICE on a Deutschlandticket), and
 `abeona_history.test.sql` (countries and the id fallback, imported trips saved

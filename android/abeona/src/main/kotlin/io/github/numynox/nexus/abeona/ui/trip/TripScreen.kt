@@ -37,6 +37,8 @@ import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ConfirmationNumber
 import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.NotificationsActive
@@ -86,7 +88,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import io.github.numynox.nexus.abeona.data.FareType
 import io.github.numynox.nexus.abeona.data.Leg
 import io.github.numynox.nexus.abeona.data.StopTime
 import io.github.numynox.nexus.abeona.data.Trip
@@ -123,7 +124,7 @@ import io.github.numynox.nexus.abeona.live.LiveSignals
 import io.github.numynox.nexus.abeona.live.OnboardStatus
 import io.github.numynox.nexus.abeona.live.TripLocation
 import io.github.numynox.nexus.abeona.ui.common.TravelDayHero
-import io.github.numynox.nexus.abeona.ui.common.TravellerPicker
+import io.github.numynox.nexus.abeona.ui.common.TicketNeedsSummary
 import io.github.numynox.nexus.abeona.ui.common.isLiveDay
 import io.github.numynox.nexus.abeona.ui.common.rememberTicker
 import io.github.numynox.nexus.abeona.ui.AppViewModel
@@ -138,7 +139,6 @@ import io.github.numynox.nexus.abeona.ui.common.PlatformBox
 import io.github.numynox.nexus.abeona.ui.common.StatusPill
 import io.github.numynox.nexus.abeona.ui.common.PickedFile
 import io.github.numynox.nexus.abeona.ui.common.TripFormat
-import io.github.numynox.nexus.abeona.ui.common.TripWarningsBanner
 import io.github.numynox.nexus.abeona.ui.common.containerViewModel
 import io.github.numynox.nexus.core.ui.Loadable
 import io.github.numynox.nexus.core.ui.components.ConnectedChoiceRow
@@ -157,7 +157,6 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
     val application = context.applicationContext as android.app.Application
     val viewModel = containerViewModel(key = tripId) { TripViewModel(it, application, tripId) }
     val detail by viewModel.detail.collectAsStateWithLifecycle()
-    val people by viewModel.people.collectAsStateWithLifecycle()
     val companion by LiveCompanion.running.collectAsStateWithLifecycle()
     val stoppedByHand by LiveCompanion.stoppedByHand.collectAsStateWithLifecycle()
     val settings by app.settings.collectAsStateWithLifecycle()
@@ -168,6 +167,8 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
     val shareLinks by viewModel.shareLinks.collectAsStateWithLifecycle()
     val shareBusy by viewModel.shareBusy.collectAsStateWithLifecycle()
     var recording by rememberSaveable { mutableStateOf(false) }
+    var editing by rememberSaveable { mutableStateOf(false) }
+    var sharing by rememberSaveable { mutableStateOf(false) }
     val onboard by LiveSignals.onboard.collectAsStateWithLifecycle()
     val fix by LiveSignals.fix.collectAsStateWithLifecycle()
     // Every 15 s: the dashboard's countdowns and the train on its line move with it.
@@ -287,6 +288,18 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                     Box {
                         IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, contentDescription = "More") }
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                            if (ready != null) {
+                                DropdownMenuItem(
+                                    text = { Text("Edit trip") },
+                                    leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
+                                    onClick = { menu = false; editing = true },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Share") },
+                                    leadingIcon = { Icon(Icons.Rounded.Share, contentDescription = null) },
+                                    onClick = { menu = false; sharing = true },
+                                )
+                            }
                             DropdownMenuItem(
                                 text = { Text("Open DB Navigator") },
                                 leadingIcon = { Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null) },
@@ -373,7 +386,6 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                         }
                     },
                     onAlternatives = openAlternatives,
-                    people = people,
                     afterRide = afterRide?.let { state ->
                         AfterRideActions(
                             state = state,
@@ -384,19 +396,6 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                             onClear = { viewModel.recordDisruption(null, null, showError) },
                         )
                     },
-                    share = shareLinks?.let { links ->
-                        ShareActions(
-                            links = links,
-                            busy = shareBusy,
-                            onCreate = { kind ->
-                                viewModel.createShareLink(kind, showError) { link -> shareLinkIntent(context, state.value.trip, link) }
-                            },
-                            onShare = { link -> shareLinkIntent(context, state.value.trip, link) },
-                            onRevoke = { link -> viewModel.revokeShareLink(link, showError) },
-                        )
-                    },
-                    onToggleTraveller = { id -> viewModel.toggleTraveller(id) { scope.launch { snackbar.showSnackbar(it) } } },
-                    onDiscount = { id, value -> viewModel.setDiscount(id, value) { scope.launch { snackbar.showSnackbar(it) } } },
                     companion = offer ?: CompanionOffer.Hidden,
                     liveUpdatesOff = Build.VERSION.SDK_INT >= 36 &&
                         !context.getSystemService(android.app.NotificationManager::class.java).canPostPromotedNotifications(),
@@ -433,6 +432,40 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                 }
             },
         )
+    }
+
+    if (editing) {
+        (detail as? Loadable.Ready)?.value?.trip?.let { trip ->
+            EditTripSheet(
+                trip = trip,
+                onSave = { edit ->
+                    viewModel.editTrip(edit, onError = { message -> editing = false; showError(message) }) {
+                        editing = false
+                        scope.launch { snackbar.showSnackbar("Trip saved") }
+                    }
+                },
+                onDismiss = { editing = false },
+            )
+        }
+    }
+
+    if (sharing) {
+        (detail as? Loadable.Ready)?.value?.trip?.let { trip ->
+            ShareSheet(
+                actions = shareLinks?.let { links ->
+                    ShareActions(
+                        links = links,
+                        busy = shareBusy,
+                        onCreate = { kind ->
+                            viewModel.createShareLink(kind, showError) { link -> shareLinkIntent(context, trip, link) }
+                        },
+                        onShare = { link -> shareLinkIntent(context, trip, link) },
+                        onRevoke = { link -> viewModel.revokeShareLink(link, showError) },
+                    )
+                },
+                onDismiss = { sharing = false },
+            )
+        }
     }
 
     if (recording) {
@@ -502,11 +535,7 @@ private fun TripContent(
     /** "Use" on the Location row behind the source pill: the setting, the permission, the companion. */
     onUseLocation: () -> Unit,
     onAlternatives: () -> Unit,
-    people: TripPeople?,
     afterRide: AfterRideActions?,
-    share: ShareActions?,
-    onToggleTraveller: (String) -> Unit,
-    onDiscount: (travellerId: String, discount: Int?) -> Unit,
     companion: CompanionOffer,
     /** Android 16+ with Live Updates turned off for Abeona: no status bar chip, not pinned on the lock screen. */
     liveUpdatesOff: Boolean,
@@ -529,8 +558,7 @@ private fun TripContent(
         val over = trip.expectedArrival.plus(Duration.ofHours(1)).isBefore(java.time.Instant.now())
         val binding = !over && trainBindingLifted(trip.fareType, trip.trainBinding, arrivalDelay, connectionBroken)
         val following = !over && trip.followsReplacement
-        val warnings = people?.warnings?.takeIf { it.isNotEmpty() && trip.expectedArrival.isAfter(java.time.Instant.now()) }
-        // The binding, a connection taken instead and the travellers' warnings: in the live card while live.
+        // The binding and a connection taken instead: in the live card while live.
         val notices: @Composable () -> Unit = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (binding) {
@@ -544,10 +572,9 @@ private fun TripContent(
                     )
                 }
                 if (following) FollowingCard(trip, onFollowPlan)
-                warnings?.let { TripWarningsBanner(it) }
             }
         }
-        val anyNotice = binding || following || warnings != null
+        val anyNotice = binding || following
         // While the trip is live, everything live is in the one card; above it only what does not change.
         item(key = "header") { TripHeader(detail, live = live != null) }
         if (live != null) {
@@ -600,8 +627,6 @@ private fun TripContent(
                 item(key = "leg-$index") { LegCard(leg) }
             }
         }
-        people?.let { item(key = "travellers") { TravellersCard(trip, it, onToggleTraveller, onDiscount) } }
-        share?.let { item(key = "share") { ShareCard(it) } }
     }
 }
 
@@ -632,37 +657,13 @@ private fun LocationPrompt(onAllow: () -> Unit, onDismiss: () -> Unit) {
     }
 }
 
-/** Who rides on this trip, and the BahnCard discount each one's share was bought with. */
-@Composable
-private fun TravellersCard(trip: Trip, people: TripPeople, onToggle: (String) -> Unit, onDiscount: (String, Int?) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-        SectionHeader("Travellers", supporting = "Who rides, and the BahnCard each one's fare counts on")
-        NexusCard(Modifier.fillMaxWidth()) {
-            val showDiscount = trip.fareType != FareType.BahnCard100 && trip.fareType != FareType.Deutschlandticket
-            TravellerPicker(
-                travellers = people.travellers,
-                selected = people.onTrip,
-                showDiscount = showDiscount,
-                onToggle = { onToggle(it.id) },
-                onDiscount = onDiscount,
-            )
-            when (trip.fareType) {
-                FareType.BahnCard100 -> Text("Every traveller needs a BahnCard 100.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
-                FareType.Deutschlandticket -> Text("No BahnCard discount with a Deutschlandticket.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
-                else -> Unit
-            }
-        }
-    }
-}
-
 private fun timelineSummary(trip: Trip): String {
     val rides = trip.legs.count { !it.isWalk }
     val minutes = Duration.between(trip.departureAt, trip.arrivalAt).toMinutes()
     return listOf(
         TripFormat.duration(minutes),
         if (rides <= 1) "direct" else "${rides - 1} ${if (rides == 2) "change" else "changes"}",
-        "${trip.fareType.label}, ${if (trip.travelClass == 1) "1st" else "2nd"} class" +
-            (trip.bahncardDiscount?.let { ", BahnCard $it" } ?: ""),
+        "${trip.fareType.label}, ${if (trip.travelClass == 1) "1st" else "2nd"} class",
     ).joinToString(" · ")
 }
 
@@ -688,6 +689,7 @@ private fun liveStatus(detail: TripDetail): LiveStatus? {
  * times and how fresh they are are in the live card. Otherwise the board
  * times with their delays, and the status pills.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TripHeader(detail: TripDetail, live: Boolean) {
     val trip = detail.trip
@@ -703,7 +705,11 @@ private fun TripHeader(detail: TripDetail, live: Boolean) {
         if (!trip.title.isNullOrBlank()) {
             Text("${trip.originName} → ${trip.destinationName}", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        if (live) return@Column
+        // How many the ticket is for and its BahnCards: static, so it stays above the live card too.
+        if (live) {
+            TicketNeedsSummary(trip.travellerCount, trip.bahncardDiscounts)
+            return@Column
+        }
         Row(
             Modifier.fillMaxWidth().padding(top = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -719,7 +725,11 @@ private fun TripHeader(detail: TripDetail, live: Boolean) {
                 Text(trip.destinationName, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
-        Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(
+            Modifier.padding(top = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
             when {
                 detail.offlineSince != null -> OfflinePill(detail.offlineSince)
                 detail.refreshError != null -> StatusPill("Live data unavailable", offline = true)
@@ -728,6 +738,7 @@ private fun TripHeader(detail: TripDetail, live: Boolean) {
             }
             if (trip.legs.none { it.realtime } && trip.legs.any { !it.isWalk }) StatusPill("Timetable only")
             trip.priceCents?.let { StatusPill(TripFormat.price(it)) }
+            TicketNeedsSummary(trip.travellerCount, trip.bahncardDiscounts, Modifier.align(Alignment.CenterVertically))
         }
     }
 }

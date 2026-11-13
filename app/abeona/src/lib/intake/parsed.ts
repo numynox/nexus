@@ -63,13 +63,13 @@ export interface ParsedTicket {
   /** Which half of a return booking this ticket is; null for a single. */
   direction: "outward" | "return" | null;
   travel_class: 1 | 2 | null;
-  /** "2 Personen" → 2; one per passenger's page on Trenitalia's. A hint for "Who travels", not a list of names. */
+  /** "2 Personen" → 2; one per passenger's page on Trenitalia's. The trip's traveller count, not a list of names. */
   travellers: number | null;
   /**
    * One BahnCard discount per person the ticket prints, null for one without:
    * "3 Personen … mit 1 BC25, 1 BC50" → [25, 50, null]. Empty when the ticket
-   * names no travellers. Persons are not names: which traveller holds which
-   * the save sheet works out (lib/travellers.ts).
+   * names no travellers. Persons are not names: the trip keeps only how many
+   * and which cards (lib/ticketNeeds.ts: ticketSummary).
    */
   discounts: (25 | 50 | null)[];
   /** Bound to the trains in `booked_lines`. */

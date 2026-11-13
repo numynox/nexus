@@ -8,7 +8,6 @@ import io.github.numynox.nexus.abeona.AppContainer
 import io.github.numynox.nexus.abeona.data.BahnCard
 import io.github.numynox.nexus.abeona.data.BahnCardInput
 import io.github.numynox.nexus.abeona.data.HouseholdMember
-import io.github.numynox.nexus.abeona.data.Traveller
 import io.github.numynox.nexus.abeona.ui.common.PickedFile
 import io.github.numynox.nexus.core.data.NexusConfig
 import io.github.numynox.nexus.core.data.describe
@@ -26,12 +25,9 @@ import kotlinx.coroutines.launch
 
 data class Household(
     val members: List<HouseholdMember>,
-    val travellers: List<Traveller>,
-    /** Every traveller's BahnCards, the one running longest first. */
+    /** The household's BahnCards, the one running longest first. */
     val cards: List<BahnCard> = emptyList(),
-) {
-    fun cardsOf(traveller: Traveller): List<BahnCard> = cards.filter { it.travellerId == traveller.id }
-}
+)
 
 class SettingsViewModel(private val container: AppContainer, private val application: Application) : ViewModel() {
     private val repository = container.repository
@@ -49,9 +45,8 @@ class SettingsViewModel(private val container: AppContainer, private val applica
         _household.value = loadable {
             coroutineScope {
                 val members = async { repository.members() }
-                val travellers = async { repository.travellers() }
                 val cards = async { container.trips.bahnCards().value }
-                Household(members.await(), travellers.await(), cards.await())
+                Household(members.await(), cards.await())
             }
         }
     }
@@ -64,9 +59,6 @@ class SettingsViewModel(private val container: AppContainer, private val applica
 
     fun invite(email: String) = write("Invited ${email.trim()}") { repository.invite(email) }
     fun leave(onDone: () -> Unit) = write("You left the household") { repository.leaveHousehold(); onDone() }
-    fun addTraveller(name: String) = write(null) { repository.addTraveller(name) }
-    fun renameTraveller(id: String, name: String) = write(null) { repository.renameTraveller(id, name) }
-    fun deleteTraveller(id: String) = write(null) { repository.deleteTraveller(id) }
 
     /** Saves a card, then its file: a new one uploaded, or the old one removed. */
     fun saveCard(input: BahnCardInput, id: String?, file: Uri?, removeFile: Boolean) = write("BahnCard saved") {

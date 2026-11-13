@@ -14,9 +14,9 @@
             "line": "RE19",
             "product": "RE",
             "number": "4901",
-            "headsign": "Nürnberg Hbf",
+            "headsign": "N\u00fcrnberg Hbf",
             "from": "Erlangen",
-            "to": "Nürnberg Hbf",
+            "to": "N\u00fcrnberg Hbf",
             "date": "2025-11-14",
             "departure": "06:29",
             "arrival_date": "2025-11-14",
@@ -30,7 +30,7 @@
             "product": "ICE",
             "number": null,
             "headsign": "Essen Hbf",
-            "from": "Nürnberg Hbf",
+            "from": "N\u00fcrnberg Hbf",
             "to": "Frankfurt(Main)Hbf",
             "date": "2025-11-14",
             "departure": "07:13",
@@ -46,7 +46,7 @@
             "number": null,
             "headsign": "Bruxelles Midi",
             "from": "Frankfurt(Main)Hbf",
-            "to": "Liège-Guillemins",
+            "to": "Li\u00e8ge-Guillemins",
             "date": "2025-11-14",
             "departure": "10:34",
             "arrival_date": "2025-11-14",
@@ -60,7 +60,7 @@
             "product": "IC",
             "number": null,
             "headsign": null,
-            "from": "Liège-Guillemins",
+            "from": "Li\u00e8ge-Guillemins",
             "to": "Leuven",
             "date": "2025-11-14",
             "departure": "13:02",
@@ -90,7 +90,7 @@
             "number": null,
             "headsign": null,
             "from": "Leuven",
-            "to": "Liège-Guillemins",
+            "to": "Li\u00e8ge-Guillemins",
             "date": "2025-11-16",
             "departure": "14:27",
             "arrival_date": "2025-11-16",
@@ -104,7 +104,7 @@
             "product": "ICE",
             "number": null,
             "headsign": null,
-            "from": "Liège-Guillemins",
+            "from": "Li\u00e8ge-Guillemins",
             "to": "Frankfurt(Main)Hbf",
             "date": "2025-11-16",
             "departure": "15:14",
@@ -120,7 +120,7 @@
             "number": null,
             "headsign": null,
             "from": "Frankfurt(Main)Hbf",
-            "to": "Nürnberg Hbf",
+            "to": "N\u00fcrnberg Hbf",
             "date": "2025-11-16",
             "departure": "17:57",
             "arrival_date": "2025-11-16",
@@ -134,7 +134,7 @@
             "product": "ICE",
             "number": null,
             "headsign": null,
-            "from": "Nürnberg Hbf",
+            "from": "N\u00fcrnberg Hbf",
             "to": "Erlangen",
             "date": "2025-11-16",
             "departure": "21:05",
@@ -182,7 +182,7 @@
             "number": null,
             "headsign": null,
             "from": "Leuven",
-            "to": "Liège-Guillemins",
+            "to": "Li\u00e8ge-Guillemins",
             "date": "2025-11-16",
             "departure": "14:27",
             "arrival_date": "2025-11-16",
@@ -196,7 +196,7 @@
             "product": "ICE",
             "number": null,
             "headsign": null,
-            "from": "Liège-Guillemins",
+            "from": "Li\u00e8ge-Guillemins",
             "to": "Frankfurt(Main)Hbf",
             "date": "2025-11-16",
             "departure": "15:14",
@@ -212,7 +212,7 @@
             "number": null,
             "headsign": null,
             "from": "Frankfurt(Main)Hbf",
-            "to": "Nürnberg Hbf",
+            "to": "N\u00fcrnberg Hbf",
             "date": "2025-11-16",
             "departure": "17:57",
             "arrival_date": "2025-11-16",
@@ -226,7 +226,7 @@
             "product": "ICE",
             "number": null,
             "headsign": null,
-            "from": "Nürnberg Hbf",
+            "from": "N\u00fcrnberg Hbf",
             "to": "Erlangen",
             "date": "2025-11-16",
             "departure": "21:05",
@@ -273,7 +273,7 @@
             "number": null,
             "headsign": null,
             "from": "Leuven",
-            "to": "Liège-Guillemins",
+            "to": "Li\u00e8ge-Guillemins",
             "date": "2025-11-16",
             "departure": "14:27",
             "arrival_date": "2025-11-16",
@@ -287,7 +287,7 @@
             "product": "ICE",
             "number": null,
             "headsign": null,
-            "from": "Liège-Guillemins",
+            "from": "Li\u00e8ge-Guillemins",
             "to": "Frankfurt(Main)Hbf",
             "date": "2025-11-16",
             "departure": "15:14",
@@ -303,7 +303,7 @@
             "number": null,
             "headsign": null,
             "from": "Frankfurt(Main)Hbf",
-            "to": "Nürnberg Hbf",
+            "to": "N\u00fcrnberg Hbf",
             "date": "2025-11-16",
             "departure": "17:57",
             "arrival_date": "2025-11-16",
@@ -317,7 +317,7 @@
             "product": "ICE",
             "number": null,
             "headsign": null,
-            "from": "Nürnberg Hbf",
+            "from": "N\u00fcrnberg Hbf",
             "to": "Erlangen",
             "date": "2025-11-16",
             "departure": "21:05",
@@ -399,7 +399,7 @@
           "booked_lines": [
             "ICE 528"
           ],
-          "origin": "Erlangen Paul-Gossen-Straße",
+          "origin": "Erlangen Paul-Gossen-Stra\u00dfe",
           "destination": "Hanau Hbf",
           "date": "2026-11-13",
           "legs": [
@@ -408,22 +408,22 @@
               "product": "S",
               "number": null,
               "headsign": null,
-              "from": "Erlangen Paul-Gossen-Straße",
-              "to": "Nürnberg Hbf",
+              "from": "Erlangen Paul-Gossen-Stra\u00dfe",
+              "to": "N\u00fcrnberg Hbf",
               "date": "2026-11-13",
               "departure": "16:30",
               "arrival_date": "2026-11-13",
               "arrival": "16:58",
               "from_platform": "3",
               "to_platform": "3",
-              "reservation": "Die Fahrkarte ist für diesen Abschnitt nicht gültig. Hier ist"
+              "reservation": "Die Fahrkarte ist f\u00fcr diesen Abschnitt nicht g\u00fcltig. Hier ist"
             },
             {
               "line": "ICE 528",
               "product": "ICE",
               "number": null,
               "headsign": null,
-              "from": "Nürnberg Hbf",
+              "from": "N\u00fcrnberg Hbf",
               "to": "Hanau Hbf",
               "date": "2026-11-13",
               "departure": "17:13",
@@ -435,7 +435,7 @@
             }
           ],
           "price_cents": 4573,
-          "reservation": "S1: Die Fahrkarte ist für diesen Abschnitt nicht gültig. Hier ist"
+          "reservation": "S1: Die Fahrkarte ist f\u00fcr diesen Abschnitt nicht g\u00fcltig. Hier ist"
         },
         {
           "kind": "ticket",
@@ -454,7 +454,7 @@
             "ICE 625"
           ],
           "origin": "Hanau Hbf",
-          "destination": "Erlangen Paul-Gossen-Straße",
+          "destination": "Erlangen Paul-Gossen-Stra\u00dfe",
           "date": "2026-11-15",
           "legs": [
             {
@@ -463,7 +463,7 @@
               "number": null,
               "headsign": null,
               "from": "Hanau Hbf",
-              "to": "Nürnberg Hbf",
+              "to": "N\u00fcrnberg Hbf",
               "date": "2026-11-15",
               "departure": "13:15",
               "arrival_date": "2026-11-15",
@@ -477,19 +477,19 @@
               "product": "S",
               "number": null,
               "headsign": null,
-              "from": "Nürnberg Hbf",
-              "to": "Erlangen Paul-Gossen-Straße",
+              "from": "N\u00fcrnberg Hbf",
+              "to": "Erlangen Paul-Gossen-Stra\u00dfe",
               "date": "2026-11-15",
               "departure": "15:41",
               "arrival_date": "2026-11-15",
               "arrival": "16:05",
               "from_platform": "1",
               "to_platform": "2",
-              "reservation": "Die Fahrkarte ist für diesen Abschnitt nicht gültig. Hier ist"
+              "reservation": "Die Fahrkarte ist f\u00fcr diesen Abschnitt nicht g\u00fcltig. Hier ist"
             }
           ],
           "price_cents": 4573,
-          "reservation": "S1: Die Fahrkarte ist für diesen Abschnitt nicht gültig. Hier ist"
+          "reservation": "S1: Die Fahrkarte ist f\u00fcr diesen Abschnitt nicht g\u00fcltig. Hier ist"
         }
       ]
     }
@@ -558,7 +558,7 @@
       "binding": false
     },
     {
-      "name": "Schönes-Wochenende-Ticket",
+      "name": "Sch\u00f6nes-Wochenende-Ticket",
       "fare_type": "regional",
       "binding": false
     },
@@ -652,9 +652,9 @@
       "share": "db-navigator-share-4-legs.txt",
       "stations": {
         "Erlangen": "de:erlangen",
-        "Nürnberg Hbf": "de:nuernberg",
+        "N\u00fcrnberg Hbf": "de:nuernberg",
         "Frankfurt(Main)Hbf": "de:frankfurt",
-        "Liège-Guillemins": "be:liege",
+        "Li\u00e8ge-Guillemins": "be:liege",
         "Leuven": "be:leuven"
       },
       "journeys": {
@@ -677,7 +677,7 @@
                 },
                 "to": {
                   "id": null,
-                  "name": "Nürnberg Hbf",
+                  "name": "N\u00fcrnberg Hbf",
                   "planned": "2025-11-14T05:48:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -700,14 +700,14 @@
                 "trip_ref": null,
                 "from": {
                   "id": null,
-                  "name": "Nürnberg Hbf",
+                  "name": "N\u00fcrnberg Hbf",
                   "planned": "2025-11-14T05:48:00Z",
                   "planned_platform": null,
                   "platform": null
                 },
                 "to": {
                   "id": null,
-                  "name": "Nürnberg Hbf",
+                  "name": "N\u00fcrnberg Hbf",
                   "planned": "2025-11-14T05:53:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -721,7 +721,7 @@
                 "trip_ref": "ice728",
                 "from": {
                   "id": null,
-                  "name": "Nürnberg Hbf",
+                  "name": "N\u00fcrnberg Hbf",
                   "planned": "2025-11-14T06:13:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -758,7 +758,7 @@
                 },
                 "to": {
                   "id": null,
-                  "name": "Liège, Guillemins Bf",
+                  "name": "Li\u00e8ge, Guillemins Bf",
                   "planned": "2025-11-14T11:43:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -781,7 +781,7 @@
                 "trip_ref": "ic535",
                 "from": {
                   "id": null,
-                  "name": "Liège-Guillemins",
+                  "name": "Li\u00e8ge-Guillemins",
                   "planned": "2025-11-14T12:02:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -819,7 +819,7 @@
                 "trip_ref": "ice728",
                 "from": {
                   "id": null,
-                  "name": "Nürnberg Hbf",
+                  "name": "N\u00fcrnberg Hbf",
                   "planned": "2025-11-14T06:13:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -864,7 +864,7 @@
                 },
                 "to": {
                   "id": null,
-                  "name": "Liège, Guillemins Bf",
+                  "name": "Li\u00e8ge, Guillemins Bf",
                   "planned": "2025-11-14T11:43:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -896,9 +896,9 @@
         ],
         "from_names": [
           "Erlangen",
-          "Nürnberg Hbf",
+          "N\u00fcrnberg Hbf",
           "Frankfurt (Main) Hauptbahnhof",
-          "Liège-Guillemins"
+          "Li\u00e8ge-Guillemins"
         ],
         "from_platforms": [
           "4",
@@ -915,9 +915,9 @@
       "share": "db-navigator-share-return-no-platforms.txt",
       "stations": {
         "Erlangen": "de:erlangen",
-        "Nürnberg Hbf": "de:nuernberg",
+        "N\u00fcrnberg Hbf": "de:nuernberg",
         "Frankfurt(Main)Hbf": "de:frankfurt",
-        "Liège-Guillemins": "be:liege",
+        "Li\u00e8ge-Guillemins": "be:liege",
         "Leuven": "be:leuven"
       },
       "journeys": {
@@ -940,7 +940,7 @@
                 },
                 "to": {
                   "id": null,
-                  "name": "Liège-Guillemins",
+                  "name": "Li\u00e8ge-Guillemins",
                   "planned": "2025-11-16T13:33:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -976,7 +976,7 @@
                 },
                 "to": {
                   "id": null,
-                  "name": "Liège-Guillemins",
+                  "name": "Li\u00e8ge-Guillemins",
                   "planned": "2025-11-16T13:59:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -999,14 +999,14 @@
                 "trip_ref": null,
                 "from": {
                   "id": null,
-                  "name": "Liège-Guillemins",
+                  "name": "Li\u00e8ge-Guillemins",
                   "planned": "2025-11-16T13:59:00Z",
                   "planned_platform": null,
                   "platform": null
                 },
                 "to": {
                   "id": null,
-                  "name": "Liège-Guillemins",
+                  "name": "Li\u00e8ge-Guillemins",
                   "planned": "2025-11-16T14:04:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -1020,7 +1020,7 @@
                 "trip_ref": "ice17",
                 "from": {
                   "id": null,
-                  "name": "Liège, Guillemins Bf",
+                  "name": "Li\u00e8ge, Guillemins Bf",
                   "planned": "2025-11-16T14:14:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -1057,7 +1057,7 @@
                 },
                 "to": {
                   "id": null,
-                  "name": "Nürnberg Hbf",
+                  "name": "N\u00fcrnberg Hbf",
                   "planned": "2025-11-16T19:40:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -1080,7 +1080,7 @@
                 "trip_ref": "ice700",
                 "from": {
                   "id": null,
-                  "name": "Nürnberg Hbf",
+                  "name": "N\u00fcrnberg Hbf",
                   "planned": "2025-11-16T20:05:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -1119,9 +1119,9 @@
         ],
         "from_names": [
           "Louvain",
-          "Liège, Guillemins Bf",
+          "Li\u00e8ge, Guillemins Bf",
           "Frankfurt (Main) Hauptbahnhof",
-          "Nürnberg Hbf"
+          "N\u00fcrnberg Hbf"
         ],
         "from_platforms": [
           null,
@@ -1139,9 +1139,9 @@
       "share": "db-navigator-share-return-no-platforms.txt",
       "stations": {
         "Erlangen": "de:erlangen",
-        "Nürnberg Hbf": "de:nuernberg",
+        "N\u00fcrnberg Hbf": "de:nuernberg",
         "Frankfurt(Main)Hbf": "de:frankfurt",
-        "Liège-Guillemins": "be:liege",
+        "Li\u00e8ge-Guillemins": "be:liege",
         "Leuven": "be:leuven"
       },
       "journeys": {
@@ -1157,7 +1157,7 @@
                 "trip_ref": "ice700",
                 "from": {
                   "id": null,
-                  "name": "Nürnberg Hbf",
+                  "name": "N\u00fcrnberg Hbf",
                   "planned": "2025-11-16T20:05:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -1196,9 +1196,9 @@
         ],
         "from_names": [
           "Leuven",
-          "Liège-Guillemins",
+          "Li\u00e8ge-Guillemins",
           "Frankfurt(Main)Hbf",
-          "Nürnberg Hbf"
+          "N\u00fcrnberg Hbf"
         ],
         "from_platforms": [
           null,
@@ -1227,9 +1227,9 @@
         ],
         "from_names": [
           "Erlangen",
-          "Nürnberg Hbf",
+          "N\u00fcrnberg Hbf",
           "Frankfurt(Main)Hbf",
-          "Liège-Guillemins"
+          "Li\u00e8ge-Guillemins"
         ],
         "from_platforms": [
           "4",
@@ -1264,80 +1264,221 @@
       "expect": "2026-10-25T11:00:00.000Z"
     }
   ],
-  "discounts": [
+  "ticket_summary": [
     {
-      "name": "a card holder gets the discount their card matches",
-      "ticket": [
+      "name": "persons and their discounts, those without one left out",
+      "travellers": 3,
+      "discounts": [
         25,
         50,
         null
       ],
-      "given": [],
-      "held": [
+      "expect": {
+        "traveller_count": 3,
+        "bahncard_discounts": [
+          25,
+          50
+        ]
+      }
+    },
+    {
+      "name": "no count printed: one person per discount, sorted",
+      "travellers": null,
+      "discounts": [
+        50,
+        25
+      ],
+      "expect": {
+        "traveller_count": 2,
+        "bahncard_discounts": [
+          25,
+          50
+        ]
+      }
+    },
+    {
+      "name": "nothing printed: unknown",
+      "travellers": null,
+      "discounts": [],
+      "expect": {
+        "traveller_count": null,
+        "bahncard_discounts": []
+      }
+    },
+    {
+      "name": "one person without a BahnCard",
+      "travellers": 1,
+      "discounts": [],
+      "expect": {
+        "traveller_count": 1,
+        "bahncard_discounts": []
+      }
+    }
+  ],
+  "ticket_cards": [
+    {
+      "name": "one card per BahnCard on the ticket, the largest first",
+      "cards": [
+        {
+          "id": "a25",
+          "kind": 25,
+          "valid_from": "2026-01-01",
+          "valid_to": "2026-12-31",
+          "file": true
+        },
+        {
+          "id": "b50",
+          "kind": 50,
+          "valid_from": "2026-01-01",
+          "valid_to": "2026-12-31",
+          "file": true
+        },
+        {
+          "id": "e100",
+          "kind": 100,
+          "valid_from": "2026-01-01",
+          "valid_to": "2026-12-31",
+          "file": true
+        }
+      ],
+      "discounts": [
+        25,
         50
       ],
-      "expect": 50
+      "traveller_count": 2,
+      "fare_type": "saver",
+      "day": "2026-06-01",
+      "expect": [
+        "b50",
+        "a25"
+      ]
     },
     {
-      "name": "someone without a card takes the person without one",
-      "ticket": [
+      "name": "a BahnCard 50 stands in for a 25",
+      "cards": [
+        {
+          "id": "b50",
+          "kind": 50,
+          "valid_from": "2026-01-01",
+          "valid_to": "2026-12-31",
+          "file": true
+        }
+      ],
+      "discounts": [
+        25
+      ],
+      "traveller_count": 1,
+      "fare_type": "saver",
+      "day": "2026-06-01",
+      "expect": [
+        "b50"
+      ]
+    },
+    {
+      "name": "a card without a file, or not valid that day, is not shown",
+      "cards": [
+        {
+          "id": "c25-no-file",
+          "kind": 25,
+          "valid_from": "2026-01-01",
+          "valid_to": "2026-12-31",
+          "file": false
+        },
+        {
+          "id": "d25-expired",
+          "kind": 25,
+          "valid_from": "2025-01-01",
+          "valid_to": "2025-12-31",
+          "file": true
+        }
+      ],
+      "discounts": [
+        25
+      ],
+      "traveller_count": 1,
+      "fare_type": "flex",
+      "day": "2026-06-01",
+      "expect": []
+    },
+    {
+      "name": "two BahnCards 25 on the ticket are two cards",
+      "cards": [
+        {
+          "id": "a25",
+          "kind": 25,
+          "valid_from": "2026-01-01",
+          "valid_to": "2026-12-31",
+          "file": true
+        },
+        {
+          "id": "a25-2",
+          "kind": 25,
+          "valid_from": "2026-03-01",
+          "valid_to": "2027-02-28",
+          "file": true
+        }
+      ],
+      "discounts": [
         25,
-        50,
-        null
+        25
       ],
-      "given": [],
-      "held": [],
-      "expect": null
+      "traveller_count": 2,
+      "fare_type": "saver",
+      "day": "2026-06-01",
+      "expect": [
+        "a25",
+        "a25-2"
+      ]
     },
     {
-      "name": "a card that matches nothing left takes what is printed first",
-      "ticket": [
-        25,
-        50,
-        null
+      "name": "no BahnCard on the ticket, none shown",
+      "cards": [
+        {
+          "id": "a25",
+          "kind": 25,
+          "valid_from": "2026-01-01",
+          "valid_to": "2026-12-31",
+          "file": true
+        },
+        {
+          "id": "b50",
+          "kind": 50,
+          "valid_from": "2026-01-01",
+          "valid_to": "2026-12-31",
+          "file": true
+        }
       ],
-      "given": [
-        25,
-        null
-      ],
-      "held": [
-        25
-      ],
-      "expect": 50
+      "discounts": [],
+      "traveller_count": 2,
+      "fare_type": "flex",
+      "day": "2026-06-01",
+      "expect": []
     },
     {
-      "name": "without a person to spare, a traveller without a card still takes what is left",
-      "ticket": [
-        25,
-        25
+      "name": "a BahnCard 100 fare needs one per traveller",
+      "cards": [
+        {
+          "id": "a25",
+          "kind": 25,
+          "valid_from": "2026-01-01",
+          "valid_to": "2026-12-31",
+          "file": true
+        },
+        {
+          "id": "e100",
+          "kind": 100,
+          "valid_from": "2026-01-01",
+          "valid_to": "2026-12-31",
+          "file": true
+        }
       ],
-      "given": [
-        25
-      ],
-      "held": [],
-      "expect": 25
-    },
-    {
-      "name": "once everybody on the ticket is given away, none",
-      "ticket": [
-        25
-      ],
-      "given": [
-        25
-      ],
-      "held": [
-        25
-      ],
-      "expect": null
-    },
-    {
-      "name": "a share names nobody: none",
-      "ticket": [],
-      "given": [],
-      "held": [
-        50
-      ],
-      "expect": null
+      "discounts": [],
+      "traveller_count": null,
+      "fare_type": "bahncard100",
+      "day": "2026-06-01",
+      "expect": [
+        "e100"
+      ]
     }
   ]
 }

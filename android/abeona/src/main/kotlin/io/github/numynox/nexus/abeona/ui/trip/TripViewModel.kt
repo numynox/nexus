@@ -11,10 +11,8 @@ import io.github.numynox.nexus.abeona.data.Compensation
 import io.github.numynox.nexus.abeona.data.Journey
 import io.github.numynox.nexus.abeona.data.Leg
 import io.github.numynox.nexus.abeona.data.ShareLink
-import io.github.numynox.nexus.abeona.data.Traveller
-import io.github.numynox.nexus.abeona.data.TripTraveller
 import io.github.numynox.nexus.abeona.data.Trip
-import io.github.numynox.nexus.abeona.data.TripWarning
+import io.github.numynox.nexus.abeona.data.TripEdit
 import io.github.numynox.nexus.abeona.data.toInstantOrNull
 import io.github.numynox.nexus.abeona.domain.AlternativesOrigin
 import io.github.numynox.nexus.abeona.domain.TravelDay
@@ -79,14 +77,6 @@ data class ReplacementSearch(
     val error: String? = null,
 )
 
-/** Who travels on the trip, everyone who could, and what is wrong with their BahnCards. */
-data class TripPeople(
-    val travellers: List<Traveller>,
-    /** Who travels, each with the discount of their share. */
-    val onTrip: List<TripTraveller>,
-    val warnings: List<TripWarning>,
-)
-
 class TripViewModel(
     private val container: AppContainer,
     private val application: Application,
@@ -96,10 +86,6 @@ class TripViewModel(
 
     private val _detail = MutableStateFlow<Loadable<TripDetail>>(Loadable.Loading)
     val detail: StateFlow<Loadable<TripDetail>> = _detail.asStateFlow()
-
-    private val _people = MutableStateFlow<TripPeople?>(null)
-    /** Null while loading, offline, or when it could not load: the section then stays away. */
-    val people: StateFlow<TripPeople?> = _people.asStateFlow()
 
     private val _alternatives = MutableStateFlow<AlternativesState?>(null)
     /** Null until a search ran, by itself (something is wrong) or on demand. */
@@ -149,7 +135,6 @@ class TripViewModel(
                 return@launch
             }
             _detail.value = Loadable.Ready(TripDetail(trip, fetched.offlineSince))
-            if (fetched.offlineSince == null) launch { loadPeople() }
             if (fetched.offlineSince == null) launch { loadShareLinks() }
             if (fetched.offlineSince == null && hasArrived(trip)) launch { loadAfterRide() }
             // Final trips (frozen by the job, or imported as past trips) never change again.
@@ -191,45 +176,23 @@ class TripViewModel(
         }
     }
 
-    private suspend fun loadPeople() {
-        val repository = container.repository
-        _people.value = runCatching {
-            coroutineScope {
-                val travellers = async { repository.travellers() }
-                val onTrip = async { repository.tripTravellers(tripId) }
-                val warnings = async { repository.tripWarnings(tripId) }
-                TripPeople(travellers.await(), onTrip.await(), warnings.await())
-            }
-        }.getOrElse { _people.value }
-    }
-
-    /** Puts a traveller on the trip, without a discount until one is chosen, or takes them off; the warnings follow. */
-    fun toggleTraveller(id: String, onError: (String) -> Unit) {
-        val current = _people.value ?: return
-        val next = if (current.onTrip.any { it.travellerId == id }) {
-            current.onTrip.filter { it.travellerId != id }
-        } else {
-            current.onTrip + TripTraveller(id)
-        }
-        saveTravellers(current, next, onError)
-    }
-
-    /** The BahnCard discount of one traveller's share (25, 50 or null); the warnings follow. */
-    fun setDiscount(id: String, discount: Int?, onError: (String) -> Unit) {
-        val current = _people.value ?: return
-        if (current.onTrip.firstOrNull { it.travellerId == id }?.bahncardDiscount == discount) return
-        saveTravellers(current, current.onTrip.map { if (it.travellerId == id) it.copy(bahncardDiscount = discount) else it }, onError)
-    }
-
-    private fun saveTravellers(current: TripPeople, next: List<TripTraveller>, onError: (String) -> Unit) {
-        _people.value = current.copy(onTrip = next)
-        // The trip keeps the discount everybody shares, as the database does.
-        val shared = next.map { it.bahncardDiscount }.distinct().singleOrNull()
-        _detail.value.valueOrNull?.let { _detail.value = Loadable.Ready(it.copy(trip = it.trip.copy(bahncardDiscount = shared))) }
+    /**
+     * Saves the "Edit trip" sheet: title, ticket facts, travellers and
+     * BahnCards in one update. The store puts it into the offline pack and
+     * hands it to the live companion; the compensation is asked again, since
+     * the price and the fare count there.
+     */
+    fun editTrip(edit: TripEdit, onError: (String) -> Unit, onDone: () -> Unit) {
+        val trip = _detail.value.valueOrNull?.trip ?: return
         viewModelScope.launch {
-            runCatching { container.repository.saveTripTravellers(tripId, next) }
-                .onSuccess { loadPeople() }
-                .onFailure { _people.value = current; onError(it.describe()) }
+            runCatching { store.edit(trip, edit) }
+                .onSuccess {
+                    updateTrip { latest -> edit.applyTo(latest) }
+                    NextTripWidget.refresh(application)
+                    onDone()
+                    if (hasArrived(trip)) loadAfterRide()
+                }
+                .onFailure { onError(it.describe()) }
         }
     }
 

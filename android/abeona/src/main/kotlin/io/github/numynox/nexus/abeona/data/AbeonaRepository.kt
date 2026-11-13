@@ -24,8 +24,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.addJsonObject
-import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.put
@@ -71,29 +70,6 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
         householdLock.withLock {
             household = supabase.auth.currentUserOrNull()?.id?.let { it to fresh }
         }
-    }
-
-    // ── Travellers ──────────────────────────────────────────────────────────
-
-    suspend fun travellers(): List<Traveller> {
-        val household = householdId()
-        return supabase.from("abeona_travellers").select {
-            filter { eq("household_id", household) }
-            order("created_at", Order.ASCENDING)
-        }.decodeList()
-    }
-
-    suspend fun addTraveller(name: String) {
-        val household = householdId()
-        supabase.from("abeona_travellers").insert(buildJsonObject { put("household_id", household); put("name", name.trim()) })
-    }
-
-    suspend fun renameTraveller(id: String, name: String) {
-        supabase.from("abeona_travellers").update(buildJsonObject { put("name", name.trim()) }) { filter { eq("id", id) } }
-    }
-
-    suspend fun deleteTraveller(id: String) {
-        supabase.from("abeona_travellers").delete { filter { eq("id", id) } }
     }
 
     // ── Trips ───────────────────────────────────────────────────────────────
@@ -146,8 +122,8 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
             put("train_binding", input.trainBinding)
             put("travel_class", input.travelClass)
             put("price_cents", input.priceCents)
-            // Each traveller's own discount; the RPC keeps the shared one on the trip for older APKs.
-            input.travellers?.let { put("travellers", travellersJson(it)) }
+            put("traveller_count", input.travellerCount)
+            put("bahncard_discounts", discountsJson(input.bahncardDiscounts))
         }
         val params = buildJsonObject {
             put("p_trip", trip)
@@ -156,34 +132,25 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
         return NexusJson.decodeFromString<String>(supabase.postgrest.rpc("abeona_save_trip", params).data)
     }
 
-    /** Who travels on a trip, and with which discount. */
-    suspend fun tripTravellers(tripId: String): List<TripTraveller> =
-        supabase.from("abeona_trip_travellers").select(Columns.list("traveller_id", "bahncard_discount")) { filter { eq("trip_id", tripId) } }
-            .decodeList<TripTraveller>()
-
-    /** Replaces who travels on a trip and with which discount, in one call. */
-    suspend fun saveTripTravellers(tripId: String, travellers: List<TripTraveller>) {
-        supabase.postgrest.rpc(
-            "abeona_save_trip_travellers",
+    /**
+     * The trip's ticket facts as the "Edit trip" sheet changes them, in one
+     * update of abeona_trips (household RLS allows it). A blank title clears it.
+     */
+    suspend fun editTrip(tripId: String, edit: TripEdit) {
+        supabase.from("abeona_trips").update(
             buildJsonObject {
-                put("p_trip_id", tripId)
-                put("p_travellers", travellersJson(travellers))
+                put("title", edit.title?.trim()?.takeIf { it.isNotEmpty() })
+                put("fare_type", edit.fareType.wire)
+                put("train_binding", edit.trainBinding)
+                put("travel_class", edit.travelClass)
+                put("price_cents", edit.priceCents)
+                put("traveller_count", edit.travellerCount)
+                put("bahncard_discounts", discountsJson(edit.bahncardDiscounts))
             },
-        )
+        ) { filter { eq("id", tripId) } }
     }
 
-    private fun travellersJson(travellers: List<TripTraveller>) = buildJsonArray {
-        travellers.forEach { t ->
-            addJsonObject {
-                put("id", t.travellerId)
-                put("bahncard_discount", t.bahncardDiscount)
-            }
-        }
-    }
-
-    /** What is wrong with the trip's BahnCards: the same rows, and words, as on the web. */
-    suspend fun tripWarnings(tripId: String): List<TripWarning> =
-        supabase.postgrest.rpc("abeona_trip_warnings", buildJsonObject { put("p_trip_id", tripId) }).decodeList()
+    private fun discountsJson(discounts: List<Int>) = JsonArray(discounts.sorted().map { JsonPrimitive(it) })
 
     suspend fun deleteTrip(trip: Trip) {
         supabase.from("abeona_trips").delete { filter { eq("id", trip.id) } }
@@ -404,19 +371,22 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
 
     // ── BahnCards ──────────────────────────────────────────────────────────
 
-    /** Every card of the household's travellers, the one running longest first. */
+    /** Every card of the household, the one running longest first. */
     suspend fun bahnCards(): List<BahnCard> {
         val household = householdId()
-        return supabase.from("abeona_bahncards").select(Columns.raw("*,abeona_travellers!inner(household_id)")) {
-            filter { eq("abeona_travellers.household_id", household) }
+        return supabase.from("abeona_bahncards").select {
+            filter { eq("household_id", household) }
             order("valid_to", Order.DESCENDING)
         }.decodeList()
     }
 
     /** Inserts a card, or updates it when [id] is given; returns it as stored. */
     suspend fun saveBahnCard(input: BahnCardInput, id: String? = null): BahnCard {
+        val household = householdId()
         val row = buildJsonObject {
-            put("traveller_id", input.travellerId)
+            if (id == null) put("household_id", household)
+            // Blank is rejected by the table: no name shows the kind.
+            put("name", input.name?.trim()?.takeIf { it.isNotEmpty() })
             put("kind", input.kind)
             put("travel_class", input.travelClass)
             put("valid_from", input.validFrom.toString())
