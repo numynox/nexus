@@ -9,9 +9,11 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Build
 import android.os.Looper
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import io.github.numynox.nexus.abeona.data.Trip
 import io.github.numynox.nexus.abeona.domain.Position
+import io.github.numynox.nexus.abeona.domain.TravelDayRules
 import io.github.numynox.nexus.abeona.domain.TravelSignals
 import io.github.numynox.nexus.abeona.domain.distanceMetres
 import java.time.Duration
@@ -67,8 +69,13 @@ object LiveSignals {
 /**
  * The phone's position during a trip, from the platform LocationManager (no
  * Google Play services, like Vibilia). Only while the live companion runs in
- * the foreground, every 30 seconds or 50 metres at most, and only with the
- * permission and the "Use location during a trip" setting.
+ * the foreground, every 30 seconds, and only with the permission and the
+ * "Use location during a trip" setting.
+ *
+ * Satellites first: in a train, the network (fused) position comes mostly
+ * from Wi-Fi, and the train's own access points travel with it, so it can
+ * pin a moving phone to the station the train last stood at. Every fix is
+ * delivered, also standing still, so a stop does not age the last one out.
  */
 class TripLocation(private val context: Context) {
     private var listener: LocationListener? = null
@@ -78,18 +85,25 @@ class TripLocation(private val context: Context) {
         ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
     }
 
+    /** Satellites need precise location; approximate only gets the network position. */
+    private fun fine(): Boolean =
+        ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+
     @SuppressLint("MissingPermission")
     fun start(): Boolean {
         if (listener != null) return true
         if (!hasPermission()) return false
         val manager = context.getSystemService(LocationManager::class.java) ?: return false
         val provider = when {
+            fine() && manager.isProviderEnabled(LocationManager.GPS_PROVIDER) -> LocationManager.GPS_PROVIDER
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && manager.hasProvider(LocationManager.FUSED_PROVIDER) -> LocationManager.FUSED_PROVIDER
-            manager.isProviderEnabled(LocationManager.GPS_PROVIDER) -> LocationManager.GPS_PROVIDER
             manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) -> LocationManager.NETWORK_PROVIDER
             else -> return false
         }
-        val l = LocationListener { location -> LiveSignals.setFix(Fix(Position(location.latitude, location.longitude, speedOf(location)), Instant.now())) }
+        val l = LocationListener { location ->
+            val accuracy = location.takeIf { it.hasAccuracy() }?.accuracy?.toDouble()
+            LiveSignals.setFix(Fix(Position(location.latitude, location.longitude, speedOf(location), accuracy), takenAt(location)))
+        }
         return runCatching {
             manager.requestLocationUpdates(provider, INTERVAL_MS, MIN_METRES, l, Looper.getMainLooper())
             listener = l
@@ -105,20 +119,35 @@ class TripLocation(private val context: Context) {
         LiveSignals.setFix(null)
     }
 
-    /** The fix's own speed, else from the distance to the previous fix. */
+    /**
+     * The fix's own speed, else from the distance to the previous fix, if
+     * both are accurate enough for that to mean something.
+     */
     private fun speedOf(location: Location): Double? {
         val previous = last
         last = location
         if (location.hasSpeed()) return location.speed * 3.6
-        if (previous == null) return null
+        if (previous == null || !accurate(previous) || !accurate(location)) return null
         val seconds = (location.time - previous.time) / 1000.0
         if (seconds <= 0) return null
         return distanceMetres(previous.latitude, previous.longitude, location.latitude, location.longitude) / seconds * 3.6
     }
 
+    private fun accurate(location: Location) =
+        location.hasAccuracy() && location.accuracy <= TravelDayRules.MISSED_ACCURACY_METRES
+
+    /**
+     * When the fix was measured, not when it was delivered: a cached fix
+     * handed over late must age out of LiveSignals.FRESH like any other.
+     */
+    private fun takenAt(location: Location): Instant {
+        val ageNanos = SystemClock.elapsedRealtimeNanos() - location.elapsedRealtimeNanos
+        return Instant.now().minusNanos(ageNanos.coerceAtLeast(0))
+    }
+
     companion object {
         val PERMISSIONS = arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
         private const val INTERVAL_MS = 30_000L
-        private const val MIN_METRES = 50f
+        private const val MIN_METRES = 0f
     }
 }
