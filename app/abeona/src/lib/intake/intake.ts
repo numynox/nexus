@@ -17,7 +17,7 @@ export interface Prefill {
   travel_class: 1 | 2 | null;
   /** One discount per person the ticket prints (ParsedTicket.discounts); empty for a share. */
   discounts: (25 | 50 | null)[];
-  /** How many people the ticket is for: a hint next to "Who travels". */
+  /** How many people the ticket is for; with `discounts`, the trip's ticketSummary. */
   travellers: number | null;
   price_cents: number | null;
 }

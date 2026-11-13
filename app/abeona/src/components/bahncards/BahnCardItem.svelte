@@ -1,7 +1,7 @@
 <script lang="ts">
   import { CreditCard, ExternalLink, Maximize2, Pencil } from "lucide-svelte";
   import type { BahnCard } from "../../lib/data";
-  import { bahnCardLabel, formatDay, parseDay, toDay } from "../../lib/format";
+  import { bahnCardLabel, bahnCardName, formatDay, parseDay, toDay } from "../../lib/format";
   import { DB_NAVIGATOR_HOME } from "../../lib/journey";
 
   interface Props {
@@ -29,7 +29,12 @@
       {card.kind}
     </span>
     <div class="min-w-0 flex-1">
-      <p class="font-medium text-ink">{bahnCardLabel(card)}</p>
+      {#if card.name}
+        <p class="truncate font-medium text-ink">{bahnCardName(card)}</p>
+        <p class="text-sm text-base-content/70">{bahnCardLabel(card)}</p>
+      {:else}
+        <p class="font-medium text-ink">{bahnCardLabel(card)}</p>
+      {/if}
       <p class="text-sm text-base-content/60">
         {#if status === "expired"}
           Expired {formatDay(card.valid_to)}
@@ -44,7 +49,7 @@
       </p>
       {#if card.card_number}<p class="tabular text-xs text-base-content/45">{card.card_number}</p>{/if}
     </div>
-    <button class="btn btn-ghost btn-circle btn-sm" aria-label="Edit {bahnCardLabel(card)}" onclick={onEdit}>
+    <button class="btn btn-ghost btn-circle btn-sm" aria-label="Edit {card.name ? `${bahnCardName(card)}, ${bahnCardLabel(card)}` : bahnCardLabel(card)}" onclick={onEdit}>
       <Pencil class="h-4 w-4" />
     </button>
   </div>

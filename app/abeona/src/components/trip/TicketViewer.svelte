@@ -12,7 +12,7 @@
     label?: string;
     /** A line under the header, e.g. where the file counts as proof. */
     note?: string;
-    /** More to show at the gate with it, one tap apart: the travellers' BahnCards. */
+    /** More to show at the gate with it, one tap apart: the BahnCards the ticket was booked with. */
     extras?: { key: string; label: string; path: string }[];
     onClose: () => void;
   }

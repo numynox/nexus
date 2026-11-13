@@ -3,7 +3,7 @@ import { ABEONA_THEMES } from "./themes";
 import { DEFAULT_STATION_MINUTES } from "./travelday";
 
 /**
- * Device-local preferences. Trips and travellers live in Postgres, shared by
+ * Device-local preferences. Trips and BahnCards live in Postgres, shared by
  * the household; what is here belongs to this browser only, and every value is
  * checked on read.
  */

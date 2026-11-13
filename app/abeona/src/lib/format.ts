@@ -124,6 +124,21 @@ export function formatPrice(cents: number | null | undefined): string {
   return (cents / 100).toLocaleString(LOCALE, { style: "currency", currency: "EUR" });
 }
 
+/** Cents as the price field shows them: 2990 → "29.90". */
+export function centsToEuros(cents: number): string {
+  return (cents / 100).toFixed(2);
+}
+
+/** A typed price in euros ("29,90", "29.90 €", "1.234,50") → cents; null when empty, "invalid" otherwise. */
+export function parseEuros(raw: string): number | null | "invalid" {
+  const cleaned = raw.trim().replace(/€/g, "").replace(/\s/g, "");
+  if (cleaned === "") return null;
+  const normalised = cleaned.includes(",") ? cleaned.replace(/\./g, "").replace(",", ".") : cleaned;
+  const value = Number(normalised);
+  if (!Number.isFinite(value) || value < 0) return "invalid";
+  return Math.round(value * 100);
+}
+
 export function formatNumber(value: number, digits = 0): string {
   return value.toLocaleString(LOCALE, { maximumFractionDigits: digits, minimumFractionDigits: digits });
 }
@@ -151,6 +166,27 @@ export function bahnCardLabel(card: { kind: number; travel_class: number }): str
   return `BahnCard ${card.kind} · ${card.travel_class === 1 ? "1st" : "2nd"} class`;
 }
 
+/** What a card is called: its name, else its kind ("BahnCard 25"). */
+export function bahnCardName(card: { name: string | null; kind: number }): string {
+  return card.name?.trim() || `BahnCard ${card.kind}`;
+}
+
+/** A trip's BahnCards, short: "BC25 · BC50"; empty without any. */
+export function bahnCardsShort(discounts: readonly number[]): string {
+  return discounts.map((d) => `BC${d}`).join(" · ");
+}
+
+/**
+ * What a trip's ticket needs, in words for a screen reader:
+ * "2 travellers, BahnCard 25 and BahnCard 50"; empty when nothing is known.
+ */
+export function ticketNeedsLabel(travellerCount: number | null, discounts: readonly number[]): string {
+  const people = travellerCount === null ? "" : `${travellerCount} ${travellerCount === 1 ? "traveller" : "travellers"}`;
+  const names = discounts.map((d) => `BahnCard ${d}`);
+  const cards = names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  return [people, cards].filter(Boolean).join(", ");
+}
+
 /** When a subscription has to be cancelled by: "Cancel by 14 Feb 2027 (in 9 days)". */
 export function deadlineText(deadline: { deadline: string; days_left: number }): string {
   const days = deadline.days_left;
@@ -160,9 +196,3 @@ export function deadlineText(deadline: { deadline: string; days_left: number }):
     ? `The cancellation deadline was ${formatDay(deadline.deadline)} (${when})`
     : `Cancel by ${formatDay(deadline.deadline)} (${when})`;
 }
-
-export const BAHNCARD_DISCOUNTS = [
-  { value: null, label: "None" },
-  { value: 25, label: "BahnCard 25" },
-  { value: 50, label: "BahnCard 50" },
-] as const;

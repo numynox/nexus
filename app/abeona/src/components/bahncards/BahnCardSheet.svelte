@@ -9,13 +9,12 @@
     uploadBahnCardFile,
     type BahnCard,
     type BahnCardKind,
-    type Traveller,
   } from "../../lib/data";
-  import { toDay } from "../../lib/format";
+  import { bahnCardName, toDay } from "../../lib/format";
 
   interface Props {
-    /** The traveller a new card is for; null closes the sheet. */
-    traveller: Traveller | null;
+    /** Shows the sheet; false closes it. */
+    open: boolean;
     /** The card being edited, or null for a new one. */
     card: BahnCard | null;
     onClose: () => void;
@@ -23,9 +22,10 @@
     onDeleted: (id: string) => void;
   }
 
-  let { traveller, card, onClose, onSaved, onDeleted }: Props = $props();
+  let { open, card, onClose, onSaved, onDeleted }: Props = $props();
 
   let dialog: HTMLDialogElement | undefined = $state();
+  let name = $state("");
   let kind = $state<BahnCardKind>(25);
   let travelClass = $state<1 | 2>(2);
   let validFrom = $state("");
@@ -42,10 +42,10 @@
 
   $effect(() => {
     if (!dialog) return;
-    if (traveller && !dialog.open) {
+    if (open && !dialog.open) {
       reset();
       dialog.showModal();
-    } else if (!traveller && dialog.open) {
+    } else if (!open && dialog.open) {
       dialog.close();
     }
   });
@@ -56,6 +56,7 @@
     file = null;
     removeFile = false;
     if (card) {
+      name = card.name ?? "";
       kind = card.kind;
       travelClass = card.travel_class;
       validFrom = card.valid_from;
@@ -67,6 +68,7 @@
       // A BahnCard runs for a year: today until the day before next year's date.
       const from = new Date();
       const to = new Date(from.getFullYear() + 1, from.getMonth(), from.getDate() - 1);
+      name = "";
       kind = 25;
       travelClass = 2;
       validFrom = toDay(from);
@@ -88,7 +90,7 @@
 
   async function save(event: Event) {
     event.preventDefault();
-    if (!traveller || saving) return;
+    if (!open || saving) return;
     if (!validFrom || !validTo) {
       error = "Enter when the card is valid.";
       return;
@@ -102,7 +104,8 @@
     try {
       let saved = await saveBahnCard(
         {
-          traveller_id: traveller.id,
+          // Blank means no name: the card is then called by its kind.
+          name: name.trim() || null,
           kind,
           travel_class: travelClass,
           valid_from: validFrom,
@@ -128,7 +131,7 @@
   }
 
   async function remove() {
-    if (!card || !confirm(`Delete this BahnCard ${card.kind}?`)) return;
+    if (!card || !confirm(`Delete ${bahnCardName(card)}?`)) return;
     saving = true;
     try {
       await deleteBahnCard(card);
@@ -142,11 +145,11 @@
 </script>
 
 <dialog bind:this={dialog} class="modal modal-bottom sm:modal-middle" onclose={onClose}>
-  {#if traveller}
+  {#if open}
     <form class="modal-box max-w-lg rounded-t-[2rem] bg-base-100 p-0 sm:rounded-[2rem]" onsubmit={save}>
       <div class="flex items-start justify-between gap-3 bg-sky px-6 pt-6 pb-5">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.12em] text-ink/70">{traveller.name}</p>
+          {#if card}<p class="text-xs font-semibold uppercase tracking-[0.12em] text-ink/70">{bahnCardName(card)}</p>{/if}
           <h2 class="mt-1 text-xl font-semibold text-ink">{card ? "Edit BahnCard" : "Add a BahnCard"}</h2>
         </div>
         <button type="button" class="btn btn-circle btn-ghost btn-sm" aria-label="Close" onclick={() => dialog?.close()}>
@@ -155,6 +158,11 @@
       </div>
 
       <div class="space-y-5 px-6 py-6">
+        <label class="block">
+          <span class="block px-1 pb-1 text-xs font-semibold uppercase tracking-wider text-base-content/55">Name <span class="normal-case font-normal tracking-normal">(optional)</span></span>
+          <input class="input w-full rounded-2xl bg-card" bind:value={name} maxlength="60" placeholder={`e.g. Mia, or leave empty for "BahnCard ${kind}"`} />
+        </label>
+
         <div class="grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-4">
           <fieldset>
             <legend class="px-1 pb-1 text-xs font-semibold uppercase tracking-wider text-base-content/55">Card</legend>
