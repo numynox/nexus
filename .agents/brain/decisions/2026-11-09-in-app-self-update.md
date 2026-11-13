@@ -20,6 +20,10 @@ skew `2026-10-19-native-android-apps.md` warns about.
   notified once: the version code notified is stored only when posting
   succeeded, so a swiped notification does not return and a phone that
   allows notifications later still hears of it.
+  (2026-11-13) Also each time one of the app's screens comes to the front,
+  at most every 10 minutes: Abeona's live companion keeps the process alive
+  while the app is closed and reopened, so "on app start" could mean not
+  until the daily check.
 - **The download** is a foreground worker (unique, `REPLACE`), started by
   the banner, the settings row, or the notification's tap — a broadcast to
   the receiver, since Android 12 forbids notification trampolines. Progress

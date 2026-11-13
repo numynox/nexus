@@ -1,7 +1,9 @@
 package io.github.numynox.nexus.core.update
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class UpdateMathTest {
@@ -17,6 +19,14 @@ class UpdateMathTest {
     @Test
     fun percentOfLargeApksDoesNotOverflow() {
         assertEquals(50, percentOf(60_000_000_000, 120_000_000_000))
+    }
+
+    @Test
+    fun theCheckOnComingToTheFrontIsDueFirstAndThenEveryInterval() {
+        val ten = 10 * 60_000L
+        assertTrue("never checked", checkDue(null, 5_000, ten))
+        assertFalse("just checked", checkDue(5_000, 5_000 + ten - 1, ten))
+        assertTrue("interval passed", checkDue(5_000, 5_000 + ten, ten))
     }
 
     @Test

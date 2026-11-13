@@ -1,6 +1,9 @@
 package io.github.numynox.nexus.core.update
 
 import android.app.Activity
+import android.app.Application
+import android.os.Bundle
+import android.os.SystemClock
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -28,6 +31,8 @@ class AppUpdates(context: Context, private val config: NexusConfig, private val 
     private val app = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val started = AtomicBoolean(false)
+    private val checking = Any()
+    private var lastCheck: Long? = null
 
     private val _available = MutableStateFlow<AvailableUpdate?>(null)
 
@@ -42,13 +47,36 @@ class AppUpdates(context: Context, private val config: NexusConfig, private val 
     val download: Flow<DownloadProgress?> = SelfUpdate.progress(app)
 
     /**
-     * Once per process, when the app's UI starts: schedules the daily check
-     * and checks now. A newer release is notified once, whichever check
-     * finds it first.
+     * When the app's UI starts: schedules the daily check and checks now.
+     * Then again each time one of the app's screens comes to the front, at
+     * most every [RECHECK_MS]: a foreground service (Abeona's live companion)
+     * keeps the process alive while the app is closed and opened again, so
+     * "once per process" could mean not until the daily check. A newer
+     * release is notified once, whichever check finds it first.
      */
     fun start() {
         if (!started.compareAndSet(false, true)) return
         if (selfInstalls) SelfUpdate.scheduleChecks(app, config)
+        (app as? Application)?.registerActivityLifecycleCallbacks(
+            object : Application.ActivityLifecycleCallbacks {
+                override fun onActivityStarted(activity: Activity) = checkIfDue()
+                override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
+                override fun onActivityResumed(activity: Activity) = Unit
+                override fun onActivityPaused(activity: Activity) = Unit
+                override fun onActivityStopped(activity: Activity) = Unit
+                override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
+                override fun onActivityDestroyed(activity: Activity) = Unit
+            },
+        )
+        checkIfDue()
+    }
+
+    private fun checkIfDue() {
+        val now = SystemClock.elapsedRealtime()
+        synchronized(checking) {
+            if (!checkDue(lastCheck, now, RECHECK_MS)) return
+            lastCheck = now
+        }
         scope.launch {
             val update = checker.check(config.versionCode.toLong())
             _available.value = update
@@ -79,5 +107,10 @@ class AppUpdates(context: Context, private val config: NexusConfig, private val 
     private fun Context.open(intent: Intent) {
         if (this !is Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         runCatching { startActivity(intent) }
+    }
+
+    private companion object {
+        /** The least time between two checks on coming to the front. */
+        const val RECHECK_MS = 10 * 60_000L
     }
 }
