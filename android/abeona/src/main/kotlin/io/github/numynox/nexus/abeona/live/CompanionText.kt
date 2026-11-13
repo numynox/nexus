@@ -23,10 +23,10 @@ import kotlin.math.roundToInt
 
 /**
  * What the ongoing notification says. [title] is the one thing to know now
- * ("Change at Würzburg Hbf in 23 min"); [text] the line under it, which is all
- * a collapsed notification shows; [lines] everything, for the expanded one.
- * [countdownTo] is what the notification's clock counts down to, to the
- * second, between the companion's ticks. [chip] is the few characters
+ * ("Change at Würzburg Hbf in 23 min"), to the minute; [text] the line under
+ * it, which is all a collapsed notification shows, so it carries the time and
+ * the delay of that next thing; [lines] everything, for the expanded one,
+ * most urgent first. [chip] is the few characters
  * Android 16+ shows in the status bar for a Live Update ("12 min", "Pl. 7");
  * null when there is nothing to count down. [progress] is how far along the
  * ride on board is, for the notification's bar.
@@ -37,7 +37,6 @@ data class CompanionStatus(
     val finished: Boolean,
     val chip: String? = null,
     val lines: List<String> = listOf(text),
-    val countdownTo: Instant? = null,
     val progress: RideProgress? = null,
 )
 
@@ -75,9 +74,10 @@ fun nextStopLine(progress: RideProgress): String? {
  * The notification for the travel day (domain/TravelDay.kt).
  * Before leaving: when to leave, then the first ride. At the station or
  * changing: the platform and the train, with the change's margin. On board:
- * where to get off and when, the next stop and how many are left, then the
- * next train (platform, time, minutes to change) or the arrival, and the
- * train's speed when its Wi-Fi says. A missed change leads with "Looks like".
+ * where to get off and when; first the arrival there with its delay, then the
+ * next train (platform, time, delay, minutes to change), then the next stop
+ * and how many are left, and the train's speed when its Wi-Fi says. A
+ * missed change leads with "Looks like".
  * Finished once the last ride has arrived.
  */
 fun companionStatus(
@@ -125,7 +125,6 @@ fun companionStatus(
                 finished = false,
                 chip = chipMinutes(day.minutesToLeave),
                 lines = listOf(ride, "$stationMinutes min to the station"),
-                countdownTo = day.leaveAt,
             )
         }
         TravelDayKind.AtStation, TravelDayKind.Changing -> {
@@ -147,7 +146,6 @@ fun companionStatus(
                 finished = false,
                 chip = platform ?: chipMinutes(day.minutesToDeparture),
                 lines = lines,
-                countdownTo = leg.from.expectedAt,
             )
         }
         else -> {
@@ -159,22 +157,22 @@ fun companionStatus(
                 change != null -> "Change at ${leg.to.name} $inMinutes"
                 else -> "${leg.to.name} $inMinutes"
             }
-            val lines = mutableListOf<String>()
-            progress?.let(::nextStopLine)?.let { lines += it }
+            // The arrival where the next thing happens, with its delay, first.
+            val lines = mutableListOf(
+                withDelay("Arrives ${TripFormat.time(leg.to.expectedAt)}", arrivalDelay(leg)) +
+                    (TripFormat.platform(leg.to.shownPlatform)?.let { " · $it" } ?: ""),
+            )
             if (change != null) {
                 val next = trip.legs[change.departing]
                 lines += listOfNotNull(
                     "Then ${next.label}",
                     TripFormat.platform(next.from.shownPlatform),
-                    TripFormat.time(next.from.expectedAt),
+                    withDelay(TripFormat.time(next.from.expectedAt), departureDelay(next)),
                     "${change.availableMinutes} min to change (${change.confidence.label})",
                 ).joinToString(" · ")
-            } else {
-                lines += withDelay(
-                    listOfNotNull("Arrives ${TripFormat.time(leg.to.expectedAt)}", TripFormat.platform(leg.to.shownPlatform)).joinToString(" · "),
-                    arrivalDelay(leg),
-                )
             }
+            // The stops on the way; not "Next stop: <where the title says>".
+            progress?.takeIf { it.next != it.stops.lastIndex || (it.current ?: -1) in 1 until it.stops.lastIndex }?.let(::nextStopLine)?.let { lines += it }
             onboard?.speedKmh?.takeIf { it >= 1 }?.let { lines += "${leg.label} · ${it.roundToInt()} km/h" }
             CompanionStatus(
                 title,
@@ -182,7 +180,6 @@ fun companionStatus(
                 finished = false,
                 chip = if (day.missedChange) "Missed" else chipMinutes(day.minutesToArrival),
                 lines = lines,
-                countdownTo = leg.to.expectedAt,
                 progress = progress,
             )
         }

@@ -159,27 +159,20 @@ object LiveCompanion {
 
     /**
      * The ongoing notification for [status]; built here so the screenshot
-     * test draws the real one. [source] says what placed the traveller
-     * ("Train Wi-Fi", "Location", "Timetable"), next to when it was updated.
+     * test draws the real one. How fresh the live values are ends the last
+     * line, after the speed, so the header takes no line of its own; what
+     * placed the traveller is the app's to show (the dashboard's source
+     * pill), and the title already counts down, to the minute.
      */
-    fun ongoing(context: Context, tripId: String?, status: CompanionStatus, updated: Instant?, source: String? = null, now: Instant = Instant.now()): Notification {
+    fun ongoing(context: Context, tripId: String?, status: CompanionStatus, updated: Instant?, now: Instant = Instant.now()): Notification {
         val stop = PendingIntent.getService(context, 1, intent(context, ACTION_STOP), PendingIntent.FLAG_IMMUTABLE)
-        val countdown = status.countdownTo?.takeIf { it.isAfter(now) }
-        val builder = NotificationCompat.Builder(context, CHANNEL_LIVE)
+        return NotificationCompat.Builder(context, CHANNEL_LIVE)
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(ContextCompat.getColor(context, R.color.abeona_green))
             .setContentTitle(status.title)
             .setContentText(status.text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(status.lines.joinToString("\n")))
-            .setSubText(listOfNotNull(source, updated?.let { freshness(it, now) }).joinToString(" · ").ifEmpty { null })
-        // The clock in the header counts down to the next thing by itself,
-        // to the second, between the companion's ticks.
-        if (countdown != null) {
-            builder.setWhen(countdown.toEpochMilli()).setShowWhen(true).setUsesChronometer(true).setChronometerCountDown(true)
-        } else {
-            builder.setShowWhen(false)
-        }
-        return builder
+            .setStyle(NotificationCompat.BigTextStyle().bigText(expandedText(status.lines, updated?.let { freshness(it, now) })))
+            .setShowWhen(false)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             // No setSilent: NotificationCompat does that by putting the
@@ -196,6 +189,13 @@ object LiveCompanion {
             .setContentIntent(openTrip(context, tripId))
             .addAction(0, "Stop", stop)
             .build()
+    }
+
+    /** The expanded notification's lines, with [freshness] at the end of the last one. */
+    internal fun expandedText(lines: List<String>, freshness: String?): String {
+        if (freshness == null) return lines.joinToString("\n")
+        if (lines.isEmpty()) return freshness
+        return (lines.dropLast(1) + "${lines.last()} · $freshness").joinToString("\n")
     }
 
     /** Until [LINGER] after the expected arrival: after that the companion stops, and cannot be started again. */
@@ -380,7 +380,7 @@ class LiveCompanionService : Service() {
                 if (LiveCompanion.canNotify(this)) {
                     NotificationManagerCompat.from(this).notify(
                         LiveCompanion.ONGOING_ID,
-                        LiveCompanion.ongoing(this, tripId, status, updated, sourceLabel(journey, now, settings.stationMinutes, signals)),
+                        LiveCompanion.ongoing(this, tripId, status, updated),
                     )
                 }
                 if (!LiveCompanion.canFollow(journey, now)) return finish()
