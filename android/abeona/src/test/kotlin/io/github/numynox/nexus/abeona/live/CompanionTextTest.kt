@@ -173,5 +173,11 @@ class CompanionTextTest {
         val updated = t0
         assertEquals("Live 08:00", LiveCompanion.freshness(updated, t0.plusSeconds(170)))
         assertEquals("Not updated since 08:00", LiveCompanion.freshness(updated, t0.plusSeconds(24 * 60)))
+        // At the end of the last line, after the speed: no line of its own.
+        assertEquals(
+            "Arrives 19:47 (+6) · Pl. 6\nICE 528 · 127 km/h · Live 08:00",
+            LiveCompanion.expandedText(listOf("Arrives 19:47 (+6) · Pl. 6", "ICE 528 · 127 km/h"), "Live 08:00"),
+        )
+        assertEquals("Arrives 19:47", LiveCompanion.expandedText(listOf("Arrives 19:47"), null))
     }
 }

@@ -159,9 +159,10 @@ object LiveCompanion {
 
     /**
      * The ongoing notification for [status]; built here so the screenshot
-     * test draws the real one. The header says only how fresh the live values
-     * are: what placed the traveller is the app's to show (the dashboard's
-     * source pill), and the title already counts down, to the minute.
+     * test draws the real one. How fresh the live values are ends the last
+     * line, after the speed, so the header takes no line of its own; what
+     * placed the traveller is the app's to show (the dashboard's source
+     * pill), and the title already counts down, to the minute.
      */
     fun ongoing(context: Context, tripId: String?, status: CompanionStatus, updated: Instant?, now: Instant = Instant.now()): Notification {
         val stop = PendingIntent.getService(context, 1, intent(context, ACTION_STOP), PendingIntent.FLAG_IMMUTABLE)
@@ -170,8 +171,7 @@ object LiveCompanion {
             .setColor(ContextCompat.getColor(context, R.color.abeona_green))
             .setContentTitle(status.title)
             .setContentText(status.text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(status.lines.joinToString("\n")))
-            .setSubText(updated?.let { freshness(it, now) })
+            .setStyle(NotificationCompat.BigTextStyle().bigText(expandedText(status.lines, updated?.let { freshness(it, now) })))
             .setShowWhen(false)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -189,6 +189,13 @@ object LiveCompanion {
             .setContentIntent(openTrip(context, tripId))
             .addAction(0, "Stop", stop)
             .build()
+    }
+
+    /** The expanded notification's lines, with [freshness] at the end of the last one. */
+    internal fun expandedText(lines: List<String>, freshness: String?): String {
+        if (freshness == null) return lines.joinToString("\n")
+        if (lines.isEmpty()) return freshness
+        return (lines.dropLast(1) + "${lines.last()} · $freshness").joinToString("\n")
     }
 
     /** Until [LINGER] after the expected arrival: after that the companion stops, and cannot be started again. */

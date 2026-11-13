@@ -14,9 +14,10 @@ the header, and the arrival with its delay came after the next stop.
 ## Decision
 - **No chronometer.** The title counts down to the minute and is redrawn on
   every 15 s tick; the header shows no time.
-- **No source in the notification.** The header says only how fresh the
-  live values are ("Live 17:32", "Not updated since …"). What placed the
-  traveller stays on the dashboard's source pill.
+- **No source in the notification**, and no header line: how fresh the
+  live values are ("Live 17:32", "Not updated since …") ends the expanded
+  notification's last line, after the speed. What placed the traveller
+  stays on the dashboard's source pill.
 - **Most urgent first.** On board, the first line (all a collapsed
   notification shows) is the arrival where the next thing happens, with its
   delay and platform; then the next train with its delay and the minutes to
@@ -25,4 +26,5 @@ the header, and the arrival with its delay came after the next stop.
 
 ## Consequences
 Between ticks the title can be up to 15 s behind, which is fine to the
-minute. The status-bar chip of a Live Update is unchanged.
+minute. A collapsed notification no longer says how fresh it is; expanded
+(as on the lock screen) it does. The status-bar chip of a Live Update is unchanged.
