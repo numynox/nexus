@@ -12,6 +12,8 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.core.app.ApplicationProvider
 import io.github.numynox.nexus.core.testing.ScreenshotRobot
@@ -127,7 +129,9 @@ class AppScreenshots {
         shot("08-statistics-driving")
         scrollTo("Kilometres per month")
         shot("09-statistics-charts")
-        scrollTo("Mileage at each refuel and reading")
+        // The odometer is the last chart: swipe to the end so all of it shows.
+        compose.onAllNodes(hasScrollToNodeAction()).onFirst().performTouchInput { swipeUp() }
+        settle()
         shot("09a-statistics-odometer")
 
         tab("Settings")
