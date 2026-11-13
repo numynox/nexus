@@ -45,6 +45,7 @@ the app's DataStore instead of `localStorage` — still per device.
 | `car_access` | Members / Sharing | grants a non-owner full access to a car; owner plus these rows are what `list_car_members` returns |
 | `refuel_events` | Refuel | one fill-up: mileage, litres, total, price per litre, station, plus `is_full_refuel` and `missed_previous_refuel`. `missed_previous_refuel` means a fill went unrecorded before this one, so the statistics RPCs return `null` consumption for that interval instead of a wrong number |
 | `car_expenses` | Expense | non-fuel cost against a vehicle |
+| `vibilia_odometer_readings` | Odometer reading | a dated mileage without a cost, e.g. from a service record before the car was bought. On the odometer chart (`get_car_odometer_plot`) and in the logbook, never in statistics or spend (`decisions/2026-11-13-vibilia-odometer-readings.md`) |
 | `fuel_stations` | Station | a Tankerkoenig station. Its `id` **is** the Tankerkoenig id, not ours |
 | `fuel_prices` | Price | one price reading for one fuel type at one station at one `checked_at`. Only the last 21 days are kept |
 | `fuel_prices_daily` | — | min/max/avg per station, fuel type and **Europe/Berlin day**; the long-term history behind the "weekly market low" line once raw readings are pruned |

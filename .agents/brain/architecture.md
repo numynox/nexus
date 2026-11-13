@@ -5,7 +5,7 @@ site. Everything here is either shared deliberately or duplicated deliberately �
 knowing which is which is the point of this file.
 
 - **Noctua** — RSS reader (`app/noctua`)
-- **Vibilia** — fuel prices, refuel log, vehicle statistics, expenses (`app/vibilia`)
+- **Vibilia** — fuel prices, refuel log, vehicle statistics, expenses, odometer readings (`app/vibilia`)
 - **Annona** — grocery/food expiration tracker (`app/annona`)
 - **Abeona** — train ride companion: trips, live delays, tickets, history (`app/abeona`)
 
@@ -220,7 +220,7 @@ Annona namespaces everything with `annona_`. **New tables get a prefix.**
 | :--- | :--- |
 | shared | `profiles` |
 | Noctua | `feeds`, `articles`, `sections`, `sections_feeds`, `article_reads`, `article_stars` |
-| Vibilia | `cars`, `car_access`, `refuel_events`, `car_expenses`, `fuel_stations`, `fuel_prices`, `fuel_prices_daily`, `vibilia_car_bluetooth_devices`, `vibilia_drive_intervals`, `vibilia_commutes` |
+| Vibilia | `cars`, `car_access`, `refuel_events`, `car_expenses`, `fuel_stations`, `fuel_prices`, `fuel_prices_daily`, `vibilia_car_bluetooth_devices`, `vibilia_drive_intervals`, `vibilia_commutes`, `vibilia_odometer_readings` |
 | Annona | `annona_categories`, `annona_storage_locations`, `annona_products`, `annona_items`, `annona_item_log` |
 | Abeona | `abeona_households`, `abeona_household_members`, `abeona_travellers`, `abeona_trips`, `abeona_trip_travellers`, `abeona_legs`, `abeona_bahncards`, `abeona_fare_rules` and `abeona_compensation_rules` (reference data), `abeona_claims`, `abeona_share_links`, `abeona_transit_cache` (service role only); Storage bucket `abeona-tickets` (tickets and BahnCard files) |
 
