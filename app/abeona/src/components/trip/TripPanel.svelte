@@ -413,17 +413,23 @@
     {:else}
       <header class="rounded-[2rem] bg-mint p-6 sm:p-8">
         <p class="text-xs font-semibold uppercase tracking-[0.12em] text-primary">{formatLongDate(trip.planned_departure)}</p>
-        <h1 class="mt-2 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
-          {trip.title ?? `${trip.origin_name} → ${trip.destination_name}`}
-        </h1>
+        <!-- Start and destination once: on the board below, with their times. -->
         {#if trip.title}
-          <p class="mt-1 text-base-content/70">{trip.origin_name} → {trip.destination_name}</p>
+          <h1 class="mt-2 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">{trip.title}</h1>
+        {:else}
+          <h1 class="sr-only">{trip.origin_name} → {trip.destination_name}</h1>
         {/if}
-        <p class="mt-2 flex flex-wrap items-baseline gap-x-2 text-lg font-medium text-ink/80">
-          <ShiftedTime planned={s.departure.planned} current={s.departure.current} block={false} cancelled={s.cancelled} />
-          –
-          <ShiftedTime planned={s.arrival.planned} current={s.arrival.current} block={false} />
-        </p>
+        <div class="mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3">
+          <div class="min-w-0">
+            <ShiftedTime planned={s.departure.planned} current={s.departure.current} cancelled={s.cancelled} class="text-3xl font-semibold tracking-tight text-ink sm:text-4xl" />
+            <p class="mt-1 text-sm font-medium leading-snug text-ink/80">{trip.origin_name}</p>
+          </div>
+          <span class="pt-2 text-xl text-base-content/40" aria-hidden="true">→</span>
+          <div class="flex min-w-0 flex-col items-end text-right">
+            <ShiftedTime planned={s.arrival.planned} current={s.arrival.current} class="text-3xl font-semibold tracking-tight text-ink sm:text-4xl" />
+            <p class="mt-1 text-sm font-medium leading-snug text-ink/80">{trip.destination_name}</p>
+          </div>
+        </div>
 
         <div class="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
           <span class="rounded-full bg-card px-3 py-1 text-ink">{fareLabel(trip.fare_type)}</span>

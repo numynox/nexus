@@ -81,6 +81,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -701,8 +702,11 @@ private fun TripHeader(detail: TripDetail, live: Boolean) {
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.primary,
         )
-        Text(trip.displayTitle, style = MaterialTheme.typography.headlineMedium)
-        if (!trip.title.isNullOrBlank()) {
+        // Start and destination once: by the board times below, or, while
+        // live (no board), in the title line.
+        val titled = !trip.title.isNullOrBlank()
+        if (titled || live) Text(trip.displayTitle, style = MaterialTheme.typography.headlineMedium)
+        if (titled && live) {
             Text("${trip.originName} → ${trip.destinationName}", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         // How many the ticket is for and its BahnCards: static, so it stays above the live card too.
@@ -717,12 +721,12 @@ private fun TripHeader(detail: TripDetail, live: Boolean) {
         ) {
             Column(Modifier.weight(1f)) {
                 ShiftedTime(first?.from?.plannedAt, first?.from?.expectedAt, MaterialTheme.typography.displaySmall)
-                Text(trip.originName, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(trip.originName, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             Text("→", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
                 ShiftedTime(last?.to?.plannedAt, last?.to?.expectedAt, MaterialTheme.typography.displaySmall)
-                Text(trip.destinationName, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(trip.destinationName, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End)
             }
         }
         FlowRow(
