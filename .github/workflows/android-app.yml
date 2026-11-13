@@ -93,6 +93,19 @@ jobs:
           echo "APP_VERSION=${version}" >> "$GITHUB_ENV"
           cp "$APP/build/outputs/apk/release/$APP-release.apk" "$RUNNER_TEMP/$APP-${version}.apk"
 
+      - name: Show a JVM crash report
+        # A test JVM that dies in native code (SIGSEGV, SIGABRT) leaves only
+        # "non-zero exit value 134" in the log; its hs_err file names the
+        # thread and the Java frames that were running.
+        if: failure()
+        run: |
+          for f in */hs_err_pid*.log; do
+            [ -f "$f" ] || continue
+            echo "::group::$f"
+            sed -n '1,/^---------------  S Y S T E M/p' "$f" | head -400
+            echo "::endgroup::"
+          done
+
       - name: Keep the screenshots
         if: always()
         uses: actions/upload-artifact@v7
