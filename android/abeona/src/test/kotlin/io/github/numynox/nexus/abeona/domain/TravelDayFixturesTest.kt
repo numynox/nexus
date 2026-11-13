@@ -61,11 +61,11 @@ class TravelDayFixturesTest {
     }
 
     @Serializable
-    private data class FixturePosition(val lat: Double, val lon: Double, val speedKmh: Double? = null)
+    private data class FixturePosition(val lat: Double, val lon: Double, val speedKmh: Double? = null, val accuracyMetres: Double? = null)
 
     @Serializable
     private data class Signals(val onboardLegIndex: Int? = null, val position: FixturePosition? = null) {
-        fun toSignals() = TravelSignals(onboardLegIndex, position?.let { Position(it.lat, it.lon, it.speedKmh) })
+        fun toSignals() = TravelSignals(onboardLegIndex, position?.let { Position(it.lat, it.lon, it.speedKmh, it.accuracyMetres) })
     }
 
     @Serializable

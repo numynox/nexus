@@ -118,8 +118,8 @@ class LiveDashboardScreenshots {
 
     @Test fun atTheStation() = shot(
         "59b-live-at-the-station", "At the station · by the position", 2,
-        signals = TravelSignals(position = Position(50.1068, 8.6630, 0.0)),
-        fix = Fix(Position(50.1068, 8.6630, 0.0), at(2)), locationOn = true,
+        signals = TravelSignals(position = Position(50.1068, 8.6630, 0.0, 10.0)),
+        fix = Fix(Position(50.1068, 8.6630, 0.0, 10.0), at(2)), locationOn = true,
     )
 
     @Test fun onBoardByTheTimetable() = shot("59c-live-on-board", "On board · by the timetable, location off", 20)
@@ -153,8 +153,8 @@ class LiveDashboardScreenshots {
 
     @Test fun missed() = shot(
         "59h-live-missed", "Still at Würzburg after the RE 10 left · by the position", 86,
-        signals = TravelSignals(position = Position(49.8018, 9.9355, 0.0)),
-        fix = Fix(Position(49.8018, 9.9355, 0.0), at(86)), locationOn = true,
+        signals = TravelSignals(position = Position(49.8018, 9.9355, 0.0, 10.0)),
+        fix = Fix(Position(49.8018, 9.9355, 0.0, 10.0), at(86)), locationOn = true,
     )
 
     @Test fun arrived() = shot("59i-live-arrived", "Arrived, 22 min late", 180)

@@ -24,6 +24,8 @@ export interface Position {
   lon: number;
   /** Ground speed; null when the fix has none. */
   speedKmh: number | null;
+  /** The fix's horizontal accuracy (68 % radius); null when unknown. */
+  accuracyMetres?: number | null;
 }
 
 /** Optional device signals; the web has none of them. */
@@ -68,9 +70,22 @@ export type DayLeg = Pick<Leg, "mode" | "cancelled"> & {
 
 /** Within this many metres of a stop counts as being there. */
 export const NEAR_STOP_METRES = 300;
-/** Within this many metres of a leg's line, and faster than [MOVING_KMH], counts as riding it. */
+/**
+ * Within this many metres of a leg's line counts as riding it: away from its
+ * first stop at any speed (a train stands at its stops), at the first stop
+ * only faster than MOVING_KMH.
+ */
 export const ON_LINE_METRES = 1000;
 export const MOVING_KMH = 30;
+/** A known speed at most this counts as standing still; an unknown speed never does. */
+export const STILL_KMH = 10;
+/**
+ * Fixes less accurate than this are ignored: in a train they are mostly Wi-Fi
+ * or cell positions, and the train's own access points travel with it.
+ */
+export const USABLE_ACCURACY_METRES = 100;
+/** "Missed" needs a fix at least this accurate, and a known speed. */
+export const MISSED_ACCURACY_METRES = 50;
 /** How long after a departure a phone still standing at the stop counts as having missed it. */
 export const MISSED_AFTER_MINUTES = 2;
 /** The time to the station when none is set. */
@@ -185,8 +200,21 @@ function moving(position: Position): boolean {
   return position.speedKmh !== null && position.speedKmh > MOVING_KMH;
 }
 
-function onLine(position: Position, leg: DayLeg): boolean {
-  if (!moving(position)) return false;
+/** Strong enough evidence of standing still to call a train missed. */
+function standingStill(position: Position): boolean {
+  const accuracy = position.accuracyMetres ?? null;
+  return position.speedKmh !== null && position.speedKmh <= STILL_KMH &&
+    accuracy !== null && accuracy <= MISSED_ACCURACY_METRES;
+}
+
+function usable(position: Position): boolean {
+  const accuracy = position.accuracyMetres ?? null;
+  return accuracy === null || accuracy <= USABLE_ACCURACY_METRES;
+}
+
+/** Along the leg: within ON_LINE_METRES of its line, or near one of its later stops. Any speed. */
+function along(position: Position, leg: DayLeg): boolean {
+  if ((leg.stopovers ?? []).some((s) => near(position, s)) || near(position, leg.to)) return true;
   const line: [number, number][] = leg.polyline && leg.polyline.length > 0
     ? leg.polyline
     : leg.from.lat !== null && leg.from.lon !== null && leg.to.lat !== null && leg.to.lon !== null
@@ -194,6 +222,11 @@ function onLine(position: Position, leg: DayLeg): boolean {
       : [];
   const d = distanceToLineMetres(position.lat, position.lon, line);
   return d !== null && d <= ON_LINE_METRES;
+}
+
+/** Riding the leg for sure: moving along it. */
+function onLine(position: Position, leg: DayLeg): boolean {
+  return moving(position) && along(position, leg);
 }
 
 /**
@@ -209,12 +242,17 @@ function onLine(position: Position, leg: DayLeg): boolean {
  * Then the device signals, strongest first:
  * - on-board Wi-Fi matched ride k → on_board k; missedChange when the ride
  *   after k has already left.
- * - position, only to confirm or correct the clock:
+ * - position, only to confirm or correct the clock, and only a fix of
+ *   USABLE_ACCURACY_METRES or better:
  *   before leaving or at the station, near the first stop → at_station;
  *   on board, moving along that ride's line → confirmed;
- *   on board, standing at the ride's first stop at least
+ *   on board, standing still (a known speed, a fix of
+ *   MISSED_ACCURACY_METRES) at the ride's first stop at least
  *   MISSED_AFTER_MINUTES after it left → missedChange (changing, or at the
- *   station for the first ride);
+ *   station for the first ride); anything else at the first stop says
+ *   nothing;
+ *   on board, along the ride away from its first stop at any speed →
+ *   confirmed (a train stands at its stops);
  *   changing, moving along the previous ride's line → still on board it;
  *   changing, near the next ride's stop → confirmed.
  */
@@ -239,7 +277,7 @@ export function travelDay(
   }
 
   const position = signals.position;
-  if (!position || day.kind === "arrived" || day.legIndex === null) return day;
+  if (!position || !usable(position) || day.kind === "arrived" || day.legIndex === null) return day;
   const leg = legs[day.legIndex];
 
   switch (day.kind) {
@@ -251,16 +289,17 @@ export function travelDay(
       return day;
     case "on_board": {
       if (onLine(position, leg)) return { ...day, source: "location" };
-      const departure = ms(effectiveTime(leg.from));
-      if (
-        !moving(position) && near(position, leg.from) && departure !== null &&
-        now >= departure + MISSED_AFTER_MINUTES * MINUTE
-      ) {
-        const previous = [...rides].reverse().find((i) => i < day.legIndex!);
-        return previous === undefined
-          ? state("at_station", legs, now, { legIndex: day.legIndex, missedChange: true, source: "location" })
-          : state("changing", legs, now, { legIndex: day.legIndex, fromLegIndex: previous, missedChange: true, source: "location" });
+      if (near(position, leg.from)) {
+        const departure = ms(effectiveTime(leg.from));
+        if (standingStill(position) && departure !== null && now >= departure + MISSED_AFTER_MINUTES * MINUTE) {
+          const previous = [...rides].reverse().find((i) => i < day.legIndex!);
+          return previous === undefined
+            ? state("at_station", legs, now, { legIndex: day.legIndex, missedChange: true, source: "location" })
+            : state("changing", legs, now, { legIndex: day.legIndex, fromLegIndex: previous, missedChange: true, source: "location" });
+        }
+        return day;
       }
+      if (along(position, leg)) return { ...day, source: "location" };
       return day;
     }
     case "changing":

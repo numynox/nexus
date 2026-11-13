@@ -1,7 +1,7 @@
 # ADR: Abeona's travel day — fare rules as data, signals on the phone
 
 **Date:** 2026-11-03
-**Status:** Accepted
+**Status:** Accepted; the position rules superseded by `2026-11-13-abeona-trusting-the-position.md`
 
 ## Context
 Phase 4 of #37 is the live travel day: where someone is on their trip right

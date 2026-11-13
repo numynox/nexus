@@ -23,8 +23,8 @@ enum class TravelDayKind { BeforeLeaving, AtStation, OnBoard, Changing, Arrived 
 /** What decided the state: the clock and live values, the phone's position, or the train's Wi-Fi. */
 enum class TravelDaySource { Time, Location, Onboard }
 
-/** A position fix during a trip. */
-data class Position(val lat: Double, val lon: Double, val speedKmh: Double?)
+/** A position fix during a trip: ground speed and horizontal accuracy, null when unknown. */
+data class Position(val lat: Double, val lon: Double, val speedKmh: Double?, val accuracyMetres: Double? = null)
 
 /** The phone's optional signals; the web has none of them. */
 data class TravelSignals(
@@ -55,8 +55,15 @@ data class TravelDay(
 
 object TravelDayRules {
     const val NEAR_STOP_METRES = 300.0
+    /** Along a leg: within this of its line (at its first stop only when moving). */
     const val ON_LINE_METRES = 1000.0
     const val MOVING_KMH = 30.0
+    /** A known speed at most this is standing still; an unknown speed never is. */
+    const val STILL_KMH = 10.0
+    /** Less accurate fixes are ignored: in a train they are mostly Wi-Fi or cell positions. */
+    const val USABLE_ACCURACY_METRES = 100.0
+    /** "Missed" needs a fix at least this accurate, and a known speed. */
+    const val MISSED_ACCURACY_METRES = 50.0
     const val MISSED_AFTER_MINUTES = 2L
     const val DEFAULT_STATION_MINUTES = 15
 }
@@ -154,10 +161,29 @@ private fun near(position: Position, stop: StopTime): Boolean {
     return distanceMetres(position.lat, position.lon, lat, lon) <= TravelDayRules.NEAR_STOP_METRES
 }
 
+private fun near(position: Position, lat: Double?, lon: Double?): Boolean {
+    if (lat == null || lon == null) return false
+    return distanceMetres(position.lat, position.lon, lat, lon) <= TravelDayRules.NEAR_STOP_METRES
+}
+
 private fun moving(position: Position) = (position.speedKmh ?: 0.0) > TravelDayRules.MOVING_KMH
 
-private fun onLine(position: Position, leg: Leg): Boolean {
-    if (!moving(position)) return false
+/** Strong enough evidence of standing still to call a train missed. */
+private fun standingStill(position: Position): Boolean {
+    val speed = position.speedKmh ?: return false
+    val accuracy = position.accuracyMetres ?: return false
+    return speed <= TravelDayRules.STILL_KMH && accuracy <= TravelDayRules.MISSED_ACCURACY_METRES
+}
+
+private fun usable(position: Position): Boolean =
+    position.accuracyMetres.let { it == null || it <= TravelDayRules.USABLE_ACCURACY_METRES }
+
+/** Riding the leg for sure: moving along it. */
+private fun onLine(position: Position, leg: Leg): Boolean = moving(position) && along(position, leg)
+
+/** Along the leg: within ON_LINE_METRES of its line, or near one of its later stops. Any speed. */
+private fun along(position: Position, leg: Leg): Boolean {
+    if (leg.stopovers.any { near(position, it.lat, it.lon) } || near(position, leg.to)) return true
     val line = leg.polyline?.takeIf { it.isNotEmpty() }
         ?: listOfNotNull(
             leg.from.lon?.let { lon -> leg.from.lat?.let { listOf(lon, it) } },
@@ -192,7 +218,7 @@ fun travelDay(
         )
     }
 
-    val position = signals.position ?: return day
+    val position = signals.position?.takeIf { usable(it) } ?: return day
     val index = day.legIndex ?: return day
     if (day.kind == TravelDayKind.Arrived) return day
     val leg = legs[index]
@@ -207,7 +233,7 @@ fun travelDay(
             val departure = leg.from.expectedAt
             when {
                 onLine(position, leg) -> day.copy(source = TravelDaySource.Location)
-                !moving(position) && near(position, leg.from) && departure != null &&
+                near(position, leg.from) && standingStill(position) && departure != null &&
                     !now.isBefore(departure.plus(Duration.ofMinutes(TravelDayRules.MISSED_AFTER_MINUTES))) -> {
                     val previous = rides.lastOrNull { it < index }
                     if (previous == null) {
@@ -216,6 +242,10 @@ fun travelDay(
                         state(TravelDayKind.Changing, legs, now, legIndex = index, fromLegIndex = previous, missedChange = true, source = TravelDaySource.Location)
                     }
                 }
+                // At the first stop, anything short of standing still says nothing.
+                near(position, leg.from) -> day
+                // A train stands at its stops: along the ride at any speed confirms it.
+                along(position, leg) -> day.copy(source = TravelDaySource.Location)
                 else -> day
             }
         }
