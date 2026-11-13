@@ -59,8 +59,9 @@ class AppScreenshots {
     fun takeAConnection() = with(robot) {
         waitForText("Visit grandma in Bamberg")
         tap("Visit grandma in Bamberg")
-        waitForText("Open DB Navigator")
-        scrollTo("Alternatives")
+        waitFor(hasContentDescription("More"))
+        // Alternatives are under ⋮ in the top bar.
+        tapIcon("More")
         tap("Alternatives")
         waitForText("Needs another ticket")
         tap("Take it anyway…")
@@ -92,7 +93,7 @@ class AppScreenshots {
         scrollTo("Visit grandma in Bamberg")
 
         tap("Visit grandma in Bamberg")
-        waitForText("Open DB Navigator")
+        waitFor(hasContentDescription("More"))
         waitForText("Live · updated", substring = true)
         shot("03-trip-detail")
         // The source pill opens how Abeona knows; no signals here, so the timetable.
@@ -103,7 +104,8 @@ class AppScreenshots {
         scrollTo("Know where you are on the trip")
         shot("03b-trip-location-prompt")
         // Auto-start is on: small print says when, there is no Start button.
-        scrollTo("Alternatives")
+        // Alternatives are under ⋮ in the top bar.
+        tapIcon("More")
         tap("Alternatives")
         waitForText("Needs another ticket")
         shot("03c-trip-alternatives")
@@ -122,8 +124,8 @@ class AppScreenshots {
         scrollTo("Calendar")
         shot("06c-trip-share")
 
-        scrollTo("Open DB Navigator")
-        tap("Ticket")
+        // The ticket is one tap away in the top bar.
+        tapIcon("Ticket")
         waitFor(hasContentDescription("Ticket page"))
         shot("07-ticket-wallet")
         back()
@@ -153,7 +155,7 @@ class AppScreenshots {
         scrollIntoView("Who travels")
         shot("11b-save-sheet-travellers")
         compose.onAllNodes(hasText("Save trip") and hasClickAction()).onFirst().performClick()
-        waitForText("Open DB Navigator")
+        waitFor(hasContentDescription("More"))
         shot("12-saved-trip")
         back()
 
@@ -221,7 +223,7 @@ class AppScreenshots {
         waitForText("Visit grandma in Bamberg")
         shot("24-trips-dark")
         tap("Visit grandma in Bamberg")
-        waitForText("Open DB Navigator")
+        waitFor(hasContentDescription("More"))
         shot("25-trip-detail-dark")
         scrollTo("RE 10")
         shot("26-trip-timeline-dark")
@@ -277,10 +279,10 @@ class OfflineScreenshots {
         waitForText("Visit grandma in Bamberg")
         shot("31-trips-offline")
         tap("Visit grandma in Bamberg")
-        waitForText("Open DB Navigator")
+        waitFor(hasContentDescription("More"))
         shot("32-trip-offline")
-        scrollTo("Open DB Navigator")
-        tap("Ticket")
+        // The ticket is one tap away in the top bar.
+        tapIcon("Ticket")
         waitFor(hasContentDescription("Ticket page"))
         shot("33-ticket-offline")
     }
