@@ -1,5 +1,13 @@
 package io.github.numynox.nexus.core.update
 
+/**
+ * Whether the check on coming to the front is due: always the first time
+ * ([lastCheck] null), then again once [interval] milliseconds have passed.
+ * Clock values are elapsed-realtime milliseconds.
+ */
+internal fun checkDue(lastCheck: Long?, now: Long, interval: Long): Boolean =
+    lastCheck == null || now - lastCheck >= interval || now < lastCheck
+
 /** How far a download is, 0–100, or null when the server sent no length. */
 internal fun percentOf(read: Long, total: Long): Int? =
     if (total <= 0) null else (read * 100 / total).toInt().coerceIn(0, 100)
