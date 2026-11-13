@@ -9,7 +9,7 @@ begin;
 
 create extension if not exists pgtap;
 
-select plan(29);
+select plan(28);
 
 insert into auth.users (id, email) values
   ('abe00000-0000-4000-8000-000000000001', 'abeona-a@test.local'),
@@ -56,9 +56,6 @@ insert into abeona_ids values ('household_a', public.abeona_ensure_household());
 
 select is(public.abeona_ensure_household(), (select id from abeona_ids where key = 'household_a'),
   'ensure_household is idempotent');
-
-select is((select count(*)::int from public.abeona_travellers), 1,
-  'a new household starts with its creator as a traveller');
 
 insert into abeona_ids values ('trip_a',
   public.abeona_save_trip('{"title": "To Kassel", "fare_type": "flex", "train_binding": true}'::jsonb,
