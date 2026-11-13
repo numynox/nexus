@@ -6,7 +6,7 @@
   import { rideProgress } from "../../lib/progress";
   import type { Leg } from "../../lib/transit";
   import ConfidenceChip from "./ConfidenceChip.svelte";
-  import DelayBadge from "./DelayBadge.svelte";
+  import ShiftedTime from "./ShiftedTime.svelte";
 
   interface Props {
     legs: Leg[];
@@ -125,9 +125,9 @@
           </p>
           <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-base-content/70">
             <span>
-              {legLabel(leg)}{leg.headsign ? ` to ${leg.headsign}` : ""} leaves {day.kind === "changing" ? `${leg.from.name} ` : ""}{inMinutes(day.minutesToDeparture)}, {formatTime(effectiveTime(leg.from))}
+              {legLabel(leg)}{leg.headsign ? ` to ${leg.headsign}` : ""} leaves {day.kind === "changing" ? `${leg.from.name} ` : ""}{inMinutes(day.minutesToDeparture)},
             </span>
-            <DelayBadge minutes={stopDelay(leg.from)} />
+            <ShiftedTime planned={leg.from.planned} current={leg.from.current} block={false} />
           </p>
           {#if day.kind === "changing" && change}
             <div class="mt-3 flex flex-wrap items-center gap-2 text-sm">
@@ -147,16 +147,17 @@
         {/if}
         <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-base-content/70">
           <span>
-            {change ? "Get off at" : "Arrives at"} {leg.to.name} {inMinutes(day.minutesToArrival)}, {formatTime(effectiveTime(leg.to))}{displayPlatform(leg.to) ? ` · platform ${displayPlatform(leg.to)}` : ""}
+            {change ? "Get off at" : "Arrives at"} {leg.to.name} {inMinutes(day.minutesToArrival)},
           </span>
-          <DelayBadge minutes={stopDelay(leg.to)} />
+          <ShiftedTime planned={leg.to.planned} current={leg.to.current} block={false} />
+          {#if displayPlatform(leg.to)}<span>· platform {displayPlatform(leg.to)}</span>{/if}
         </p>
         {#if change}
           {@const next = legs[change.toIndex]}
           <div class="mt-3 flex flex-wrap items-center gap-2 rounded-2xl bg-base-200/70 px-3 py-2 text-sm">
             {#if change.walkMinutes > 0}<Footprints class="h-4 w-4 text-base-content/60" />{:else}<Shuffle class="h-4 w-4 text-base-content/60" />{/if}
             <span class="min-w-0 flex-1">
-              Then {legLabel(next)} at {formatTime(effectiveTime(next.from))}{displayPlatform(next.from) ? `, platform ${displayPlatform(next.from)}` : ""} · {change.availableMinutes} min to change
+              Then {legLabel(next)} at <ShiftedTime planned={next.from.planned} current={next.from.current} block={false} />{displayPlatform(next.from) ? `, platform ${displayPlatform(next.from)}` : ""} · {change.availableMinutes} min to change
             </span>
             <ConfidenceChip confidence={change.confidence} />
           </div>
@@ -167,8 +168,8 @@
       {:else if day.kind === "arrived" && last}
         <p class="mt-1 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">{last.to.name}</p>
         <p class="mt-1 flex items-center gap-2 text-sm text-base-content/70">
-          <span>At {formatTime(effectiveTime(last.to))}</span>
-          <DelayBadge minutes={stopDelay(last.to)} onTimeLabel={last.realtime} />
+          <span>At</span>
+          <ShiftedTime planned={last.to.planned} current={last.to.current} block={false} />
         </p>
       {/if}
 

@@ -10,7 +10,7 @@
     productFamily,
   } from "../../lib/format";
   import type { Leg, StopTime } from "../../lib/transit";
-  import DelayBadge from "../common/DelayBadge.svelte";
+  import ShiftedTime from "../common/ShiftedTime.svelte";
   import LegChip from "../common/LegChip.svelte";
 
   interface Props {
@@ -31,14 +31,9 @@
   {@const delay = delayMinutes(stop.planned, stop.current)}
   {@const platform = displayPlatform(stop)}
   {@const changed = platformChanged(stop)}
-  <div class="grid grid-cols-[4.25rem_1.5rem_1fr_auto] items-start gap-x-2">
+  <div class="grid grid-cols-[5.75rem_1.5rem_1fr_auto] items-start gap-x-2">
     <div class="text-right">
-      <p class="tabular text-2xl font-semibold leading-none tracking-tight text-ink {leg.cancelled ? 'line-through opacity-50' : ''}">
-        {formatTime(stop.planned)}
-      </p>
-      {#if delay !== 0 && stop.current}
-        <p class="tabular mt-1 text-sm font-semibold {delay > 0 ? 'text-amber-ink' : 'text-primary'}">{formatTime(stop.current)}</p>
-      {/if}
+      <ShiftedTime planned={stop.planned} current={stop.current} cancelled={leg.cancelled} class="text-2xl font-semibold leading-none tracking-tight text-ink" />
     </div>
     <div class="relative flex h-full min-h-6 justify-center self-stretch">
       <!-- the rail continues below a departure and above an arrival -->
@@ -50,9 +45,6 @@
     </div>
     <div class="min-w-0 pt-0.5">
       <p class="font-semibold leading-snug text-ink">{stop.name}</p>
-      {#if delay > 0}
-        <div class="mt-1"><DelayBadge minutes={delay} /></div>
-      {/if}
     </div>
     <div class="text-right">
       {#if platform}
@@ -80,7 +72,7 @@
       <span class="min-w-0 truncate text-sm text-base-content/70">to {leg.headsign}</span>
     {/if}
     {#if leg.cancelled}
-      <DelayBadge minutes={0} cancelled />
+      <span class="inline-flex items-center rounded-full bg-error/12 px-2 py-0.5 text-xs font-semibold text-error">Cancelled</span>
     {/if}
     {#if leg.operator}
       <span class="ml-auto text-xs text-base-content/45">{leg.operator}</span>
@@ -89,7 +81,7 @@
 
   {@render stopRow(leg.from, "dep")}
 
-  <div class="grid grid-cols-[4.25rem_1.5rem_1fr] gap-x-2">
+  <div class="grid grid-cols-[5.75rem_1.5rem_1fr] gap-x-2">
     <div></div>
     <div class="flex justify-center"><span class="w-1 rounded-full {rail} opacity-80"></span></div>
     <div class="py-3">
@@ -116,15 +108,13 @@
       {#each stops as stop, i (i)}
         {@const planned = stop.planned_arrival ?? stop.planned_departure}
         {@const current = stop.arrival ?? stop.departure}
-        {@const delay = delayMinutes(planned, current)}
-        <li class="grid grid-cols-[4.25rem_1.5rem_1fr_auto] items-center gap-x-2 py-1.5 text-sm">
-          <span class="tabular text-right text-base-content/70 {stop.cancelled ? 'line-through' : ''}">{formatTime(planned)}</span>
+        <li class="grid grid-cols-[5.75rem_1.5rem_1fr] items-center gap-x-2 py-1.5 text-sm">
+          <span class="text-right text-base-content/70"><ShiftedTime {planned} {current} block={false} cancelled={stop.cancelled} /></span>
           <span class="relative flex h-full justify-center">
             <span class="absolute inset-y-[-0.375rem] w-1 {rail} opacity-80"></span>
             <span class="relative mt-[0.35rem] h-2 w-2 rounded-full bg-card ring-2 ring-current {family === 'long' ? 'text-neutral' : 'text-primary'}"></span>
           </span>
           <span class="truncate {stop.cancelled ? 'text-base-content/45 line-through' : 'text-base-content/80'}">{stop.name}</span>
-          <span>{#if delay > 0}<DelayBadge minutes={delay} />{/if}</span>
         </li>
       {/each}
     </ol>

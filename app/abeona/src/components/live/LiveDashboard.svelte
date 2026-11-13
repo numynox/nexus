@@ -1,28 +1,32 @@
 <script lang="ts">
   /**
    * The live dashboard of a travel day — the web's copy of Android's
-   * ui/live/LiveDashboard.kt. The one thing to do now with its countdown,
-   * then as far as they matter in this state: where on the ride the train
-   * is (next stop, stops left), the map with the traveller on it, the next
-   * change and the whole journey. How Abeona knows which train you are on
-   * sits behind the source pill on the first card.
+   * ui/live/LiveDashboard.kt: one live card, then the map with the traveller
+   * on it. The card holds everything live, most urgent first: what happens
+   * now with its time, delay and countdown; the ride on a rail; the next
+   * stop; the change after this ride and where the trip ends; then how fresh
+   * it all is. How Abeona knows sits behind the card's source pill.
    */
   import {
     ArrowRight,
     ArrowRightLeft,
     ChevronDown,
-    CircleCheck,
     Clock,
+    CloudOff,
     DoorOpen,
     Flag,
     Footprints,
+    GitCommitHorizontal,
     LocateFixed,
     MapPin,
+    RefreshCw,
     Shuffle,
     TrainFront,
     TriangleAlert,
     Wifi,
   } from "lucide-svelte";
+  import type { Snippet } from "svelte";
+  import type { Leg, StopTime } from "../../lib/transit";
   import type { Trip } from "../../lib/data";
   import { displayPlatform, formatDuration, formatTime, legLabel, platformChanged, stopDelay } from "../../lib/format";
   import { distanceMetres, distanceToLineMetres, NEAR_STOP_METRES, ON_LINE_METRES, type Position } from "../../lib/travelday";
@@ -31,7 +35,7 @@
   import { effectiveTime, transfers } from "../../lib/transfer";
   import type { AlternativesReason, TravelDay } from "../../lib/travelday";
   import ConfidenceChip from "../common/ConfidenceChip.svelte";
-  import DelayBadge from "../common/DelayBadge.svelte";
+  import ShiftedTime from "../common/ShiftedTime.svelte";
   import LegChip from "../common/LegChip.svelte";
   import TripMap from "../trip/TripMap.svelte";
 
@@ -46,9 +50,13 @@
     onLocation: (on: boolean) => void;
     onAlternatives?: () => void;
     settingsHref?: string;
+    /** How fresh the live values are, for the card's last line. */
+    status?: { text: string; offline?: boolean } | null;
+    /** What else is live about the trip (the binding lifted, another connection followed), inside the card. */
+    notices?: Snippet;
   }
 
-  let { trip, day, now, stationMinutes, reason = null, position = null, location, onLocation, onAlternatives, settingsHref }: Props = $props();
+  let { trip, day, now, stationMinutes, reason = null, position = null, location, onLocation, onAlternatives, settingsHref, status = null, notices }: Props = $props();
 
   const legs = $derived(trip.legs);
   const leg = $derived(day.legIndex !== null ? legs[day.legIndex] : null);
@@ -80,7 +88,7 @@
       case "at_station":
         return day.source === "location" ? "You're at the station" : "Head to the platform";
       case "on_board":
-        return `On board${leg ? ` · ${legLabel(leg)}` : ""}`;
+        return `On board${leg ? ` · ${legLabel(leg)}${leg.headsign ? ` → ${short(leg.headsign)}` : ""}` : ""}`;
       case "changing":
         return "Change trains";
       case "arrived":
@@ -93,64 +101,27 @@
 
   const sourceLabel = $derived(day.source === "onboard" ? "Train Wi-Fi" : day.source === "location" ? "Location" : "Timetable");
 
-  /** Headline, the line under it, its delay, and the countdown with what it counts to. */
-  const now_ = $derived.by(() => {
-    if (arrived || !leg) {
-      return {
-        headline: trip.destination_name,
-        detail: `Arrived at ${formatTime(lastRide ? effectiveTime(lastRide.to) : null)}`,
-        delay: lastRide ? stopDelay(lastRide.to) : 0,
-        minutes: null as number | null,
-        unit: "",
-      };
-    }
-    if (day.missedChange && day.kind !== "on_board") {
-      return {
-        headline: `${legLabel(leg)} has left`,
-        detail: `It left ${leg.from.name} at ${formatTime(effectiveTime(leg.from))}. Your ticket may allow another train.`,
-        delay: 0,
-        minutes: null,
-        unit: "",
-      };
-    }
-    if (leg.cancelled) {
-      return { headline: `${legLabel(leg)} is cancelled`, detail: `It was to leave ${leg.from.name} at ${formatTime(leg.from.planned)}.`, delay: 0, minutes: null, unit: "" };
-    }
+  /** "Frankfurt(Main)Hbf" → "Frankfurt": a station's town, for tight labels. */
+  function short(name: string): string {
+    return name.split("(")[0].split(" Hbf")[0].split(" Hauptbahnhof")[0].trim();
+  }
+
+
+  /** What the card leads with: a name, the time that goes with it, what to do there, and the countdown. */
+  const lead = $derived.by(() => {
+    const base = { stop: null as StopTime | null, icon: null as "flag" | "change" | null, platformAt: null as StopTime | null, line: null as Leg | null, note: null as string | null, minutes: null as number | null, cancelled: false };
+    if (arrived || !leg) return { ...base, headline: trip.destination_name, stop: lastRide?.to ?? null, icon: "flag" as const };
+    if (day.missedChange && day.kind !== "on_board") return { ...base, headline: `${legLabel(leg)} has left`, stop: leg.from, note: "Your ticket may allow another train." };
+    if (leg.cancelled) return { ...base, headline: `${legLabel(leg)} is cancelled`, stop: leg.from, cancelled: true };
     const platform = displayPlatform(leg.from);
     switch (day.kind) {
       case "before_leaving":
-        return {
-          headline: `Leave for ${leg.from.name}`,
-          detail: [legLabel(leg), platform ? `Pl. ${platform}` : null, formatTime(effectiveTime(leg.from)), `${stationMinutes} min to the station`]
-            .filter(Boolean)
-            .join(" · "),
-          delay: stopDelay(leg.from),
-          minutes: day.minutesToLeave,
-          unit: "to leave",
-        };
+        return { ...base, headline: `Leave for ${leg.from.name}`, stop: leg.from, line: leg, note: `${stationMinutes} min to the station`, minutes: day.minutesToLeave };
       case "at_station":
       case "changing":
-        return {
-          headline: platform ? `Platform ${platform}` : legLabel(leg),
-          detail: `${legLabel(leg)}${leg.headsign ? ` to ${leg.headsign}` : ""} · ${formatTime(effectiveTime(leg.from))}`,
-          delay: stopDelay(leg.from),
-          minutes: day.minutesToDeparture,
-          unit: "to departure",
-        };
+        return { ...base, headline: platform ? `Platform ${platform}` : legLabel(leg), stop: leg.from, line: leg, minutes: day.minutesToDeparture };
       default:
-        return {
-          headline: leg.to.name,
-          detail: [
-            change ? "Change here" : leg.to.name === trip.destination_name ? "Your stop" : "Get off here",
-            formatTime(effectiveTime(leg.to)),
-            displayPlatform(leg.to) ? `Pl. ${displayPlatform(leg.to)}` : null,
-          ]
-            .filter(Boolean)
-            .join(" · "),
-          delay: stopDelay(leg.to),
-          minutes: day.minutesToArrival,
-          unit: "to arrival",
-        };
+        return { ...base, headline: leg.to.name, stop: leg.to, icon: change ? ("change" as const) : ("flag" as const), platformAt: leg.to, minutes: day.minutesToArrival };
     }
   });
 
@@ -178,27 +149,24 @@
   const standing = $derived(
     !!progress && progress.current !== null && progress.current > 0 && progress.current < progress.stops.length - 1,
   );
-  // The stops still ahead that the line above does not name: standing at a
-  // stop it names that stop, so the list starts at the next one; moving, it
-  // names the next one.
-  const ahead = $derived.by(() => {
-    if (!progress) return [] as number[];
-    const from = progress.next === null ? progress.stops.length : !onBoard || standing ? progress.next : progress.next + 1;
-    const all: number[] = [];
-    for (let i = from; i < progress.stops.length; i++) all.push(i);
-    return all;
+  /** The stop coming up on board (or the one standing at); none when only the stop the card leads with is left. */
+  const nextStop = $derived.by(() => {
+    if (!onBoard || !progress || progress.next === null) return null;
+    const last = progress.stops.length - 1;
+    if (!standing && progress.next === last) return null;
+    const stop = standing ? progress.stops[progress.current ?? 0] : progress.stops[progress.next];
+    const over = leg?.stopovers.find((o) => o.name === stop.name && (!o.id || o.id === stop.id));
+    const planned = standing ? (over?.planned_departure ?? over?.planned_arrival) : (over?.planned_arrival ?? over?.planned_departure);
+    const current = new Date(standing ? stop.departure : stop.arrival).toISOString();
+    return { name: stop.name, planned: planned ?? current, current };
   });
-  const shownAhead = $derived(ahead.length > 5 ? [...ahead.slice(0, 3), ahead[ahead.length - 1]] : ahead);
 
   // ------------------------------------------------------------ the change
 
-  const departing = $derived(change ? legs[change.toIndex] : null);
+  /** After this ride: the next change, its train, and where the trip ends. */
+  const then = $derived(warn || arrived || day.legIndex === null ? null : (transfers(legs).find((t) => t.fromIndex === day.legIndex) ?? null));
+  const thenLeg = $derived(then ? legs[then.toIndex] : null);
   const arriving = $derived(change ? legs[change.fromIndex] : null);
-  const laterChanges = $derived(change ? transfers(legs).filter((t) => t.fromIndex > change.fromIndex).length : 0);
-  const leavesIn = $derived.by(() => {
-    const t = departing ? effectiveTime(departing.from) : null;
-    return t ? Math.ceil((Date.parse(t) - now) / 60_000) : null;
-  });
 
   // ------------------------------------------------------------ how Abeona knows
 
@@ -250,11 +218,11 @@
 </script>
 
 <section class="space-y-4" aria-label="Live">
-  <!-- Now: the one thing to do, and how long until it. -->
   <div
-    class="rounded-[2rem] p-5 shadow-card sm:p-6 {warn ? 'bg-gradient-to-br from-amber-soft to-card' : 'bg-gradient-to-br from-mint to-card'}"
+    class="space-y-4 rounded-[2rem] p-5 shadow-card sm:p-6 {warn ? 'bg-gradient-to-br from-amber-soft to-card' : 'bg-gradient-to-br from-mint to-card'}"
     aria-live="polite"
   >
+    <!-- What state, and how Abeona knows. -->
     <div class="flex items-center gap-3">
       <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full {warn ? 'bg-amber text-amber-ink' : 'bg-primary text-primary-content'}">
         {#if warn}<TriangleAlert class="h-[18px] w-[18px]" />
@@ -280,212 +248,160 @@
       {/if}
     </div>
 
-    <div class="mt-4 flex items-end gap-4">
+    <!-- The one thing to know now. -->
+    <div class="flex items-end gap-4">
       <div class="min-w-0 flex-1">
-        <p class="tabular text-3xl font-semibold tracking-tight text-ink sm:text-4xl">{now_.headline}</p>
-        <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-base-content/70">
-          <span>{now_.detail}</span>
-          <DelayBadge minutes={now_.delay} />
-          {#if day.kind === "before_leaving" && settingsHref}
-            <a href={settingsHref} class="font-medium text-primary underline-offset-2 hover:underline">change</a>
+        <p class="text-2xl font-semibold tracking-tight text-ink sm:text-3xl">{lead.headline}</p>
+        <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          {#if lead.stop}
+            <ShiftedTime planned={lead.stop.planned} current={lead.stop.current} cancelled={lead.cancelled} class="text-3xl font-semibold tracking-tight text-ink sm:text-4xl" />
           {/if}
-        </p>
+          {#if lead.icon === "flag"}<Flag class="h-[18px] w-[18px] text-base-content/60" aria-label="Get off" />{:else if lead.icon === "change"}<ArrowRightLeft class="h-[18px] w-[18px] text-base-content/60" aria-label="Change" />{/if}
+          {#if lead.platformAt && displayPlatform(lead.platformAt)}
+            {@const p = lead.platformAt}
+            <span class="tabular rounded-lg px-2 py-0.5 text-sm font-bold {platformChanged(p) ? 'bg-amber-soft text-amber-ink' : 'bg-secondary text-secondary-content'}" title="Platform">Pl. {displayPlatform(p)}</span>
+          {/if}
+          {#if lead.line}
+            <span class="inline-flex items-center gap-1.5 text-sm text-base-content/70">
+              <LegChip leg={lead.line} />
+              {#if lead.line.headsign}→ {short(lead.line.headsign)}{/if}
+            </span>
+          {/if}
+        </div>
+        {#if lead.note}
+          <p class="mt-1 text-sm text-base-content/70">
+            {lead.note}{#if day.kind === "before_leaving" && settingsHref}&nbsp;·
+              <a href={settingsHref} class="font-medium text-primary underline-offset-2 hover:underline">change</a>{/if}
+          </p>
+        {/if}
       </div>
-      {#if countdown(now_.minutes)}
-        {@const c = countdown(now_.minutes)!}
-        <div class="shrink-0 text-right" aria-label={`${c.number} ${c.label} ${now_.unit}`}>
+      {#if countdown(lead.minutes)}
+        {@const c = countdown(lead.minutes)!}
+        <div class="shrink-0 text-right" aria-label={`${c.number} ${c.label}`}>
           <p class="tabular text-5xl font-semibold leading-none tracking-tighter sm:text-6xl {warn ? 'text-amber-ink' : 'text-primary'}">{c.number}</p>
-          <p class="mt-1 text-xs font-medium text-base-content/60">{[c.label, now_.unit].filter(Boolean).join(" ")}</p>
+          {#if c.label}<p class="mt-1 text-xs font-medium text-base-content/60">{c.label}</p>{/if}
         </div>
       {/if}
     </div>
 
     {#if day.kind === "changing" && change && !warn}
-      <div class="mt-3 flex flex-wrap items-center gap-2 text-sm">
+      <!-- The change being made: its margin and the way between platforms. -->
+      <div class="flex flex-wrap items-center gap-2 text-sm">
         <ConfidenceChip confidence={change.confidence} />
         <span class="tabular text-base-content/70">
           {change.availableMinutes} min ·
-          {change.walkMinutes > 0
-            ? `walk ${change.walkMinutes} min`
-            : arriving && displayPlatform(arriving.to)
-              ? `from Pl. ${displayPlatform(arriving.to)}${leg && displayPlatform(leg.from) ? ` → Pl. ${displayPlatform(leg.from)}` : ""}`
-              : ""}
+          {#if change.walkMinutes > 0}<Footprints class="inline h-4 w-4" aria-label="Walk" /> {change.walkMinutes} min{:else if arriving && displayPlatform(arriving.to)}Pl. {displayPlatform(arriving.to)}{leg && displayPlatform(leg.from) ? ` → ${displayPlatform(leg.from)}` : ""}{/if}
         </span>
       </div>
     {/if}
+
+    {#if showRide && leg && progress}
+      <!-- The ride on a rail: every stop, behind filled, the train where it is. -->
+      <div>
+        <div class="relative mx-2.5 h-9" role="img" aria-label={`${Math.round(rail * 100)} % of the ride done`}>
+          <div class="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-base-content/15"></div>
+          <div class="absolute left-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-primary" style="width: {rail * 100}%"></div>
+          {#each progress.stops as stop, i (i)}
+            {@const end = i === 0 || i === progress.stops.length - 1}
+            {@const passed = onBoard && stop.fraction <= rail}
+            <span
+              class="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-mint
+                {end ? 'h-3.5 w-3.5' : 'h-2.5 w-2.5'}
+                {passed ? 'bg-primary' : end ? 'border-2 border-primary bg-card' : 'border-2 border-base-content/30 bg-card'}"
+              style="left: {stop.fraction * 100}%"
+              title={stop.name}
+            ></span>
+          {/each}
+          {#if onBoard}
+            <span
+              class="absolute top-1/2 flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-primary text-primary-content shadow-card transition-[left] duration-700"
+              style="left: {rail * 100}%"
+              aria-hidden="true"
+            >
+              <TrainFront class="h-4 w-4" />
+            </span>
+          {/if}
+        </div>
+        <div class="mt-0.5 flex items-start justify-between gap-3 text-xs text-base-content/70">
+          <span class="min-w-0">
+            <span class="block truncate">{short(leg.from.name)}</span>
+            <ShiftedTime planned={leg.from.planned} current={leg.from.current} block={false} />
+          </span>
+          <span class="text-right">
+            {#if !onBoard}
+              <span class="block truncate">{short(leg.to.name)}</span>
+              <ShiftedTime planned={leg.to.planned} current={leg.to.current} block={false} />
+            {/if}
+            <span class="flex items-center justify-end gap-1" aria-label={`${onBoard ? progress.stopsLeft : progress.stops.length - 1} stops${onBoard ? " left" : ""}`}>
+              <GitCommitHorizontal class="h-3.5 w-3.5" aria-hidden="true" />
+              <span class="tabular" aria-hidden="true">{onBoard ? progress.stopsLeft : progress.stops.length - 1}</span>
+            </span>
+          </span>
+        </div>
+      </div>
+
+      {#if nextStop}
+        <!-- The stop coming up. -->
+        <div class="flex items-center gap-3 rounded-2xl bg-card/60 px-4 py-3">
+          {#if standing}<MapPin class="h-[18px] w-[18px] shrink-0 text-base-content/60" aria-label="Now at" />{:else}<ArrowRight class="h-[18px] w-[18px] shrink-0 text-base-content/60" aria-label="Next stop" />{/if}
+          <span class="min-w-0 flex-1 truncate text-lg font-semibold text-ink">{nextStop.name}</span>
+          <span class="text-right">
+            <ShiftedTime planned={nextStop.planned} current={nextStop.current} block={false} class="text-lg font-semibold text-ink" />
+            <span class="block text-xs text-base-content/60">{standing ? "leaves" : inMinutes(progress.minutesToNext)}</span>
+          </span>
+        </div>
+      {/if}
+    {/if}
+
+    {#if then && thenLeg}
+      <!-- After this ride: the next train, and where the trip ends. -->
+      <div class="space-y-2 rounded-2xl bg-card/60 px-4 py-3 text-sm">
+        <div class="flex items-center gap-2">
+          {#if then.walkMinutes > 0}<Footprints class="h-[18px] w-[18px] text-base-content/60" aria-label="Then" />{:else}<ArrowRightLeft class="h-[18px] w-[18px] text-base-content/60" aria-label="Then" />{/if}
+          <span class="min-w-0 flex-1 truncate text-base-content/70">{onBoard ? "" : thenLeg.from.name}</span>
+          <ConfidenceChip confidence={then.confidence} />
+          <span class="tabular text-xs font-semibold text-base-content/70">{then.availableMinutes} min</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <LegChip leg={thenLeg} />
+          {#if displayPlatform(thenLeg.from)}
+            <span class="tabular rounded-lg px-2 py-0.5 text-xs font-bold {platformChanged(thenLeg.from) ? 'bg-amber-soft text-amber-ink' : 'bg-secondary text-secondary-content'}">Pl. {displayPlatform(thenLeg.from)}</span>
+          {/if}
+          <span class="flex-1"></span>
+          <ShiftedTime planned={thenLeg.from.planned} current={thenLeg.from.current} block={false} class="font-semibold text-ink" />
+        </div>
+        {#if lastRide}
+          <div class="flex items-center gap-2 text-base-content/70">
+            <Flag class="h-4 w-4" aria-label="Destination" />
+            <span class="min-w-0 flex-1 truncate">{trip.destination_name}</span>
+            <ShiftedTime planned={lastRide.to.planned} current={lastRide.to.current} block={false} class="text-ink" />
+          </div>
+        {/if}
+      </div>
+    {/if}
+
     {#if day.missedChange && day.kind === "on_board"}
-      <p class="mt-3 text-sm font-medium text-amber-ink">You are still on this train after your connection left.</p>
+      <p class="text-sm font-medium text-amber-ink">You are still on this train after your connection left.</p>
     {/if}
     {#if reason && onAlternatives}
-      <button class="btn btn-sm mt-4 rounded-full border-none bg-amber-soft text-amber-ink hover:brightness-95" onclick={onAlternatives}>
+      <button class="btn btn-sm rounded-full border-none bg-amber-soft text-amber-ink hover:brightness-95" onclick={onAlternatives}>
         <Shuffle class="h-4 w-4" /> See alternatives
       </button>
+    {/if}
+
+    {@render notices?.()}
+
+    {#if status}
+      <!-- How fresh it all is: small, last. -->
+      <p class="flex items-center gap-1.5 text-xs text-base-content/60">
+        {#if status.offline}<CloudOff class="h-3.5 w-3.5" aria-hidden="true" />{:else}<RefreshCw class="h-3.5 w-3.5 text-primary" aria-hidden="true" />{/if}
+        {status.text}
+      </p>
     {/if}
   </div>
 
   {#if !arrived}
-    <div class="grid gap-4 lg:grid-cols-2 lg:items-start">
-      <div class="space-y-4">
-        {#if showRide && leg && progress}
-          <!-- The ride: next stop, stops left, the train on its line. -->
-          <div class="rounded-3xl bg-card p-5 shadow-card">
-            <div class="flex items-center gap-2">
-              <LegChip {leg} size="md" />
-              <span class="min-w-0 flex-1 truncate text-sm font-medium text-ink">to {leg.headsign ?? leg.to.name}</span>
-              <span class="tabular text-sm font-semibold text-primary">
-                {#if progress.stopsLeft === 0}Arrived{:else if !onBoard}{progress.stops.length - 1} stops{:else if progress.stopsLeft === 1}1 stop left{:else}{progress.stopsLeft} stops left{/if}
-              </span>
-            </div>
-
-            {#if onBoard && progress.next !== null}
-              {@const stop = standing ? progress.stops[progress.current ?? 0] : progress.stops[progress.next]}
-              <div class="mt-4 flex items-end gap-3">
-                <div class="min-w-0 flex-1">
-                  <p class="text-[0.68rem] font-bold uppercase tracking-[0.12em] text-base-content/50">
-                    {standing ? "Now at" : progress.next === progress.stops.length - 1 ? "Next stop · get off" : "Next stop"}
-                  </p>
-                  <p class="truncate text-xl font-semibold text-ink">{stop.name}</p>
-                </div>
-                <div class="text-right">
-                  <p class="tabular text-xl font-semibold text-ink">{formatTime(new Date(standing ? stop.departure : stop.arrival).toISOString())}</p>
-                  <p class="text-xs text-base-content/60">{standing ? "leaves" : inMinutes(progress.minutesToNext)}</p>
-                </div>
-              </div>
-            {/if}
-
-            <!-- Every stop on a line; behind filled, the train where it is. -->
-            <div class="relative mx-2.5 mt-5 h-9" role="img" aria-label={`${Math.round(rail * 100)} % of the ride done`}>
-              <div class="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-base-300"></div>
-              <div class="absolute left-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-primary" style="width: {rail * 100}%"></div>
-              {#each progress.stops as stop, i (i)}
-                {@const end = i === 0 || i === progress.stops.length - 1}
-                {@const passed = onBoard && stop.fraction <= rail}
-                <span
-                  class="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-card
-                    {end ? 'h-3.5 w-3.5' : 'h-2.5 w-2.5'}
-                    {passed ? 'bg-primary' : end ? 'border-2 border-primary bg-card' : 'border-2 border-base-content/30 bg-card'}"
-                  style="left: {stop.fraction * 100}%"
-                  title={stop.name}
-                ></span>
-              {/each}
-              {#if onBoard}
-                <span
-                  class="absolute top-1/2 flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-primary text-primary-content shadow-card transition-[left] duration-700"
-                  style="left: {rail * 100}%"
-                  aria-hidden="true"
-                >
-                  <TrainFront class="h-4 w-4" />
-                </span>
-              {/if}
-            </div>
-
-            {#if ahead.length > 0}
-              <ol class="mt-3 space-y-1.5">
-                {#each shownAhead as i, k (i)}
-                  {#if k === 3 && ahead.length > 5}
-                    <li class="pl-[3.75rem] text-xs text-base-content/50">· · · {ahead.length - 4} more</li>
-                  {/if}
-                  {@const stop = progress.stops[i]}
-                  {@const last = i === progress.stops.length - 1}
-                  <li class="flex items-center gap-3 text-sm">
-                    <span class="tabular w-11 text-base-content/60">{formatTime(new Date(stop.arrival).toISOString())}</span>
-                    <span class="rounded-full {last ? 'h-2.5 w-2.5 bg-primary' : 'h-2 w-2 bg-base-content/30'}"></span>
-                    <span class="truncate {last ? 'font-semibold text-ink' : 'text-base-content/80'}">{stop.name}</span>
-                  </li>
-                {/each}
-              </ol>
-            {/if}
-          </div>
-        {/if}
-
-        {#if onBoard && change && departing && arriving}
-          <!-- The next change, from the train before it. -->
-          <div class="rounded-3xl bg-card p-5 shadow-card">
-            <div class="flex items-center gap-3">
-              <ArrowRightLeft class="h-5 w-5 text-primary" />
-              <div class="min-w-0 flex-1">
-                <p class="text-[0.68rem] font-bold uppercase tracking-[0.12em] text-base-content/50">Your change</p>
-                <p class="truncate font-semibold text-ink">{departing.from.name}</p>
-              </div>
-              <span class="flex items-center gap-1.5">
-                <ConfidenceChip confidence={change.confidence} />
-                <span class="tabular text-xs font-semibold text-base-content/70">{change.availableMinutes} min</span>
-              </span>
-            </div>
-            <div class="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-              <div class="flex items-center gap-2.5">
-                <div>
-                  <p class="text-[0.68rem] font-bold uppercase tracking-[0.12em] text-base-content/50">Arrive</p>
-                  <p class="tabular flex items-center gap-1.5 text-xl font-semibold text-ink">
-                    {formatTime(effectiveTime(arriving.to))} <DelayBadge minutes={stopDelay(arriving.to)} />
-                  </p>
-                </div>
-                {#if displayPlatform(arriving.to)}
-                  <span class="tabular rounded-xl px-2.5 py-1 text-center text-sm font-bold {platformChanged(arriving.to) ? 'bg-amber-soft text-amber-ink' : 'bg-secondary text-secondary-content'}">
-                    <span class="block text-[0.6rem] font-medium">Pl.</span>{displayPlatform(arriving.to)}
-                  </span>
-                {/if}
-              </div>
-              <div class="flex flex-col items-center text-base-content/50">
-                {#if change.walkMinutes > 0}<Footprints class="h-5 w-5" />{:else}<ArrowRight class="h-5 w-5" />{/if}
-                <span class="tabular text-[0.68rem]">{change.walkMinutes > 0 ? change.walkMinutes : change.requiredMinutes} min</span>
-              </div>
-              <div class="flex items-center justify-end gap-2.5">
-                {#if displayPlatform(departing.from)}
-                  <span class="tabular rounded-xl px-2.5 py-1 text-center text-sm font-bold {platformChanged(departing.from) ? 'bg-amber-soft text-amber-ink' : 'bg-secondary text-secondary-content'}">
-                    <span class="block text-[0.6rem] font-medium">Pl.</span>{displayPlatform(departing.from)}
-                  </span>
-                {/if}
-                <div class="text-right">
-                  <p class="text-[0.68rem] font-bold uppercase tracking-[0.12em] text-base-content/50">Depart</p>
-                  <p class="tabular flex items-center justify-end gap-1.5 text-xl font-semibold text-ink">
-                    {formatTime(effectiveTime(departing.from))} <DelayBadge minutes={stopDelay(departing.from)} />
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div class="mt-4 flex items-center gap-2 border-t border-base-200 pt-3 text-sm text-base-content/70">
-              <LegChip leg={departing} />
-              <span class="truncate">
-                {[departing.headsign ? `to ${departing.headsign}` : null, leavesIn !== null ? `leaves ${inMinutes(leavesIn)}` : null].filter(Boolean).join(" · ")}
-              </span>
-            </div>
-            {#if laterChanges > 0}
-              <p class="mt-2 text-xs text-base-content/60">{laterChanges === 1 ? "Then one more change" : `Then ${laterChanges} more changes`}</p>
-            {/if}
-          </div>
-        {/if}
-      </div>
-
-      <div class="space-y-4">
-        <TripMap {legs} {marker} focus={onBoard ? leg : null} />
-
-        <!-- The whole journey: behind, now, ahead. -->
-        <div class="rounded-3xl bg-card p-5 shadow-card">
-          <div class="flex items-center gap-2">
-            <p class="flex-1 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-base-content/50">
-              Your journey{rides.length === 1 ? " · direct" : day.legIndex !== null && rides.findIndex(({ i }) => i === day.legIndex) >= 0 ? ` · ride ${rides.findIndex(({ i }) => i === day.legIndex) + 1} of ${rides.length}` : ""}
-            </p>
-            <span class="tabular text-sm font-semibold text-ink">{trip.destination_name} {formatTime(lastRide ? effectiveTime(lastRide.to) : null)}</span>
-            {#if lastRide}<DelayBadge minutes={stopDelay(lastRide.to)} />{/if}
-          </div>
-          <div class="mt-3 flex flex-wrap items-center gap-1.5">
-            {#each rides as { l, i }, k (i)}
-              {@const done = day.legIndex !== null && i < day.legIndex}
-              {@const current = i === day.legIndex && onBoard}
-              <span class="inline-flex items-center gap-1 rounded-full {current ? 'bg-primary/15 p-0.5' : ''}">
-                {#if done}<CircleCheck class="h-4 w-4 text-primary" />{/if}
-                <LegChip leg={l} />
-              </span>
-              {#if k < rides.length - 1}
-                <span class="text-xs text-base-content/50">{l.to.name.split("(")[0].trim()}</span>
-              {/if}
-            {/each}
-            <Flag class="h-4 w-4 text-base-content/50" />
-          </div>
-        </div>
-      </div>
-    </div>
+    <TripMap {legs} {marker} focus={onBoard ? leg : null} />
   {/if}
 </section>
 

@@ -53,10 +53,10 @@ import io.github.numynox.nexus.abeona.domain.trainBindingLifted
 import io.github.numynox.nexus.abeona.domain.worstConfidence
 import io.github.numynox.nexus.abeona.ui.AppViewModel
 import io.github.numynox.nexus.abeona.ui.Navigator
+import io.github.numynox.nexus.abeona.ui.common.ShiftedTime
 import io.github.numynox.nexus.abeona.ui.common.BindingLiftedBanner
 import io.github.numynox.nexus.abeona.ui.common.ConfidenceChip
 import io.github.numynox.nexus.abeona.ui.common.DeadlineBanner
-import io.github.numynox.nexus.abeona.ui.common.DelayBadge
 import io.github.numynox.nexus.abeona.ui.common.Illustration
 import io.github.numynox.nexus.abeona.ui.common.LegChips
 import io.github.numynox.nexus.abeona.ui.common.OfflinePill
@@ -248,18 +248,21 @@ fun NextTripCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Departure", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(
-                            TripFormat.time(first?.from?.plannedAt ?: trip.departureAt),
-                            style = MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.SemiBold).tabular(),
-                        )
-                        DelayBadge(delay, large = true)
-                    }
-                    Text(
-                        "Arrives ${TripFormat.time(trip.expectedArrival)}" + if (arrivalDelay > 0) " (+$arrivalDelay)" else "",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ShiftedTime(
+                        first?.from?.plannedAt ?: trip.departureAt,
+                        first?.from?.expectedAt,
+                        MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.SemiBold),
                     )
+                    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Arrives", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        ShiftedTime(
+                            trip.legs.lastOrNull { !it.isWalk }?.to?.plannedAt ?: trip.expectedArrival,
+                            trip.expectedArrival,
+                            MaterialTheme.typography.bodyMedium,
+                            block = false,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
                 first?.let {
                     PlatformBox(

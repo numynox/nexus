@@ -37,6 +37,7 @@ import androidx.glance.layout.width
 import androidx.glance.material3.ColorProviders
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
+import androidx.glance.text.TextDecoration
 import androidx.glance.text.TextStyle
 import io.github.numynox.nexus.abeona.AbeonaApplication
 import io.github.numynox.nexus.abeona.AppContainer
@@ -177,14 +178,19 @@ private fun NextTrip(trip: Trip, now: Instant) {
     }
     Spacer(GlanceModifier.height(if (tall) 8.dp else 4.dp))
     Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        // The new time, and beside it the minutes late above the planned time struck through (glossary: delay).
         Text(
-            TripFormat.time(first?.from?.plannedAt ?: trip.departureAt),
+            TripFormat.time(if (delay > 0) first?.from?.expectedAt else first?.from?.plannedAt ?: trip.departureAt),
             style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = if (tall) 34.sp else 28.sp, fontWeight = FontWeight.Bold),
         )
         if (delay > 0) {
             Spacer(GlanceModifier.width(8.dp))
-            Box(GlanceModifier.background(Amber).cornerRadius(12.dp).padding(horizontal = 8.dp, vertical = 2.dp)) {
-                Text("+$delay", style = TextStyle(color = OnAmber, fontSize = 15.sp, fontWeight = FontWeight.Bold))
+            Column {
+                Text("+$delay", style = TextStyle(color = GlanceTheme.colors.tertiary, fontSize = 13.sp, fontWeight = FontWeight.Bold))
+                Text(
+                    TripFormat.time(first?.from?.plannedAt),
+                    style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 13.sp, textDecoration = TextDecoration.LineThrough),
+                )
             }
         }
         Spacer(GlanceModifier.defaultWeight())

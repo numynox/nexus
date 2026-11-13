@@ -3,7 +3,7 @@
   import type { Trip } from "../../lib/data";
   import { formatDuration, formatTime } from "../../lib/format";
   import { summarise } from "../../lib/journey";
-  import DelayBadge from "../common/DelayBadge.svelte";
+  import ShiftedTime from "../common/ShiftedTime.svelte";
   import LegChip from "../common/LegChip.svelte";
 
   interface Props {
@@ -38,10 +38,14 @@
       <p class="truncate text-xs text-base-content/60">{trip.origin_name} → {trip.destination_name}</p>
     {/if}
     <p class="tabular mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-base-content/70">
-      <span class="whitespace-nowrap">{formatTime(s.departure.planned)} – {formatTime(s.arrival.planned)}</span>
+      <span class="inline-flex items-baseline gap-1 whitespace-nowrap">
+        <ShiftedTime planned={s.departure.planned} current={s.departure.current} block={false} cancelled={s.cancelled} />
+        –
+        <ShiftedTime planned={s.arrival.planned} current={s.arrival.current} block={false} cancelled={s.cancelled} />
+      </span>
       <span class="text-base-content/30">·</span>
       <span class="whitespace-nowrap">{formatDuration(s.plannedMinutes)}</span>
-      <DelayBadge minutes={s.arrivalDelay} cancelled={s.cancelled} />
+      {#if s.cancelled}<span class="inline-flex items-center rounded-full bg-error/12 px-2 py-0.5 text-xs font-semibold text-error">Cancelled</span>{/if}
     </p>
     <div class="mt-2 flex flex-wrap gap-1">
       {#each s.rides as ride, i (i)}

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowLeft, ExternalLink, RefreshCw, Shuffle, Ticket, Trash2 } from "lucide-svelte";
+  import { ArrowLeft, EllipsisVertical, ExternalLink, RefreshCw, Shuffle, Ticket, Trash2 } from "lucide-svelte";
   import { onMount } from "svelte";
   import { getBaseUrl } from "../../lib/config";
   import {
@@ -26,6 +26,7 @@
   import { cardsForTrip } from "../../lib/travellers";
   import BindingBanner from "../common/BindingBanner.svelte";
   import LiveDashboard from "../live/LiveDashboard.svelte";
+  import ShiftedTime from "../common/ShiftedTime.svelte";
   import AlternativesSection from "./AlternativesSection.svelte";
   import CompensationCard from "./CompensationCard.svelte";
   import DisruptionCard from "./DisruptionCard.svelte";
@@ -106,6 +107,24 @@
   }
   // No origin once the only stop left is the destination: then nothing is offered.
   const origin = $derived(day ? alternativesOrigin(legs, day, now) : null);
+  /** The travel day is on: the live card holds everything live, the header only what does not change. */
+  const liveCard = $derived(!!day && !arrived);
+  /** How fresh the live values are: the live card's last line, or a line under the header. */
+  const status = $derived.by((): { text: string; offline?: boolean } | null => {
+    if (!trip || !s) return null;
+    if (arrived) return { text: `Arrived${trip.finalized_at ? " · final times recorded" : ""}` };
+    if (liveCard && refreshError) return { text: "Live data unavailable", offline: true };
+    if (s.hasRealtime && trip.refreshed_at) return { text: `Live · updated ${formatTime(trip.refreshed_at)}` };
+    if (trip.refreshed_at) {
+      return { text: `Timetable as of ${formatTime(trip.refreshed_at)}, ${new Date(trip.refreshed_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` };
+    }
+    return null;
+  });
+  const anyNotice = $derived(!!trip && !arrived && (bindingLifted || (following && !!trip.replacement_legs) || warnings.length > 0 || (liveCard && !!refreshError)));
+  let menu: HTMLDetailsElement | undefined = $state();
+  function closeMenu() {
+    if (menu) menu.open = false;
+  }
   const reason = $derived(day && origin ? alternativesReason(legs, day) : null);
 
   async function load(id: string) {
@@ -255,94 +274,12 @@
   });
 </script>
 
-{#if loading}
-  <div class="space-y-4" aria-busy="true">
-    <div class="h-44 animate-pulse rounded-[2rem] bg-mint"></div>
-    <div class="h-56 animate-pulse rounded-3xl bg-base-200"></div>
-    <div class="h-56 animate-pulse rounded-3xl bg-base-200"></div>
-  </div>
-{:else if !trip || !s}
-  <div class="mx-auto max-w-md pt-10 text-center">
-    <Illustration name="station" class="mx-auto w-72" />
-    <p class="mt-6 font-semibold text-ink">{error || "Trip not found"}</p>
-    <a href={`${base}/`} class="btn btn-primary mt-6 rounded-full px-6">Back to trips</a>
-  </div>
-{:else}
-  <div class="space-y-6">
-    <a href={`${base}/`} class="inline-flex items-center gap-1.5 text-sm font-medium text-base-content/60 hover:text-primary">
-      <ArrowLeft class="h-4 w-4" /> Trips
-    </a>
-
-    <header class="rounded-[2rem] bg-mint p-6 sm:p-8">
-      <p class="text-xs font-semibold uppercase tracking-[0.12em] text-primary">{formatLongDate(trip.planned_departure)}</p>
-      <h1 class="mt-2 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
-        {trip.title ?? `${trip.origin_name} → ${trip.destination_name}`}
-      </h1>
-      {#if trip.title}
-        <p class="mt-1 text-base-content/70">{trip.origin_name} → {trip.destination_name}</p>
-      {/if}
-      <p class="tabular mt-2 text-lg font-medium text-ink/80">
-        {formatTime(s.departure.planned)} – {formatTime(s.arrival.planned)}
-      </p>
-
-      <div class="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
-        <span class="rounded-full bg-card px-3 py-1 text-ink">{fareLabel(trip.fare_type)}</span>
-        <span class="rounded-full bg-card px-3 py-1 text-ink">{trip.travel_class === 1 ? "1st" : "2nd"} class</span>
-        {#if trip.price_cents !== null}
-          <span class="tabular rounded-full bg-card px-3 py-1 text-ink">{formatPrice(trip.price_cents)}</span>
-        {/if}
-        {#if trip.bahncard_discount}
-          <span class="rounded-full bg-card px-3 py-1 text-ink">BahnCard {trip.bahncard_discount} discount</span>
-        {/if}
-        {#if trip.train_binding}
-          <span class="rounded-full bg-card px-3 py-1 text-ink">Train-bound</span>
-        {/if}
-      </div>
-
-      <div class="mt-5 flex flex-wrap gap-2">
-        <button class="btn btn-primary rounded-full px-5" onclick={openTicket}>
-          <Ticket class="h-4 w-4" /> {trip.ticket_path ? "Show ticket" : "Add ticket"}
-        </button>
-        <a href={navigatorUrl} target="_blank" rel="noopener" class="btn rounded-full border-base-300 bg-card px-5">
-          <ExternalLink class="h-4 w-4" /> Open DB Navigator
-        </a>
-      </div>
-    </header>
-
-    <div class="flex flex-wrap items-center justify-between gap-3 px-1">
-      <p class="text-sm text-base-content/60">
-        {#if arrived}
-          Arrived{trip.finalized_at ? " · final times recorded" : ""}
-        {:else if s.hasRealtime && trip.refreshed_at}
-          <span class="mr-1 inline-block h-2 w-2 rounded-full bg-primary"></span>
-          Live · updated {formatTime(trip.refreshed_at)}
-        {:else if trip.refreshed_at}
-          Timetable as of {formatTime(trip.refreshed_at)}, {new Date(trip.refreshed_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-        {/if}
-      </p>
-      <button class="btn btn-ghost btn-sm rounded-full text-primary" onclick={refresh} disabled={refreshing}>
-        <RefreshCw class="h-4 w-4 {refreshing ? 'animate-spin' : ''}" /> Refresh
-      </button>
-    </div>
-    {#if refreshError}
+{#snippet tripNotices()}
+  {#if trip}
+  <div class="space-y-3">
+    {#if liveCard && refreshError}
       <p class="rounded-2xl bg-error/10 px-4 py-3 text-sm text-error" role="alert">Could not update live times: {refreshError}</p>
     {/if}
-
-    {#if day}
-      <LiveDashboard
-        trip={shown ?? trip}
-        {day}
-        {now}
-        {stationMinutes}
-        {reason}
-        {position}
-        {location}
-        onLocation={useLocation}
-        settingsHref={`${base}/settings#device`}
-        onAlternatives={() => alternativesSection?.reveal()}
-      />
-    {/if}
-
     {#if bindingLifted && !arrived}
       <BindingBanner
         delay={planDelay}
@@ -366,6 +303,122 @@
 
     {#if warnings.length > 0 && !arrived}
       <TripWarnings {warnings} settingsHref={`${base}/settings#bahncards`} />
+    {/if}
+  </div>
+  {/if}
+{/snippet}
+
+{#if loading}
+  <div class="space-y-4" aria-busy="true">
+    <div class="h-44 animate-pulse rounded-[2rem] bg-mint"></div>
+    <div class="h-56 animate-pulse rounded-3xl bg-base-200"></div>
+    <div class="h-56 animate-pulse rounded-3xl bg-base-200"></div>
+  </div>
+{:else if !trip || !s}
+  <div class="mx-auto max-w-md pt-10 text-center">
+    <Illustration name="station" class="mx-auto w-72" />
+    <p class="mt-6 font-semibold text-ink">{error || "Trip not found"}</p>
+    <a href={`${base}/`} class="btn btn-primary mt-6 rounded-full px-6">Back to trips</a>
+  </div>
+{:else}
+  <div class="space-y-6">
+    <!-- The trip's actions: the ticket one tap away, the rest under ⋮. -->
+    <div class="flex items-center gap-1">
+      <a href={`${base}/`} class="mr-auto inline-flex items-center gap-1.5 text-sm font-medium text-base-content/60 hover:text-primary">
+        <ArrowLeft class="h-4 w-4" /> Trips
+      </a>
+      <button class="btn btn-ghost btn-circle btn-sm" onclick={openTicket} aria-label={trip.ticket_path ? "Show ticket" : "Add ticket"} title={trip.ticket_path ? "Show ticket" : "Add ticket"}>
+        <Ticket class="h-5 w-5" />
+      </button>
+      <button class="btn btn-ghost btn-circle btn-sm" onclick={refresh} disabled={refreshing} aria-label="Refresh" title="Refresh">
+        <RefreshCw class="h-5 w-5 {refreshing ? 'animate-spin' : ''}" />
+      </button>
+      <details class="dropdown dropdown-end" bind:this={menu}>
+        <summary class="btn btn-ghost btn-circle btn-sm" aria-label="More"><EllipsisVertical class="h-5 w-5" /></summary>
+        <ul class="menu dropdown-content z-20 mt-2 w-56 rounded-2xl bg-card p-2 shadow-card">
+          <li>
+            <a href={navigatorUrl} target="_blank" rel="noopener" onclick={closeMenu}><ExternalLink class="h-4 w-4" /> Open DB Navigator</a>
+          </li>
+          {#if day && origin && !arrived}
+            <li>
+              <button onclick={() => { closeMenu(); alternativesSection?.reveal(); }}><Shuffle class="h-4 w-4" /> Alternatives</button>
+            </li>
+          {/if}
+          <li>
+            <button class="text-error" onclick={() => { closeMenu(); confirmDialog?.showModal(); }}><Trash2 class="h-4 w-4" /> Delete trip</button>
+          </li>
+        </ul>
+      </details>
+    </div>
+
+    {#if liveCard}
+      <!-- While the trip is live, everything live is in the one card below; here only what does not change. -->
+      <header class="px-1">
+        <p class="text-xs font-semibold uppercase tracking-[0.12em] text-primary">
+          {formatLongDate(trip.planned_departure)}{trip.price_cents !== null ? ` · ${formatPrice(trip.price_cents)}` : ""}
+        </p>
+        <h1 class="mt-2 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
+          {trip.title ?? `${trip.origin_name} → ${trip.destination_name}`}
+        </h1>
+        {#if trip.title}
+          <p class="mt-1 text-base-content/70">{trip.origin_name} → {trip.destination_name}</p>
+        {/if}
+      </header>
+    {:else}
+      <header class="rounded-[2rem] bg-mint p-6 sm:p-8">
+        <p class="text-xs font-semibold uppercase tracking-[0.12em] text-primary">{formatLongDate(trip.planned_departure)}</p>
+        <h1 class="mt-2 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
+          {trip.title ?? `${trip.origin_name} → ${trip.destination_name}`}
+        </h1>
+        {#if trip.title}
+          <p class="mt-1 text-base-content/70">{trip.origin_name} → {trip.destination_name}</p>
+        {/if}
+        <p class="mt-2 flex flex-wrap items-baseline gap-x-2 text-lg font-medium text-ink/80">
+          <ShiftedTime planned={s.departure.planned} current={s.departure.current} block={false} cancelled={s.cancelled} />
+          –
+          <ShiftedTime planned={s.arrival.planned} current={s.arrival.current} block={false} />
+        </p>
+
+        <div class="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
+          <span class="rounded-full bg-card px-3 py-1 text-ink">{fareLabel(trip.fare_type)}</span>
+          <span class="rounded-full bg-card px-3 py-1 text-ink">{trip.travel_class === 1 ? "1st" : "2nd"} class</span>
+          {#if trip.price_cents !== null}
+            <span class="tabular rounded-full bg-card px-3 py-1 text-ink">{formatPrice(trip.price_cents)}</span>
+          {/if}
+          {#if trip.bahncard_discount}
+            <span class="rounded-full bg-card px-3 py-1 text-ink">BahnCard {trip.bahncard_discount} discount</span>
+          {/if}
+          {#if trip.train_binding}
+            <span class="rounded-full bg-card px-3 py-1 text-ink">Train-bound</span>
+          {/if}
+        </div>
+      </header>
+
+      {#if status}
+        <p class="flex items-center gap-1.5 px-1 text-sm text-base-content/60">{status.text}</p>
+      {/if}
+      {#if refreshError}
+        <p class="rounded-2xl bg-error/10 px-4 py-3 text-sm text-error" role="alert">Could not update live times: {refreshError}</p>
+      {/if}
+    {/if}
+
+    {#if day}
+      <LiveDashboard
+        trip={shown ?? trip}
+        {day}
+        {now}
+        {stationMinutes}
+        {reason}
+        {position}
+        {location}
+        onLocation={useLocation}
+        settingsHref={`${base}/settings#device`}
+        onAlternatives={() => alternativesSection?.reveal()}
+        {status}
+        notices={anyNotice ? tripNotices : undefined}
+      />
+    {:else if anyNotice}
+      {@render tripNotices()}
     {/if}
 
     {#if day && origin}
@@ -430,9 +483,6 @@
           }}
         />
         <ShareCard {trip} />
-        <button class="btn btn-ghost btn-sm w-full rounded-full text-error" onclick={() => confirmDialog?.showModal()}>
-          <Trash2 class="h-4 w-4" /> Delete trip
-        </button>
       </aside>
     </div>
   </div>

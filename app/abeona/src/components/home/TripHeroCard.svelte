@@ -15,7 +15,7 @@
   import TravelDayHero from "../common/TravelDayHero.svelte";
   import BindingBanner from "../common/BindingBanner.svelte";
   import ConfidenceChip from "../common/ConfidenceChip.svelte";
-  import DelayBadge from "../common/DelayBadge.svelte";
+  import ShiftedTime from "../common/ShiftedTime.svelte";
   import Illustration from "../common/Illustration.svelte";
   import LegChip from "../common/LegChip.svelte";
 
@@ -77,10 +77,7 @@
 
     <div class="mt-6 grid grid-cols-[1fr_auto_1fr] items-start gap-3 sm:gap-6">
       <div class="min-w-0">
-        <div class="flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-2">
-          <span class="tabular text-[2rem] leading-none font-semibold tracking-tight sm:text-6xl">{formatTime(s.departure.planned)}</span>
-          <DelayBadge minutes={s.departureDelay} cancelled={s.cancelled} size="md" />
-        </div>
+        <ShiftedTime planned={s.departure.planned} current={s.departure.current} cancelled={s.cancelled} class="text-[2rem] leading-none font-semibold tracking-tight sm:text-6xl" />
         <p class="mt-2 text-sm leading-snug font-medium sm:truncate sm:text-lg">{s.departure.name}</p>
       </div>
 
@@ -96,10 +93,7 @@
       </div>
 
       <div class="min-w-0 text-right">
-        <div class="flex flex-col-reverse items-end gap-1 sm:flex-row sm:items-center sm:justify-end sm:gap-2">
-          <DelayBadge minutes={s.arrivalDelay} size="md" />
-          <span class="tabular text-[2rem] leading-none font-semibold tracking-tight sm:text-6xl">{formatTime(s.arrival.planned)}</span>
-        </div>
+        <ShiftedTime planned={s.arrival.planned} current={s.arrival.current} class="text-[2rem] leading-none font-semibold tracking-tight sm:text-6xl" />
         <p class="mt-2 text-sm leading-snug font-medium sm:truncate sm:text-lg">{s.arrival.name}</p>
       </div>
     </div>

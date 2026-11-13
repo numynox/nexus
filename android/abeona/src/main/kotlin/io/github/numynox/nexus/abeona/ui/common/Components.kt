@@ -39,6 +39,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import io.github.numynox.nexus.abeona.domain.delayMinutes
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import io.github.numynox.nexus.abeona.data.BahnCardDeadline
 import io.github.numynox.nexus.abeona.data.Leg
 import io.github.numynox.nexus.abeona.data.LegMode
@@ -120,42 +124,49 @@ fun LegChips(legs: List<Leg>, modifier: Modifier = Modifier) {
     }
 }
 
-/** "+7" in amber when late; nothing when on time — a delay is information, not an alarm. */
+/**
+ * A time with its delay, the same way everywhere (glossary: delay): the new
+ * time is the one to read. [block] where there is room: the new time, and
+ * beside it a column with the minutes late above the planned time, struck
+ * through and grey. Inline, in rows and lists: the planned time struck
+ * through, then the new one. On time: the time alone. [cancelled]: the
+ * planned time struck through, nothing else (the caller says "Cancelled").
+ */
 @Composable
-fun DelayBadge(minutes: Int, modifier: Modifier = Modifier, large: Boolean = false) {
-    if (minutes <= 0) return
-    val colors = attention
-    Surface(color = colors.container, contentColor = colors.content, shape = CircleShape, modifier = modifier) {
-        Text(
-            "+$minutes",
-            style = (if (large) MaterialTheme.typography.titleMedium else MaterialTheme.typography.labelMedium).copy(fontWeight = FontWeight.Bold).tabular(),
-            modifier = Modifier.padding(horizontal = if (large) 10.dp else 7.dp, vertical = if (large) 2.dp else 1.dp),
-        )
-    }
-}
-
-/** A planned time, and the expected one beside it when they differ. */
-@Composable
-fun TimeWithDelay(
+fun ShiftedTime(
     planned: Instant?,
-    current: Instant?,
-    delay: Int,
+    expected: Instant?,
     style: TextStyle,
     modifier: Modifier = Modifier,
+    block: Boolean = true,
     cancelled: Boolean = false,
+    color: Color = Color.Unspecified,
 ) {
-    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(
-            TripFormat.time(planned),
-            style = style.tabular().copy(textDecoration = if (cancelled) TextDecoration.LineThrough else null),
-            color = if (cancelled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-        )
-        if (delay > 0 && current != null && !cancelled) {
-            Text(
-                TripFormat.time(current),
-                style = style.copy(fontSize = style.fontSize * 0.72f, fontWeight = FontWeight.SemiBold).tabular(),
-                color = MaterialTheme.colorScheme.tertiary,
-            )
+    val scheme = MaterialTheme.colorScheme
+    val delay = if (cancelled) 0 else delayMinutes(planned, expected)
+    val main = style.tabular()
+    if (cancelled) {
+        Text(TripFormat.time(planned), style = main.copy(textDecoration = TextDecoration.LineThrough), color = scheme.onSurfaceVariant, modifier = modifier)
+        return
+    }
+    if (delay <= 0) {
+        Text(TripFormat.time(planned ?: expected), style = main, color = color, modifier = modifier)
+        return
+    }
+    val small = (style.fontSize.value * 0.45f).coerceAtLeast(11f).sp
+    val struck = main.copy(textDecoration = TextDecoration.LineThrough, fontWeight = FontWeight.Normal)
+    if (block) {
+        Row(modifier.semantics(mergeDescendants = true) { contentDescription = "${TripFormat.time(expected)}, $delay min late" }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(TripFormat.time(expected), style = main, color = color)
+            Column {
+                Text("+$delay", style = main.copy(fontSize = small, lineHeight = small * 1.1f, fontWeight = FontWeight.Bold), color = scheme.tertiary)
+                Text(TripFormat.time(planned), style = struck.copy(fontSize = small, lineHeight = small * 1.1f), color = scheme.onSurfaceVariant)
+            }
+        }
+    } else {
+        Row(modifier.semantics(mergeDescendants = true) { contentDescription = "${TripFormat.time(expected)}, $delay min late" }, verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(TripFormat.time(planned), style = struck.copy(fontSize = style.fontSize * 0.82f), color = scheme.onSurfaceVariant)
+            Text(TripFormat.time(expected), style = main, color = color)
         }
     }
 }
