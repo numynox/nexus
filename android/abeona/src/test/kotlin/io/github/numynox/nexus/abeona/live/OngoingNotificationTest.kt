@@ -26,8 +26,8 @@ class OngoingNotificationTest {
     private fun ongoing(): Notification {
         LiveCompanion.createChannels(context)
         val now = Instant.now()
-        val status = CompanionStatus("Pl. 1 · ICE 600 in 19 min", "to Hamburg-Altona · departs 10:24 (+5)", false, "Pl. 1", countdownTo = now.plusSeconds(19 * 60))
-        return LiveCompanion.ongoing(context, "t", status, now, "Timetable", now)
+        val status = CompanionStatus("Pl. 1 · ICE 600 in 19 min", "to Hamburg-Altona · departs 10:24 (+5)", false, "Pl. 1")
+        return LiveCompanion.ongoing(context, "t", status, now, now)
     }
 
     @Test

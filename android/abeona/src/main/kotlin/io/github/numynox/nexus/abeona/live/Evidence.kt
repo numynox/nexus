@@ -6,10 +6,8 @@ import io.github.numynox.nexus.abeona.domain.TravelDay
 import io.github.numynox.nexus.abeona.domain.TravelDayKind
 import io.github.numynox.nexus.abeona.domain.TravelDayRules
 import io.github.numynox.nexus.abeona.domain.TravelDaySource
-import io.github.numynox.nexus.abeona.domain.TravelSignals
 import io.github.numynox.nexus.abeona.domain.distanceMetres
 import io.github.numynox.nexus.abeona.domain.distanceToLineMetres
-import io.github.numynox.nexus.abeona.domain.travelDay
 import io.github.numynox.nexus.abeona.ui.common.TripFormat
 import java.time.Duration
 import java.time.Instant
@@ -32,16 +30,6 @@ enum class EvidenceState {
 
 /** One line of "How Abeona knows": a signal, what it says, and whether it decided. */
 data class Evidence(val kind: EvidenceKind, val state: EvidenceState, val title: String, val detail: String)
-
-/** "Train Wi-Fi", "Location", "Timetable": what placed the traveller, for the notification's small print. */
-fun sourceLabel(day: TravelDay): String = when (day.source) {
-    TravelDaySource.Onboard -> "Train Wi-Fi"
-    TravelDaySource.Location -> "Location"
-    TravelDaySource.Time -> "Timetable"
-}
-
-fun sourceLabel(trip: Trip, now: Instant, stationMinutes: Int, signals: TravelSignals): String =
-    sourceLabel(travelDay(trip.legs, now, stationMinutes, signals))
 
 /**
  * Each signal and what it says about [trip] at [now], for the dashboard's

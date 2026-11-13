@@ -159,27 +159,20 @@ object LiveCompanion {
 
     /**
      * The ongoing notification for [status]; built here so the screenshot
-     * test draws the real one. [source] says what placed the traveller
-     * ("Train Wi-Fi", "Location", "Timetable"), next to when it was updated.
+     * test draws the real one. The header says only how fresh the live values
+     * are: what placed the traveller is the app's to show (the dashboard's
+     * source pill), and the title already counts down, to the minute.
      */
-    fun ongoing(context: Context, tripId: String?, status: CompanionStatus, updated: Instant?, source: String? = null, now: Instant = Instant.now()): Notification {
+    fun ongoing(context: Context, tripId: String?, status: CompanionStatus, updated: Instant?, now: Instant = Instant.now()): Notification {
         val stop = PendingIntent.getService(context, 1, intent(context, ACTION_STOP), PendingIntent.FLAG_IMMUTABLE)
-        val countdown = status.countdownTo?.takeIf { it.isAfter(now) }
-        val builder = NotificationCompat.Builder(context, CHANNEL_LIVE)
+        return NotificationCompat.Builder(context, CHANNEL_LIVE)
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(ContextCompat.getColor(context, R.color.abeona_green))
             .setContentTitle(status.title)
             .setContentText(status.text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(status.lines.joinToString("\n")))
-            .setSubText(listOfNotNull(source, updated?.let { freshness(it, now) }).joinToString(" · ").ifEmpty { null })
-        // The clock in the header counts down to the next thing by itself,
-        // to the second, between the companion's ticks.
-        if (countdown != null) {
-            builder.setWhen(countdown.toEpochMilli()).setShowWhen(true).setUsesChronometer(true).setChronometerCountDown(true)
-        } else {
-            builder.setShowWhen(false)
-        }
-        return builder
+            .setSubText(updated?.let { freshness(it, now) })
+            .setShowWhen(false)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             // No setSilent: NotificationCompat does that by putting the
@@ -380,7 +373,7 @@ class LiveCompanionService : Service() {
                 if (LiveCompanion.canNotify(this)) {
                     NotificationManagerCompat.from(this).notify(
                         LiveCompanion.ONGOING_ID,
-                        LiveCompanion.ongoing(this, tripId, status, updated, sourceLabel(journey, now, settings.stationMinutes, signals)),
+                        LiveCompanion.ongoing(this, tripId, status, updated),
                     )
                 }
                 if (!LiveCompanion.canFollow(journey, now)) return finish()

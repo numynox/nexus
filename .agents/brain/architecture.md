@@ -510,7 +510,7 @@ Things that differ from the web on purpose:
   screens fall back to it when the network fails and say "Offline · updated
   HH:mm". The **live companion** (`live/`) is a `dataSync` foreground service
   that refreshes the trip every minute and keeps an ongoing notification
-  (title, next stop, next change, a countdown clock and the ride's progress
+  (the next arrival or change and its delay, the next train, the next stop and the ride's progress
   bar), with alerts only for changes it sees after its first refresh. The
   device-local auto-start (on by default) is an **exact alarm**
   (`USE_EXACT_ALARM`) at the time to the station plus 15 minutes, at least

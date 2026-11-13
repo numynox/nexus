@@ -37,7 +37,6 @@ class CompanionTextTest {
         val status = companionStatus(trip, t0.minusSeconds(25 * 60))
         assertEquals("Leave in 10 min", status.title)
         assertEquals(listOf("RE 4 · Pl. 3 · 08:00 from Mainz Hbf", "15 min to the station"), status.lines)
-        assertEquals(t0.minusSeconds(15 * 60), status.countdownTo)
         assertEquals("10 min", status.chip)
     }
 
@@ -46,7 +45,6 @@ class CompanionTextTest {
         val status = companionStatus(trip, t0.minusSeconds(10 * 60))
         assertEquals("Pl. 3 · RE 4 in 10 min", status.title)
         assertEquals("to Frankfurt Hbf · departs 08:00", status.text)
-        assertEquals(t0, status.countdownTo)
         assertEquals("Pl. 3", status.chip)
     }
 
@@ -63,7 +61,7 @@ class CompanionTextTest {
         val signals = TravelSignals(onboardLegIndex = 1)
         val status = companionStatus(trip, t0.plusSeconds(60 * 60), signals = signals, onboard = onboard)
         assertEquals("Würzburg Hbf in 1 h", status.title)
-        assertEquals(listOf("Next stop: Würzburg Hbf", "Arrives 10:00 · Pl. 5", "ICE 25 · 247 km/h"), status.lines)
+        assertEquals(listOf("Arrives 10:00 · Pl. 5", "ICE 25 · 247 km/h"), status.lines)
     }
 
     @Test
@@ -82,8 +80,7 @@ class CompanionTextTest {
     fun onBoardShowsTheChangeAhead() {
         val status = companionStatus(trip, t0.plusSeconds(28 * 60))
         assertEquals("Change at Frankfurt Hbf in 12 min", status.title)
-        assertEquals(listOf("Next stop: Frankfurt Hbf", "Then ICE 25 · Pl. 7 · 08:48 · 8 min to change (Safe)"), status.lines)
-        assertEquals(t0.plusSeconds(40 * 60), status.countdownTo)
+        assertEquals(listOf("Arrives 08:40 · Pl. 11", "Then ICE 25 · Pl. 7 · 08:48 · 8 min to change (Safe)"), status.lines)
         assertEquals(0.7, status.progress!!.fraction, 1e-9)
     }
 
@@ -94,6 +91,20 @@ class CompanionTextTest {
     }
 
     @Test
+    fun delaysShowRightUnderTheTitle() {
+        val late = trip.copy(
+            legs = listOf(
+                trip.legs[0].copy(to = trip.legs[0].to.copy(current = at(46))),
+                trip.legs[1].copy(from = trip.legs[1].from.copy(current = at(55))),
+            ),
+        )
+        val status = companionStatus(late, t0.plusSeconds(28 * 60))
+        assertEquals("Change at Frankfurt Hbf in 18 min", status.title)
+        assertEquals("Arrives 08:46 (+6) · Pl. 11", status.text)
+        assertTrue(status.lines[1], status.lines[1].startsWith("Then ICE 25 · Pl. 7 · 08:55 (+7) · 9 min to change"))
+    }
+
+    @Test
     fun onBoardCountsTheStopsLeft() {
         val withStop = trip.copy(
             legs = listOf(
@@ -101,16 +112,17 @@ class CompanionTextTest {
                 trip.legs[1].copy(stopovers = listOf(Stopover("a", "Aschaffenburg Hbf", plannedArrival = at(75), plannedDeparture = at(77)))),
             ),
         )
-        assertEquals("Next: Aschaffenburg Hbf 09:15 · 2 stops left", companionStatus(withStop, t0.plusSeconds(60 * 60)).text)
-        assertEquals("Now at Aschaffenburg Hbf · then Würzburg Hbf", companionStatus(withStop, t0.plusSeconds(76 * 60)).text)
-        assertEquals("Next stop: Würzburg Hbf", companionStatus(withStop, t0.plusSeconds(90 * 60)).text)
+        assertEquals("Next: Aschaffenburg Hbf 09:15 · 2 stops left", companionStatus(withStop, t0.plusSeconds(60 * 60)).lines[1])
+        assertEquals("Now at Aschaffenburg Hbf · then Würzburg Hbf", companionStatus(withStop, t0.plusSeconds(76 * 60)).lines[1])
+        // Only the last stop left: the title already names it.
+        assertEquals(listOf("Arrives 10:00 · Pl. 5"), companionStatus(withStop, t0.plusSeconds(90 * 60)).lines)
     }
 
     @Test
     fun lastRideShowsArrival() {
         val status = companionStatus(trip, t0.plusSeconds(60 * 60))
         assertEquals("Würzburg Hbf in 1 h", status.title)
-        assertEquals("Arrives 10:00 · Pl. 5", status.lines[1])
+        assertEquals("Arrives 10:00 · Pl. 5", status.text)
         assertTrue(companionStatus(trip, t0.plusSeconds(121 * 60)).finished)
         assertEquals("Arrived at Würzburg Hbf", companionStatus(trip, t0.plusSeconds(121 * 60)).title)
     }

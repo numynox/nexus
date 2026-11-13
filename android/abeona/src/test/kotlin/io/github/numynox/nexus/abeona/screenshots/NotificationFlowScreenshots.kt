@@ -8,7 +8,6 @@ import io.github.numynox.nexus.abeona.domain.TravelSignals
 import io.github.numynox.nexus.abeona.live.LiveCompanion
 import io.github.numynox.nexus.abeona.live.OnboardStatus
 import io.github.numynox.nexus.abeona.live.companionStatus
-import io.github.numynox.nexus.abeona.live.sourceLabel
 import io.github.numynox.nexus.core.testing.shotWidget
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -20,8 +19,7 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * The live companion's ongoing notification through the trip to grandma's,
- * one shot per step, as the system lays it out expanded. The countdown clock
- * in the header counts down from the shot's moment, as it would on a phone.
+ * one shot per step, as the system lays it out expanded.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -36,14 +34,12 @@ class NotificationFlowScreenshots {
         LiveCompanion.createChannels(context)
         val now = at(minutes)
         val status = companionStatus(trip, now, 15, signals, onboard)
-        // The system draws the countdown against its own clock: set it to the trip's now.
-        android.os.SystemClock.setCurrentTimeMillis(now.toEpochMilli())
-        shot(LiveCompanion.ongoing(context, trip.id, status, now.minusSeconds(40), sourceLabel(trip, now, 15, signals), now), name)
+        shot(LiveCompanion.ongoing(context, trip.id, status, now.minusSeconds(40), now), name)
     }
 
     @Test fun beforeLeaving() = ongoing("44a-notification-leave-in", -25)
 
-    @Test fun atTheStation() = ongoing("44b-notification-platform", 2, TravelSignals(position = Position(50.1068, 8.6630, 0.0)))
+    @Test fun atTheStation() = ongoing("44b-notification-platform", 2, TravelSignals(position = Position(50.1068, 8.6630, 0.0, 10.0)))
 
     @Test fun onBoard() = ongoing("44c-notification-next-stop", 20)
 
@@ -56,7 +52,7 @@ class NotificationFlowScreenshots {
 
     @Test fun lastRide() = ongoing("44f-notification-last-ride", 125)
 
-    @Test fun missed() = ongoing("44g-notification-missed", 86, TravelSignals(position = Position(49.8018, 9.9355, 0.0)))
+    @Test fun missed() = ongoing("44g-notification-missed", 86, TravelSignals(position = Position(49.8018, 9.9355, 0.0, 10.0)))
 
     /** When Android refuses the start anyway: one tap on "Follow live". */
     @Test fun followLive() {
