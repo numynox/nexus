@@ -355,7 +355,14 @@ To match what `npm run db:functions:deploy` produces, the deploy must:
    so the repository stays the authoritative copy (`supabase/README.md`).
 
 Afterwards, `get_edge_function` shows the deployed version, its `verify_jwt`
-and its files: compare them with the plan. Secrets are separate: the
+and its files: compare them with the plan. It lists the files without the
+leading `functions/` (`refresh-fuel-prices/index.ts`); that is expected. Then
+watch the function's next calls (Logs → Edge Functions, or the connector's
+log query): the version number is on each call.
+
+Tested on 2026-11-12 with `refresh-fuel-prices` (version 6, unchanged code):
+every cron call since answered 200. Functions that import from another
+function's folder (the Abeona ones) have not been deployed this way yet. Secrets are separate: the
 connector does not set them (dashboard → Edge Functions → Secrets, or
 `supabase secrets set` from a laptop).
 

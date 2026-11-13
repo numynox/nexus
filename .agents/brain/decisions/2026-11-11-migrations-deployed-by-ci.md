@@ -51,6 +51,15 @@ that proved the job can reach the live database and record a version; the
 next push reported "Remote database is up to date". Keep that file: it is in
 the live history.
 
+The connector route for Edge Functions was tested the same way on
+2026-11-12: `refresh-fuel-prices` was redeployed unchanged from a cloud
+session (`deploy_edge_function`, files named `functions/refresh-fuel-prices/…`,
+its `deno.json` as import map, `verify_jwt = false`), becoming version 6. Its
+next cron call at 11:07 UTC and all 144 calls of the following day answered
+200. It works; the steps are in `DEPLOYMENT.md`, "From a cloud session". Still
+untested that way: a function with imports from another function's folder
+(the Abeona functions).
+
 ## Consequences
 - A merge to `main` changes the live database at once, unreviewed by anyone
   but the merger. Backups are still manual
