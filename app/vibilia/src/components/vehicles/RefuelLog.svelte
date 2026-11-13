@@ -2,6 +2,7 @@
   import dayjs from "dayjs";
   import {
     ChevronDown,
+    Gauge,
     History,
     MapPin,
     PencilLine,
@@ -12,6 +13,7 @@
     fetchCarDistanceDrivenPerDay,
     fetchCarExpensesForCar,
     fetchCarKmPerMonth,
+    fetchOdometerReadingsForCar,
     fetchRefuelEventsForCar,
     type CarDistanceMonth,
     type CarDrivenDay,
@@ -20,6 +22,7 @@
     drivenSince,
   } from "./DistanceDrivenGraph.svelte";
   import ExpenseForm from "./ExpenseForm.svelte";
+  import OdometerReadingForm from "./OdometerReadingForm.svelte";
   import RefuelForm from "./RefuelForm.svelte";
 
   interface Props {
@@ -37,7 +40,7 @@
   let drivenDays = $state<CarDrivenDay[]>([]);
   let loading = $state(true);
   let showForm = $state(false);
-  let formType = $state<"refuel" | "expense">("refuel");
+  let formType = $state<"refuel" | "expense" | "reading">("refuel");
   let editingEvent = $state<any | null>(null);
   let appliedInitialFormOpen = $state(false);
 
@@ -77,9 +80,10 @@
 
   async function fetchEvents() {
     loading = true;
-    const [refuels, expenses, months, driven] = await Promise.all([
+    const [refuels, expenses, readings, months, driven] = await Promise.all([
       fetchRefuelEventsForCar(car.id),
       fetchCarExpensesForCar(car.id),
+      fetchOdometerReadingsForCar(car.id),
       // Extra detail: the log still loads without it.
       fetchCarKmPerMonth(
         car.id,
@@ -141,6 +145,10 @@
         ...entry,
         entryType: "expense" as const,
       })),
+      ...readings.map((entry) => ({
+        ...entry,
+        entryType: "reading" as const,
+      })),
     ].sort(
       (a, b) =>
         dayjs(getEventTimestamp(b)).valueOf() -
@@ -171,9 +179,14 @@
     ) || 0;
   }
 
-  /** Everything spent per month, keyed "YYYY-MM". */
+  /**
+   * Everything spent per month, keyed "YYYY-MM". Odometer readings cost
+   * nothing and are left out, so a month with only readings has no spend line
+   * and does not start the comparisons early.
+   */
   let spendByMonth = $derived(
     events.reduce<Record<string, number>>((byMonth, e) => {
+      if (e.entryType === "reading") return byMonth;
       const key = monthKey(e);
       byMonth[key] = (byMonth[key] ?? 0) + eventCost(e);
       return byMonth;
@@ -234,6 +247,9 @@
     if (event.entryType === "expense") {
       return event.expensed_at || event.created_at;
     }
+    if (event.entryType === "reading") {
+      return event.read_at;
+    }
     return event.fueled_at || event.timestamp || event.created_at;
   }
 
@@ -268,6 +284,12 @@
 
   function openEditExpenseForm(event: any) {
     formType = "expense";
+    editingEvent = event;
+    showForm = true;
+  }
+
+  function openReadingForm(event: any = null) {
+    formType = "reading";
     editingEvent = event;
     showForm = true;
   }
@@ -366,6 +388,12 @@
       class="order-1 flex w-full flex-wrap items-center justify-end gap-2 sm:order-2 sm:w-auto"
     >
       <button
+        class="btn btn-soft btn-accent gap-2"
+        onclick={() => openReadingForm()}
+      >
+        <Gauge class="w-4 h-4" /> Log Reading
+      </button>
+      <button
         class="btn btn-soft btn-secondary gap-2"
         onclick={openExpenseForm}
       >
@@ -396,7 +424,11 @@
             <h3
               class="mt-1 text-2xl font-black tracking-tight text-base-content"
             >
-              {formType === "expense"
+              {formType === "reading"
+                ? editingEvent
+                  ? "Edit Odometer Reading"
+                  : "Log Odometer Reading"
+                : formType === "expense"
                 ? editingEvent
                   ? "Edit Expense"
                   : "Log Expense"
@@ -428,6 +460,16 @@
                 ? getNextMileage(editingEvent.id)
                 : null}
               submitLabel={editingEvent ? "Update Refuel" : "Save Refuel"}
+              onSuccess={() => {
+                closeForm();
+                fetchEvents();
+              }}
+              onCancel={closeForm}
+            />
+          {:else if formType === "reading"}
+            <OdometerReadingForm
+              {car}
+              existingReading={editingEvent}
               onSuccess={() => {
                 closeForm();
                 fetchEvents();
@@ -490,9 +532,11 @@
                 {:else}
                   <span></span>
                 {/if}
-                <span class="font-semibold text-base-content/70">
-                  {(spendByMonth[monthKey(e)] ?? 0).toFixed(2)} €
-                </span>
+                {#if spendByMonth[monthKey(e)] !== undefined}
+                  <span class="font-semibold text-base-content/70">
+                    {spendByMonth[monthKey(e)].toFixed(2)} €
+                  </span>
+                {/if}
               </span>
             </div>
           {/if}
@@ -503,7 +547,9 @@
               <div
                 class="h-2 w-2 rounded-full {e.entryType === 'expense'
                   ? 'bg-secondary/85'
-                  : 'bg-primary/85'}"
+                  : e.entryType === 'reading'
+                    ? 'bg-accent/85'
+                    : 'bg-primary/85'}"
               ></div>
             </div>
 
@@ -524,6 +570,14 @@
                     type="button"
                     class="btn btn-ghost btn-xs gap-1.5 rounded-full border border-base-content/10 px-2.5 text-base-content/70 hover:text-base-content"
                     onclick={() => openEditForm(e)}
+                  >
+                    <PencilLine class="h-3.5 w-3.5" /> Edit
+                  </button>
+                {:else if e.entryType === "reading"}
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-xs gap-1.5 rounded-full border border-base-content/10 px-2.5 text-base-content/70 hover:text-base-content"
+                    onclick={() => openReadingForm(e)}
                   >
                     <PencilLine class="h-3.5 w-3.5" /> Edit
                   </button>
@@ -627,6 +681,28 @@
                         >
                       </div>
                     </div>
+                  </div>
+                </div>
+              {:else if e.entryType === "reading"}
+                <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div
+                    class="rounded-xl border border-accent/20 bg-accent/5 px-3.5 py-3"
+                  >
+                    <div
+                      class="text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/55"
+                    >
+                      Odometer reading
+                    </div>
+                    <div
+                      class="mt-1 text-2xl font-black tracking-tight text-base-content sm:text-[2rem]"
+                    >
+                      {formatMileage(e.mileage)} km
+                    </div>
+                    {#if e.notes}
+                      <div class="mt-1 text-sm text-base-content/70">
+                        {e.notes}
+                      </div>
+                    {/if}
                   </div>
                 </div>
               {:else}
