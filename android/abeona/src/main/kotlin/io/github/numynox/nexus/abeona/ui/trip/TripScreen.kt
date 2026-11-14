@@ -591,18 +591,18 @@ private fun TripContent(
         // The binding and a connection taken instead: in the live card while live.
         val notices: @Composable () -> Unit = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (binding) {
+                // A dropped ride says the binding is lifted in its own card.
+                if (binding && dropped == null) {
                     BindingLiftedBanner(
                         arrivalDelay,
                         because = when {
                             arrivalDelay >= 20 -> null
-                            dropped != null -> "${dropped.label} no longer runs as booked."
                             live?.missedShort == true -> "You missed a change that had less than 5 minutes."
                             else -> "A change on your trip cannot be made."
                         },
                     )
                 }
-                if (dropped != null && !following) DroppedCard(dropped, onDroppedAlternatives)
+                if (dropped != null && !following) DroppedCard(dropped, bindingLifted = binding, onDroppedAlternatives)
                 // The same trains at other times, taken by Abeona for the dropped ride: there is no plan to go back to.
                 if (following && dropped != null && (trip.missedLegIdx ?: Int.MAX_VALUE) <= droppedIdx) {
                     AdjustedCard(trip, dropped)
@@ -972,38 +972,32 @@ private fun LiveUpdatesOff(onSettings: () -> Unit) {
 /** A connection from the alternatives was taken: which, and the way back to the plan. */
 /** A ride no longer in the timetable for its day, and nothing followed instead yet. */
 @Composable
-private fun DroppedCard(dropped: Leg, onFindAlternatives: () -> Unit) {
+private fun DroppedCard(dropped: Leg, bindingLifted: Boolean, onFindAlternatives: () -> Unit) {
     val colors = danger
     NexusCard(Modifier.fillMaxWidth(), containerColor = colors.container) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
             Icon(Icons.Rounded.EventBusy, contentDescription = null, tint = colors.content, modifier = Modifier.padding(top = 2.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("${dropped.label} is no longer in the timetable", style = MaterialTheme.typography.titleSmall, color = colors.content)
-                Text(
-                    "Not on ${dropped.from.plannedAt?.let { TripFormat.date(it.atZone(java.time.ZoneId.systemDefault()).toLocalDate()) } ?: "its day"} any more, " +
-                        "usually because of engineering works. Choose another connection; Abeona follows it from then on.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.content,
-                )
+                if (bindingLifted) Text("Train binding lifted.", style = MaterialTheme.typography.bodySmall, color = colors.content)
             }
         }
         Button(onClick = onFindAlternatives, modifier = Modifier.align(Alignment.End).padding(top = 8.dp)) { Text("Find another connection") }
     }
 }
 
-/** The same trains at other times, taken by Abeona because [dropped] no longer runs as booked. */
+/** The same trains at other times, taken by Abeona because [dropped] is no longer in the timetable. */
 @Composable
 private fun AdjustedCard(trip: Trip, dropped: Leg) {
     val replacement = trip.replacementLegs.orEmpty()
-    val first = replacement.firstOrNull { !it.isWalk } ?: replacement.firstOrNull() ?: return
+    if (replacement.none { !it.isWalk }) return
     NexusCard(Modifier.fillMaxWidth(), containerColor = MaterialTheme.colorScheme.secondaryContainer) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
             Icon(Icons.Rounded.Schedule, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.padding(top = 2.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Adjusted for a timetable change", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                Text("${dropped.label} is no longer in the timetable", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
                 Text(
-                    "${dropped.label} no longer runs as booked, but your trains still connect. From ${first.from.name}: " +
-                        replacement.filter { !it.isWalk }.joinToString(" › ") { "${it.label} ${TripFormat.time(it.from.plannedAt)}" } + ".",
+                    "Now: " + replacement.filter { !it.isWalk }.joinToString(" › ") { "${it.label} ${TripFormat.time(it.from.plannedAt)} ${it.from.name}" },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
