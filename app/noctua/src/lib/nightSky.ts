@@ -51,10 +51,41 @@ export function moonLitPath(phase: number, cx = MOON.x, cy = MOON.y, r = MOON.r)
   return `M ${cx} ${cy - r} A ${r} ${r} 0 0 ${outer} ${cx} ${cy + r} A ${rx.toFixed(2)} ${r} 0 0 ${inner} ${cx} ${cy - r} Z`;
 }
 
-/** Night is when the owl is awake: from seven in the evening to seven in the morning. */
+/** Where the owl's day is reckoned: Frankfurt am Main. */
+export const FRANKFURT = { lat: 50.1109, lon: 8.6821 };
+
+/**
+ * Sunrise and sunset at [place] on the UTC day of [at], as instants (NOAA's
+ * approximation, within about a minute; the sun's centre 0.833° below the
+ * horizon, for refraction and its radius). For Frankfurt both fall inside
+ * the same UTC day all year. Null for polar day or night, which Frankfurt
+ * never has. The Android app's sunTimes.
+ */
+export function sunTimes(at: Date, place = FRANKFURT): { sunrise: Date; sunset: Date } | null {
+  const midnight = Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate());
+  const dayOfYear = Math.floor((midnight - Date.UTC(at.getUTCFullYear(), 0, 1)) / 86_400_000) + 1;
+  const g = ((2 * Math.PI) / 365) * (dayOfYear - 1);
+  const eqTime =
+    229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g) - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
+  const decl =
+    0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g) - 0.006758 * Math.cos(2 * g) +
+    0.000907 * Math.sin(2 * g) - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g);
+  const lat = (place.lat * Math.PI) / 180;
+  const cosHa = Math.cos((90.833 * Math.PI) / 180) / (Math.cos(lat) * Math.cos(decl)) - Math.tan(lat) * Math.tan(decl);
+  if (cosHa < -1 || cosHa > 1) return null;
+  const ha = (Math.acos(cosHa) * 180) / Math.PI;
+  const minutes = (m: number) => new Date(midnight + Math.round(m * 60_000));
+  return {
+    sunrise: minutes(720 - 4 * (place.lon + ha) - eqTime),
+    sunset: minutes(720 - 4 * (place.lon - ha) - eqTime),
+  };
+}
+
+/** Night is when the owl is awake: from sunset to sunrise in Frankfurt. */
 export function isNight(at: Date): boolean {
-  const hour = at.getHours();
-  return hour < 7 || hour >= 19;
+  const sun = sunTimes(at);
+  if (!sun) return false;
+  return at < sun.sunrise || at >= sun.sunset;
 }
 
 /** A small seeded generator (mulberry32), so the stars are the same every night. */

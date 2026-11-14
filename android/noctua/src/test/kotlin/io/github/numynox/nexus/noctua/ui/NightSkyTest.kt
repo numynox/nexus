@@ -10,8 +10,8 @@ import io.github.numynox.nexus.noctua.ui.feed.owl.moonLit
 import io.github.numynox.nexus.noctua.ui.feed.owl.moonLitPath
 import io.github.numynox.nexus.noctua.ui.feed.owl.moonPhase
 import io.github.numynox.nexus.noctua.ui.feed.owl.moonPhaseName
+import io.github.numynox.nexus.noctua.ui.feed.owl.sunTimes
 import java.time.Instant
-import java.time.LocalTime
 import kotlin.math.hypot
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -53,13 +53,27 @@ class NightSkyTest {
         assertTrue(moonLitPath(0.5, 282f, 78f, 24f).contains("A 24.00 24.0 0 0 0 282.0 54.0"))
     }
 
+    /** Frankfurt's published times, within the formula's few minutes; the web's nightSky.test.ts. */
+    private fun near(actual: Instant, expected: String) =
+        assertTrue("$actual vs $expected", kotlin.math.abs(actual.toEpochMilli() - Instant.parse(expected).toEpochMilli()) <= 3 * 60_000)
+
     @Test
-    fun theOwlIsAwakeFromSevenToSeven() {
-        assertTrue(isNight(LocalTime.of(19, 0)))
-        assertTrue(isNight(LocalTime.of(23, 59)))
-        assertTrue(isNight(LocalTime.of(6, 59)))
-        assertFalse(isNight(LocalTime.of(7, 0)))
-        assertFalse(isNight(LocalTime.of(18, 59)))
+    fun frankfurtsSunriseAndSunset() {
+        val (juneRise, juneSet) = sunTimes(Instant.parse("2026-06-21T12:00:00Z"))!!
+        near(juneRise, "2026-06-21T03:14:00Z")
+        near(juneSet, "2026-06-21T19:39:00Z")
+        val (decRise, decSet) = sunTimes(Instant.parse("2026-12-21T12:00:00Z"))!!
+        near(decRise, "2026-12-21T07:23:00Z")
+        near(decSet, "2026-12-21T15:23:00Z")
+    }
+
+    @Test
+    fun theOwlWakesAtSunsetAndSleepsAtSunrise() {
+        assertFalse(isNight(Instant.parse("2026-06-21T19:00:00Z")))
+        assertTrue(isNight(Instant.parse("2026-06-21T20:00:00Z")))
+        assertTrue(isNight(Instant.parse("2026-12-21T16:00:00Z")))
+        assertTrue(isNight(Instant.parse("2026-12-21T07:00:00Z")))
+        assertFalse(isNight(Instant.parse("2026-12-21T09:00:00Z")))
     }
 
     @Test
