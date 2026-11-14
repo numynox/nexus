@@ -22,6 +22,7 @@ class TicketNeedsTextTest {
     @Test
     fun shortensTheCards() {
         assertEquals("BC25 · BC50", bahnCardsShort(listOf(50, 25)))
+        assertEquals("2× BC25 · BC50", bahnCardsShort(listOf(25, 50, 25)))
     }
 
     @Test
