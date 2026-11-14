@@ -61,10 +61,6 @@ class NotificationFlowScreenshots {
     }
 
     private fun shot(notification: Notification, name: String) {
-        val views = Notification.Builder.recoverBuilder(context, notification).createBigContentView()
-            ?: Notification.Builder.recoverBuilder(context, notification).createContentView()
-        val root = context.resources.getIdentifier("status_bar_latest_event_content", "id", "android")
-        if (root != 0) views.setInt(root, "setBackgroundColor", android.graphics.Color.WHITE)
-        shotWidget(views, 380, 190, name)
+        shotWidget(notificationViews(context, notification), 380, 190, name)
     }
 }

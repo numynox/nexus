@@ -38,3 +38,6 @@ supabase/.branches/
 
 # Manual DB backups
 backups/
+
+# JVM crash reports (CI prints them; never commit one)
+hs_err_pid*.log
