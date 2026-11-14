@@ -355,7 +355,8 @@ export function alternativesOrigin(legs: DayLeg[], day: TravelDay, now: number):
   };
 }
 
-export type AlternativesReason = "missed" | "cancelled" | "impossible" | "at_risk";
+/** "dropped": a ride no longer in the timetable for its day (intake/match.ts checkSavedLeg), before the travel day. */
+export type AlternativesReason = "missed" | "cancelled" | "dropped" | "impossible" | "at_risk";
 
 /**
  * Why the trip page should offer alternatives by itself, or null: a missed
