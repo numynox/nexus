@@ -35,6 +35,12 @@
   const s = $derived(summarise(trip.legs));
   const firstRide = $derived(s.rides[0] ?? trip.legs[0]);
   const platform = $derived(firstRide ? displayPlatform(firstRide.from) : null);
+  // Once under way the first train's platform is past: it would contradict the travel day's.
+  const underWay = $derived(
+    !!day &&
+      (day.kind === "on_board" || day.kind === "changing" || day.kind === "arrived" ||
+        (day.kind === "at_station" && day.legIndex !== null && trip.legs[day.legIndex] !== firstRide)),
+  );
   const bindingLifted = $derived(trainBindingLifted(trip.fare_type, trip.train_binding, s.arrivalDelay));
   const dayName = $derived(formatRelativeDay(trip.planned_departure));
   const date = $derived(formatShortDate(trip.planned_departure));
@@ -99,12 +105,14 @@
     </div>
 
     <div class="mt-6 flex flex-wrap items-center gap-3">
+      {#if !underWay}
       <div class="rounded-2xl bg-card px-4 py-2.5 shadow-card">
         <p class="text-[0.7rem] font-semibold uppercase tracking-[0.12em] text-base-content/55">Platform</p>
         <p class="tabular text-2xl font-semibold leading-tight {firstRide && platformChanged(firstRide.from) ? 'text-amber-ink' : ''}">
           {platform ?? "–"}
         </p>
       </div>
+      {/if}
       <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
         {#each s.rides as ride, i (i)}
           {#if i > 0}<span class="text-base-content/35">›</span>{/if}

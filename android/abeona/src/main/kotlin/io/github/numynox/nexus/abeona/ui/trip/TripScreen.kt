@@ -718,7 +718,9 @@ private fun liveStatus(detail: TripDetail): LiveStatus? {
     return when {
         !timetableOnly -> base
         base == null -> LiveStatus("Timetable only")
-        else -> base.copy(text = base.text + " · timetable only")
+        // Not "Live · … · timetable only": one word for where the times come from.
+        trip.refreshedAt != null && !base.offline -> LiveStatus("Timetable · updated ${TripFormat.time(trip.refreshedAt.toInstantOrNull())}")
+        else -> base
     }
 }
 
@@ -742,7 +744,8 @@ private fun TripHeader(detail: TripDetail, live: Boolean) {
         // Start and destination once: by the board times below, or, while
         // live (no board), in the title line.
         val titled = !trip.title.isNullOrBlank()
-        if (titled || live) Text(trip.displayTitle, style = MaterialTheme.typography.headlineMedium)
+        // A size smaller while live, so the two station names wrap less.
+        if (titled || live) Text(trip.displayTitle, style = if (live) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineMedium)
         if (titled && live) {
             Text("${trip.originName} → ${trip.destinationName}", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -948,10 +951,10 @@ private fun CompanionSmallPrint(offer: CompanionOffer.Automatic) {
     val now = java.time.Instant.now()
     val day = TripFormat.day(offer.at)
     val text = when {
-        !offer.at.isAfter(now) -> "Abeona is starting to follow this trip live."
-        day == "Today" -> "Abeona follows this trip live by itself from ${TripFormat.time(offer.at)}."
-        day == "Tomorrow" -> "Abeona follows this trip live by itself from tomorrow, ${TripFormat.time(offer.at)}."
-        else -> "Abeona follows this trip live by itself from $day, ${TripFormat.time(offer.at)}."
+        !offer.at.isAfter(now) -> "Live companion starting"
+        day == "Today" -> "Live companion starts at ${TripFormat.time(offer.at)}"
+        day == "Tomorrow" -> "Live companion starts tomorrow, ${TripFormat.time(offer.at)}"
+        else -> "Live companion starts $day, ${TripFormat.time(offer.at)}"
     }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(horizontal = 4.dp)) {
         Icon(Icons.Rounded.NotificationsActive, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
