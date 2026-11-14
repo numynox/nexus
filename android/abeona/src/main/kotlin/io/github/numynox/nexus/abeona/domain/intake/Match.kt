@@ -88,6 +88,22 @@ private fun withPrinted(leg: Leg, parsed: ParsedLeg): Leg {
     return leg.copy(from = fill(leg.from, parsed.fromPlatform), to = fill(leg.to, parsed.toPlatform))
 }
 
+/** A real position; the lookups' (0, 0) means none. */
+private fun located(lat: Double?, lon: Double?) = lat != null && lon != null && !(lat == 0.0 && lon == 0.0)
+
+/**
+ * A stop of a ride nothing matched, placed: where the neighbouring ride
+ * found in the timetable is at the same change (its printed name differs:
+ * "Frankfurt(Main)Hbf", "Frankfurt (Main) Hauptbahnhof"), else the station
+ * looked up for its printed name. The printed name and times stay. As in
+ * the web's match.ts.
+ */
+private fun place(stop: StopTime, neighbour: StopTime?, station: Station?): StopTime = when {
+    neighbour != null && located(neighbour.lat, neighbour.lon) -> stop.copy(id = neighbour.id, lat = neighbour.lat, lon = neighbour.lon)
+    station != null && located(station.lat, station.lon) -> stop.copy(id = station.id, lat = station.lat, lon = station.lon)
+    else -> stop
+}
+
 /** The parsed rides alone, for saving when nothing could be looked up. */
 fun parsedJourney(legs: List<ParsedLeg>): Journey = Journey(legs = legs.map(::parsedToLeg))
 
@@ -102,11 +118,12 @@ suspend fun matchConnection(legs: List<ParsedLeg>, port: TransitPort): MatchResu
 
     // 1. Stations, each name once.
     val names = legs.flatMap { listOf(it.from, it.to) }.distinct()
-    val ids: Map<String, String?> = names.map { name ->
+    val stations: Map<String, Station?> = names.map { name ->
         async {
-            name to runCatching { port.stations(name).firstOrNull()?.id }.getOrElse { problem = problem ?: it.text(); null }
+            name to runCatching { port.stations(name).firstOrNull() }.getOrElse { problem = problem ?: it.text(); null }
         }
     }.awaitAll().toMap()
+    val ids: Map<String, String?> = stations.mapValues { it.value?.id }
 
     // 2. The whole journey.
     val first = legs.first()
@@ -145,7 +162,16 @@ suspend fun matchConnection(legs: List<ParsedLeg>, port: TransitPort): MatchResu
 
     val matched = found.count { it != null }
     MatchResult(
-        journey = Journey(legs = legs.mapIndexed { i, parsed -> found[i]?.let { withPrinted(it, parsed) } ?: parsedToLeg(parsed) }),
+        journey = Journey(
+            legs = legs.mapIndexed { i, parsed ->
+                found[i]?.let { withPrinted(it, parsed) } ?: parsedToLeg(parsed).let { leg ->
+                    leg.copy(
+                        from = place(leg.from, found.getOrNull(i - 1)?.to, stations[parsed.from]),
+                        to = place(leg.to, found.getOrNull(i + 1)?.from, stations[parsed.to]),
+                    )
+                }
+            },
+        ),
         status = when (matched) {
             total -> MatchStatus.Full
             0 -> MatchStatus.None

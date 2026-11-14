@@ -13,7 +13,12 @@
  *    routes the same trains with another change (Frankfurt Flughafen instead
  *    of Hbf), which is why the trains count, not the journey.
  * 4. A ride nothing matches is kept as parsed: no route line, no trip id,
- *    never refreshed. Saving still works (`source` 'share' or 'pdf').
+ *    never refreshed. Saving still works (`source` 'share' or 'pdf'). Its
+ *    stops still get a place, so the map draws it: the neighbouring ride's
+ *    stop at the same change where that ride was found (the printed names
+ *    differ: "Frankfurt(Main)Hbf" and "Frankfurt (Main) Hauptbahnhof"),
+ *    else the station looked up. A train the timetable does not have yet
+ *    (a date after the next timetable change) is the usual reason.
  *
  * Times printed on DB's tickets and shares are local; they are read in
  * Europe/Berlin, which is also right for the Benelux, France, Austria,
@@ -136,6 +141,22 @@ function withPrinted(leg: Leg, parsed: ParsedLeg): Leg {
   return { ...leg, from: fill(leg.from, parsed.from_platform), to: fill(leg.to, parsed.to_platform) };
 }
 
+/** A real position; the lookups' (0, 0) means none. */
+function located(p: { lat: number | null; lon: number | null } | null | undefined): p is { lat: number; lon: number } {
+  return !!p && typeof p.lat === "number" && typeof p.lon === "number" && !(p.lat === 0 && p.lon === 0);
+}
+
+/**
+ * A stop of a ride nothing matched, placed: where the neighbouring ride
+ * found in the timetable is at the same change, else the station looked up
+ * for its printed name. The printed name and times stay.
+ */
+function place(stop: StopTime, neighbour: StopTime | null | undefined, station: Station | null | undefined): StopTime {
+  if (located(neighbour)) return { ...stop, id: neighbour.id, lat: neighbour.lat, lon: neighbour.lon };
+  if (located(station)) return { ...stop, id: station.id, lat: station.lat, lon: station.lon };
+  return stop;
+}
+
 /** The parsed rides alone, for saving when nothing could be looked up. */
 export function parsedJourney(legs: ParsedLeg[]): Journey {
   return { provider: "transitous", refresh_token: null, legs: legs.map(parsedToLeg) };
@@ -156,17 +177,18 @@ export async function matchConnection(legs: ParsedLeg[], port: TransitPort): Pro
 
   // 1. Stations, each name once.
   const names = [...new Set(legs.flatMap((l) => [l.from, l.to]))];
-  const ids = new Map<string, string | null>();
+  const stations = new Map<string, Station | null>();
   await Promise.all(
     names.map(async (name) => {
       try {
-        ids.set(name, (await port.stations(name))[0]?.id ?? null);
+        stations.set(name, (await port.stations(name))[0] ?? null);
       } catch (e) {
         problem ??= describe(e);
-        ids.set(name, null);
+        stations.set(name, null);
       }
     }),
   );
+  const ids = new Map([...stations].map(([name, station]) => [name, station?.id ?? null]));
 
   // 2. The whole journey.
   const first = legs[0];
@@ -213,7 +235,15 @@ export async function matchConnection(legs: ParsedLeg[], port: TransitPort): Pro
   );
 
   const matched = found.filter(Boolean).length;
-  const assembled = legs.map((parsed, i) => (found[i] ? withPrinted(found[i]!, parsed) : parsedToLeg(parsed)));
+  const assembled = legs.map((parsed, i) => {
+    if (found[i]) return withPrinted(found[i]!, parsed);
+    const leg = parsedToLeg(parsed);
+    return {
+      ...leg,
+      from: place(leg.from, found[i - 1]?.to, stations.get(parsed.from)),
+      to: place(leg.to, found[i + 1]?.from, stations.get(parsed.to)),
+    };
+  });
   return {
     journey: { provider: "transitous", refresh_token: null, legs: assembled },
     status: matched === total ? "full" : matched === 0 ? "none" : "partial",
