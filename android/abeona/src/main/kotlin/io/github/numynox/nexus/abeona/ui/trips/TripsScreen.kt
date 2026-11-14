@@ -69,6 +69,7 @@ import io.github.numynox.nexus.abeona.ui.common.containerViewModel
 import io.github.numynox.nexus.abeona.ui.common.isLiveDay
 import io.github.numynox.nexus.abeona.ui.common.rememberTicker
 import io.github.numynox.nexus.abeona.domain.TravelDay
+import io.github.numynox.nexus.abeona.domain.TravelDayKind
 import io.github.numynox.nexus.abeona.domain.TravelDayRules
 import io.github.numynox.nexus.abeona.domain.followed
 import io.github.numynox.nexus.abeona.domain.travelDay
@@ -245,7 +246,19 @@ fun NextTripCard(
                 }
             }
             day?.let { TravelDayHero(trip, it, stationMinutes, onboard = onboard) }
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // Once under way the first train's departure and platform are past: the arrival leads.
+            val underWay = day != null && (day.kind == TravelDayKind.OnBoard || day.kind == TravelDayKind.Changing ||
+                day.kind == TravelDayKind.Arrived || (day.kind == TravelDayKind.AtStation && day.legIndex?.let { trip.legs[it] } != first))
+            if (underWay) {
+                Column {
+                    Text("Arrival", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    ShiftedTime(
+                        trip.legs.lastOrNull { !it.isWalk }?.to?.plannedAt ?: trip.expectedArrival,
+                        trip.expectedArrival,
+                        MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.SemiBold),
+                    )
+                }
+            } else Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Departure", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     ShiftedTime(
