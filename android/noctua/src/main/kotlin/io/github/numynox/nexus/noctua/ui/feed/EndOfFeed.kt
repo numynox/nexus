@@ -143,7 +143,7 @@ fun EndOfFeed(
     // Animations switched off in the developer options: no flight, no idle life.
     val reduced = remember { Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f }
     val motion = rememberOwlMotion(reduced)
-    val night = isNight(now.toLocalTime())
+    val night = isNight(now.toInstant())
     val phase = remember(now.toLocalDate()) { moonPhase(now.toInstant()) }
     val colors = skyColors()
 

@@ -23,6 +23,9 @@ was more than the panel needs.
   dots are drawn on top. Their colours follow the theme — pale on a dark
   one, deeper gold on a light one — so all four of day/night × light/dark
   work. The owl is awake from 19:00 to 07:00 local time and naps otherwise.
+  *2026-11-14:* from sunset to sunrise in Frankfurt instead (`sunTimes`,
+  NOAA's approximation, within about a minute), compared as instants, so
+  the device's time zone and summer time need no handling.
   The stars are decoration only, the same every night, tied to no data.
 - **The pull is the owl's**: eyes widen and look up, the branch bends, ear
   tufts pop up (with a haptic tick) at the threshold. Letting go sends it up

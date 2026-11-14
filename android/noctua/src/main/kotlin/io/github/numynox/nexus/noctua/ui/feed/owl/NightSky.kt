@@ -1,13 +1,17 @@
 package io.github.numynox.nexus.noctua.ui.feed.owl
 
 import java.time.Instant
-import java.time.LocalTime
+import java.time.ZoneOffset
 import java.util.Random
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.acos
 import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
+import kotlin.math.sin
+import kotlin.math.tan
 
 /*
  * The sky above the owl, worked out without drawing anything, so it can be
@@ -48,8 +52,37 @@ fun moonLitPath(phase: Double, cx: Float, cy: Float, r: Float): String {
     return "M $cx ${cy - r} A $r $r 0 0 $outer $cx ${cy + r} A ${"%.2f".format(java.util.Locale.ROOT, rx)} $r 0 0 $inner $cx ${cy - r} Z"
 }
 
-/** Night is when the owl is awake: from seven in the evening to seven in the morning. */
-fun isNight(time: LocalTime): Boolean = time.hour < 7 || time.hour >= 19
+/** Where the owl's day is reckoned: Frankfurt am Main. */
+data class Place(val lat: Double, val lon: Double)
+
+val Frankfurt = Place(50.1109, 8.6821)
+
+/**
+ * Sunrise and sunset at [place] on the UTC day of [at], as instants (NOAA's
+ * approximation, within about a minute; the sun's centre 0.833° below the
+ * horizon). For Frankfurt both fall inside the same UTC day all year. Null
+ * for polar day or night. The web's sunTimes (lib/nightSky.ts).
+ */
+fun sunTimes(at: Instant, place: Place = Frankfurt): Pair<Instant, Instant>? {
+    val date = at.atZone(ZoneOffset.UTC).toLocalDate()
+    val midnight = date.atStartOfDay(ZoneOffset.UTC).toInstant()
+    val g = 2 * PI / 365 * (date.dayOfYear - 1)
+    val eqTime = 229.18 * (0.000075 + 0.001868 * cos(g) - 0.032077 * sin(g) - 0.014615 * cos(2 * g) - 0.040849 * sin(2 * g))
+    val decl = 0.006918 - 0.399912 * cos(g) + 0.070257 * sin(g) - 0.006758 * cos(2 * g) +
+        0.000907 * sin(2 * g) - 0.002697 * cos(3 * g) + 0.00148 * sin(3 * g)
+    val lat = Math.toRadians(place.lat)
+    val cosHa = cos(Math.toRadians(90.833)) / (cos(lat) * cos(decl)) - tan(lat) * tan(decl)
+    if (cosHa < -1 || cosHa > 1) return null
+    val ha = Math.toDegrees(acos(cosHa))
+    fun minutes(m: Double) = midnight.plusMillis((m * 60_000).roundToLong())
+    return minutes(720 - 4 * (place.lon + ha) - eqTime) to minutes(720 - 4 * (place.lon - ha) - eqTime)
+}
+
+/** Night is when the owl is awake: from sunset to sunrise in Frankfurt. */
+fun isNight(at: Instant): Boolean {
+    val (sunrise, sunset) = sunTimes(at) ?: return false
+    return at.isBefore(sunrise) || !at.isBefore(sunset)
+}
 
 /** Where the moon by night, or the sun by day, sits in the scene. */
 const val SkyLightX = 282f

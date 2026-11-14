@@ -7,7 +7,8 @@
     "start": "astro dev --port 4321",
     "build": "astro check && svelte-check --tsconfig ./tsconfig.json && astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "test": "node --test src/lib/*.test.ts"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.10",
