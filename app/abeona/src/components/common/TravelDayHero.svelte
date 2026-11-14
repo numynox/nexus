@@ -106,7 +106,7 @@
           {day.minutesToLeave !== null && day.minutesToLeave <= 180 ? `Leave ${inMinutes(day.minutesToLeave)}` : `Leave at ${formatTime(day.leaveAt)}`}
         </p>
         <p class="mt-1 text-sm text-base-content/70">
-          {legLabel(leg)} leaves {leg.from.name} at {formatTime(effectiveTime(leg.from))}{platform ? ` from platform ${platform}` : ""}.
+          <!-- The train, its time and platform are on the card below: only what is new here. -->
           {stationMinutes} min to the station{#if settingsHref}&nbsp;·
             <a href={settingsHref} class="font-medium text-primary underline-offset-2 hover:underline">change</a>{/if}
         </p>
@@ -119,6 +119,10 @@
         {:else if day.cancelled}
           <p class="mt-1 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">{legLabel(leg)} is cancelled</p>
           <p class="mt-1 text-sm text-base-content/70">It was to leave {leg.from.name} at {formatTime(leg.from.planned)}.</p>
+        {:else if day.kind === "at_station" && legs.find((l) => l.mode !== "walk") === leg}
+          <!-- At the trip's first train: its platform, time and line are on the card below. -->
+          <p class="tabular mt-1 text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Leaves {inMinutes(day.minutesToDeparture)}</p>
+          {#if leg.headsign}<p class="mt-1 text-sm text-base-content/70">to {leg.headsign}</p>{/if}
         {:else}
           <p class="tabular mt-1 text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
             {platform ? `Platform ${platform}` : legLabel(leg)}

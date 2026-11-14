@@ -138,10 +138,8 @@ fun TravelDayHero(
                     Headline(
                         if ((day.minutesToLeave ?: 0) <= 180) "Leave ${inMinutes(day.minutesToLeave)}" else "Leave at ${TripFormat.time(day.leaveAt)}",
                     )
-                    Detail(
-                        "${leg.label} leaves ${leg.from.name} at ${TripFormat.time(leg.from.expectedAt)}" +
-                            (leg.from.shownPlatform?.let { " from Pl. $it" } ?: "") + ". $stationMinutes min to the station.",
-                    )
+                    // The train, its time and platform are on the card below: only what is new here.
+                    Detail("$stationMinutes min to the station")
                 }
                 day.missedChange && day.kind != TravelDayKind.OnBoard -> {
                     Headline("${leg.label} has left")
@@ -150,6 +148,11 @@ fun TravelDayHero(
                 leg.cancelled -> {
                     Headline("${leg.label} is cancelled")
                     Detail("It was to leave ${leg.from.name} at ${TripFormat.time(leg.from.plannedAt)}.")
+                }
+                // At the station of the trip's first train: the card below has its platform, time and line.
+                day.kind == TravelDayKind.AtStation && legs.firstOrNull { !it.isWalk } == leg -> {
+                    Headline("Leaves ${inMinutes(day.minutesToDeparture)}")
+                    leg.headsign?.let { Detail("to $it") }
                 }
                 day.kind == TravelDayKind.AtStation || day.kind == TravelDayKind.Changing -> {
                     Headline(leg.from.shownPlatform?.let { "Platform $it" } ?: leg.label)
