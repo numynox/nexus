@@ -40,6 +40,8 @@ interface Fixtures {
     name: string;
     share: string;
     stations: Record<string, string>;
+    /** Where a looked-up station is; without it, (0, 0): no position. */
+    station_coords?: Record<string, [number, number]>;
     journeys: Record<string, Journey[]>;
     expect: {
       status: string;
@@ -48,6 +50,8 @@ interface Fixtures {
       trip_refs: (string | null)[];
       from_names: string[];
       from_platforms: (string | null)[];
+      /** Per ride: whether its start and its end have a position the map can draw. */
+      located?: [boolean, boolean][];
       first_departure: string;
       last_arrival: string;
       legs?: number;
@@ -159,7 +163,8 @@ for (const c of fixtures.matching) {
     const port: TransitPort = {
       async stations(query: string): Promise<Station[]> {
         const id = c.stations[query];
-        return id ? [{ id, name: query, lat: 0, lon: 0, country: null }] : [];
+        const [lat, lon] = c.station_coords?.[query] ?? [0, 0];
+        return id ? [{ id, name: query, lat, lon, country: null }] : [];
       },
       async journeys(from: string, to: string, time: string): Promise<Journey[]> {
         return c.journeys[`${from}>${to}@${time}`] ?? [];
@@ -173,6 +178,8 @@ for (const c of fixtures.matching) {
     assert.equal(result.journey.refresh_token, c.expect.refresh_token);
     assert.deepEqual(rides.map((l) => l.trip_ref ?? null), c.expect.trip_refs);
     assert.deepEqual(rides.map((l) => l.from.name), c.expect.from_names);
+    const at = (s: { lat: number | null; lon: number | null }) => typeof s.lat === "number" && typeof s.lon === "number" && !(s.lat === 0 && s.lon === 0);
+    if (c.expect.located) assert.deepEqual(rides.map((l) => [at(l.from), at(l.to)]), c.expect.located, "where the map can draw each ride");
     assert.deepEqual(rides.map((l) => l.from.planned_platform ?? null), c.expect.from_platforms);
     assert.equal(new Date(rides[0].from.planned!).toISOString(), c.expect.first_departure);
     assert.equal(new Date(rides[rides.length - 1].to.planned!).toISOString(), c.expect.last_arrival);

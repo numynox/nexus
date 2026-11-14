@@ -37,6 +37,12 @@ first taken for the whole booking's; see below).
   by ride, all four rides matched). A ride nothing matches is saved as printed:
   no route, no trip id, no live updates. The sheet says how many matched.
   Times are read in Europe/Berlin.
+  (2026-11-13) Such a ride still gets its stops' places, so the map draws it
+  as a straight line: the neighbouring found ride's stop at the same change,
+  else the station looked up. Saved without, it was missing from the map.
+  The usual cause is not the printed names but a train the timetable does
+  not have for that day (checked: ICE 725 on a Sunday in November, ICE 502
+  and RJ 86 after the December timetable change).
 - **Saved as `source` 'share' or 'pdf'** (both allowed since the foundation
   migration), or 'import' when the trip is already over. A ticket PDF is
   attached to the trip's wallet after the save; a failed upload leaves the

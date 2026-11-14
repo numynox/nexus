@@ -50,6 +50,8 @@ class IntakeFixturesTest {
         @SerialName("first_departure") val firstDeparture: String,
         @SerialName("last_arrival") val lastArrival: String,
         val legs: Int? = null,
+        /** Per ride: whether its start and its end have a position the map can draw. */
+        val located: List<List<Boolean>>? = null,
     )
 
     @Serializable
@@ -57,6 +59,7 @@ class IntakeFixturesTest {
         val name: String,
         val share: String,
         val stations: Map<String, String>,
+        @SerialName("station_coords") val stationCoords: Map<String, List<Double>> = emptyMap(),
         val journeys: Map<String, List<Journey>>,
         val expect: MatchExpect,
     )
@@ -184,7 +187,10 @@ class IntakeFixturesTest {
     fun matching() = fixtures.matching.forEach { c ->
         val parsed = checkNotNull(parseShareText(resourceText(c.share)))
         val port = object : TransitPort {
-            override suspend fun stations(query: String) = c.stations[query]?.let { listOf(Station(it, query)) } ?: emptyList()
+            override suspend fun stations(query: String) = c.stations[query]?.let { id ->
+                val at = c.stationCoords[query]
+                listOf(Station(id, query, lat = at?.get(0) ?: 0.0, lon = at?.get(1) ?: 0.0))
+            } ?: emptyList()
             override suspend fun journeys(from: String, to: String, time: Instant) = c.journeys["$from>$to@${time.webIso()}"] ?: emptyList()
         }
         val result = runBlocking { matchConnection(parsed.legs, port) }
@@ -199,5 +205,9 @@ class IntakeFixturesTest {
         assertEquals(c.name, Instant.parse(c.expect.firstDeparture), rides.first().from.plannedAt)
         assertEquals(c.name, Instant.parse(c.expect.lastArrival), rides.last().to.plannedAt)
         c.expect.legs?.let { assertEquals(c.name, it, result.journey.legs.size) }
+        fun at(lat: Double?, lon: Double?) = lat != null && lon != null && !(lat == 0.0 && lon == 0.0)
+        c.expect.located?.let { expected ->
+            assertEquals("${c.name}: where the map can draw each ride", expected, rides.map { listOf(at(it.from.lat, it.from.lon), at(it.to.lat, it.to.lon)) })
+        }
     }
 }

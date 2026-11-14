@@ -1135,7 +1135,7 @@
       }
     },
     {
-      "name": "return: only the last ride is in the timetable",
+      "name": "return: only the last ride is in the timetable; the others still get their stations, the one before it from its neighbour",
       "share": "db-navigator-share-return-no-platforms.txt",
       "stations": {
         "Erlangen": "de:erlangen",
@@ -1156,18 +1156,22 @@
                 "product": "ICE",
                 "trip_ref": "ice700",
                 "from": {
-                  "id": null,
+                  "id": "de:nuernberg",
                   "name": "N\u00fcrnberg Hbf",
                   "planned": "2025-11-16T20:05:00Z",
                   "planned_platform": null,
-                  "platform": null
+                  "platform": null,
+                  "lat": 49.4458,
+                  "lon": 11.0828
                 },
                 "to": {
-                  "id": null,
+                  "id": "de:erlangen",
                   "name": "Erlangen",
                   "planned": "2025-11-16T20:18:00Z",
                   "planned_platform": null,
-                  "platform": null
+                  "platform": null,
+                  "lat": 49.5958,
+                  "lon": 11.0019
                 },
                 "polyline": [
                   [
@@ -1207,7 +1211,43 @@
           null
         ],
         "first_departure": "2025-11-16T13:27:00.000Z",
-        "last_arrival": "2025-11-16T20:18:00.000Z"
+        "last_arrival": "2025-11-16T20:18:00.000Z",
+        "located": [
+          [
+            true,
+            true
+          ],
+          [
+            true,
+            true
+          ],
+          [
+            true,
+            true
+          ],
+          [
+            true,
+            true
+          ]
+        ]
+      },
+      "station_coords": {
+        "Leuven": [
+          50.8811,
+          4.7156
+        ],
+        "Li\u00e8ge-Guillemins": [
+          50.6245,
+          5.5666
+        ],
+        "Frankfurt(Main)Hbf": [
+          50.1069,
+          8.663
+        ],
+        "Erlangen": [
+          49.5958,
+          11.0019
+        ]
       }
     },
     {
@@ -1238,7 +1278,25 @@
           "3"
         ],
         "first_departure": "2025-11-14T05:29:00.000Z",
-        "last_arrival": "2025-11-14T12:32:00.000Z"
+        "last_arrival": "2025-11-14T12:32:00.000Z",
+        "located": [
+          [
+            false,
+            false
+          ],
+          [
+            false,
+            false
+          ],
+          [
+            false,
+            false
+          ],
+          [
+            false,
+            false
+          ]
+        ]
       }
     }
   ],
