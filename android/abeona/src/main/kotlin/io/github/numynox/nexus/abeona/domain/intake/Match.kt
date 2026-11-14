@@ -191,6 +191,23 @@ fun isUnfound(leg: Leg): Boolean = leg.mode != LegMode.Walk && leg.tripRef.isNul
 /** A ride the timetable can be asked about: a train or bus with a line name. */
 fun isCheckable(leg: Leg): Boolean = leg.mode != LegMode.Walk && lineKey(leg.lineName).isNotEmpty()
 
+/**
+ * Whether two line names are the same train, whichever way each source
+ * writes it (match.ts sameTrain): "RE19" = "RE19 (4901)"; the bracketed
+ * number counts only when both have one.
+ */
+fun sameTrain(a: String?, b: String?): Boolean {
+    fun split(line: String?): Pair<String, String?> {
+        val key = lineKey(line)
+        val m = Regex("""^(.*?)\((\d+)\)$""").find(key) ?: return key to null
+        return m.groupValues[1] to m.groupValues[2]
+    }
+    val (xBase, xNumber) = split(a)
+    val (yBase, yNumber) = split(b)
+    if (xBase.isEmpty() || xBase != yBase) return false
+    return xNumber == null || yNumber == null || xNumber == yNumber
+}
+
 /** "ICE 725" → "ICE": the kind of train. */
 private fun lineFamily(line: String?): String = lineKey(line).takeWhile { it in 'A'..'Z' }
 
@@ -221,12 +238,11 @@ suspend fun checkSavedLeg(leg: Leg, port: TransitPort): SavedLegCheck {
     val to = leg.to.id ?: return none
     val departure = leg.from.plannedAt ?: return none
     val arrival = leg.to.plannedAt ?: return none
-    val key = lineKey(leg.lineName)
     val family = lineFamily(leg.lineName)
     var later = false
     for (journey in port.journeys(from, to, departure)) {
         for (ride in journey.rides()) {
-            if (!ride.tripRef.isNullOrEmpty() && lineKey(ride.lineName) == key &&
+            if (!ride.tripRef.isNullOrEmpty() && sameTrain(ride.lineName, leg.lineName) &&
                 sameMinute(ride.from.planned, departure) && sameMinute(ride.to.planned, arrival)
             ) {
                 return SavedLegCheck(ride, false)
@@ -242,13 +258,16 @@ suspend fun checkSavedLeg(leg: Leg, port: TransitPort): SavedLegCheck {
     if (later) return SavedLegCheck(null, true)
     for (days in LaterDays) {
         val other = port.journeys(from, to, departure.plus(Duration.ofDays(days)))
-        if (other.any { journey -> journey.rides().any { lineKey(it.lineName) == key } }) return SavedLegCheck(null, true)
+        if (other.any { journey -> journey.rides().any { sameTrain(it.lineName, leg.lineName) } }) return SavedLegCheck(null, true)
     }
     return none
 }
 
-/** The rides' trains, in order. */
-private fun trainsOf(legs: List<Leg>): List<String> = legs.filter { it.mode != LegMode.Walk }.map { lineKey(it.lineName) }
+/** The rides' line names, in order. */
+private fun trainsOf(legs: List<Leg>): List<String?> = legs.filter { it.mode != LegMode.Walk }.map { it.lineName }
+
+/** The same trains in the same order ([sameTrain]). */
+private fun sameTrains(a: List<String?>, b: List<String?>): Boolean = a.size == b.size && a.indices.all { sameTrain(a[it], b[it]) }
 
 /**
  * When a ride was dropped, the connection that is clearly the same trip
@@ -272,7 +291,7 @@ suspend fun clearReplacement(legs: List<Leg>, droppedIdx: Int, port: TransitPort
     // A later ride that is not in the timetable either cannot be relied on.
     if (after.any { it.mode != LegMode.Walk && (it.cancelled || it.tripRef.isNullOrEmpty()) }) return null
     for (journey in port.journeys(from, to, time)) {
-        if (trainsOf(journey.legs) != wanted) continue
+        if (!sameTrains(trainsOf(journey.legs), wanted)) continue
         if (journey.legs.any { it.mode != LegMode.Walk && (it.cancelled || it.tripRef.isNullOrEmpty()) }) continue
         val replacement = journey.legs + after
         val worst = worstConfidence(replacement)

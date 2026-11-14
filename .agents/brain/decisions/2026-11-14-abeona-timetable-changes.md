@@ -8,8 +8,8 @@ A ride saved without the timetable (intake keeps it as printed) showed as
 "Timetable only" whatever the reason. Usually the reason is a date after the
 next timetable change, and since #67 such a ride is looked up again and
 attached once found. ICE 725 on 22 November 2026 was different: the
-timetable covered that day, and the train was not in it, because of
-engineering works. DB Navigator asked for another connection and lifted
+timetable covered that day, and the train was not in it at the booked
+station and time (it left from Frankfurt Flughafen instead). DB Navigator asked for another connection and lifted
 the train binding, while Abeona said nothing. Often, though, the change is
 small. The same trains still run, with another change station (Frankfurt
 Flughafen instead of Hbf) or minutes earlier, and choosing them by hand
@@ -78,3 +78,15 @@ would be busywork.
   since feeds are contiguous. This catches rare trains: night trains, an IC
   once a day. The day before proves nothing, as it may be the last day
   published. Up to two more searches, only for a ride not found.
+
+## Addendum: same train, other spelling; facts only (later on 2026-11-14)
+- RE19 on 20 Nov was marked dropped although it ran as booked: the ticket
+  says "RE19" and the timetable "RE19 (4901)", which the check compared
+  literally, while other RE trains ran later. `sameTrain` (match.ts,
+  Match.kt) now treats a bracketed train number as counting only when both
+  names have one. It is used by the check, the neighbouring days and
+  `clearReplacement`. Fixtures in `refinding`.
+- The texts say only what Abeona knows: "X is no longer in the timetable",
+  "Train binding lifted.", and the trains followed instead. Never a reason
+  (Abeona cannot know why a train is missing). The binding banner is not
+  repeated beside the dropped card.

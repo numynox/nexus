@@ -16,9 +16,6 @@ import io.github.numynox.nexus.abeona.data.AbeonaRepository
 import io.github.numynox.nexus.abeona.data.Trip
 import io.github.numynox.nexus.abeona.live.LiveCompanion
 import io.github.numynox.nexus.abeona.ui.common.TripFormat
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 /**
  * "ICE 725 no longer runs as booked": said once, when checking a trip
@@ -27,23 +24,16 @@ import java.util.Locale
  * On the trip alerts channel the live companion uses.
  */
 object TimetableChanges {
-    private val day = DateTimeFormatter.ofPattern("EEE d MMM", Locale.ENGLISH)
-
     /** Title and text for what [refound] changed on [trip]; null when there is nothing to say. */
-    fun message(trip: Trip, refound: AbeonaRepository.Refound, zone: ZoneId = ZoneId.systemDefault()): Pair<String, String>? {
+    fun message(trip: Trip, refound: AbeonaRepository.Refound): Pair<String, String>? {
         val adjusted = refound.adjusted
         val dropped = refound.dropped.firstOrNull() ?: trip.legs.firstOrNull { it.dropped }
         if (adjusted == null && refound.dropped.isEmpty()) return null
-        val label = dropped?.label ?: "A train"
-        val title = "$label no longer runs as booked"
+        val title = "${dropped?.label ?: "A train"} is no longer in the timetable"
         val text = if (adjusted != null) {
-            val first = adjusted.firstOrNull { !it.isWalk } ?: adjusted.first()
-            "Your trains still connect, at other times: from ${first.from.name}, " +
-                adjusted.filter { !it.isWalk }.joinToString(" › ") { "${it.label} ${TripFormat.time(it.from.plannedAt)}" } +
-                ". Abeona follows these now."
+            "Now: " + adjusted.filter { !it.isWalk }.joinToString(" › ") { "${it.label} ${TripFormat.time(it.from.plannedAt)} ${it.from.name}" }
         } else {
-            val on = dropped?.from?.plannedAt?.atZone(zone)?.let { " on ${day.format(it)}" }.orEmpty()
-            "It is no longer in the timetable$on. Your train binding is lifted: choose another connection."
+            "Choose another connection."
         }
         return title to text
     }

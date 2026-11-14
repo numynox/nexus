@@ -373,10 +373,11 @@
     {#if liveCard && refreshError}
       <p class="rounded-2xl bg-error/10 px-4 py-3 text-sm text-error" role="alert">Could not update live times: {refreshError}</p>
     {/if}
-    {#if bindingLifted && !arrived}
+    <!-- A dropped ride says the binding is lifted in its own card. -->
+    {#if bindingLifted && !arrived && !dropped}
       <BindingBanner
         delay={planDelay}
-        because={planDelay >= 20 ? null : dropped ? `${legLabel(dropped)} no longer runs as booked` : missedShort ? "You missed a change that had less than 5 minutes" : "A change on your trip cannot be made"}
+        because={planDelay >= 20 ? null : missedShort ? "You missed a change that had less than 5 minutes" : "A change on your trip cannot be made"}
       />
     {/if}
 
@@ -385,21 +386,18 @@
         <CalendarX2 class="mt-0.5 h-5 w-5 shrink-0" />
         <div class="min-w-0 flex-1 text-sm leading-snug">
           <p class="font-semibold">{legLabel(dropped)} is no longer in the timetable</p>
-          <p class="opacity-80">
-            Not on {formatLongDate(dropped.from.planned)} any more, usually because of engineering works. Choose another connection below; Abeona follows it from then on.
-          </p>
+          {#if bindingLifted}<p class="opacity-80">Train binding lifted.</p>{/if}
         </div>
       </div>
     {/if}
 
     {#if following && !arrived && trip.replacement_legs && adjusted}
-      {@const first = trip.replacement_legs.find((l) => l.mode !== "walk") ?? trip.replacement_legs[0]}
       <div class="flex items-start gap-3 rounded-2xl bg-secondary px-4 py-3 text-secondary-content">
         <CalendarClock class="mt-0.5 h-5 w-5 shrink-0" />
         <div class="min-w-0 flex-1 text-sm leading-snug">
-          <p class="font-semibold">Adjusted for a timetable change</p>
+          <p class="font-semibold">{legLabel(dropped!)} is no longer in the timetable</p>
           <p class="opacity-80">
-            {legLabel(dropped!)} no longer runs as booked, but your trains still connect. From {first.from.name}: {trip.replacement_legs.filter((l) => l.mode !== "walk").map((l) => `${legLabel(l)} ${formatTime(l.from.planned)}`).join(" › ")}.
+            Now: {trip.replacement_legs.filter((l) => l.mode !== "walk").map((l) => `${legLabel(l)} ${formatTime(l.from.planned)} ${l.from.name}`).join(" › ")}
           </p>
         </div>
       </div>

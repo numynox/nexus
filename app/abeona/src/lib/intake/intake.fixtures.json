@@ -2538,6 +2538,156 @@
         "trip_ref": null,
         "dropped": false
       }
+    },
+    {
+      "name": "RE19 on the ticket is RE19 (4901) in the timetable: the same train, found, not dropped",
+      "leg": {
+        "mode": "train",
+        "line_name": "RE19",
+        "product": "RE",
+        "trip_ref": null,
+        "from": {
+          "id": "de:erl",
+          "name": "Erlangen",
+          "planned": "2026-11-20T05:29:00+00:00",
+          "planned_platform": null,
+          "platform": null
+        },
+        "to": {
+          "id": "de:nue",
+          "name": "N\u00fcrnberg Hbf",
+          "planned": "2026-11-20T05:48:00+00:00",
+          "planned_platform": null,
+          "platform": null
+        },
+        "polyline": null,
+        "cancelled": false
+      },
+      "journeys": {
+        "de:erl>de:nue@2026-11-20T05:29:00.000Z": [
+          {
+            "provider": "transitous",
+            "refresh_token": null,
+            "legs": [
+              {
+                "mode": "train",
+                "line_name": "RE19 (4901)",
+                "product": "RE",
+                "trip_ref": "re4901",
+                "from": {
+                  "id": "de:erl",
+                  "name": "Erlangen",
+                  "planned": "2026-11-20T05:29:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": "de:nue",
+                  "name": "N\u00fcrnberg Hbf",
+                  "planned": "2026-11-20T05:48:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": null,
+                "cancelled": false
+              }
+            ]
+          },
+          {
+            "provider": "transitous",
+            "refresh_token": null,
+            "legs": [
+              {
+                "mode": "train",
+                "line_name": "RE28 (4943)",
+                "product": "RE",
+                "trip_ref": "re4943",
+                "from": {
+                  "id": "de:erl",
+                  "name": "Erlangen",
+                  "planned": "2026-11-20T06:03:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": "de:nue",
+                  "name": "N\u00fcrnberg Hbf",
+                  "planned": "2026-11-20T06:20:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": null,
+                "cancelled": false
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "trip_ref": "re4901",
+        "dropped": false
+      }
+    },
+    {
+      "name": "RE19 (4903) is another RE19 than RE19 (4901): not the booked train",
+      "leg": {
+        "mode": "train",
+        "line_name": "RE19 (4901)",
+        "product": "RE",
+        "trip_ref": null,
+        "from": {
+          "id": "de:erl",
+          "name": "Erlangen",
+          "planned": "2026-11-20T05:29:00+00:00",
+          "planned_platform": null,
+          "platform": null
+        },
+        "to": {
+          "id": "de:nue",
+          "name": "N\u00fcrnberg Hbf",
+          "planned": "2026-11-20T05:48:00+00:00",
+          "planned_platform": null,
+          "platform": null
+        },
+        "polyline": null,
+        "cancelled": false
+      },
+      "journeys": {
+        "de:erl>de:nue@2026-11-20T05:29:00.000Z": [
+          {
+            "provider": "transitous",
+            "refresh_token": null,
+            "legs": [
+              {
+                "mode": "train",
+                "line_name": "RE19 (4903)",
+                "product": "RE",
+                "trip_ref": "re4903",
+                "from": {
+                  "id": "de:erl",
+                  "name": "Erlangen",
+                  "planned": "2026-11-20T05:29:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": "de:nue",
+                  "name": "N\u00fcrnberg Hbf",
+                  "planned": "2026-11-20T05:48:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": null,
+                "cancelled": false
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "trip_ref": null,
+        "dropped": false
+      }
     }
   ],
   "replacing": [
