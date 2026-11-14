@@ -22,7 +22,7 @@
     fetchBahnCards,
     fetchTrip,
     recordDisruption,
-    refindTrip,
+    checkTimetable,
     refreshTripLive,
     type Trip,
   } from "../../lib/data";
@@ -102,7 +102,7 @@
   // The ticket's binding is about the booked journey (as on the server), not a connection taken instead.
   const planDelay = $derived(trip && trip.legs.length > 0 ? summarise(trip.legs).arrivalDelay : 0);
   const missedShort = $derived(day ? missedShortConnection(legs, day) : false);
-  // A ride no longer in the timetable for its day (refindTrip): cancelled as booked.
+  // A ride no longer in the timetable for its day (checkTimetable): cancelled as booked.
   const droppedIdx = $derived(trip ? trip.legs.findIndex((l) => l.mode !== "walk" && !!l.dropped_at) : -1);
   const dropped = $derived(trip && droppedIdx >= 0 ? trip.legs[droppedIdx] : null);
   /** The connection followed instead was taken by Abeona for the dropped ride: the same trains, adjusted. */
@@ -214,10 +214,10 @@
     }
   }
 
-  async function refind() {
+  async function checkRides() {
     if (!trip) return;
     try {
-      if (await refindTrip(trip)) {
+      if (await checkTimetable(trip)) {
         const fresh = await fetchTrip(trip.id);
         if (fresh) trip = fresh;
       }
@@ -327,10 +327,10 @@
     void load(id).then(() => {
       // Final trips (frozen by the job, or imported as past trips) never change again.
       if (!trip || trip.finalized_at) return;
-      // Outside the live window, only the rides the timetable did not have
-      // when saved are looked up again (inside it, refresh does that too).
+      // Outside the live window, the rides are checked against the timetable
+      // (inside it, refresh does that too).
       if (!isLiveWindow(trip.legs)) {
-        void refind();
+        void checkRides();
         return;
       }
       void refresh();

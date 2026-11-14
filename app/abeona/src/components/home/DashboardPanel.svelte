@@ -9,7 +9,7 @@
     fetchTrip,
     fetchUpcomingTrips,
     fetchYearStatistics,
-    refindTrip,
+    checkTimetable,
     refreshTripLive,
     type BahnCardDeadline,
     type Statistics,
@@ -105,13 +105,13 @@
     }
   }
 
-  // Rides saved without the timetable, looked up again for every upcoming
-  // trip (refindTrip: at most every 15 minutes each): a timetable change
-  // shows on the list without opening the trip.
-  async function refindAll() {
+  // Every upcoming trip checked against the timetable (checkTimetable: every
+  // 15 minutes to 3 hours each): a timetable change shows on the list
+  // without opening the trip.
+  async function checkAll() {
     for (const trip of upcoming) {
       try {
-        if (await refindTrip(trip)) {
+        if (await checkTimetable(trip)) {
           const fresh = await fetchTrip(trip.id);
           if (fresh) upcoming = upcoming.map((t) => (t.id === fresh.id ? fresh : t));
         }
@@ -124,7 +124,7 @@
   onMount(() => {
     stationMinutes = getStationMinutes();
     const tick = setInterval(() => (now = Date.now()), 15_000);
-    void load().then(refreshLive).then(refindAll);
+    void load().then(refreshLive).then(checkAll);
     // Like the trip page: only while someone is looking.
     const timer = setInterval(() => {
       if (document.visibilityState === "visible") void refreshLive();

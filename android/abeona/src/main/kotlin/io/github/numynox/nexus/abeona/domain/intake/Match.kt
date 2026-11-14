@@ -188,28 +188,35 @@ suspend fun matchConnection(legs: List<ParsedLeg>, port: TransitPort): MatchResu
 /** A saved ride the timetable did not have when it was saved: a ride, with no trip ref. */
 fun isUnfound(leg: Leg): Boolean = leg.mode != LegMode.Walk && leg.tripRef.isNullOrEmpty() && lineKey(leg.lineName).isNotEmpty()
 
+/** A ride the timetable can be asked about: a train or bus with a line name. */
+fun isCheckable(leg: Leg): Boolean = leg.mode != LegMode.Walk && lineKey(leg.lineName).isNotEmpty()
+
 /** "ICE 725" → "ICE": the kind of train. */
 private fun lineFamily(line: String?): String = lineKey(line).takeWhile { it in 'A'..'Z' }
 
 /** How far after the ride's departure another train of its kind still proves the timetable covers its day. */
 private val CoveredWithin: Duration = Duration.ofHours(36)
 
-/** What looking a saved ride up again found; the web's SavedLegCheck. */
+/** The same train number on these later days proves it too: the next day, or the same weekday a week on. */
+private val LaterDays = listOf(1L, 7L)
+
+/** What checking a saved ride against the timetable found; the web's SavedLegCheck. */
 data class SavedLegCheck(
-    /** The timetable's ride, once it has it. */
+    /** The timetable's ride at the same stops and minutes; its trip ref may differ from the saved one. */
     val found: Leg?,
-    /** Not found, although trains of its kind run between its stops after it: it no longer runs as booked. */
+    /** Not found, although the timetable covers its day: it no longer runs as booked. */
     val dropped: Boolean,
 )
 
 /**
- * A saved ride that was not in the timetable, looked up again (match.ts
- * checkSavedLeg): the ride with its line at the same minutes, else dropped
- * when later trains of the same kind are there.
+ * Whether a saved ride still runs as booked (match.ts checkSavedLeg): its
+ * line at the same minutes between its stops. Not found is dropped only when
+ * the timetable covers its day: later trains of its kind within 36 hours,
+ * else the same train number the next day or a week on.
  */
 suspend fun checkSavedLeg(leg: Leg, port: TransitPort): SavedLegCheck {
     val none = SavedLegCheck(null, false)
-    if (!isUnfound(leg)) return none
+    if (!isCheckable(leg)) return none
     val from = leg.from.id ?: return none
     val to = leg.to.id ?: return none
     val departure = leg.from.plannedAt ?: return none
@@ -232,7 +239,12 @@ suspend fun checkSavedLeg(leg: Leg, port: TransitPort): SavedLegCheck {
             }
         }
     }
-    return SavedLegCheck(null, later)
+    if (later) return SavedLegCheck(null, true)
+    for (days in LaterDays) {
+        val other = port.journeys(from, to, departure.plus(Duration.ofDays(days)))
+        if (other.any { journey -> journey.rides().any { lineKey(it.lineName) == key } }) return SavedLegCheck(null, true)
+    }
+    return none
 }
 
 /** The rides' trains, in order. */

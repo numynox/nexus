@@ -1,8 +1,9 @@
 -- abeona_attach_leg: a ride saved without the timetable takes the timetable's
 -- ride once found — only that ride, only while unfound and not final, and
--- only for the household's members. abeona_mark_leg_dropped: a ride the
--- timetable no longer has is cancelled, once, which lifts the binding; found
--- again, it is not dropped any more.
+-- only for the household's members; a found one takes a new trip ref.
+-- abeona_mark_leg_dropped: a ride the timetable no longer has (found when
+-- saved or not) is cancelled, once, which lifts the binding; found again, it
+-- is not dropped any more.
 --
 -- Run with: npm run test:db
 
@@ -87,10 +88,10 @@ select is((select planned_departure_platform || '/' || planned_arrival_platform 
   'the timetable''s platforms');
 select is((select extract(epoch from departure - planned_departure)::int from public.abeona_legs), 120, 'and the live values');
 
--- ── Once only ──────────────────────────────────────────────────────────────
+-- ── A new trip ref ─────────────────────────────────────────────────────────
 select is(public.abeona_attach_leg((select id from at_ids where key = 'trip'), 0::smallint,
     pg_temp.found('ref-other', (select dep from at_fixture), (select arr from at_fixture))),
-  false, 'a found ride is not replaced');
+  true, 'a found ride takes a new trip ref at the same minutes (the feed renumbered its trips)');
 
 -- ── Dropped from the timetable ─────────────────────────────────────────────
 insert into at_ids values ('bound', public.abeona_save_trip('{"source": "pdf", "fare_type": "saver", "train_binding": true}'::jsonb,
@@ -110,8 +111,8 @@ select ok((select cancelled and dropped_at is not null from public.abeona_legs
            where trip_id = (select id from at_ids where key = 'bound')), 'it is cancelled, and says why');
 select is(public.abeona_allowed_products((select id from at_ids where key = 'bound'))->>'binding_lifted_reason', 'cancelled',
   'which lifts the binding');
-select is(public.abeona_mark_leg_dropped((select id from at_ids where key = 'trip'), 0::smallint), false,
-  'a found ride is never marked dropped');
+select is(public.abeona_mark_leg_dropped((select id from at_ids where key = 'trip'), 0::smallint), true,
+  'a ride found when saved can be dropped too');
 
 select is(public.abeona_attach_leg((select id from at_ids where key = 'bound'), 0::smallint,
     pg_temp.found('ref-86b', (select dep from at_fixture), (select arr from at_fixture))),

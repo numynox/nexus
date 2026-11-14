@@ -261,6 +261,11 @@ export function isUnfound(leg: Leg): boolean {
   return leg.mode !== "walk" && !leg.trip_ref && !!lineKey(leg.line_name);
 }
 
+/** A ride the timetable can be asked about: a train or bus with a line name. */
+export function isCheckable(leg: Leg): boolean {
+  return leg.mode !== "walk" && !!lineKey(leg.line_name);
+}
+
 /** "ICE 725" → "ICE": the kind of train, to tell whether the timetable has that kind on a day. */
 function lineFamily(line: string | null | undefined): string {
   return lineKey(line).replace(/[^A-Z].*$/, "");
@@ -268,29 +273,41 @@ function lineFamily(line: string | null | undefined): string {
 
 /** How far after the ride's departure another train of its kind still proves the timetable covers its day. */
 const COVERED_WITHIN_MS = 36 * 3600_000;
+const DAY_MS = 24 * 3600_000;
+/** The same train number on these later days proves it too: the next day, or the same weekday a week on. */
+const LATER_DAYS = [1, 7];
 
 export interface SavedLegCheck {
-  /** The timetable's ride, once it has it. */
+  /**
+   * The timetable's ride: its line between the same stops at the same
+   * minutes. Its trip ref may differ from the saved one (the feed renumbered
+   * its trips), and a dropped ride may be back.
+   */
   found: Leg | null;
   /**
-   * Not found, although the timetable covers its day: trains of the same kind
-   * run between its stops after it. The ride no longer runs as booked (a
-   * timetable change, usually engineering works). False while the timetable
-   * simply does not reach that far yet.
+   * Not found, although the timetable covers its day: it no longer runs as
+   * booked (a timetable change, usually engineering works). False while the
+   * timetable may simply not reach that far yet.
    */
   dropped: boolean;
 }
 
 /**
- * A saved ride that was not in the timetable, looked up again: a search
- * between its stops at its planned departure, and the ride with its line
- * departing and arriving the same minutes. Not there, while later trains of
- * the same kind are: dropped. Neither when the ride's stops have no id to
- * search from.
+ * Whether a saved ride still runs as booked: a search between its stops at
+ * its planned departure, and its line departing and arriving the same
+ * minutes. Every ride of an upcoming trip is checked, found at saving or
+ * not (a train found then can be gone after a timetable change).
+ *
+ * Not found is "dropped" only when the timetable covers its day. Two proofs,
+ * the cheaper first: later trains of the same kind (ICE, RJ…) between its
+ * stops within 36 hours; else the same train number between its stops the
+ * next day, or a week on (a rare train: a night train, an IC once a day).
+ * Feeds are contiguous, so a later day in the timetable means its day is
+ * too. Neither: the timetable does not reach it yet, and nothing is said.
  */
 export async function checkSavedLeg(leg: Leg, port: TransitPort): Promise<SavedLegCheck> {
   const none = { found: null, dropped: false };
-  if (!isUnfound(leg) || !leg.from.id || !leg.to.id || !leg.from.planned || !leg.to.planned) return none;
+  if (!isCheckable(leg) || !leg.from.id || !leg.to.id || !leg.from.planned || !leg.to.planned) return none;
   const departure = new Date(leg.from.planned).toISOString();
   const arrival = new Date(leg.to.planned).toISOString();
   const key = lineKey(leg.line_name);
@@ -308,7 +325,15 @@ export async function checkSavedLeg(leg: Leg, port: TransitPort): Promise<SavedL
       }
     }
   }
-  return { found: null, dropped: later };
+  if (later) return { found: null, dropped: true };
+  for (const days of LATER_DAYS) {
+    const then = new Date(Date.parse(departure) + days * DAY_MS).toISOString();
+    const other = await port.journeys(leg.from.id, leg.to.id, then);
+    if (other.some((journey) => rides(journey).some((ride) => lineKey(ride.line_name) === key))) {
+      return { found: null, dropped: true };
+    }
+  }
+  return none;
 }
 
 /** The rides' trains, in order: ["ICE17", "ICE725"]. */

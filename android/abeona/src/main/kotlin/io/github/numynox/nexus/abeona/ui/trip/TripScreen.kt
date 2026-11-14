@@ -576,7 +576,7 @@ private fun TripContent(
     val changes = remember(journey) { transfers(journey.legs) }
     // The ticket's binding is about the booked journey (as on the server), not a connection taken instead.
     val arrivalDelay = finalArrivalDelay(trip.legs)
-    // A ride no longer in the timetable for its day (AbeonaRepository.refindTrip): cancelled as booked.
+    // A ride no longer in the timetable for its day (AbeonaRepository.checkTimetable): cancelled as booked.
     val droppedIdx = trip.legs.indexOfFirst { !it.isWalk && it.dropped }
     val dropped = trip.legs.getOrNull(droppedIdx)
     val connectionBroken = hasImpossibleChange(trip.legs) || live?.missedShort == true || dropped != null

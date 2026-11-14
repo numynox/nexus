@@ -51,9 +51,6 @@ would be busywork.
   changed" / "Adjusted" on them.
 
 ## Consequences
-- Only rides saved without a trip ref are checked. A ride matched at intake
-  whose train later leaves the timetable is not noticed before its day. The
-  live refresh then finds nothing for it.
 - A gap in Transitous' data on one route could mark a ride dropped
   wrongly. The kind-of-train rule keeps this rare, and it undoes itself
   once the ride is found again (its cancellation becomes the timetable's).
@@ -61,3 +58,23 @@ would be busywork.
   (offered once the ride is no longer dropped).
 - One more journeys search per trip with a dropped ride and no replacement,
   at most every 15 minutes.
+
+## Addendum: every ride, and the neighbouring days (later on 2026-11-14)
+- **Every ride still to come is checked**, not only the ones intake could not
+  find. A train found when the trip was saved (from Abeona's own search,
+  say) can be gone after a timetable change just the same, and the live
+  refresh by trip ref would only stop finding it on the day. The rides a
+  connection taken instead replaces are left out. Each check costs one search
+  per ride, so a trip whose rides are all found is checked every 3 hours, and
+  every 15 minutes while one is unfound or dropped. Renamed `checkTimetable`
+  (data.ts, `AbeonaRepository`).
+- `abeona_mark_leg_dropped` takes found rides too (they keep their trip ref).
+  `abeona_attach_leg` also takes the timetable's ride when the saved one is
+  dropped (back again) or its trip ref changed (a feed renumbering its trips
+  would otherwise leave the live refresh with nothing to find).
+- **The day's coverage has a second proof.** When no later train of the same
+  kind runs within 36 hours, the same train number between the same stops the
+  next day, or a week on (same weekday), shows the timetable reaches the date,
+  since feeds are contiguous. This catches rare trains: night trains, an IC
+  once a day. The day before proves nothing, as it may be the last day
+  published. Up to two more searches, only for a ride not found.

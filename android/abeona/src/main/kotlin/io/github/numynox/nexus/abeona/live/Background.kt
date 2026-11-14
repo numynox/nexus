@@ -224,11 +224,11 @@ class NextTripWorker(context: Context, params: WorkerParameters) : CoroutineWork
             var trips = container.trips.upcoming().value
             val now = Instant.now()
             val zone = ZoneId.systemDefault()
-            // Rides saved without the timetable, looked up again for every
-            // upcoming trip: one the timetable no longer has, or the same
-            // trains at other times, is said once, with the trip updated.
+            // Every upcoming trip checked against the timetable: a ride it no
+            // longer has, or the same trains at other times, is said once,
+            // with the trip updated.
             trips = trips.map { trip ->
-                val refound = runCatching { container.repository.refindTrip(trip, now) }.getOrNull()
+                val refound = runCatching { container.repository.checkTimetable(trip, now) }.getOrNull()
                 if (refound == null || !refound.changed) return@map trip
                 TimetableChanges.notify(applicationContext, trip, refound)
                 val fresh = runCatching { container.repository.trip(trip.id) }.getOrNull() ?: return@map trip

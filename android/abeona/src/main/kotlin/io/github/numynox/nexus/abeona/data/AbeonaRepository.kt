@@ -15,7 +15,7 @@ import io.github.numynox.nexus.abeona.domain.refreshLegs
 import io.github.numynox.nexus.abeona.domain.intake.TransitPort
 import io.github.numynox.nexus.abeona.domain.intake.checkSavedLeg
 import io.github.numynox.nexus.abeona.domain.intake.clearReplacement
-import io.github.numynox.nexus.abeona.domain.intake.isUnfound
+import io.github.numynox.nexus.abeona.domain.intake.isCheckable
 import io.github.numynox.nexus.abeona.domain.liveUpdates
 import io.github.numynox.nexus.core.data.NexusJson
 import io.ktor.client.statement.bodyAsText
@@ -165,7 +165,7 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
      * abeona_update_trip_live, and returns the trip as it now stands.
      */
     suspend fun refreshTrip(given: Trip, now: Instant = Instant.now()): Trip {
-        val trip = if (runCatching { refindTrip(given, now).changed }.getOrDefault(false)) this.trip(given.id) ?: given else given
+        val trip = if (runCatching { checkTimetable(given, now).changed }.getOrDefault(false)) this.trip(given.id) ?: given else given
         val body = buildJsonObject {
             put("action", "refresh")
             put("refresh_token", trip.refreshToken)
@@ -192,10 +192,10 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
         return if (trip.followsReplacement) refreshReplacement(updated) else updated
     }
 
-    /** When each trip's unfound rides were last looked up, in this process: once per [RefindEvery]. */
-    private val refindTried = java.util.concurrent.ConcurrentHashMap<String, Instant>()
+    /** When each trip was last checked against the timetable, in this process. */
+    private val timetableChecked = java.util.concurrent.ConcurrentHashMap<String, Instant>()
 
-    /** What looking a trip's unfound rides up again changed. */
+    /** What checking a trip against the timetable changed. */
     data class Refound(
         /** Anything written: a ride attached or dropped, a connection taken. */
         val changed: Boolean,
@@ -206,22 +206,28 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
     )
 
     /**
-     * Rides saved without the timetable (a date after its next change,
-     * usually) looked up again (intake/Match.kt checkSavedLeg). Found:
-     * attached through abeona_attach_leg. Missing on a date the timetable
+     * Every ride still to come checked against the timetable
+     * (intake/Match.kt checkSavedLeg), found when the trip was saved or not.
+     * Found: attached through abeona_attach_leg when it was unfound or
+     * dropped, or its trip ref changed. Missing on a date the timetable
      * covers: marked dropped (abeona_mark_leg_dropped; cancelled, so the
      * binding is lifted), and when the same trains still run with workable
      * changes (clearReplacement), that connection is taken as the trip's
-     * replacement. Only rides still to come; at most once per [RefindEvery]
-     * per trip. The web does the same (data.ts refindTrip).
+     * replacement. Rides a connection taken instead replaces are left out.
+     * At most every [CheckUnsettled] per trip while a ride is unfound or
+     * dropped, else every [CheckSettled]. The web does the same (data.ts checkTimetable).
      */
-    suspend fun refindTrip(trip: Trip, now: Instant = Instant.now()): Refound {
+    suspend fun checkTimetable(trip: Trip, now: Instant = Instant.now()): Refound {
         if (trip.finalizedAt != null) return Refound(false)
-        val todo = trip.legs.withIndex().filter { (_, leg) -> isUnfound(leg) && leg.from.plannedAt?.isAfter(now) == true }
+        val replacedFrom = if (trip.followsReplacement) trip.missedLegIdx ?: Int.MAX_VALUE else Int.MAX_VALUE
+        val todo = trip.legs.withIndex().filter { (idx, leg) ->
+            idx < replacedFrom && isCheckable(leg) && leg.from.plannedAt?.isAfter(now) == true
+        }
         if (todo.isEmpty()) return Refound(false)
-        val last = refindTried[trip.id]
-        if (last != null && last.plus(RefindEvery).isAfter(now)) return Refound(false)
-        refindTried[trip.id] = now
+        val unsettled = todo.any { (_, leg) -> leg.tripRef.isNullOrEmpty() || leg.dropped }
+        val last = timetableChecked[trip.id]
+        if (last != null && last.plus(if (unsettled) CheckUnsettled else CheckSettled).isAfter(now)) return Refound(false)
+        timetableChecked[trip.id] = now
         var changed = false
         val droppedIdx = mutableListOf<Int>()
         val newlyDropped = mutableListOf<Leg>()
@@ -229,15 +235,17 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
             val check = runCatching { checkSavedLeg(leg, intakePort) }.getOrNull() ?: continue
             val found = check.found
             if (found != null) {
-                val data = supabase.postgrest.rpc(
-                    "abeona_attach_leg",
-                    buildJsonObject {
-                        put("p_trip_id", trip.id)
-                        put("p_idx", idx)
-                        put("p_leg", NexusJson.encodeToJsonElement(found))
-                    },
-                ).data
-                changed = changed || data.trim() == "true"
+                if (leg.tripRef.isNullOrEmpty() || leg.dropped || found.tripRef != leg.tripRef) {
+                    val data = supabase.postgrest.rpc(
+                        "abeona_attach_leg",
+                        buildJsonObject {
+                            put("p_trip_id", trip.id)
+                            put("p_idx", idx)
+                            put("p_leg", NexusJson.encodeToJsonElement(found))
+                        },
+                    ).data
+                    changed = changed || data.trim() == "true"
+                }
             } else if (check.dropped || leg.dropped) {
                 droppedIdx += idx
                 if (!leg.dropped) {
@@ -258,7 +266,7 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
         // The same trains, still workable: followed without asking. Not over a connection someone already chose.
         var adjusted: List<Leg>? = null
         if (droppedIdx.isNotEmpty() && trip.missedLegIdx == null) {
-            runCatching { clearReplacement(trip.legs, droppedIdx.first(), intakePort) }.getOrNull()?.let { (missedIdx, replacement) ->
+            runCatching { clearReplacement(trip.legs, droppedIdx.min(), intakePort) }.getOrNull()?.let { (missedIdx, replacement) ->
                 recordDisruption(trip.id, missedIdx, replacement)
                 adjusted = replacement
                 changed = true
@@ -591,8 +599,11 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
     suspend fun downloadTicket(path: String): ByteArray = tickets.downloadAuthenticated(path)
 
     companion object {
-        /** How often a trip's unfound rides are looked up again, at most; the web uses the same. */
-        val RefindEvery: java.time.Duration = java.time.Duration.ofMinutes(15)
+        /** How often a trip is checked against the timetable while a ride is unfound or dropped; the web uses the same. */
+        val CheckUnsettled: java.time.Duration = java.time.Duration.ofMinutes(15)
+
+        /** How often a trip whose rides were all found is checked against the timetable. */
+        val CheckSettled: java.time.Duration = java.time.Duration.ofHours(3)
 
         /** How far ahead the reminder and the Trips banner look for a cancellation deadline; the web uses the same. */
         const val DEADLINE_DAYS = 14
