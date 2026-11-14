@@ -13,7 +13,7 @@ import type {
   Station,
   Stopover,
 } from "./transit";
-import type { TransitPort } from "./intake/match";
+import { findSavedLeg, isUnfound, type TransitPort } from "./intake/match";
 
 /**
  * The only module that talks to Supabase. Re-exported so call sites keep
@@ -737,6 +737,8 @@ export async function fetchClaimsOverview(year: number): Promise<ClaimsOverview>
  * whether anything was updated.
  */
 export async function refreshTripLive(trip: Trip): Promise<boolean> {
+  const refound = await refindTrip(trip).catch(() => false);
+  if (refound) trip = (await fetchTrip(trip.id)) ?? trip;
   const legs: RefreshLegRef[] = trip.legs.map((leg) => ({
     trip_ref: leg.trip_ref,
     from_id: leg.from.id,
@@ -774,7 +776,40 @@ export async function refreshTripLive(trip: Trip): Promise<boolean> {
     if (error) throw error;
   }
   const replaced = await refreshReplacement(trip).catch(() => false);
-  return updates.length > 0 || replaced;
+  return refound || updates.length > 0 || replaced;
+}
+
+/** When each trip's unfound rides were last looked up, on this page: once per REFIND_MS. */
+const refindTried = new Map<string, number>();
+const REFIND_MS = 15 * 60_000;
+
+/**
+ * Rides saved without the timetable (a date after its next change, usually)
+ * looked up again, and attached through abeona_attach_leg once found: from
+ * then on they have their route, stops and live values like the others.
+ * Only rides still to come; at most once per REFIND_MS per trip. Returns
+ * whether one was attached. Android does the same (AbeonaRepository.refindTrip).
+ */
+export async function refindTrip(trip: Trip, now = Date.now()): Promise<boolean> {
+  if (trip.finalized_at) return false;
+  const todo = trip.legs
+    .map((leg, idx) => ({ leg, idx }))
+    .filter(({ leg }) => isUnfound(leg) && !!leg.to.planned && Date.parse(leg.to.planned) > now);
+  if (todo.length === 0) return false;
+  const last = refindTried.get(trip.id);
+  if (last !== undefined && now - last < REFIND_MS) return false;
+  refindTried.set(trip.id, now);
+
+  const sb = getSupabaseClient();
+  let attached = false;
+  for (const { leg, idx } of todo) {
+    const found = await findSavedLeg(leg, transitPort).catch(() => null);
+    if (!found) continue;
+    const { data, error } = await sb.rpc("abeona_attach_leg", { p_trip_id: trip.id, p_idx: idx, p_leg: found });
+    if (error) throw error;
+    attached ||= data === true;
+  }
+  return attached;
 }
 
 /**

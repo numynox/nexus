@@ -20,6 +20,7 @@
     fetchBahnCards,
     fetchTrip,
     recordDisruption,
+    refindTrip,
     refreshTripLive,
     type Trip,
   } from "../../lib/data";
@@ -194,6 +195,18 @@
     }
   }
 
+  async function refind() {
+    if (!trip) return;
+    try {
+      if (await refindTrip(trip)) {
+        const fresh = await fetchTrip(trip.id);
+        if (fresh) trip = fresh;
+      }
+    } catch {
+      // Quietly: the ride keeps its printed times until the next try.
+    }
+  }
+
   let busyTaking = $state(false);
 
   /** Follows [chosen] from now on: stored as the trip's replacement, which the page and Android's companion follow. */
@@ -279,7 +292,13 @@
     let timer: ReturnType<typeof setInterval> | undefined;
     void load(id).then(() => {
       // Final trips (frozen by the job, or imported as past trips) never change again.
-      if (!trip || trip.finalized_at || !isLiveWindow(trip.legs)) return;
+      if (!trip || trip.finalized_at) return;
+      // Outside the live window, only the rides the timetable did not have
+      // when saved are looked up again (inside it, refresh does that too).
+      if (!isLiveWindow(trip.legs)) {
+        void refind();
+        return;
+      }
       void refresh();
       // While the page is open on the day of the trip, every minute —
       // the web has no background service, so this is all it can do.

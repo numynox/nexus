@@ -13,12 +13,14 @@
  *    routes the same trains with another change (Frankfurt Flughafen instead
  *    of Hbf), which is why the trains count, not the journey.
  * 4. A ride nothing matches is kept as parsed: no route line, no trip id,
- *    never refreshed. Saving still works (`source` 'share' or 'pdf'). Its
+ *    no live values. Saving still works (`source` 'share' or 'pdf'). Its
  *    stops still get a place, so the map draws it: the neighbouring ride's
  *    stop at the same change where that ride was found (the printed names
  *    differ: "Frankfurt(Main)Hbf" and "Frankfurt (Main) Hauptbahnhof"),
  *    else the station looked up. A train the timetable does not have yet
- *    (a date after the next timetable change) is the usual reason.
+ *    (a date after the next timetable change) is the usual reason, so the
+ *    saved ride is looked up again later (findSavedLeg) and, once found,
+ *    attached through abeona_attach_leg.
  *
  * Times printed on DB's tickets and shares are local; they are read in
  * Europe/Berlin, which is also right for the Benelux, France, Austria,
@@ -251,4 +253,34 @@ export async function matchConnection(legs: ParsedLeg[], port: TransitPort): Pro
     total,
     problem: matched === total ? null : problem,
   };
+}
+
+/** A saved ride the timetable did not have when it was saved: a ride, with no trip ref. */
+export function isUnfound(leg: Leg): boolean {
+  return leg.mode !== "walk" && !leg.trip_ref && !!lineKey(leg.line_name);
+}
+
+/**
+ * A saved ride that was not in the timetable, looked up again: a search
+ * between its stops at its planned departure, and the ride with its line
+ * departing and arriving the same minutes. Null while the timetable still
+ * does not have it, or when the ride's stops have no id to search from.
+ */
+export async function findSavedLeg(leg: Leg, port: TransitPort): Promise<Leg | null> {
+  if (!isUnfound(leg) || !leg.from.id || !leg.to.id || !leg.from.planned || !leg.to.planned) return null;
+  const departure = new Date(leg.from.planned).toISOString();
+  const arrival = new Date(leg.to.planned).toISOString();
+  const key = lineKey(leg.line_name);
+  const answer = await port.journeys(leg.from.id, leg.to.id, departure);
+  for (const journey of answer) {
+    const hit = rides(journey).find(
+      (ride) =>
+        !!ride.trip_ref &&
+        lineKey(ride.line_name) === key &&
+        sameMinute(ride.from.planned, departure) &&
+        sameMinute(ride.to.planned, arrival),
+    );
+    if (hit) return hit;
+  }
+  return null;
 }
