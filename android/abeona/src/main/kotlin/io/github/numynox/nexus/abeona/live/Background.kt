@@ -16,6 +16,7 @@ import androidx.work.WorkerParameters
 import io.github.numynox.nexus.abeona.AbeonaApplication
 import io.github.numynox.nexus.abeona.data.Trip
 import io.github.numynox.nexus.abeona.reminders.LeaveReminder
+import io.github.numynox.nexus.abeona.reminders.TimetableChanges
 import io.github.numynox.nexus.abeona.widget.NextTripWidget
 import io.github.numynox.nexus.core.data.isNetworkFailure
 import java.time.Duration
@@ -214,15 +215,25 @@ class CompanionAlarmReceiver : BroadcastReceiver() {
     }
 }
 
-/** Half-hourly: the next trip's live values (on its day), the widget, and the companion's alarm. */
+/** Half-hourly: timetable changes on upcoming trips, the next trip's live values (on its day), the widget, and the companion's alarm. */
 class NextTripWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         val container = (applicationContext as AbeonaApplication).container
         container.core.auth.awaitUserId() ?: return Result.success()
         return try {
-            val trips = container.trips.upcoming().value
+            var trips = container.trips.upcoming().value
             val now = Instant.now()
             val zone = ZoneId.systemDefault()
+            // Rides saved without the timetable, looked up again for every
+            // upcoming trip: one the timetable no longer has, or the same
+            // trains at other times, is said once, with the trip updated.
+            trips = trips.map { trip ->
+                val refound = runCatching { container.repository.refindTrip(trip, now) }.getOrNull()
+                if (refound == null || !refound.changed) return@map trip
+                TimetableChanges.notify(applicationContext, trip, refound)
+                val fresh = runCatching { container.repository.trip(trip.id) }.getOrNull() ?: return@map trip
+                runCatching { container.trips.refresh(fresh) }.getOrDefault(fresh)
+            }
             trips.firstOrNull { it.expectedArrival.isAfter(now) }?.let { next ->
                 if (next.departureAt.atZone(zone).toLocalDate() <= LocalDate.now(zone)) runCatching { container.trips.refresh(next) }
             }

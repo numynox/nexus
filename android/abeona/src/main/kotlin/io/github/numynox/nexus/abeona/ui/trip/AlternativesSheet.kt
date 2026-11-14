@@ -57,6 +57,7 @@ import java.time.Duration
 internal fun alternativesTitle(reason: AlternativesReason?): String = when (reason) {
     AlternativesReason.Missed -> "Looks like you missed a connection"
     AlternativesReason.Cancelled -> "A train on your trip is cancelled"
+    AlternativesReason.Dropped -> "A train on your trip no longer runs as booked"
     AlternativesReason.Impossible -> "A change on your trip is impossible"
     AlternativesReason.AtRisk -> "A change on your trip is at risk"
     null -> "Alternatives"

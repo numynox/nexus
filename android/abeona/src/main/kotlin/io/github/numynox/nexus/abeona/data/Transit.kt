@@ -87,8 +87,17 @@ data class Leg(
     val polyline: List<List<Double>>? = null,
     val cancelled: Boolean = false,
     val realtime: Boolean = false,
+    /**
+     * Saved legs only: when a ride saved without the timetable was found to
+     * be missing from it on a date it covers (intake/Match.kt checkSavedLeg).
+     * Such a ride is also [cancelled].
+     */
+    @SerialName("dropped_at") val droppedAt: String? = null,
 ) {
     val isWalk: Boolean get() = mode == LegMode.Walk
+
+    /** No longer in the timetable for its date. */
+    val dropped: Boolean get() = droppedAt != null
 
     /** "ICE 597", else the product, else the mode. */
     val label: String

@@ -378,6 +378,48 @@ class TripViewModel(
         }
     }
 
+    /**
+     * Before the travel day, a ride no longer in the timetable: connections
+     * from where it would have left, from the arrival of the ride before it
+     * (else its own departure), to the destination.
+     */
+    fun findDroppedAlternatives(): Job = viewModelScope.launch {
+        val trip = _detail.value.valueOrNull?.trip ?: return@launch
+        val idx = trip.legs.indexOfFirst { !it.isWalk && it.dropped }.takeIf { it >= 0 } ?: return@launch
+        val dropped = trip.legs[idx]
+        val before = trip.legs.take(idx).lastOrNull { !it.isWalk }
+        val time = before?.to?.plannedAt ?: dropped.from.plannedAt ?: return@launch
+        val origin = AlternativesOrigin(dropped.from.id, dropped.from.name, dropped.from.lat, dropped.from.lon, time)
+        searching?.cancel()
+        _alternatives.value = AlternativesState(origin, loading = true)
+        searching = launch {
+            _alternatives.value = try {
+                AlternativesState(origin, loading = false, result = container.repository.alternatives(trip, origin))
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AlternativesState(origin, loading = false, error = e.describe())
+            }
+        }
+    }
+
+    /** [alternative] instead of the dropped ride and everything after it, followed from then on. */
+    fun takeInstead(alternative: Alternative, onError: (String) -> Unit, onDone: () -> Unit) {
+        val trip = _detail.value.valueOrNull?.trip ?: return
+        val idx = trip.legs.indexOfFirst { !it.isWalk && it.dropped }.takeIf { it >= 0 } ?: return
+        viewModelScope.launch {
+            runCatching { container.repository.recordDisruption(tripId, idx, alternative.legs) }
+                .onSuccess {
+                    updateTrip { it.copy(missedLegIdx = idx, replacementLegs = alternative.legs) }
+                    _detail.value.valueOrNull?.trip?.let { store.publish(it) }
+                    _alternatives.value = null
+                    NextTripWidget.refresh(application)
+                    onDone()
+                }
+                .onFailure { onError(it.describe()) }
+        }
+    }
+
     /** Back to the plan: forgets the connection taken instead. */
     fun followPlan(onError: (String) -> Unit) {
         viewModelScope.launch {

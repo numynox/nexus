@@ -290,7 +290,8 @@ fun alternativesOrigin(legs: List<Leg>, day: TravelDay, now: Instant): Alternati
 }
 
 /** Why the trip should offer alternatives by itself (glossary: Alternatives). */
-enum class AlternativesReason { Missed, Cancelled, Impossible, AtRisk }
+/** [Dropped]: a ride no longer in the timetable for its day (intake/Match.kt checkSavedLeg), before the travel day. */
+enum class AlternativesReason { Missed, Cancelled, Dropped, Impossible, AtRisk }
 
 /**
  * A missed change first, then a cancelled ride still ahead, then a change

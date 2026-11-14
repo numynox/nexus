@@ -13,7 +13,8 @@ import io.github.numynox.nexus.abeona.domain.applyRefresh
 import io.github.numynox.nexus.abeona.domain.followsReplacement
 import io.github.numynox.nexus.abeona.domain.refreshLegs
 import io.github.numynox.nexus.abeona.domain.intake.TransitPort
-import io.github.numynox.nexus.abeona.domain.intake.findSavedLeg
+import io.github.numynox.nexus.abeona.domain.intake.checkSavedLeg
+import io.github.numynox.nexus.abeona.domain.intake.clearReplacement
 import io.github.numynox.nexus.abeona.domain.intake.isUnfound
 import io.github.numynox.nexus.abeona.domain.liveUpdates
 import io.github.numynox.nexus.core.data.NexusJson
@@ -164,7 +165,7 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
      * abeona_update_trip_live, and returns the trip as it now stands.
      */
     suspend fun refreshTrip(given: Trip, now: Instant = Instant.now()): Trip {
-        val trip = if (runCatching { refindTrip(given, now) }.getOrDefault(false)) this.trip(given.id) ?: given else given
+        val trip = if (runCatching { refindTrip(given, now).changed }.getOrDefault(false)) this.trip(given.id) ?: given else given
         val body = buildJsonObject {
             put("action", "refresh")
             put("refresh_token", trip.refreshToken)
@@ -194,34 +195,76 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
     /** When each trip's unfound rides were last looked up, in this process: once per [RefindEvery]. */
     private val refindTried = java.util.concurrent.ConcurrentHashMap<String, Instant>()
 
+    /** What looking a trip's unfound rides up again changed. */
+    data class Refound(
+        /** Anything written: a ride attached or dropped, a connection taken. */
+        val changed: Boolean,
+        /** Rides this call found no longer in the timetable. */
+        val dropped: List<Leg> = emptyList(),
+        /** The connection Abeona took instead: the same trains, adjusted. */
+        val adjusted: List<Leg>? = null,
+    )
+
     /**
      * Rides saved without the timetable (a date after its next change,
-     * usually) looked up again, and attached through abeona_attach_leg once
-     * found: from then on they have their route, stops and live values like
-     * the others. Only rides still to come; at most once per [RefindEvery] per
-     * trip. Returns whether one was attached. The web does the same (data.ts refindTrip).
+     * usually) looked up again (intake/Match.kt checkSavedLeg). Found:
+     * attached through abeona_attach_leg. Missing on a date the timetable
+     * covers: marked dropped (abeona_mark_leg_dropped; cancelled, so the
+     * binding is lifted), and when the same trains still run with workable
+     * changes (clearReplacement), that connection is taken as the trip's
+     * replacement. Only rides still to come; at most once per [RefindEvery]
+     * per trip. The web does the same (data.ts refindTrip).
      */
-    suspend fun refindTrip(trip: Trip, now: Instant = Instant.now()): Boolean {
-        if (trip.finalizedAt != null) return false
-        val todo = trip.legs.withIndex().filter { (_, leg) -> isUnfound(leg) && leg.to.plannedAt?.isAfter(now) == true }
-        if (todo.isEmpty()) return false
+    suspend fun refindTrip(trip: Trip, now: Instant = Instant.now()): Refound {
+        if (trip.finalizedAt != null) return Refound(false)
+        val todo = trip.legs.withIndex().filter { (_, leg) -> isUnfound(leg) && leg.from.plannedAt?.isAfter(now) == true }
+        if (todo.isEmpty()) return Refound(false)
         val last = refindTried[trip.id]
-        if (last != null && last.plus(RefindEvery).isAfter(now)) return false
+        if (last != null && last.plus(RefindEvery).isAfter(now)) return Refound(false)
         refindTried[trip.id] = now
-        var attached = false
+        var changed = false
+        val droppedIdx = mutableListOf<Int>()
+        val newlyDropped = mutableListOf<Leg>()
         for ((idx, leg) in todo) {
-            val found = runCatching { findSavedLeg(leg, intakePort) }.getOrNull() ?: continue
-            val data = supabase.postgrest.rpc(
-                "abeona_attach_leg",
-                buildJsonObject {
-                    put("p_trip_id", trip.id)
-                    put("p_idx", idx)
-                    put("p_leg", NexusJson.encodeToJsonElement(found))
-                },
-            ).data
-            attached = attached || data.trim() == "true"
+            val check = runCatching { checkSavedLeg(leg, intakePort) }.getOrNull() ?: continue
+            val found = check.found
+            if (found != null) {
+                val data = supabase.postgrest.rpc(
+                    "abeona_attach_leg",
+                    buildJsonObject {
+                        put("p_trip_id", trip.id)
+                        put("p_idx", idx)
+                        put("p_leg", NexusJson.encodeToJsonElement(found))
+                    },
+                ).data
+                changed = changed || data.trim() == "true"
+            } else if (check.dropped || leg.dropped) {
+                droppedIdx += idx
+                if (!leg.dropped) {
+                    val data = supabase.postgrest.rpc(
+                        "abeona_mark_leg_dropped",
+                        buildJsonObject {
+                            put("p_trip_id", trip.id)
+                            put("p_idx", idx)
+                        },
+                    ).data
+                    if (data.trim() == "true") {
+                        changed = true
+                        newlyDropped += leg
+                    }
+                }
+            }
         }
-        return attached
+        // The same trains, still workable: followed without asking. Not over a connection someone already chose.
+        var adjusted: List<Leg>? = null
+        if (droppedIdx.isNotEmpty() && trip.missedLegIdx == null) {
+            runCatching { clearReplacement(trip.legs, droppedIdx.first(), intakePort) }.getOrNull()?.let { (missedIdx, replacement) ->
+                recordDisruption(trip.id, missedIdx, replacement)
+                adjusted = replacement
+                changed = true
+            }
+        }
+        return Refound(changed, newlyDropped, adjusted)
     }
 
     /**

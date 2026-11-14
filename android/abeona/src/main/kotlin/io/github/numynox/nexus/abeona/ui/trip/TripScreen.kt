@@ -38,6 +38,8 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ConfirmationNumber
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.EventBusy
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
@@ -175,6 +177,7 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
     // Every 15 s: the dashboard's countdowns and the train on its line move with it.
     val now by rememberTicker(Duration.ofSeconds(15))
     var showAlternatives by rememberSaveable { mutableStateOf(false) }
+    var showDroppedAlternatives by rememberSaveable { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val pull = rememberPullRefresh(viewModel::refresh)
@@ -409,6 +412,10 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                         }
                     },
                     onFollowPlan = { viewModel.followPlan(showError) },
+                    onDroppedAlternatives = {
+                        showDroppedAlternatives = true
+                        viewModel.findDroppedAlternatives()
+                    },
                 )
             }
         }
@@ -430,6 +437,23 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                     showAlternatives = false
                     val first = alternative.legs.firstOrNull { !it.isWalk }
                     scope.launch { snackbar.showSnackbar("Following the ${first?.label ?: "new connection"} from now on") }
+                }
+            },
+        )
+    }
+
+    if (showDroppedAlternatives) {
+        AlternativesSheet(
+            state = alternatives,
+            reason = AlternativesReason.Dropped,
+            destination = (detail as? Loadable.Ready)?.value?.trip?.destinationName.orEmpty(),
+            onSearchAgain = { viewModel.findDroppedAlternatives() },
+            onDismiss = { showDroppedAlternatives = false },
+            onTake = { alternative ->
+                viewModel.takeInstead(alternative, showError) {
+                    showDroppedAlternatives = false
+                    val first = alternative.legs.firstOrNull { !it.isWalk }
+                    scope.launch { snackbar.showSnackbar("Following the ${first?.label ?: "new connection"} instead") }
                 }
             },
         )
@@ -543,6 +567,8 @@ private fun TripContent(
     onLiveUpdatesSettings: () -> Unit,
     /** Forget the connection taken instead, and follow the plan again. */
     onFollowPlan: () -> Unit,
+    /** A ride no longer in the timetable: find another connection. */
+    onDroppedAlternatives: () -> Unit,
 ) {
     val trip = detail.trip
     // The journey as travelled: the plan, or the connection taken instead.
@@ -550,7 +576,10 @@ private fun TripContent(
     val changes = remember(journey) { transfers(journey.legs) }
     // The ticket's binding is about the booked journey (as on the server), not a connection taken instead.
     val arrivalDelay = finalArrivalDelay(trip.legs)
-    val connectionBroken = hasImpossibleChange(trip.legs) || live?.missedShort == true
+    // A ride no longer in the timetable for its day (AbeonaRepository.refindTrip): cancelled as booked.
+    val droppedIdx = trip.legs.indexOfFirst { !it.isWalk && it.dropped }
+    val dropped = trip.legs.getOrNull(droppedIdx)
+    val connectionBroken = hasImpossibleChange(trip.legs) || live?.missedShort == true || dropped != null
     LazyColumn(
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -567,15 +596,22 @@ private fun TripContent(
                         arrivalDelay,
                         because = when {
                             arrivalDelay >= 20 -> null
+                            dropped != null -> "${dropped.label} no longer runs as booked."
                             live?.missedShort == true -> "You missed a change that had less than 5 minutes."
                             else -> "A change on your trip cannot be made."
                         },
                     )
                 }
-                if (following) FollowingCard(trip, onFollowPlan)
+                if (dropped != null && !following) DroppedCard(dropped, onDroppedAlternatives)
+                // The same trains at other times, taken by Abeona for the dropped ride: there is no plan to go back to.
+                if (following && dropped != null && (trip.missedLegIdx ?: Int.MAX_VALUE) <= droppedIdx) {
+                    AdjustedCard(trip, dropped)
+                } else if (following) {
+                    FollowingCard(trip, onFollowPlan)
+                }
             }
         }
-        val anyNotice = binding || following
+        val anyNotice = binding || following || (!over && dropped != null)
         // While the trip is live, everything live is in the one card; above it only what does not change.
         item(key = "header") { TripHeader(detail, live = live != null) }
         if (live != null) {
@@ -763,7 +799,7 @@ private fun LegCard(leg: Leg) {
             if (leg.cancelled) {
                 val colors = danger
                 Surface(color = colors.container, contentColor = colors.content, shape = RoundedCornerShape(8.dp)) {
-                    Text("Cancelled", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
+                    Text(if (leg.dropped) "Not in the timetable" else "Cancelled", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
                 }
             } else if (!leg.realtime) {
                 StatusPill("Timetable only")
@@ -934,6 +970,48 @@ private fun LiveUpdatesOff(onSettings: () -> Unit) {
 }
 
 /** A connection from the alternatives was taken: which, and the way back to the plan. */
+/** A ride no longer in the timetable for its day, and nothing followed instead yet. */
+@Composable
+private fun DroppedCard(dropped: Leg, onFindAlternatives: () -> Unit) {
+    val colors = danger
+    NexusCard(Modifier.fillMaxWidth(), containerColor = colors.container) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+            Icon(Icons.Rounded.EventBusy, contentDescription = null, tint = colors.content, modifier = Modifier.padding(top = 2.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("${dropped.label} is no longer in the timetable", style = MaterialTheme.typography.titleSmall, color = colors.content)
+                Text(
+                    "Not on ${dropped.from.plannedAt?.let { TripFormat.date(it.atZone(java.time.ZoneId.systemDefault()).toLocalDate()) } ?: "its day"} any more, " +
+                        "usually because of engineering works. Choose another connection; Abeona follows it from then on.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.content,
+                )
+            }
+        }
+        Button(onClick = onFindAlternatives, modifier = Modifier.align(Alignment.End).padding(top = 8.dp)) { Text("Find another connection") }
+    }
+}
+
+/** The same trains at other times, taken by Abeona because [dropped] no longer runs as booked. */
+@Composable
+private fun AdjustedCard(trip: Trip, dropped: Leg) {
+    val replacement = trip.replacementLegs.orEmpty()
+    val first = replacement.firstOrNull { !it.isWalk } ?: replacement.firstOrNull() ?: return
+    NexusCard(Modifier.fillMaxWidth(), containerColor = MaterialTheme.colorScheme.secondaryContainer) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+            Icon(Icons.Rounded.Schedule, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.padding(top = 2.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Adjusted for a timetable change", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                Text(
+                    "${dropped.label} no longer runs as booked, but your trains still connect. From ${first.from.name}: " +
+                        replacement.filter { !it.isWalk }.joinToString(" › ") { "${it.label} ${TripFormat.time(it.from.plannedAt)}" } + ".",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun FollowingCard(trip: Trip, onFollowPlan: () -> Unit) {
     val replacement = trip.replacementLegs.orEmpty()
