@@ -104,6 +104,10 @@ internal fun Leg.points(): List<Pair<Double, Double>> {
     return listOfNotNull(a, b)
 }
 
+/** A ride with no route of its own, drawn straight through its stops: a guess, so dashed. The web does the same. */
+internal val Leg.estimated: Boolean
+    get() = !isWalk && (polyline?.count { it.size >= 2 } ?: 0) < 2
+
 private fun hex(color: Color) = "#%06X".format(0xFFFFFF and color.toArgb())
 
 /**
@@ -129,7 +133,7 @@ private fun tripStyle(legs: List<Leg>, dark: Boolean, ride: Color, walk: Color, 
                 if (points.size < 2) return@forEach
                 addJsonObject {
                     put("type", "Feature")
-                    putJsonObject("properties") { put("walk", leg.isWalk) }
+                    putJsonObject("properties") { put("walk", leg.isWalk); put("estimated", leg.estimated) }
                     putJsonObject("geometry") {
                         put("type", "LineString")
                         putJsonArray("coordinates") { points.forEach { (lon, lat) -> addJsonArray { add(lon); add(lat) } } }
@@ -150,8 +154,12 @@ private fun tripStyle(legs: List<Leg>, dark: Boolean, ride: Color, walk: Color, 
             }
         }
     }
-    fun walkIs(value: Boolean) =
-        JsonArray(listOf(JsonPrimitive("=="), JsonArray(listOf(JsonPrimitive("get"), JsonPrimitive("walk"))), JsonPrimitive(value)))
+    fun propIs(name: String, value: Boolean) =
+        JsonArray(listOf(JsonPrimitive("=="), JsonArray(listOf(JsonPrimitive("get"), JsonPrimitive(name))), JsonPrimitive(value)))
+    fun walkIs(value: Boolean) = propIs("walk", value)
+    // A ride on its route; a guess (no route, straight through its stops) is dashed and has no casing.
+    val routed = JsonArray(listOf(JsonPrimitive("all"), walkIs(false), propIs("estimated", false)))
+    val guessed = JsonArray(listOf(JsonPrimitive("all"), walkIs(false), propIs("estimated", true)))
     return buildJsonObject {
         put("version", 8)
         putJsonObject("sources") {
@@ -178,15 +186,23 @@ private fun tripStyle(legs: List<Leg>, dark: Boolean, ride: Color, walk: Color, 
             }
             addJsonObject {
                 put("id", "ride-casing"); put("type", "line"); put("source", "trip")
-                put("filter", walkIs(false))
+                put("filter", routed)
                 putJsonObject("layout") { put("line-cap", "round"); put("line-join", "round") }
                 putJsonObject("paint") { put("line-color", "#FFFFFF"); put("line-width", 8) }
             }
             addJsonObject {
                 put("id", "ride"); put("type", "line"); put("source", "trip")
-                put("filter", walkIs(false))
+                put("filter", routed)
                 putJsonObject("layout") { put("line-cap", "round"); put("line-join", "round") }
                 putJsonObject("paint") { put("line-color", hex(ride)); put("line-width", 5) }
+            }
+            addJsonObject {
+                put("id", "ride-estimated"); put("type", "line"); put("source", "trip")
+                put("filter", guessed)
+                putJsonObject("paint") {
+                    put("line-color", hex(ride)); put("line-width", 5)
+                    putJsonArray("line-dasharray") { add(1.6); add(2.4) }
+                }
             }
             addJsonObject {
                 put("id", "walk"); put("type", "line"); put("source", "trip")
@@ -413,6 +429,8 @@ private fun SchematicTripMap(legs: List<Leg>, modifier: Modifier, marker: MapMar
             val path = Path().apply { moveTo(points[0].x, points[0].y); points.drop(1).forEach { lineTo(it.x, it.y) } }
             if (leg.isWalk) {
                 drawPath(path, walk, style = Stroke(3.dp.toPx(), cap = StrokeCap.Round, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 6.dp.toPx()))))
+            } else if (leg.estimated) {
+                drawPath(path, ride, style = Stroke(5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 12.dp.toPx()))))
             } else {
                 drawPath(path, surface, style = Stroke(9.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
                 drawPath(path, ride, style = Stroke(5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
