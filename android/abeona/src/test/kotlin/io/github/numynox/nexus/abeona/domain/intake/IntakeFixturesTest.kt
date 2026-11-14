@@ -65,9 +65,25 @@ class IntakeFixturesTest {
         val expect: MatchExpect,
     )
 
-    /** A saved ride the timetable did not have, looked up again; the trip ref found, or null. */
     @Serializable
-    private data class RefindCase(val name: String, val leg: Leg, val journeys: Map<String, List<Journey>>, val expect: String?)
+    private data class RefindExpect(@SerialName("trip_ref") val tripRef: String?, val dropped: Boolean)
+
+    /** A saved ride the timetable did not have, looked up again. */
+    @Serializable
+    private data class RefindCase(val name: String, val leg: Leg, val journeys: Map<String, List<Journey>>, val expect: RefindExpect)
+
+    @Serializable
+    private data class ReplaceExpect(@SerialName("missed_idx") val missedIdx: Int, @SerialName("trip_refs") val tripRefs: List<String?>)
+
+    /** A dropped ride's clear replacement, or null when the traveller chooses. */
+    @Serializable
+    private data class ReplaceCase(
+        val name: String,
+        val legs: List<Leg>,
+        @SerialName("dropped_idx") val droppedIdx: Int,
+        val journeys: Map<String, List<Journey>>,
+        val expect: ReplaceExpect?,
+    )
 
     @Serializable
     private data class Fixtures(
@@ -84,6 +100,7 @@ class IntakeFixturesTest {
         @SerialName("ticket_summary") val ticketSummary: List<SummaryCase>,
         @SerialName("ticket_cards") val ticketCards: List<CardsCase>,
         val refinding: List<RefindCase>,
+        val replacing: List<ReplaceCase>,
     )
 
     @Serializable
@@ -217,12 +234,22 @@ class IntakeFixturesTest {
         }
     }
 
+    private fun portOf(journeys: Map<String, List<Journey>>) = object : TransitPort {
+        override suspend fun stations(query: String) = emptyList<Station>()
+        override suspend fun journeys(from: String, to: String, time: Instant) = journeys["$from>$to@${time.webIso()}"] ?: emptyList()
+    }
+
     @Test
     fun refinding() = fixtures.refinding.forEach { c ->
-        val port = object : TransitPort {
-            override suspend fun stations(query: String) = emptyList<Station>()
-            override suspend fun journeys(from: String, to: String, time: Instant) = c.journeys["$from>$to@${time.webIso()}"] ?: emptyList()
-        }
-        assertEquals(c.name, c.expect, runBlocking { findSavedLeg(c.leg, port) }?.tripRef)
+        val check = runBlocking { checkSavedLeg(c.leg, portOf(c.journeys)) }
+        assertEquals(c.name, c.expect.tripRef, check.found?.tripRef)
+        assertEquals(c.name, c.expect.dropped, check.dropped)
+    }
+
+    @Test
+    fun replacing() = fixtures.replacing.forEach { c ->
+        val result = runBlocking { clearReplacement(c.legs, c.droppedIdx, portOf(c.journeys)) }
+        assertEquals(c.name, c.expect?.missedIdx, result?.first)
+        assertEquals(c.name, c.expect?.tripRefs, result?.second?.filter { it.mode != LegMode.Walk }?.map { it.tripRef })
     }
 }
