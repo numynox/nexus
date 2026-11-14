@@ -29,11 +29,18 @@ would be busywork.
   `abeona_attach_leg` clears it if the ride comes back.
 - **The clear case is followed without asking** (`clearReplacement`, fixtures
   `replacing`). It needs the same trains in the same order, from the ride
-  before the dropped one to the destination, none cancelled, and every change
-  safe or tight (transfer.ts). It is stored like a taken alternative
-  (`missed_leg_idx` = that ride, `replacement_legs`), shown as "Adjusted for a
-  timetable change", with no "Back to the plan", since the plan does not run.
-  Nothing is taken over a connection someone already chose.
+  before the dropped one to where the dropped one ends, then the booked rides
+  after it as they are. None may be cancelled or unfound, and every change
+  must be safe or tight (transfer.ts). On 22 Nov 2026, ICE 725 left from
+  Frankfurt Flughafen 17:42 instead of the Hbf 17:57: get off ICE 17 there,
+  take ICE 725, then the booked ICE 700. The search only goes to the dropped
+  ride's end on purpose. Searched to the destination, the router preferred an
+  S-Bahn arriving minutes before the booked ICE 700, and the same trains were
+  never offered. The result is stored like a taken alternative
+  (`missed_leg_idx` = the ride before, `replacement_legs`) and shown as
+  "Adjusted for a timetable change", with no "Back to the plan", since the
+  plan does not run. Nothing is taken over a connection someone already
+  chose.
 - **Otherwise the traveller chooses:** "X is no longer in the timetable" with
   the alternatives from the dropped ride's station, from the arrival of the
   ride before it. Taking one replaces the dropped ride and the rest.

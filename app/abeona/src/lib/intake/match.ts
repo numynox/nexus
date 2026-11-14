@@ -311,19 +311,22 @@ export async function checkSavedLeg(leg: Leg, port: TransitPort): Promise<SavedL
   return { found: null, dropped: later };
 }
 
-/** The rides' trains, in order: ["ICE17", "ICE725", "ICE700"]. */
+/** The rides' trains, in order: ["ICE17", "ICE725"]. */
 function trainsOf(legs: Leg[]): string[] {
   return legs.filter((l) => l.mode !== "walk").map((l) => lineKey(l.line_name));
 }
 
 /**
- * When a ride was dropped, the connection that is clearly the same trip: the
- * same trains, in the same order, from the ride before the dropped one (the
- * change may have moved, as when a train skips Frankfurt Hbf for the
- * airport) to the destination, with every change still workable (safe or
- * tight, transfer.ts). What to store as the replacement (missed_leg_idx,
- * replacement_legs); null when there is no such connection, and the
- * traveller has to choose.
+ * When a ride was dropped, the connection that is clearly the same trip:
+ * the same trains, in the same order, from the ride before the dropped one
+ * to where the dropped one ends (the change may have moved, as when ICE 725
+ * left from Frankfurt Flughafen instead of the Hbf, so the ride before is
+ * left there), then the booked rides after it as they are. Every change
+ * must still be workable (safe or tight, transfer.ts), the booked ones after
+ * it included. Searching only to the dropped ride's end matters: to the
+ * destination, a router prefers a quicker last train to the booked one.
+ * What to store as the replacement (missed_leg_idx, replacement_legs); null
+ * when there is no such connection, and the traveller has to choose.
  */
 export async function clearReplacement(
   legs: Leg[],
@@ -335,16 +338,20 @@ export async function clearReplacement(
   if (pos < 0) return null;
   const startIdx = rideIdx[Math.max(0, pos - 1)];
   const start = legs[startIdx];
-  const end = legs[rideIdx[rideIdx.length - 1]];
-  if (!start.from.id || !end.to.id || !start.from.planned) return null;
-  const wanted = trainsOf(legs.slice(startIdx));
-  const answer = await port.journeys(start.from.id, end.to.id, new Date(start.from.planned).toISOString());
+  const dropped = legs[droppedIdx];
+  if (!start.from.id || !dropped.to.id || !start.from.planned) return null;
+  const wanted = trainsOf(legs.slice(startIdx, droppedIdx + 1));
+  const after = legs.slice(droppedIdx + 1);
+  // A later ride that is not in the timetable either cannot be relied on.
+  if (after.some((l) => l.mode !== "walk" && (l.cancelled || !l.trip_ref))) return null;
+  const answer = await port.journeys(start.from.id, dropped.to.id, new Date(start.from.planned).toISOString());
   for (const journey of answer) {
     if (trainsOf(journey.legs).join(" ") !== wanted.join(" ")) continue;
     if (journey.legs.some((l) => l.mode !== "walk" && (l.cancelled || !l.trip_ref))) continue;
-    const confidence = overallConfidence(transfers(journey.legs));
+    const replacement = [...journey.legs, ...after];
+    const confidence = overallConfidence(transfers(replacement));
     if (confidence === "impossible" || confidence === "at_risk") continue;
-    return { missedIdx: startIdx, replacement: journey.legs };
+    return { missedIdx: startIdx, replacement };
   }
   return null;
 }

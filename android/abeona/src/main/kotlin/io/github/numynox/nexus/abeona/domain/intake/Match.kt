@@ -240,9 +240,10 @@ private fun trainsOf(legs: List<Leg>): List<String> = legs.filter { it.mode != L
 
 /**
  * When a ride was dropped, the connection that is clearly the same trip
- * (match.ts clearReplacement): the same trains in the same order, from the
- * ride before the dropped one to the destination, every change safe or
- * tight. Null when the traveller has to choose.
+ * (match.ts clearReplacement): the same trains in the same order from the
+ * ride before the dropped one to where the dropped one ends, then the booked
+ * rides after it as they are; every change safe or tight. Null when the
+ * traveller has to choose.
  */
 suspend fun clearReplacement(legs: List<Leg>, droppedIdx: Int, port: TransitPort): Pair<Int, List<Leg>>? {
     val rideIdx = legs.indices.filter { legs[it].mode != LegMode.Walk }
@@ -250,19 +251,21 @@ suspend fun clearReplacement(legs: List<Leg>, droppedIdx: Int, port: TransitPort
     if (pos < 0) return null
     val startIdx = rideIdx[maxOf(0, pos - 1)]
     val start = legs[startIdx]
-    val end = legs[rideIdx.last()]
+    val dropped = legs[droppedIdx]
     val from = start.from.id ?: return null
-    val to = end.to.id ?: return null
+    val to = dropped.to.id ?: return null
     val time = start.from.plannedAt ?: return null
-    val wanted = trainsOf(legs.drop(startIdx))
+    val wanted = trainsOf(legs.subList(startIdx, droppedIdx + 1))
+    val after = legs.drop(droppedIdx + 1)
+    // A later ride that is not in the timetable either cannot be relied on.
+    if (after.any { it.mode != LegMode.Walk && (it.cancelled || it.tripRef.isNullOrEmpty()) }) return null
     for (journey in port.journeys(from, to, time)) {
         if (trainsOf(journey.legs) != wanted) continue
         if (journey.legs.any { it.mode != LegMode.Walk && (it.cancelled || it.tripRef.isNullOrEmpty()) }) continue
-        val worst = worstConfidence(journey.legs)
-        if (worst == Confidence.IMPOSSIBLE ||
-            worst == Confidence.AT_RISK
-        ) continue
-        return startIdx to journey.legs
+        val replacement = journey.legs + after
+        val worst = worstConfidence(replacement)
+        if (worst == Confidence.IMPOSSIBLE || worst == Confidence.AT_RISK) continue
+        return startIdx to replacement
     }
     return null
 }

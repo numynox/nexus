@@ -2206,7 +2206,7 @@
   ],
   "replacing": [
     {
-      "name": "the same trains, changing at the airport instead of the Hbf: taken from the ride before",
+      "name": "ICE 725 from the airport instead of the Hbf: ICE 17 is left there, ICE 700 stays as booked",
       "legs": [
         {
           "mode": "train",
@@ -2277,7 +2277,7 @@
       ],
       "dropped_idx": 1,
       "journeys": {
-        "be:liege>de:erl@2026-11-22T14:14:00.000Z": [
+        "be:liege>de:nue@2026-11-22T14:14:00.000Z": [
           {
             "provider": "transitous",
             "refresh_token": null,
@@ -2297,7 +2297,7 @@
                 "to": {
                   "id": "de:fra",
                   "name": "Frankfurt (Main) Flughafen Fernbahnhof",
-                  "planned": "2026-11-22T16:15:00Z",
+                  "planned": "2026-11-22T16:13:00Z",
                   "planned_platform": null,
                   "platform": null
                 },
@@ -2306,42 +2306,20 @@
               },
               {
                 "mode": "train",
-                "line_name": "ICE 729",
+                "line_name": "ICE 727",
                 "product": "ICE",
-                "trip_ref": "ice729",
+                "trip_ref": "ice727",
                 "from": {
                   "id": "de:fra",
                   "name": "Frankfurt (Main) Flughafen Fernbahnhof",
-                  "planned": "2026-11-22T17:39:00Z",
+                  "planned": "2026-11-22T17:42:00Z",
                   "planned_platform": null,
                   "platform": null
                 },
                 "to": {
                   "id": "de:nue",
                   "name": "N\u00fcrnberg Hbf",
-                  "planned": "2026-11-22T20:28:00Z",
-                  "planned_platform": null,
-                  "platform": null
-                },
-                "polyline": null,
-                "cancelled": false
-              },
-              {
-                "mode": "train",
-                "line_name": "RE 1",
-                "product": "RE",
-                "trip_ref": "re1",
-                "from": {
-                  "id": "de:nue",
-                  "name": "N\u00fcrnberg Hbf",
-                  "planned": "2026-11-22T20:40:00Z",
-                  "planned_platform": null,
-                  "platform": null
-                },
-                "to": {
-                  "id": "de:erl",
-                  "name": "Erlangen",
-                  "planned": "2026-11-22T21:00:00Z",
+                  "planned": "2026-11-22T20:38:00Z",
                   "planned_platform": null,
                   "platform": null
                 },
@@ -2369,7 +2347,7 @@
                 "to": {
                   "id": "de:fra",
                   "name": "Frankfurt (Main) Flughafen Fernbahnhof",
-                  "planned": "2026-11-22T16:15:00Z",
+                  "planned": "2026-11-22T16:13:00Z",
                   "planned_platform": null,
                   "platform": null
                 },
@@ -2384,7 +2362,7 @@
                 "from": {
                   "id": "de:fra",
                   "name": "Frankfurt (Main) Flughafen Fernbahnhof",
-                  "planned": "2026-11-22T16:40:00Z",
+                  "planned": "2026-11-22T16:42:00Z",
                   "planned_platform": null,
                   "platform": null
                 },
@@ -2392,28 +2370,6 @@
                   "id": "de:nue",
                   "name": "N\u00fcrnberg Hbf",
                   "planned": "2026-11-22T20:04:00Z",
-                  "planned_platform": null,
-                  "platform": null
-                },
-                "polyline": null,
-                "cancelled": false
-              },
-              {
-                "mode": "train",
-                "line_name": "ICE 700",
-                "product": "ICE",
-                "trip_ref": "ice700",
-                "from": {
-                  "id": "de:nue",
-                  "name": "N\u00fcrnberg Hbf",
-                  "planned": "2026-11-22T20:05:00Z",
-                  "planned_platform": null,
-                  "platform": null
-                },
-                "to": {
-                  "id": "de:erl",
-                  "name": "Erlangen",
-                  "planned": "2026-11-22T20:18:00Z",
                   "planned_platform": null,
                   "platform": null
                 },
@@ -2441,7 +2397,7 @@
                 "to": {
                   "id": "de:fra",
                   "name": "Frankfurt (Main) Flughafen Fernbahnhof",
-                  "planned": "2026-11-22T16:15:00Z",
+                  "planned": "2026-11-22T16:13:00Z",
                   "planned_platform": null,
                   "platform": null
                 },
@@ -2456,36 +2412,14 @@
                 "from": {
                   "id": "de:fra",
                   "name": "Frankfurt (Main) Flughafen Fernbahnhof",
-                  "planned": "2026-11-22T16:40:00Z",
+                  "planned": "2026-11-22T16:42:00Z",
                   "planned_platform": null,
                   "platform": null
                 },
                 "to": {
                   "id": "de:nue",
                   "name": "N\u00fcrnberg Hbf",
-                  "planned": "2026-11-22T19:45:00Z",
-                  "planned_platform": null,
-                  "platform": null
-                },
-                "polyline": null,
-                "cancelled": false
-              },
-              {
-                "mode": "train",
-                "line_name": "ICE 700",
-                "product": "ICE",
-                "trip_ref": "ice700",
-                "from": {
-                  "id": "de:nue",
-                  "name": "N\u00fcrnberg Hbf",
-                  "planned": "2026-11-22T20:05:00Z",
-                  "planned_platform": null,
-                  "platform": null
-                },
-                "to": {
-                  "id": "de:erl",
-                  "name": "Erlangen",
-                  "planned": "2026-11-22T20:18:00Z",
+                  "planned": "2026-11-22T19:36:00Z",
                   "planned_platform": null,
                   "platform": null
                 },
@@ -2506,7 +2440,7 @@
       }
     },
     {
-      "name": "the same trains, but a change that no longer works: the traveller chooses",
+      "name": "the same trains, but the booked change after them no longer works: the traveller chooses",
       "legs": [
         {
           "mode": "train",
@@ -2577,7 +2511,7 @@
       ],
       "dropped_idx": 1,
       "journeys": {
-        "be:liege>de:erl@2026-11-22T14:14:00.000Z": [
+        "be:liege>de:nue@2026-11-22T14:14:00.000Z": [
           {
             "provider": "transitous",
             "refresh_token": null,
@@ -2597,7 +2531,7 @@
                 "to": {
                   "id": "de:fra",
                   "name": "Frankfurt (Main) Flughafen Fernbahnhof",
-                  "planned": "2026-11-22T16:15:00Z",
+                  "planned": "2026-11-22T16:13:00Z",
                   "planned_platform": null,
                   "platform": null
                 },
@@ -2612,7 +2546,7 @@
                 "from": {
                   "id": "de:fra",
                   "name": "Frankfurt (Main) Flughafen Fernbahnhof",
-                  "planned": "2026-11-22T16:40:00Z",
+                  "planned": "2026-11-22T16:42:00Z",
                   "planned_platform": null,
                   "platform": null
                 },
@@ -2620,28 +2554,6 @@
                   "id": "de:nue",
                   "name": "N\u00fcrnberg Hbf",
                   "planned": "2026-11-22T20:04:00Z",
-                  "planned_platform": null,
-                  "platform": null
-                },
-                "polyline": null,
-                "cancelled": false
-              },
-              {
-                "mode": "train",
-                "line_name": "ICE 700",
-                "product": "ICE",
-                "trip_ref": "ice700",
-                "from": {
-                  "id": "de:nue",
-                  "name": "N\u00fcrnberg Hbf",
-                  "planned": "2026-11-22T20:05:00Z",
-                  "planned_platform": null,
-                  "platform": null
-                },
-                "to": {
-                  "id": "de:erl",
-                  "name": "Erlangen",
-                  "planned": "2026-11-22T20:18:00Z",
                   "planned_platform": null,
                   "platform": null
                 },
@@ -2655,7 +2567,7 @@
       "expect": null
     },
     {
-      "name": "only other trains: the traveller chooses",
+      "name": "only another train: the traveller chooses",
       "legs": [
         {
           "mode": "train",
@@ -2726,7 +2638,7 @@
       ],
       "dropped_idx": 1,
       "journeys": {
-        "be:liege>de:erl@2026-11-22T14:14:00.000Z": [
+        "be:liege>de:nue@2026-11-22T14:14:00.000Z": [
           {
             "provider": "transitous",
             "refresh_token": null,
@@ -2746,7 +2658,7 @@
                 "to": {
                   "id": "de:fra",
                   "name": "Frankfurt (Main) Flughafen Fernbahnhof",
-                  "planned": "2026-11-22T16:15:00Z",
+                  "planned": "2026-11-22T16:13:00Z",
                   "planned_platform": null,
                   "platform": null
                 },
@@ -2755,42 +2667,20 @@
               },
               {
                 "mode": "train",
-                "line_name": "ICE 729",
+                "line_name": "ICE 727",
                 "product": "ICE",
-                "trip_ref": "ice729",
+                "trip_ref": "ice727",
                 "from": {
                   "id": "de:fra",
                   "name": "Frankfurt (Main) Flughafen Fernbahnhof",
-                  "planned": "2026-11-22T17:39:00Z",
+                  "planned": "2026-11-22T17:42:00Z",
                   "planned_platform": null,
                   "platform": null
                 },
                 "to": {
                   "id": "de:nue",
                   "name": "N\u00fcrnberg Hbf",
-                  "planned": "2026-11-22T20:28:00Z",
-                  "planned_platform": null,
-                  "platform": null
-                },
-                "polyline": null,
-                "cancelled": false
-              },
-              {
-                "mode": "train",
-                "line_name": "RE 1",
-                "product": "RE",
-                "trip_ref": "re1",
-                "from": {
-                  "id": "de:nue",
-                  "name": "N\u00fcrnberg Hbf",
-                  "planned": "2026-11-22T20:40:00Z",
-                  "planned_platform": null,
-                  "platform": null
-                },
-                "to": {
-                  "id": "de:erl",
-                  "name": "Erlangen",
-                  "planned": "2026-11-22T21:00:00Z",
+                  "planned": "2026-11-22T20:38:00Z",
                   "planned_platform": null,
                   "platform": null
                 },
@@ -2853,7 +2743,7 @@
       ],
       "dropped_idx": 0,
       "journeys": {
-        "de:ffm>de:erl@2026-11-22T16:57:00.000Z": [
+        "de:ffm>de:nue@2026-11-22T16:57:00.000Z": [
           {
             "provider": "transitous",
             "refresh_token": null,
@@ -2879,28 +2769,6 @@
                 },
                 "polyline": null,
                 "cancelled": false
-              },
-              {
-                "mode": "train",
-                "line_name": "ICE 700",
-                "product": "ICE",
-                "trip_ref": "ice700",
-                "from": {
-                  "id": "de:nue",
-                  "name": "N\u00fcrnberg Hbf",
-                  "planned": "2026-11-22T20:05:00Z",
-                  "planned_platform": null,
-                  "platform": null
-                },
-                "to": {
-                  "id": "de:erl",
-                  "name": "Erlangen",
-                  "planned": "2026-11-22T20:18:00Z",
-                  "planned_platform": null,
-                  "platform": null
-                },
-                "polyline": null,
-                "cancelled": false
               }
             ]
           }
@@ -2913,6 +2781,133 @@
           "ice700"
         ]
       }
+    },
+    {
+      "name": "a booked ride after it is not in the timetable either: the traveller chooses",
+      "legs": [
+        {
+          "mode": "train",
+          "line_name": "ICE 17",
+          "product": "ICE",
+          "trip_ref": "ice17",
+          "from": {
+            "id": "be:liege",
+            "name": "Li\u00e8ge-Guillemins",
+            "planned": "2026-11-22T14:14:00Z",
+            "planned_platform": null,
+            "platform": null
+          },
+          "to": {
+            "id": "de:ffm",
+            "name": "Frankfurt(Main)Hbf",
+            "planned": "2026-11-22T16:27:00Z",
+            "planned_platform": null,
+            "platform": null
+          },
+          "polyline": null,
+          "cancelled": false
+        },
+        {
+          "mode": "train",
+          "line_name": "ICE 725",
+          "product": "ICE",
+          "trip_ref": null,
+          "from": {
+            "id": "de:ffm",
+            "name": "Frankfurt(Main)Hbf",
+            "planned": "2026-11-22T16:57:00Z",
+            "planned_platform": null,
+            "platform": null
+          },
+          "to": {
+            "id": "de:nue",
+            "name": "N\u00fcrnberg Hbf",
+            "planned": "2026-11-22T19:40:00Z",
+            "planned_platform": null,
+            "platform": null
+          },
+          "polyline": null,
+          "cancelled": false
+        },
+        {
+          "mode": "train",
+          "line_name": "ICE 700",
+          "product": "ICE",
+          "trip_ref": null,
+          "from": {
+            "id": "de:nue",
+            "name": "N\u00fcrnberg Hbf",
+            "planned": "2026-11-22T20:05:00Z",
+            "planned_platform": null,
+            "platform": null
+          },
+          "to": {
+            "id": "de:erl",
+            "name": "Erlangen",
+            "planned": "2026-11-22T20:18:00Z",
+            "planned_platform": null,
+            "platform": null
+          },
+          "polyline": null,
+          "cancelled": false
+        }
+      ],
+      "dropped_idx": 1,
+      "journeys": {
+        "be:liege>de:nue@2026-11-22T14:14:00.000Z": [
+          {
+            "provider": "transitous",
+            "refresh_token": null,
+            "legs": [
+              {
+                "mode": "train",
+                "line_name": "ICE 17",
+                "product": "ICE",
+                "trip_ref": "ice17",
+                "from": {
+                  "id": "be:liege",
+                  "name": "Li\u00e8ge-Guillemins",
+                  "planned": "2026-11-22T14:14:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": "de:fra",
+                  "name": "Frankfurt (Main) Flughafen Fernbahnhof",
+                  "planned": "2026-11-22T16:13:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": null,
+                "cancelled": false
+              },
+              {
+                "mode": "train",
+                "line_name": "ICE 725",
+                "product": "ICE",
+                "trip_ref": "ice725-b",
+                "from": {
+                  "id": "de:fra",
+                  "name": "Frankfurt (Main) Flughafen Fernbahnhof",
+                  "planned": "2026-11-22T16:42:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": "de:nue",
+                  "name": "N\u00fcrnberg Hbf",
+                  "planned": "2026-11-22T19:36:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": null,
+                "cancelled": false
+              }
+            ]
+          }
+        ]
+      },
+      "expect": null
     }
   ]
 }
