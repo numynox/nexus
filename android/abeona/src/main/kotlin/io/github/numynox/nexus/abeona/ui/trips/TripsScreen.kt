@@ -316,6 +316,10 @@ internal fun TripRow(trip: Trip, onClick: () -> Unit, modifier: Modifier = Modif
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 LegChips(trip.legs, Modifier.padding(top = 6.dp))
+                // A ride no longer in the timetable: adjusted once a connection is followed instead.
+                if (trip.legs.any { it.dropped }) {
+                    StatusPill(if (trip.missedLegIdx != null) "Adjusted for a timetable change" else "Timetable changed", Modifier.padding(top = 6.dp))
+                }
             }
             if (trip.ticketPath != null) {
                 Icon(Icons.Rounded.ConfirmationNumber, contentDescription = "Ticket attached", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))

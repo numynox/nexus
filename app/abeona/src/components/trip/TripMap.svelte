@@ -30,6 +30,11 @@
       .map((s) => [s.lat as number, s.lon as number]);
   }
 
+  /** A ride with no route of its own, drawn straight through its stops: a guess, so dashed. */
+  function estimated(leg: Leg): boolean {
+    return leg.mode !== "walk" && !(leg.polyline && leg.polyline.length > 1);
+  }
+
   function draw() {
     const L = leaflet;
     if (!L || !map || !layer) return;
@@ -46,16 +51,18 @@
       if (pts.length < 2) continue;
       const family = productFamily(leg);
       const color = family === "walk" ? ink : family === "long" ? ink : primary;
-      // A pale casing under each ride keeps it readable on any basemap.
-      if (family !== "walk") {
+      const guess = estimated(leg);
+      // A pale casing under each ride keeps it readable on any basemap; a
+      // dashed guess goes without, or the casing would fill its gaps.
+      if (family !== "walk" && !guess) {
         L.polyline(pts, { color: card, weight: 9, opacity: 0.9, lineCap: "round", lineJoin: "round" }).addTo(layer);
       }
       L.polyline(pts, {
         color: leg.cancelled ? cssColor("--color-error", "#c4553b") : color,
         weight: family === "walk" ? 3 : 5,
         opacity: family === "walk" ? 0.6 : 0.95,
-        dashArray: family === "walk" ? "2 8" : undefined,
-        lineCap: "round",
+        dashArray: family === "walk" ? "2 8" : guess ? "8 12" : undefined,
+        lineCap: guess ? "butt" : "round",
         lineJoin: "round",
       }).addTo(layer);
       pts.forEach((p) => drawn.extend(p));

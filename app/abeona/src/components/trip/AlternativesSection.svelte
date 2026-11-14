@@ -61,6 +61,8 @@
         return "Looks like you missed a connection";
       case "cancelled":
         return "A train on your trip is cancelled";
+      case "dropped":
+        return "A train on your trip no longer runs as booked";
       case "impossible":
         return "A change on your trip is impossible";
       case "at_risk":

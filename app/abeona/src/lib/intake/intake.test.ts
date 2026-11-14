@@ -8,7 +8,7 @@ import { lineKey, platformOf } from "./common.ts";
 import { isDbTicket, parseDbTicket, parseDbTickets } from "./dbTicket.ts";
 import { fareOf } from "./fare.ts";
 import { parseText, parseTicketTrips } from "./intake.ts";
-import { findSavedLeg, localToInstant, matchConnection, type TransitPort } from "./match.ts";
+import { checkSavedLeg, clearReplacement, localToInstant, matchConnection, type TransitPort } from "./match.ts";
 import type { ParsedShare, ParsedTicket } from "./parsed.ts";
 import { pdfText, type PdfJsLike } from "./pdfText.ts";
 import { isShareText, parseShareText } from "./shareText.ts";
@@ -58,7 +58,15 @@ interface Fixtures {
     };
   }[];
   /** A saved ride the timetable did not have, looked up again; the trip ref found, or null. */
-  refinding: { name: string; leg: Leg; journeys: Record<string, Journey[]>; expect: string | null }[];
+  refinding: { name: string; leg: Leg; journeys: Record<string, Journey[]>; expect: { trip_ref: string | null; dropped: boolean } }[];
+  /** A dropped ride's clear replacement: the same trains, every change workable; null when the traveller chooses. */
+  replacing: {
+    name: string;
+    legs: Leg[];
+    dropped_idx: number;
+    journeys: Record<string, Journey[]>;
+    expect: { missed_idx: number; trip_refs: (string | null)[] } | null;
+  }[];
 }
 
 const dir = new URL("./fixtures/", import.meta.url);
@@ -189,17 +197,34 @@ for (const c of fixtures.matching) {
   });
 }
 
+function portOf(journeys: Record<string, Journey[]>): TransitPort {
+  return {
+    async stations(): Promise<Station[]> {
+      return [];
+    },
+    async journeys(from: string, to: string, time: string): Promise<Journey[]> {
+      return journeys[`${from}>${to}@${time}`] ?? [];
+    },
+  };
+}
+
 for (const c of fixtures.refinding) {
   test(`refinding: ${c.name}`, async () => {
-    const port: TransitPort = {
-      async stations(): Promise<Station[]> {
-        return [];
-      },
-      async journeys(from: string, to: string, time: string): Promise<Journey[]> {
-        return c.journeys[`${from}>${to}@${time}`] ?? [];
-      },
-    };
-    const found = await findSavedLeg(c.leg, port);
-    assert.equal(found?.trip_ref ?? null, c.expect);
+    const check = await checkSavedLeg(c.leg, portOf(c.journeys));
+    assert.equal(check.found?.trip_ref ?? null, c.expect.trip_ref);
+    assert.equal(check.dropped, c.expect.dropped);
+  });
+}
+
+for (const c of fixtures.replacing) {
+  test(`replacing: ${c.name}`, async () => {
+    const result = await clearReplacement(c.legs, c.dropped_idx, portOf(c.journeys));
+    if (c.expect === null) {
+      assert.equal(result, null);
+      return;
+    }
+    assert.ok(result);
+    assert.equal(result.missedIdx, c.expect.missed_idx);
+    assert.deepEqual(result.replacement.filter((l) => l.mode !== "walk").map((l) => l.trip_ref), c.expect.trip_refs);
   });
 }

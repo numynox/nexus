@@ -151,6 +151,7 @@ class TravelDayFixturesTest {
         get() = when (this) {
             AlternativesReason.Missed -> "missed"
             AlternativesReason.Cancelled -> "cancelled"
+            AlternativesReason.Dropped -> "dropped"
             AlternativesReason.Impossible -> "impossible"
             AlternativesReason.AtRisk -> "at_risk"
         }

@@ -65,6 +65,12 @@ export interface Leg {
   polyline: [number, number][] | null;
   cancelled: boolean;
   realtime: boolean;
+  /**
+   * Saved legs only: when a ride saved without the timetable was found to be
+   * missing from it on a date it covers (intake/match.ts checkSavedLeg). Such
+   * a ride is also `cancelled`.
+   */
+  dropped_at?: string | null;
 }
 
 export interface Journey {

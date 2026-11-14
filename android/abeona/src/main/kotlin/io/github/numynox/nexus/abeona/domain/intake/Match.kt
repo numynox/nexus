@@ -5,6 +5,8 @@ import io.github.numynox.nexus.abeona.data.Leg
 import io.github.numynox.nexus.abeona.data.LegMode
 import io.github.numynox.nexus.abeona.data.Station
 import io.github.numynox.nexus.abeona.data.StopTime
+import io.github.numynox.nexus.abeona.domain.Confidence
+import io.github.numynox.nexus.abeona.domain.worstConfidence
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -186,25 +188,84 @@ suspend fun matchConnection(legs: List<ParsedLeg>, port: TransitPort): MatchResu
 /** A saved ride the timetable did not have when it was saved: a ride, with no trip ref. */
 fun isUnfound(leg: Leg): Boolean = leg.mode != LegMode.Walk && leg.tripRef.isNullOrEmpty() && lineKey(leg.lineName).isNotEmpty()
 
+/** "ICE 725" → "ICE": the kind of train. */
+private fun lineFamily(line: String?): String = lineKey(line).takeWhile { it in 'A'..'Z' }
+
+/** How far after the ride's departure another train of its kind still proves the timetable covers its day. */
+private val CoveredWithin: Duration = Duration.ofHours(36)
+
+/** What looking a saved ride up again found; the web's SavedLegCheck. */
+data class SavedLegCheck(
+    /** The timetable's ride, once it has it. */
+    val found: Leg?,
+    /** Not found, although trains of its kind run between its stops after it: it no longer runs as booked. */
+    val dropped: Boolean,
+)
+
 /**
- * A saved ride that was not in the timetable, looked up again: a search
- * between its stops at its planned departure, and the ride with its line
- * departing and arriving the same minutes. Null while the timetable still
- * does not have it, or when the ride's stops have no id to search from.
+ * A saved ride that was not in the timetable, looked up again (match.ts
+ * checkSavedLeg): the ride with its line at the same minutes, else dropped
+ * when later trains of the same kind are there.
  */
-suspend fun findSavedLeg(leg: Leg, port: TransitPort): Leg? {
-    if (!isUnfound(leg)) return null
-    val from = leg.from.id ?: return null
-    val to = leg.to.id ?: return null
-    val departure = leg.from.plannedAt ?: return null
-    val arrival = leg.to.plannedAt ?: return null
+suspend fun checkSavedLeg(leg: Leg, port: TransitPort): SavedLegCheck {
+    val none = SavedLegCheck(null, false)
+    if (!isUnfound(leg)) return none
+    val from = leg.from.id ?: return none
+    val to = leg.to.id ?: return none
+    val departure = leg.from.plannedAt ?: return none
+    val arrival = leg.to.plannedAt ?: return none
     val key = lineKey(leg.lineName)
-    return port.journeys(from, to, departure).firstNotNullOfOrNull { journey ->
-        journey.rides().firstOrNull { ride ->
-            !ride.tripRef.isNullOrEmpty() &&
-                lineKey(ride.lineName) == key &&
-                sameMinute(ride.from.planned, departure) &&
-                sameMinute(ride.to.planned, arrival)
+    val family = lineFamily(leg.lineName)
+    var later = false
+    for (journey in port.journeys(from, to, departure)) {
+        for (ride in journey.rides()) {
+            if (!ride.tripRef.isNullOrEmpty() && lineKey(ride.lineName) == key &&
+                sameMinute(ride.from.planned, departure) && sameMinute(ride.to.planned, arrival)
+            ) {
+                return SavedLegCheck(ride, false)
+            }
+            val at = ride.from.plannedAt ?: continue
+            if (family.isNotEmpty() && lineFamily(ride.lineName) == family && at.isAfter(departure) &&
+                !at.isAfter(departure.plus(CoveredWithin))
+            ) {
+                later = true
+            }
         }
     }
+    return SavedLegCheck(null, later)
+}
+
+/** The rides' trains, in order. */
+private fun trainsOf(legs: List<Leg>): List<String> = legs.filter { it.mode != LegMode.Walk }.map { lineKey(it.lineName) }
+
+/**
+ * When a ride was dropped, the connection that is clearly the same trip
+ * (match.ts clearReplacement): the same trains in the same order from the
+ * ride before the dropped one to where the dropped one ends, then the booked
+ * rides after it as they are; every change safe or tight. Null when the
+ * traveller has to choose.
+ */
+suspend fun clearReplacement(legs: List<Leg>, droppedIdx: Int, port: TransitPort): Pair<Int, List<Leg>>? {
+    val rideIdx = legs.indices.filter { legs[it].mode != LegMode.Walk }
+    val pos = rideIdx.indexOf(droppedIdx)
+    if (pos < 0) return null
+    val startIdx = rideIdx[maxOf(0, pos - 1)]
+    val start = legs[startIdx]
+    val dropped = legs[droppedIdx]
+    val from = start.from.id ?: return null
+    val to = dropped.to.id ?: return null
+    val time = start.from.plannedAt ?: return null
+    val wanted = trainsOf(legs.subList(startIdx, droppedIdx + 1))
+    val after = legs.drop(droppedIdx + 1)
+    // A later ride that is not in the timetable either cannot be relied on.
+    if (after.any { it.mode != LegMode.Walk && (it.cancelled || it.tripRef.isNullOrEmpty()) }) return null
+    for (journey in port.journeys(from, to, time)) {
+        if (trainsOf(journey.legs) != wanted) continue
+        if (journey.legs.any { it.mode != LegMode.Walk && (it.cancelled || it.tripRef.isNullOrEmpty()) }) continue
+        val replacement = journey.legs + after
+        val worst = worstConfidence(replacement)
+        if (worst == Confidence.IMPOSSIBLE || worst == Confidence.AT_RISK) continue
+        return startIdx to replacement
+    }
+    return null
 }

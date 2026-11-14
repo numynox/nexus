@@ -2,6 +2,7 @@
   import { ChevronRight } from "lucide-svelte";
   import type { Trip } from "../../lib/data";
   import { formatDuration, formatTime } from "../../lib/format";
+  import { tripFollowedLegs } from "../../lib/followed";
   import { summarise } from "../../lib/journey";
   import ShiftedTime from "../common/ShiftedTime.svelte";
   import LegChip from "../common/LegChip.svelte";
@@ -14,7 +15,12 @@
 
   let { trip, href, muted = false }: Props = $props();
 
-  const s = $derived(summarise(trip.legs));
+  // As travelled: a connection followed instead (taken, or adjusted for a timetable change) counts.
+  const s = $derived(summarise(tripFollowedLegs(trip)));
+  /** A ride no longer in the timetable: adjusted when Abeona or someone took a connection instead. */
+  const changed = $derived(
+    trip.legs.some((l) => !!l.dropped_at) ? (trip.missed_leg_idx !== null ? "Adjusted" : "Timetable changed") : null,
+  );
   const when = $derived(new Date(trip.planned_departure));
 </script>
 
@@ -45,7 +51,13 @@
       </span>
       <span class="text-base-content/30">·</span>
       <span class="whitespace-nowrap">{formatDuration(s.plannedMinutes)}</span>
-      {#if s.cancelled}<span class="inline-flex items-center rounded-full bg-error/12 px-2 py-0.5 text-xs font-semibold text-error">Cancelled</span>{/if}
+      {#if changed === "Adjusted"}
+        <span class="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-secondary-content">Adjusted</span>
+      {:else if changed}
+        <span class="inline-flex items-center rounded-full bg-error/12 px-2 py-0.5 text-xs font-semibold text-error">{changed}</span>
+      {:else if s.cancelled}
+        <span class="inline-flex items-center rounded-full bg-error/12 px-2 py-0.5 text-xs font-semibold text-error">Cancelled</span>
+      {/if}
     </p>
     <div class="mt-2 flex flex-wrap gap-1">
       {#each s.rides as ride, i (i)}

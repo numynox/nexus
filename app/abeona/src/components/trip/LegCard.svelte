@@ -72,7 +72,7 @@
       <span class="min-w-0 truncate text-sm text-base-content/70">to {leg.headsign}</span>
     {/if}
     {#if leg.cancelled}
-      <span class="inline-flex items-center rounded-full bg-error/12 px-2 py-0.5 text-xs font-semibold text-error">Cancelled</span>
+      <span class="inline-flex items-center rounded-full bg-error/12 px-2 py-0.5 text-xs font-semibold text-error">{leg.dropped_at ? "Not in the timetable" : "Cancelled"}</span>
     {/if}
     {#if leg.operator}
       <span class="ml-auto text-xs text-base-content/45">{leg.operator}</span>

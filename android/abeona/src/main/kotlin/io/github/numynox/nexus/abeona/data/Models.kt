@@ -156,6 +156,7 @@ internal data class LegRow(
     @SerialName("arrival_platform") val arrivalPlatform: String? = null,
     val cancelled: Boolean = false,
     val realtime: Boolean = false,
+    @SerialName("dropped_at") val droppedAt: String? = null,
     val stopovers: List<Stopover> = emptyList(),
     val polyline: List<List<Double>>? = null,
 ) {
@@ -172,6 +173,7 @@ internal data class LegRow(
         polyline = polyline,
         cancelled = cancelled,
         realtime = realtime,
+        droppedAt = droppedAt,
     )
 }
 

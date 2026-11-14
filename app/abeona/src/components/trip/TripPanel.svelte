@@ -1,6 +1,8 @@
 <script lang="ts">
   import {
     ArrowLeft,
+    CalendarClock,
+    CalendarX2,
     CreditCard,
     EllipsisVertical,
     ExternalLink,
@@ -40,7 +42,7 @@
   import { hasImpossibleChange, trainBindingLifted, transfers } from "../../lib/transfer";
   import { takeConnection, tripFollowedLegs } from "../../lib/followed";
   import type { Leg } from "../../lib/transit";
-  import { alternativesOrigin, alternativesReason, missedShortConnection, travelDay } from "../../lib/travelday";
+  import { type AlternativesOrigin, alternativesOrigin, alternativesReason, missedShortConnection, travelDay } from "../../lib/travelday";
   import { cardsForTrip } from "../../lib/ticketNeeds";
   import BindingBanner from "../common/BindingBanner.svelte";
   import LiveDashboard from "../live/LiveDashboard.svelte";
@@ -100,7 +102,12 @@
   // The ticket's binding is about the booked journey (as on the server), not a connection taken instead.
   const planDelay = $derived(trip && trip.legs.length > 0 ? summarise(trip.legs).arrivalDelay : 0);
   const missedShort = $derived(day ? missedShortConnection(legs, day) : false);
-  const connectionBroken = $derived(!!trip && (hasImpossibleChange(trip.legs) || missedShort));
+  // A ride no longer in the timetable for its day (refindTrip): cancelled as booked.
+  const droppedIdx = $derived(trip ? trip.legs.findIndex((l) => l.mode !== "walk" && !!l.dropped_at) : -1);
+  const dropped = $derived(trip && droppedIdx >= 0 ? trip.legs[droppedIdx] : null);
+  /** The connection followed instead was taken by Abeona for the dropped ride: the same trains, adjusted. */
+  const adjusted = $derived(!!dropped && following && trip!.missed_leg_idx! <= droppedIdx);
+  const connectionBroken = $derived(!!trip && (hasImpossibleChange(trip.legs) || missedShort || !!dropped));
   const bindingLifted = $derived(
     !!trip && trainBindingLifted(trip.fare_type, trip.train_binding, planDelay, connectionBroken),
   );
@@ -138,7 +145,19 @@
     }
     return null;
   });
-  const anyNotice = $derived(!!trip && !arrived && (bindingLifted || (following && !!trip.replacement_legs) || (liveCard && !!refreshError)));
+  const anyNotice = $derived(!!trip && !arrived && (bindingLifted || !!dropped || (following && !!trip.replacement_legs) || (liveCard && !!refreshError)));
+  /**
+   * Before the travel day, with a dropped ride and nothing followed instead:
+   * connections from where it would have left, from the arrival of the ride
+   * before it (else its own departure).
+   */
+  const droppedOrigin = $derived.by((): AlternativesOrigin | null => {
+    if (!trip || !dropped || day || following || arrived) return null;
+    const before = trip.legs.slice(0, droppedIdx).findLast((l) => l.mode !== "walk");
+    const time = before?.to.planned ?? dropped.from.planned;
+    if (!time) return null;
+    return { id: dropped.from.id, name: dropped.from.name, lat: dropped.from.lat, lon: dropped.from.lon, time };
+  });
   let menu: HTMLDetailsElement | undefined = $state();
   function closeMenu() {
     if (menu) menu.open = false;
@@ -218,6 +237,21 @@
     try {
       await recordDisruption(trip.id, taken.missedIdx, taken.replacement);
       trip = { ...trip, missed_leg_idx: taken.missedIdx, replacement_legs: taken.replacement };
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (e) {
+      refreshError = describeError(e);
+    } finally {
+      busyTaking = false;
+    }
+  }
+
+  /** Before the travel day: [chosen] instead of the dropped ride and everything after it. */
+  async function takeInstead(chosen: Leg[]) {
+    if (!trip || droppedIdx < 0 || busyTaking) return;
+    busyTaking = true;
+    try {
+      await recordDisruption(trip.id, droppedIdx, chosen);
+      trip = { ...trip, missed_leg_idx: droppedIdx, replacement_legs: chosen };
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
       refreshError = describeError(e);
@@ -342,11 +376,34 @@
     {#if bindingLifted && !arrived}
       <BindingBanner
         delay={planDelay}
-        because={planDelay >= 20 ? null : missedShort ? "You missed a change that had less than 5 minutes" : "A change on your trip cannot be made"}
+        because={planDelay >= 20 ? null : dropped ? `${legLabel(dropped)} no longer runs as booked` : missedShort ? "You missed a change that had less than 5 minutes" : "A change on your trip cannot be made"}
       />
     {/if}
 
-    {#if following && !arrived && trip.replacement_legs}
+    {#if dropped && !arrived && !following}
+      <div class="flex items-start gap-3 rounded-2xl bg-error/10 px-4 py-3 text-error" role="alert">
+        <CalendarX2 class="mt-0.5 h-5 w-5 shrink-0" />
+        <div class="min-w-0 flex-1 text-sm leading-snug">
+          <p class="font-semibold">{legLabel(dropped)} is no longer in the timetable</p>
+          <p class="opacity-80">
+            Not on {formatLongDate(dropped.from.planned)} any more, usually because of engineering works. Choose another connection below; Abeona follows it from then on.
+          </p>
+        </div>
+      </div>
+    {/if}
+
+    {#if following && !arrived && trip.replacement_legs && adjusted}
+      {@const first = trip.replacement_legs.find((l) => l.mode !== "walk") ?? trip.replacement_legs[0]}
+      <div class="flex items-start gap-3 rounded-2xl bg-secondary px-4 py-3 text-secondary-content">
+        <CalendarClock class="mt-0.5 h-5 w-5 shrink-0" />
+        <div class="min-w-0 flex-1 text-sm leading-snug">
+          <p class="font-semibold">Adjusted for a timetable change</p>
+          <p class="opacity-80">
+            {legLabel(dropped!)} no longer runs as booked, but your trains still connect. From {first.from.name}: {trip.replacement_legs.filter((l) => l.mode !== "walk").map((l) => `${legLabel(l)} ${formatTime(l.from.planned)}`).join(" › ")}.
+          </p>
+        </div>
+      </div>
+    {:else if following && !arrived && trip.replacement_legs}
       {@const first = trip.replacement_legs.find((l) => l.mode !== "walk") ?? trip.replacement_legs[0]}
       <div class="flex flex-wrap items-center gap-3 rounded-2xl bg-secondary px-4 py-3 text-secondary-content">
         <Shuffle class="h-5 w-5 shrink-0" />
@@ -492,7 +549,16 @@
       {@render tripNotices()}
     {/if}
 
-    {#if day && origin}
+    {#if droppedOrigin}
+      <AlternativesSection
+        bind:this={alternativesSection}
+        trip={shown ?? trip}
+        origin={droppedOrigin}
+        reason="dropped"
+        refreshKey={trip.updated_at}
+        onTake={takeInstead}
+      />
+    {:else if day && origin}
       <AlternativesSection
         bind:this={alternativesSection}
         trip={shown ?? trip}

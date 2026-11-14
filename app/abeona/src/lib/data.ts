@@ -13,7 +13,7 @@ import type {
   Station,
   Stopover,
 } from "./transit";
-import { findSavedLeg, isUnfound, type TransitPort } from "./intake/match";
+import { checkSavedLeg, clearReplacement, isUnfound, type TransitPort } from "./intake/match";
 
 /**
  * The only module that talks to Supabase. Re-exported so call sites keep
@@ -96,6 +96,7 @@ interface LegRow {
   stopovers: Stopover[] | null;
   polyline: [number, number][] | null;
   distance_km: number | null;
+  dropped_at?: string | null;
 }
 
 type TripRow = Omit<Trip, "legs"> & { abeona_legs?: LegRow[] };
@@ -425,6 +426,7 @@ function legFromRow(row: LegRow): Leg {
     polyline: Array.isArray(row.polyline) ? row.polyline : null,
     cancelled: row.cancelled,
     realtime: row.realtime,
+    dropped_at: row.dropped_at ?? null,
   };
 }
 
@@ -785,31 +787,55 @@ const REFIND_MS = 15 * 60_000;
 
 /**
  * Rides saved without the timetable (a date after its next change, usually)
- * looked up again, and attached through abeona_attach_leg once found: from
- * then on they have their route, stops and live values like the others.
- * Only rides still to come; at most once per REFIND_MS per trip. Returns
- * whether one was attached. Android does the same (AbeonaRepository.refindTrip).
+ * looked up again (intake/match.ts checkSavedLeg). Found: attached through
+ * abeona_attach_leg, with its route, stops and live values from then on.
+ * Missing on a date the timetable covers: marked dropped (abeona_mark_leg_dropped;
+ * cancelled, so the binding is lifted), and when the same trains still run
+ * with workable changes (clearReplacement), that connection is taken as the
+ * trip's replacement, as if chosen from the alternatives. Only rides still to
+ * come; at most once per REFIND_MS per trip. Returns whether the trip
+ * changed. Android does the same (AbeonaRepository.refindTrip).
  */
 export async function refindTrip(trip: Trip, now = Date.now()): Promise<boolean> {
   if (trip.finalized_at) return false;
   const todo = trip.legs
     .map((leg, idx) => ({ leg, idx }))
-    .filter(({ leg }) => isUnfound(leg) && !!leg.to.planned && Date.parse(leg.to.planned) > now);
+    .filter(({ leg }) => isUnfound(leg) && !!leg.from.planned && Date.parse(leg.from.planned) > now);
   if (todo.length === 0) return false;
   const last = refindTried.get(trip.id);
   if (last !== undefined && now - last < REFIND_MS) return false;
   refindTried.set(trip.id, now);
 
   const sb = getSupabaseClient();
-  let attached = false;
+  let changed = false;
+  const dropped: number[] = [];
   for (const { leg, idx } of todo) {
-    const found = await findSavedLeg(leg, transitPort).catch(() => null);
-    if (!found) continue;
-    const { data, error } = await sb.rpc("abeona_attach_leg", { p_trip_id: trip.id, p_idx: idx, p_leg: found });
-    if (error) throw error;
-    attached ||= data === true;
+    const check = await checkSavedLeg(leg, transitPort).catch(() => null);
+    if (!check) continue;
+    if (check.found) {
+      const { data, error } = await sb.rpc("abeona_attach_leg", { p_trip_id: trip.id, p_idx: idx, p_leg: check.found });
+      if (error) throw error;
+      changed ||= data === true;
+    } else if (check.dropped || leg.dropped_at) {
+      dropped.push(idx);
+      if (!leg.dropped_at) {
+        const { data, error } = await sb.rpc("abeona_mark_leg_dropped", { p_trip_id: trip.id, p_idx: idx });
+        if (error) throw error;
+        changed ||= data === true;
+      }
+    }
   }
-  return attached;
+
+  // The same trains, still workable: followed without asking. Not over a
+  // connection someone already chose.
+  if (dropped.length > 0 && trip.missed_leg_idx === null) {
+    const clear = await clearReplacement(trip.legs, dropped[0], transitPort).catch(() => null);
+    if (clear) {
+      await recordDisruption(trip.id, clear.missedIdx, clear.replacement);
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 /**
