@@ -275,8 +275,9 @@ fun NextTripCard(
             }
             LegChips(trip.legs)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // How the changes look is the chip's: here only how many.
                 Text(
-                    confidenceSummary(changes, worst),
+                    confidenceSummary(changes, null),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
@@ -310,7 +311,8 @@ internal fun TripRow(trip: Trip, onClick: () -> Unit, modifier: Modifier = Modif
             Column(Modifier.weight(1f)) {
                 Text(trip.displayTitle, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    "${TripFormat.time(trip.departureAt)} – ${TripFormat.time(trip.arrivalAt)} · " +
+                    // The departure is in the column beside: here only the arrival.
+                    "→ ${TripFormat.time(trip.arrivalAt)} · " +
                         TripFormat.duration(Duration.between(trip.departureAt, trip.arrivalAt).toMinutes()),
                     style = MaterialTheme.typography.bodySmall.tabular(),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

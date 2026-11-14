@@ -173,7 +173,10 @@ export function bahnCardName(card: { name: string | null; kind: number }): strin
 
 /** A trip's BahnCards, short: "BC25 · BC50"; empty without any. */
 export function bahnCardsShort(discounts: readonly number[]): string {
-  return discounts.map((d) => `BC${d}`).join(" · ");
+  // The same card twice once, counted: "2× BC25 · BC50". Android's bahnCardsShort.
+  const counts = new Map<number, number>();
+  for (const d of [...discounts].sort((a, b) => a - b)) counts.set(d, (counts.get(d) ?? 0) + 1);
+  return [...counts].map(([d, n]) => (n > 1 ? `${n}× BC${d}` : `BC${d}`)).join(" · ");
 }
 
 /**

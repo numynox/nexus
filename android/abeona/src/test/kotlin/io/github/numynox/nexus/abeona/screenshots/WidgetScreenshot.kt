@@ -112,11 +112,6 @@ class WidgetScreenshot {
     }
 
     private fun shotNotification(notification: Notification, name: String) {
-        val views = Notification.Builder.recoverBuilder(context, notification).createBigContentView()
-            ?: Notification.Builder.recoverBuilder(context, notification).createContentView()
-        // The system draws the card behind a notification; templates have none of their own.
-        val root = context.resources.getIdentifier("status_bar_latest_event_content", "id", "android")
-        if (root != 0) views.setInt(root, "setBackgroundColor", android.graphics.Color.WHITE)
-        shotWidget(views, 380, 170, name)
+        shotWidget(notificationViews(context, notification), 380, 170, name)
     }
 }

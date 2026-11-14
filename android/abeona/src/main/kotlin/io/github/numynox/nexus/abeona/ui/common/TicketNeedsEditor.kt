@@ -36,7 +36,9 @@ private const val MAX_TRAVELLERS = 9
 private const val MAX_CARDS = 9
 
 /** "BC25 · BC50", the short form of a ticket's BahnCards. */
-internal fun bahnCardsShort(discounts: List<Int>): String = discounts.sorted().joinToString(" · ") { "BC$it" }
+/** "BC25 · BC50"; the same card twice once, counted: "2× BC25". The web's bahnCardsShort. */
+internal fun bahnCardsShort(discounts: List<Int>): String =
+    discounts.sorted().groupBy { it }.entries.joinToString(" · ") { (d, all) -> if (all.size > 1) "${all.size}× BC$d" else "BC$d" }
 
 /**
  * What a screen reader says for a ticket's needs: "2 travellers, BahnCard 25
