@@ -13,6 +13,8 @@ import io.github.numynox.nexus.abeona.domain.applyRefresh
 import io.github.numynox.nexus.abeona.domain.followsReplacement
 import io.github.numynox.nexus.abeona.domain.refreshLegs
 import io.github.numynox.nexus.abeona.domain.intake.TransitPort
+import io.github.numynox.nexus.abeona.domain.intake.findSavedLeg
+import io.github.numynox.nexus.abeona.domain.intake.isUnfound
 import io.github.numynox.nexus.abeona.domain.liveUpdates
 import io.github.numynox.nexus.core.data.NexusJson
 import io.ktor.client.statement.bodyAsText
@@ -161,7 +163,8 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
      * Asks the provider for the trip's live values, writes them through
      * abeona_update_trip_live, and returns the trip as it now stands.
      */
-    suspend fun refreshTrip(trip: Trip, now: Instant = Instant.now()): Trip {
+    suspend fun refreshTrip(given: Trip, now: Instant = Instant.now()): Trip {
+        val trip = if (runCatching { refindTrip(given, now) }.getOrDefault(false)) this.trip(given.id) ?: given else given
         val body = buildJsonObject {
             put("action", "refresh")
             put("refresh_token", trip.refreshToken)
@@ -186,6 +189,39 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
         }
         val updated = applyRefresh(trip, refreshed, now.toString())
         return if (trip.followsReplacement) refreshReplacement(updated) else updated
+    }
+
+    /** When each trip's unfound rides were last looked up, in this process: once per [RefindEvery]. */
+    private val refindTried = java.util.concurrent.ConcurrentHashMap<String, Instant>()
+
+    /**
+     * Rides saved without the timetable (a date after its next change,
+     * usually) looked up again, and attached through abeona_attach_leg once
+     * found: from then on they have their route, stops and live values like
+     * the others. Only rides still to come; at most once per [RefindEvery] per
+     * trip. Returns whether one was attached. The web does the same (data.ts refindTrip).
+     */
+    suspend fun refindTrip(trip: Trip, now: Instant = Instant.now()): Boolean {
+        if (trip.finalizedAt != null) return false
+        val todo = trip.legs.withIndex().filter { (_, leg) -> isUnfound(leg) && leg.to.plannedAt?.isAfter(now) == true }
+        if (todo.isEmpty()) return false
+        val last = refindTried[trip.id]
+        if (last != null && last.plus(RefindEvery).isAfter(now)) return false
+        refindTried[trip.id] = now
+        var attached = false
+        for ((idx, leg) in todo) {
+            val found = runCatching { findSavedLeg(leg, intakePort) }.getOrNull() ?: continue
+            val data = supabase.postgrest.rpc(
+                "abeona_attach_leg",
+                buildJsonObject {
+                    put("p_trip_id", trip.id)
+                    put("p_idx", idx)
+                    put("p_leg", NexusJson.encodeToJsonElement(found))
+                },
+            ).data
+            attached = attached || data.trim() == "true"
+        }
+        return attached
     }
 
     /**
@@ -512,6 +548,9 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
     suspend fun downloadTicket(path: String): ByteArray = tickets.downloadAuthenticated(path)
 
     companion object {
+        /** How often a trip's unfound rides are looked up again, at most; the web uses the same. */
+        val RefindEvery: java.time.Duration = java.time.Duration.ofMinutes(15)
+
         /** How far ahead the reminder and the Trips banner look for a cancellation deadline; the web uses the same. */
         const val DEADLINE_DAYS = 14
 
