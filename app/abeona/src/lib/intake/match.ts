@@ -266,6 +266,23 @@ export function isCheckable(leg: Leg): boolean {
   return leg.mode !== "walk" && !!lineKey(leg.line_name);
 }
 
+/**
+ * Whether two line names are the same train, whichever way each source
+ * writes it: "RE19" on a ticket is "RE19 (4901)" in the timetable, so the
+ * bracketed number counts only when both names have one.
+ */
+export function sameTrain(a: string | null | undefined, b: string | null | undefined): boolean {
+  const split = (line: string | null | undefined) => {
+    const key = lineKey(line);
+    const m = /^(.*?)\((\d+)\)$/.exec(key);
+    return m ? { base: m[1], number: m[2] } : { base: key, number: null };
+  };
+  const x = split(a);
+  const y = split(b);
+  if (!x.base || x.base !== y.base) return false;
+  return x.number === null || y.number === null || x.number === y.number;
+}
+
 /** "ICE 725" → "ICE": the kind of train, to tell whether the timetable has that kind on a day. */
 function lineFamily(line: string | null | undefined): string {
   return lineKey(line).replace(/[^A-Z].*$/, "");
@@ -286,7 +303,7 @@ export interface SavedLegCheck {
   found: Leg | null;
   /**
    * Not found, although the timetable covers its day: it no longer runs as
-   * booked (a timetable change, usually engineering works). False while the
+   * booked (the timetable changed; the reason is not known). False while the
    * timetable may simply not reach that far yet.
    */
   dropped: boolean;
@@ -310,13 +327,12 @@ export async function checkSavedLeg(leg: Leg, port: TransitPort): Promise<SavedL
   if (!isCheckable(leg) || !leg.from.id || !leg.to.id || !leg.from.planned || !leg.to.planned) return none;
   const departure = new Date(leg.from.planned).toISOString();
   const arrival = new Date(leg.to.planned).toISOString();
-  const key = lineKey(leg.line_name);
   const family = lineFamily(leg.line_name);
   const answer = await port.journeys(leg.from.id, leg.to.id, departure);
   let later = false;
   for (const journey of answer) {
     for (const ride of rides(journey)) {
-      if (!!ride.trip_ref && lineKey(ride.line_name) === key && sameMinute(ride.from.planned, departure) && sameMinute(ride.to.planned, arrival)) {
+      if (!!ride.trip_ref && sameTrain(ride.line_name, leg.line_name) && sameMinute(ride.from.planned, departure) && sameMinute(ride.to.planned, arrival)) {
         return { found: ride, dropped: false };
       }
       const at = ride.from.planned ? Date.parse(ride.from.planned) : NaN;
@@ -329,16 +345,21 @@ export async function checkSavedLeg(leg: Leg, port: TransitPort): Promise<SavedL
   for (const days of LATER_DAYS) {
     const then = new Date(Date.parse(departure) + days * DAY_MS).toISOString();
     const other = await port.journeys(leg.from.id, leg.to.id, then);
-    if (other.some((journey) => rides(journey).some((ride) => lineKey(ride.line_name) === key))) {
+    if (other.some((journey) => rides(journey).some((ride) => sameTrain(ride.line_name, leg.line_name)))) {
       return { found: null, dropped: true };
     }
   }
   return none;
 }
 
-/** The rides' trains, in order: ["ICE17", "ICE725"]. */
-function trainsOf(legs: Leg[]): string[] {
-  return legs.filter((l) => l.mode !== "walk").map((l) => lineKey(l.line_name));
+/** The rides' line names, in order. */
+function trainsOf(legs: Leg[]): (string | null)[] {
+  return legs.filter((l) => l.mode !== "walk").map((l) => l.line_name);
+}
+
+/** The same trains in the same order (sameTrain). */
+function sameTrains(a: (string | null)[], b: (string | null)[]): boolean {
+  return a.length === b.length && a.every((line, i) => sameTrain(line, b[i]));
 }
 
 /**
@@ -371,7 +392,7 @@ export async function clearReplacement(
   if (after.some((l) => l.mode !== "walk" && (l.cancelled || !l.trip_ref))) return null;
   const answer = await port.journeys(start.from.id, dropped.to.id, new Date(start.from.planned).toISOString());
   for (const journey of answer) {
-    if (trainsOf(journey.legs).join(" ") !== wanted.join(" ")) continue;
+    if (!sameTrains(trainsOf(journey.legs), wanted)) continue;
     if (journey.legs.some((l) => l.mode !== "walk" && (l.cancelled || !l.trip_ref))) continue;
     const replacement = [...journey.legs, ...after];
     const confidence = overallConfidence(transfers(replacement));
