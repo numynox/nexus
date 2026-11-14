@@ -661,7 +661,8 @@ private fun TripContent(
                 changes.firstOrNull { it.departing == index }?.let { change ->
                     item(key = "change-$index") { TransferRow(change, journey.legs) }
                 }
-                item(key = "leg-$index") { LegCard(leg) }
+                // "Timetable only" on a ride only when others are live; otherwise the header says it once.
+                item(key = "leg-$index") { LegCard(leg, timetableOnly = !leg.realtime && journey.legs.any { it.realtime }) }
             }
         }
     }
@@ -770,13 +771,16 @@ private fun TripHeader(detail: TripDetail, live: Boolean) {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
+            // One pill for how fresh the times are: live, or the timetable's.
+            val timetableOnly = trip.legs.none { it.realtime } && trip.legs.any { !it.isWalk }
             when {
                 detail.offlineSince != null -> OfflinePill(detail.offlineSince)
                 detail.refreshError != null -> StatusPill("Live data unavailable", offline = true)
                 trip.finalizedAt != null -> StatusPill("Final times recorded")
+                timetableOnly && trip.refreshedAt != null -> StatusPill("Timetable · updated ${TripFormat.time(trip.refreshedAt.toInstantOrNull())}")
+                timetableOnly -> StatusPill("Timetable only")
                 trip.refreshedAt != null -> StatusPill("Live · updated ${TripFormat.time(trip.refreshedAt.toInstantOrNull())}")
             }
-            if (trip.legs.none { it.realtime } && trip.legs.any { !it.isWalk }) StatusPill("Timetable only")
             trip.priceCents?.let { StatusPill(TripFormat.price(it)) }
             TicketNeedsSummary(trip.travellerCount, trip.bahncardDiscounts, Modifier.align(Alignment.CenterVertically))
         }
@@ -785,7 +789,7 @@ private fun TripHeader(detail: TripDetail, live: Boolean) {
 
 /** One ride: the line, where it is headed, and its two stops with times and platforms. */
 @Composable
-private fun LegCard(leg: Leg) {
+private fun LegCard(leg: Leg, timetableOnly: Boolean) {
     var expanded by rememberSaveable(leg.tripRef, leg.from.planned) { mutableStateOf(false) }
     val line = MaterialTheme.colorScheme.primary
     val hole = MaterialTheme.colorScheme.surfaceContainerLow
@@ -801,7 +805,7 @@ private fun LegCard(leg: Leg) {
                 Surface(color = colors.container, contentColor = colors.content, shape = RoundedCornerShape(8.dp)) {
                     Text(if (leg.dropped) "Not in the timetable" else "Cancelled", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
                 }
-            } else if (!leg.realtime) {
+            } else if (timetableOnly) {
                 StatusPill("Timetable only")
             }
         }
