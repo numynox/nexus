@@ -8,12 +8,12 @@ import { lineKey, platformOf } from "./common.ts";
 import { isDbTicket, parseDbTicket, parseDbTickets } from "./dbTicket.ts";
 import { fareOf } from "./fare.ts";
 import { parseText, parseTicketTrips } from "./intake.ts";
-import { localToInstant, matchConnection, type TransitPort } from "./match.ts";
+import { findSavedLeg, localToInstant, matchConnection, type TransitPort } from "./match.ts";
 import type { ParsedShare, ParsedTicket } from "./parsed.ts";
 import { pdfText, type PdfJsLike } from "./pdfText.ts";
 import { isShareText, parseShareText } from "./shareText.ts";
 import { isTrenitaliaTicket, parseTrenitaliaTicket } from "./trenitaliaTicket.ts";
-import type { Journey, Station } from "../transit.ts";
+import type { Journey, Leg, Station } from "../transit.ts";
 import { cardsForTrip, ticketSummary, type CardOnFile } from "../ticketNeeds.ts";
 
 interface Fixtures {
@@ -57,6 +57,8 @@ interface Fixtures {
       legs?: number;
     };
   }[];
+  /** A saved ride the timetable did not have, looked up again; the trip ref found, or null. */
+  refinding: { name: string; leg: Leg; journeys: Record<string, Journey[]>; expect: string | null }[];
 }
 
 const dir = new URL("./fixtures/", import.meta.url);
@@ -184,5 +186,20 @@ for (const c of fixtures.matching) {
     assert.equal(new Date(rides[0].from.planned!).toISOString(), c.expect.first_departure);
     assert.equal(new Date(rides[rides.length - 1].to.planned!).toISOString(), c.expect.last_arrival);
     if (c.expect.legs !== undefined) assert.equal(result.journey.legs.length, c.expect.legs);
+  });
+}
+
+for (const c of fixtures.refinding) {
+  test(`refinding: ${c.name}`, async () => {
+    const port: TransitPort = {
+      async stations(): Promise<Station[]> {
+        return [];
+      },
+      async journeys(from: string, to: string, time: string): Promise<Journey[]> {
+        return c.journeys[`${from}>${to}@${time}`] ?? [];
+      },
+    };
+    const found = await findSavedLeg(c.leg, port);
+    assert.equal(found?.trip_ref ?? null, c.expect);
   });
 }

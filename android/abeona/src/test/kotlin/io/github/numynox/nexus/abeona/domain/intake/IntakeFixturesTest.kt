@@ -2,6 +2,7 @@ package io.github.numynox.nexus.abeona.domain.intake
 
 import io.github.numynox.nexus.abeona.data.FareType
 import io.github.numynox.nexus.abeona.data.Journey
+import io.github.numynox.nexus.abeona.data.Leg
 import io.github.numynox.nexus.abeona.data.LegMode
 import io.github.numynox.nexus.abeona.data.Station
 import io.github.numynox.nexus.abeona.domain.TicketNeeds
@@ -64,6 +65,10 @@ class IntakeFixturesTest {
         val expect: MatchExpect,
     )
 
+    /** A saved ride the timetable did not have, looked up again; the trip ref found, or null. */
+    @Serializable
+    private data class RefindCase(val name: String, val leg: Leg, val journeys: Map<String, List<Journey>>, val expect: String?)
+
     @Serializable
     private data class Fixtures(
         val share: List<ShareCase>,
@@ -78,6 +83,7 @@ class IntakeFixturesTest {
         val matching: List<MatchCase>,
         @SerialName("ticket_summary") val ticketSummary: List<SummaryCase>,
         @SerialName("ticket_cards") val ticketCards: List<CardsCase>,
+        val refinding: List<RefindCase>,
     )
 
     @Serializable
@@ -209,5 +215,14 @@ class IntakeFixturesTest {
         c.expect.located?.let { expected ->
             assertEquals("${c.name}: where the map can draw each ride", expected, rides.map { listOf(at(it.from.lat, it.from.lon), at(it.to.lat, it.to.lon)) })
         }
+    }
+
+    @Test
+    fun refinding() = fixtures.refinding.forEach { c ->
+        val port = object : TransitPort {
+            override suspend fun stations(query: String) = emptyList<Station>()
+            override suspend fun journeys(from: String, to: String, time: Instant) = c.journeys["$from>$to@${time.webIso()}"] ?: emptyList()
+        }
+        assertEquals(c.name, c.expect, runBlocking { findSavedLeg(c.leg, port) }?.tripRef)
     }
 }

@@ -1538,5 +1538,447 @@
         "e100"
       ]
     }
+  ],
+  "refinding": [
+    {
+      "name": "the timetable has it now: the same line at the same minutes, written without a space, after a walk",
+      "leg": {
+        "mode": "train",
+        "line_name": "RJ 86",
+        "product": "RJ",
+        "trip_ref": null,
+        "from": {
+          "id": "it:verona",
+          "name": "Verona Porta Nuova",
+          "planned": "2027-01-10T10:01:00+00:00",
+          "planned_platform": null,
+          "platform": null
+        },
+        "to": {
+          "id": "de:muc",
+          "name": "M\u00fcnchen Hbf Gl.5-10",
+          "planned": "2027-01-10T15:26:00+00:00",
+          "planned_platform": null,
+          "platform": null
+        },
+        "polyline": null
+      },
+      "journeys": {
+        "it:verona>de:muc@2027-01-10T10:01:00.000Z": [
+          {
+            "provider": "transitous",
+            "refresh_token": "y",
+            "legs": [
+              {
+                "mode": "train",
+                "line_name": "RJ 84",
+                "product": "RJ",
+                "trip_ref": "rj84",
+                "from": {
+                  "id": "it:verona",
+                  "name": "Verona Porta Nuova",
+                  "planned": "2027-01-10T10:01:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": "de:muc",
+                  "name": "M\u00fcnchen Hbf",
+                  "planned": "2027-01-10T15:26:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": [
+                  [
+                    10.98,
+                    45.43
+                  ],
+                  [
+                    11.56,
+                    48.14
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "provider": "transitous",
+            "refresh_token": "z",
+            "legs": [
+              {
+                "mode": "train",
+                "line_name": "RJ 86",
+                "product": "RJ",
+                "trip_ref": "rj86-late",
+                "from": {
+                  "id": "it:verona",
+                  "name": "Verona Porta Nuova",
+                  "planned": "2027-01-10T10:01:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": "de:muc",
+                  "name": "M\u00fcnchen Hbf",
+                  "planned": "2027-01-10T15:40:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": [
+                  [
+                    10.98,
+                    45.43
+                  ],
+                  [
+                    11.56,
+                    48.14
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "provider": "transitous",
+            "refresh_token": "x",
+            "legs": [
+              {
+                "mode": "walk",
+                "line_name": null,
+                "product": null,
+                "trip_ref": null,
+                "from": {
+                  "id": "it:verona",
+                  "name": "Verona Porta Nuova",
+                  "planned": "2027-01-10T09:55:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": "it:verona",
+                  "name": "Verona Porta Nuova",
+                  "planned": "2027-01-10T10:01:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": null
+              },
+              {
+                "mode": "train",
+                "line_name": "RJ86",
+                "product": "RJ86",
+                "trip_ref": "rj86",
+                "from": {
+                  "id": "it:verona",
+                  "name": "Verona Porta Nuova",
+                  "planned": "2027-01-10T10:01:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": "de:muc",
+                  "name": "M\u00fcnchen Hbf",
+                  "planned": "2027-01-10T15:26:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": [
+                  [
+                    10.98,
+                    45.43
+                  ],
+                  [
+                    11.56,
+                    48.14
+                  ]
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "expect": "rj86"
+    },
+    {
+      "name": "still missing: only another train, and the same train arriving at another minute",
+      "leg": {
+        "mode": "train",
+        "line_name": "RJ 86",
+        "product": "RJ",
+        "trip_ref": null,
+        "from": {
+          "id": "it:verona",
+          "name": "Verona Porta Nuova",
+          "planned": "2027-01-10T10:01:00+00:00",
+          "planned_platform": null,
+          "platform": null
+        },
+        "to": {
+          "id": "de:muc",
+          "name": "M\u00fcnchen Hbf Gl.5-10",
+          "planned": "2027-01-10T15:26:00+00:00",
+          "planned_platform": null,
+          "platform": null
+        },
+        "polyline": null
+      },
+      "journeys": {
+        "it:verona>de:muc@2027-01-10T10:01:00.000Z": [
+          {
+            "provider": "transitous",
+            "refresh_token": "y",
+            "legs": [
+              {
+                "mode": "train",
+                "line_name": "RJ 84",
+                "product": "RJ",
+                "trip_ref": "rj84",
+                "from": {
+                  "id": "it:verona",
+                  "name": "Verona Porta Nuova",
+                  "planned": "2027-01-10T10:01:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": "de:muc",
+                  "name": "M\u00fcnchen Hbf",
+                  "planned": "2027-01-10T15:26:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": [
+                  [
+                    10.98,
+                    45.43
+                  ],
+                  [
+                    11.56,
+                    48.14
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "provider": "transitous",
+            "refresh_token": "z",
+            "legs": [
+              {
+                "mode": "train",
+                "line_name": "RJ 86",
+                "product": "RJ",
+                "trip_ref": "rj86-late",
+                "from": {
+                  "id": "it:verona",
+                  "name": "Verona Porta Nuova",
+                  "planned": "2027-01-10T10:01:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": "de:muc",
+                  "name": "M\u00fcnchen Hbf",
+                  "planned": "2027-01-10T15:40:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": [
+                  [
+                    10.98,
+                    45.43
+                  ],
+                  [
+                    11.56,
+                    48.14
+                  ]
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "expect": null
+    },
+    {
+      "name": "a ride already found is not looked up",
+      "leg": {
+        "mode": "train",
+        "line_name": "RJ 86",
+        "product": "RJ",
+        "trip_ref": "rj86",
+        "from": {
+          "id": "it:verona",
+          "name": "Verona Porta Nuova",
+          "planned": "2027-01-10T10:01:00+00:00",
+          "planned_platform": null,
+          "platform": null
+        },
+        "to": {
+          "id": "de:muc",
+          "name": "M\u00fcnchen Hbf Gl.5-10",
+          "planned": "2027-01-10T15:26:00+00:00",
+          "planned_platform": null,
+          "platform": null
+        },
+        "polyline": [
+          [
+            10.98,
+            45.43
+          ],
+          [
+            11.56,
+            48.14
+          ]
+        ]
+      },
+      "journeys": {
+        "it:verona>de:muc@2027-01-10T10:01:00.000Z": [
+          {
+            "provider": "transitous",
+            "refresh_token": "x",
+            "legs": [
+              {
+                "mode": "walk",
+                "line_name": null,
+                "product": null,
+                "trip_ref": null,
+                "from": {
+                  "id": "it:verona",
+                  "name": "Verona Porta Nuova",
+                  "planned": "2027-01-10T09:55:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": "it:verona",
+                  "name": "Verona Porta Nuova",
+                  "planned": "2027-01-10T10:01:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": null
+              },
+              {
+                "mode": "train",
+                "line_name": "RJ86",
+                "product": "RJ86",
+                "trip_ref": "rj86",
+                "from": {
+                  "id": "it:verona",
+                  "name": "Verona Porta Nuova",
+                  "planned": "2027-01-10T10:01:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": "de:muc",
+                  "name": "M\u00fcnchen Hbf",
+                  "planned": "2027-01-10T15:26:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": [
+                  [
+                    10.98,
+                    45.43
+                  ],
+                  [
+                    11.56,
+                    48.14
+                  ]
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "expect": null
+    },
+    {
+      "name": "a stop without an id cannot be searched from",
+      "leg": {
+        "mode": "train",
+        "line_name": "RJ 86",
+        "product": "RJ",
+        "trip_ref": null,
+        "from": {
+          "id": null,
+          "name": "Verona Porta Nuova",
+          "planned": "2027-01-10T10:01:00+00:00",
+          "planned_platform": null,
+          "platform": null
+        },
+        "to": {
+          "id": "de:muc",
+          "name": "M\u00fcnchen Hbf Gl.5-10",
+          "planned": "2027-01-10T15:26:00+00:00",
+          "planned_platform": null,
+          "platform": null
+        },
+        "polyline": null
+      },
+      "journeys": {
+        "it:verona>de:muc@2027-01-10T10:01:00.000Z": [
+          {
+            "provider": "transitous",
+            "refresh_token": "x",
+            "legs": [
+              {
+                "mode": "walk",
+                "line_name": null,
+                "product": null,
+                "trip_ref": null,
+                "from": {
+                  "id": "it:verona",
+                  "name": "Verona Porta Nuova",
+                  "planned": "2027-01-10T09:55:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": "it:verona",
+                  "name": "Verona Porta Nuova",
+                  "planned": "2027-01-10T10:01:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": null
+              },
+              {
+                "mode": "train",
+                "line_name": "RJ86",
+                "product": "RJ86",
+                "trip_ref": "rj86",
+                "from": {
+                  "id": "it:verona",
+                  "name": "Verona Porta Nuova",
+                  "planned": "2027-01-10T10:01:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "to": {
+                  "id": "de:muc",
+                  "name": "M\u00fcnchen Hbf",
+                  "planned": "2027-01-10T15:26:00Z",
+                  "planned_platform": null,
+                  "platform": null
+                },
+                "polyline": [
+                  [
+                    10.98,
+                    45.43
+                  ],
+                  [
+                    11.56,
+                    48.14
+                  ]
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "expect": null
+    }
   ]
 }

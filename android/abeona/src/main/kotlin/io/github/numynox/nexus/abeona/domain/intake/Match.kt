@@ -182,3 +182,29 @@ suspend fun matchConnection(legs: List<ParsedLeg>, port: TransitPort): MatchResu
         problem = if (matched == total) null else problem,
     )
 }
+
+/** A saved ride the timetable did not have when it was saved: a ride, with no trip ref. */
+fun isUnfound(leg: Leg): Boolean = leg.mode != LegMode.Walk && leg.tripRef.isNullOrEmpty() && lineKey(leg.lineName).isNotEmpty()
+
+/**
+ * A saved ride that was not in the timetable, looked up again: a search
+ * between its stops at its planned departure, and the ride with its line
+ * departing and arriving the same minutes. Null while the timetable still
+ * does not have it, or when the ride's stops have no id to search from.
+ */
+suspend fun findSavedLeg(leg: Leg, port: TransitPort): Leg? {
+    if (!isUnfound(leg)) return null
+    val from = leg.from.id ?: return null
+    val to = leg.to.id ?: return null
+    val departure = leg.from.plannedAt ?: return null
+    val arrival = leg.to.plannedAt ?: return null
+    val key = lineKey(leg.lineName)
+    return port.journeys(from, to, departure).firstNotNullOfOrNull { journey ->
+        journey.rides().firstOrNull { ride ->
+            !ride.tripRef.isNullOrEmpty() &&
+                lineKey(ride.lineName) == key &&
+                sameMinute(ride.from.planned, departure) &&
+                sameMinute(ride.to.planned, arrival)
+        }
+    }
+}

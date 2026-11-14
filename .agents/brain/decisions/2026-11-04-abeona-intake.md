@@ -66,8 +66,16 @@ first taken for the whole booking's; see below).
   Flexpreis with a seat reservation, or a ticket with both directions in one
   PDF have not been seen; the words are accepted where cheap to guess, and
   each new sample should become a fixture first.
-- A ride saved as printed has no `trip_ref`, so neither the clients nor the
-  snapshot job can refresh it; it stays as planned.
+- A ride saved as printed has no `trip_ref`, so it cannot be refreshed while
+  it stays that way. *2026-11-14:* the clients look such a ride up again
+  (`findSavedLeg`, at most every 15 minutes per trip: on opening the trip and
+  with each live refresh, only for rides still to come) and, once the
+  timetable has it, attach it with `abeona_attach_leg`: trip ref, places,
+  route, stops, platforms and live values; the printed names stay. Matching
+  stays in the clients beside intake's (no Edge Function change); the write is
+  one RPC so web and Android set the same columns. Usual case: a trip booked
+  before the timetable change in December, whose trains Transitous only gets
+  weeks later.
 - Matching costs up to one station lookup per distinct station and one search
   per ride (9 requests for four rides), all through the response cache.
 - The Web Share Target only appears once the app is installed (Chrome), and
