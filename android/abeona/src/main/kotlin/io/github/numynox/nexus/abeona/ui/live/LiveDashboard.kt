@@ -226,13 +226,14 @@ private fun sourceShort(source: TravelDaySource) = when (source) {
     TravelDaySource.Time -> "Timetable"
 }
 
-/** The big number and its unit: "23" "min", "1:05" "h", "now". */
-private fun countdown(minutes: Int?): Pair<String, String>? {
+/** The big number and the line under it: "23" "min", "16 h" "54 min" (never "16:54", which reads as a clock), "now". */
+internal fun countdown(minutes: Int?): Pair<String, String>? {
     val m = minutes ?: return null
     return when {
         m <= 0 -> "now" to ""
         m < 60 -> "$m" to "min"
-        else -> "${m / 60}:${"%02d".format(m % 60)}" to "h"
+        m % 60 == 0 -> "${m / 60} h" to ""
+        else -> "${m / 60} h" to "${m % 60} min"
     }
 }
 
@@ -268,7 +269,8 @@ private fun lead(view: LiveView): Lead {
     }
     return when (day.kind) {
         TravelDayKind.BeforeLeaving -> Lead(
-            "Leave for ${leg.from.name}",
+            // The station is the trip's start, in the title above; the time to go fits one line.
+            "Leave at ${TripFormat.time(day.leaveAt)}",
             stop = leg.from,
             line = leg,
             note = "${view.stationMinutes} min to the station",

@@ -116,7 +116,8 @@
     const platform = displayPlatform(leg.from);
     switch (day.kind) {
       case "before_leaving":
-        return { ...base, headline: `Leave for ${leg.from.name}`, stop: leg.from, line: leg, note: `${stationMinutes} min to the station`, minutes: day.minutesToLeave };
+        // The station is the trip's start, in the title above; the time to go fits one line.
+        return { ...base, headline: `Leave at ${formatTime(day.leaveAt)}`, stop: leg.from, line: leg, note: `${stationMinutes} min to the station`, minutes: day.minutesToLeave };
       case "at_station":
       case "changing":
         return { ...base, headline: platform ? `Platform ${platform}` : legLabel(leg), stop: leg.from, line: leg, minutes: day.minutesToDeparture };
@@ -129,7 +130,9 @@
     if (minutes === null) return null;
     if (minutes <= 0) return { number: "now", label: "" };
     if (minutes < 60) return { number: String(minutes), label: "min" };
-    return { number: `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}`, label: "h" };
+    // "16 h" over "54 min", never "16:54", which reads as a clock time.
+    const hours = Math.floor(minutes / 60);
+    return { number: `${hours} h`, label: minutes % 60 === 0 ? "" : `${minutes % 60} min` };
   }
 
   function inMinutes(minutes: number | null): string {
