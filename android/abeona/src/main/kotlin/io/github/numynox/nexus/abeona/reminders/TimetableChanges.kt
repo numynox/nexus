@@ -21,9 +21,9 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
- * "ICE 725 no longer runs as booked": said once, when looking a trip's
- * unfound rides up again (AbeonaRepository.refindTrip) found one missing from
- * the timetable on its day, or took the same trains at other times instead.
+ * "ICE 725 no longer runs as booked": said once, when checking a trip
+ * against the timetable (AbeonaRepository.checkTimetable) found a ride missing
+ * from it on its day, or took the same trains at other times instead.
  * On the trip alerts channel the live companion uses.
  */
 object TimetableChanges {
