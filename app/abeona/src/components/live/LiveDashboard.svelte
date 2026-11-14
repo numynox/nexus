@@ -112,7 +112,7 @@
     const base = { stop: null as StopTime | null, icon: null as "flag" | "change" | null, platformAt: null as StopTime | null, line: null as Leg | null, note: null as string | null, minutes: null as number | null, cancelled: false };
     if (arrived || !leg) return { ...base, headline: trip.destination_name, stop: lastRide?.to ?? null, icon: "flag" as const };
     if (day.missedChange && day.kind !== "on_board") return { ...base, headline: `${legLabel(leg)} has left`, stop: leg.from, note: "Your ticket may allow another train." };
-    if (leg.cancelled) return { ...base, headline: `${legLabel(leg)} is cancelled`, stop: leg.from, cancelled: true };
+    if (leg.cancelled) return { ...base, headline: `${legLabel(leg)} ${leg.dropped_at ? "is not in the timetable" : "is cancelled"}`, stop: leg.from, cancelled: true };
     const platform = displayPlatform(leg.from);
     switch (day.kind) {
       case "before_leaving":

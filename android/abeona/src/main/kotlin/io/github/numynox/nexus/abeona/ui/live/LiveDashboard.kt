@@ -265,7 +265,7 @@ private fun lead(view: LiveView): Lead {
         return Lead("${leg.label} has left", stop = leg.from, note = "Your ticket may allow another train.")
     }
     if (leg.cancelled) {
-        return Lead("${leg.label} is cancelled", stop = leg.from, cancelled = true)
+        return Lead(if (leg.dropped) "${leg.label} is not in the timetable" else "${leg.label} is cancelled", stop = leg.from, cancelled = true)
     }
     return when (day.kind) {
         TravelDayKind.BeforeLeaving -> Lead(

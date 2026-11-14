@@ -61,16 +61,15 @@ fun isLiveDay(trip: Trip, now: Instant): Boolean =
 
 private fun inMinutes(minutes: Int?): String = TripFormat.relative((minutes ?: 0).toLong())
 
-/** The small line above the headline: what state this is, and how sure. */
+/** The small line above the headline: what state this is. The same words as the live card's (LiveDashboard eyebrow). */
 private fun eyebrow(day: TravelDay): String = when {
-    day.source == TravelDaySource.Onboard -> "On board · from the train's Wi-Fi"
     day.missedChange -> "Looks like you missed it"
     day.cancelled -> "Change of plan"
     else -> when (day.kind) {
         TravelDayKind.BeforeLeaving -> "Time to leave"
-        TravelDayKind.AtStation -> if (day.source == TravelDaySource.Location) "Looks like you're at the station" else "Head to the platform"
-        TravelDayKind.OnBoard -> if (day.source == TravelDaySource.Location) "Looks like you're on board" else "On board"
-        TravelDayKind.Changing -> if (day.source == TravelDaySource.Location) "Looks like you're changing trains" else "Change trains"
+        TravelDayKind.AtStation -> if (day.source == TravelDaySource.Location) "You're at the station" else "Head to the platform"
+        TravelDayKind.OnBoard -> "On board"
+        TravelDayKind.Changing -> "Change trains"
         TravelDayKind.Arrived -> "Arrived"
     }
 }
@@ -135,18 +134,17 @@ fun TravelDayHero(
                 day.kind == TravelDayKind.Arrived -> Arrived(trip)
                 leg == null -> Unit
                 day.kind == TravelDayKind.BeforeLeaving -> {
-                    Headline(
-                        if ((day.minutesToLeave ?: 0) <= 180) "Leave ${inMinutes(day.minutesToLeave)}" else "Leave at ${TripFormat.time(day.leaveAt)}",
-                    )
-                    // The train, its time and platform are on the card below: only what is new here.
-                    Detail("$stationMinutes min to the station")
+                    // As the live card says it; the train, its time and platform are on the card below.
+                    Headline("Leave at ${TripFormat.time(day.leaveAt)}")
+                    val soon = (day.minutesToLeave ?: Int.MAX_VALUE) <= 180
+                    Detail((if (soon) "${inMinutes(day.minutesToLeave).replaceFirstChar { it.uppercase() }} · " else "") + "$stationMinutes min to the station")
                 }
                 day.missedChange && day.kind != TravelDayKind.OnBoard -> {
                     Headline("${leg.label} has left")
                     Detail("It left ${leg.from.name} at ${TripFormat.time(leg.from.expectedAt)}. Your ticket may allow another train.")
                 }
                 leg.cancelled -> {
-                    Headline("${leg.label} is cancelled")
+                    Headline(if (leg.dropped) "${leg.label} is not in the timetable" else "${leg.label} is cancelled")
                     Detail("It was to leave ${leg.from.name} at ${TripFormat.time(leg.from.plannedAt)}.")
                 }
                 // At the station of the trip's first train: the card below has its platform, time and line.
@@ -167,7 +165,8 @@ fun TravelDayHero(
                             ConfidenceChip(change.confidence, minutes = change.availableMinutes)
                             val from = legs[change.arriving]
                             Text(
-                                if (change.walkMinutes > 0) "Walk ${change.walkMinutes} min" else "Arriving at Pl. ${from.to.shownPlatform ?: "–"}",
+                                // As the live card: the walk, or the platforms from and to.
+                                if (change.walkMinutes > 0) "Walk ${change.walkMinutes} min" else "Pl. ${from.to.shownPlatform ?: "–"}" + (leg.from.shownPlatform?.let { " → $it" } ?: ""),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )

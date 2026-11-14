@@ -54,19 +54,19 @@
     return `in ${formatDuration(minutes)}`;
   }
 
+  // The same words as the live card's (LiveDashboard eyebrow).
   const eyebrow = $derived.by(() => {
-    if (day.source === "onboard") return "On board · from the train's Wi-Fi";
     if (day.missedChange) return "Looks like you missed it";
     if (day.cancelled) return "Change of plan";
     switch (day.kind) {
       case "before_leaving":
         return "Time to leave";
       case "at_station":
-        return day.source === "location" ? "Looks like you're at the station" : "Head to the platform";
+        return day.source === "location" ? "You're at the station" : "Head to the platform";
       case "on_board":
-        return day.source === "location" ? "Looks like you're on board" : "On board";
+        return "On board";
       case "changing":
-        return day.source === "location" ? "Looks like you're changing trains" : "Change trains";
+        return "Change trains";
       case "arrived":
         return "Arrived";
     }
@@ -103,10 +103,11 @@
 
       {#if day.kind === "before_leaving" && leg}
         <p class="tabular mt-1 text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
-          {day.minutesToLeave !== null && day.minutesToLeave <= 180 ? `Leave ${inMinutes(day.minutesToLeave)}` : `Leave at ${formatTime(day.leaveAt)}`}
+          Leave at {formatTime(day.leaveAt)}
         </p>
         <p class="mt-1 text-sm text-base-content/70">
-          <!-- The train, its time and platform are on the card below: only what is new here. -->
+          <!-- As the live card says it; the train, its time and platform are on the card below. -->
+          {#if day.minutesToLeave !== null && day.minutesToLeave <= 180}{inMinutes(day.minutesToLeave).replace(/^./, (c) => c.toUpperCase())} ·{/if}
           {stationMinutes} min to the station{#if settingsHref}&nbsp;·
             <a href={settingsHref} class="font-medium text-primary underline-offset-2 hover:underline">change</a>{/if}
         </p>
@@ -117,7 +118,7 @@
             It left {leg.from.name} at {formatTime(effectiveTime(leg.from))}. Your ticket may allow another train.
           </p>
         {:else if day.cancelled}
-          <p class="mt-1 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">{legLabel(leg)} is cancelled</p>
+          <p class="mt-1 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">{legLabel(leg)} {leg.dropped_at ? "is not in the timetable" : "is cancelled"}</p>
           <p class="mt-1 text-sm text-base-content/70">It was to leave {leg.from.name} at {formatTime(leg.from.planned)}.</p>
         {:else if day.kind === "at_station" && legs.find((l) => l.mode !== "walk") === leg}
           <!-- At the trip's first train: its platform, time and line are on the card below. -->
@@ -137,7 +138,8 @@
             <div class="mt-3 flex flex-wrap items-center gap-2 text-sm">
               <ConfidenceChip confidence={change.confidence} />
               <span class="text-base-content/70">
-                {change.walkMinutes > 0 ? `Walk ${change.walkMinutes} min` : from ? `From platform ${displayPlatform(from.to) ?? "–"}` : ""}
+                <!-- As the live card: the walk, or the platforms from and to. -->
+                {change.walkMinutes > 0 ? `Walk ${change.walkMinutes} min` : from ? `Pl. ${displayPlatform(from.to) ?? "–"}${platform ? ` → ${platform}` : ""}` : ""}
               </span>
             </div>
           {/if}
