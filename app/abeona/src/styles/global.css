@@ -11,7 +11,7 @@
 }
 
 /*
- * Abeona's own two themes: warm orange on paper. The values and what each
+ * Abeona's own two themes: burgundy on paper. The values and what each
  * colour may mean are in .agents/brain/abeona-design.md (§3); change them
  * there and in android/abeona/.../ui/AbeonaPalette.kt together.
  */
@@ -24,8 +24,8 @@
   --color-base-200: #f4eee6;
   --color-base-300: #e7ded3;
   --color-base-content: #2a211c;
-  --color-primary: #f2761b;
-  --color-primary-content: #2b1403;
+  --color-primary: #8c1d40;
+  --color-primary-content: #ffffff;
   --color-secondary: #f4eee6;
   --color-secondary-content: #2a211c;
   --color-accent: #f2c230;
@@ -59,8 +59,8 @@
   --color-base-200: #221c18;
   --color-base-300: #322a24;
   --color-base-content: #f3eae2;
-  --color-primary: #ff9a52;
-  --color-primary-content: #3a1700;
+  --color-primary: #f08ca8;
+  --color-primary-content: #3d0a1a;
   --color-secondary: #322a24;
   --color-secondary-content: #f3eae2;
   --color-accent: #f2c230;
@@ -92,7 +92,7 @@
  * App tokens on top of daisyUI's (abeona-design.md §3). Every theme gets
  * values derived from its own colours; Abeona's two themes pin them.
  *   card, well        — raised surface; inset, platform box, quiet chip
- *   brand, brand-soft — orange as text; the tinted surface of the live card
+ *   brand, brand-soft — burgundy as text and icons; the tinted surface of the live card
  *   ink, muted, line  — text, secondary text, hairlines
  *   ok, watch, bad    — status only, always with an icon: -soft is the chip
  *                       or banner surface, -ink the text on it; watch and bad
@@ -130,8 +130,8 @@
 [data-theme="abeona"] {
   --ab-card: #ffffff;
   --ab-well: #f4eee6;
-  --ab-brand: #b4470a;
-  --ab-brand-soft: #ffe6d3;
+  --ab-brand: #8c1d40;
+  --ab-brand-soft: #f7e1e7;
   --ab-ink: #2a211c;
   --ab-muted: #6b5f57;
   --ab-ok-soft: #ddf0e6;
@@ -145,8 +145,8 @@
 [data-theme="abeona-dark"] {
   --ab-card: #26201c;
   --ab-well: #322a24;
-  --ab-brand: #ff9a52;
-  --ab-brand-soft: #4a2a14;
+  --ab-brand: #f08ca8;
+  --ab-brand-soft: #452033;
   --ab-ink: #f3eae2;
   --ab-muted: #b5a79c;
   --ab-ok-soft: #1d4634;

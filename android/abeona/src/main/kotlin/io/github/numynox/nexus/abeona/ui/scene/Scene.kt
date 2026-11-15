@@ -492,7 +492,7 @@ fun Scene(
 
             drawLine(railColour.copy(alpha = 0.85f), Offset(0f, railY), Offset(width, railY), strokeWidth = 2f)
             if (rail && stops != null) {
-                // The ride's progress: a bar under the track with a dot per stop, the done part orange up to the train's nose.
+                // The ride's progress: a bar under the track with a dot per stop, the done part burgundy up to the train's nose.
                 val bar = SceneModel.BAR.toFloat()
                 fun at(f: Double) = Offset(SceneModel.railX(f, width.toDouble()).toFloat(), h - SceneModel.BAR_UP)
                 drawLine(railColour.copy(alpha = 0.28f), at(0.0), at(1.0), strokeWidth = bar, cap = StrokeCap.Round)

@@ -21,8 +21,8 @@ needs an exception gets the rule changed, not a one-off.
    replaces its word. Words are for names (stations, trains), for instructions
    seen rarely, and for anything with legal weight (train binding, validity,
    compensation).
-4. **Colour means status, orange means Abeona.** Green, yellow and red are
-   only ever status, and always come with an icon. Orange is identity, the
+4. **Colour means status, burgundy means Abeona.** Green, yellow and red are
+   only ever status, and always come with an icon. Burgundy is identity, the
    current step and the primary action; it never means "attention".
 5. **Dense, in columns.** Rows are one line where they can be. Times, names
    and platforms sit in the same columns on every screen so the eye learns
@@ -75,9 +75,9 @@ Rules that follow from the table:
 
 | Token | Light | Dark | Use |
 | :--- | :--- | :--- | :--- |
-| `orange` | `#F2761B` | `#FF9A52` | fills: primary button, the train's stripe, rail progress, state disc, active nav. Content on it: `#2B1403` / `#3A1700` |
-| `brand` (orange as text) | `#B4470A` | `#FF9A52` | orange text and icons on a surface: eyebrow, countdown, links, active tab |
-| `brand-soft` | `#FFE6D3` | `#4A2A14` | the live card, selected chips, active nav pill |
+| `burgundy` | `#8C1D40` | `#F08CA8` | fills: primary button, rail progress, state disc, active nav. Content on it: `#FFFFFF` / `#3D0A1A` |
+| `brand` (burgundy as text) | `#8C1D40` | `#F08CA8` | burgundy text and icons on a surface: eyebrow, countdown, links, active tab. The same value as the fill: burgundy is dark enough for both |
+| `brand-soft` | `#F7E1E7` | `#452033` | the live card, selected chips, active nav pill |
 | `paper` (background) | `#FBF7F2` | `#1A1512` | the screen |
 | `card` | `#FFFFFF` | `#26201C` | raised surfaces |
 | `well` | `#F4EEE6` | `#322A24` | insets, platform boxes, inputs, quiet chips |
@@ -202,7 +202,7 @@ new component here, not a local one.
 | `Scene` | the landscape (§7) |
 | `SectionHeader` | `title` + optional `Fact`s on the right; no supporting sentence |
 | `Sheet` | every form and detail; title, content, one primary button at the bottom |
-| `PrimaryButton` | orange fill, ink label; one per screen or sheet |
+| `PrimaryButton` | burgundy fill, white label (dark theme: rose fill, deep burgundy label); one per screen or sheet |
 | `EmptyState` | `Scene` full, one `headline`, the primary button; no paragraph |
 | `Segmented` | two or three choices side by side in a well track, the chosen one brand-soft with brand text (Depart/Arrive, class, card, theme, year) |
 | `ChoicePills` | more choices than fit a segmented control, as wrapping pills (the fare) |
@@ -255,7 +255,7 @@ Sizes:
 | strip | 64 | top of the live card and of its compact form |
 
 **The strip is the ride's rail.** Under its track runs the progress bar:
-thick, a dot per stop, the part done in orange up to where the train's nose
+thick, a dot per stop, the part done in burgundy up to where the train's nose
 is. It lies in the ground below the train, so the train never hides it and it
 is the strongest line in the strip. So the strip costs the travel day no
 room: it takes the place of the stop rail the card had. Before boarding the
@@ -320,4 +320,4 @@ Bottom navigation: Trips, Plan, Year, Settings (icons with labels).
 | **Settings** | Groups in the order of the moments: Before the trip (time to the station, reminder), On the day (companion, location, alerts), Afterwards (claims reminder), Household (members, BahnCards), App (theme, update, account). One line per setting: name, value or switch; the explanation behind an info tap only where it is not obvious. |
 | **Status page** (web, shared link) | Scene header, who and where, arrival `time`, the rail. No navigation. |
 | **Widget** | Day or countdown, departure `time` + platform, title, ⚑ arrival ⇄ n. |
-| **Notification** | Unchanged in order (`decisions/2026-11-13-abeona-notification-leads-with-the-next-thing.md`); the accent colour is orange. |
+| **Notification** | Unchanged in order (`decisions/2026-11-13-abeona-notification-leads-with-the-next-thing.md`); the accent colour is burgundy. |

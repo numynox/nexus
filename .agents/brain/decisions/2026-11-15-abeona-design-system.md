@@ -1,7 +1,7 @@
 # ADR: Abeona gets a design system: orange, a status triad, a living landscape
 
 **Date:** 2026-11-15
-**Status:** Accepted
+**Status:** Accepted; its brand colour, orange, is superseded by `2026-11-15-abeona-burgundy.md`. Everything else holds.
 
 ## Context
 Abeona's travel day was already ordered by urgency

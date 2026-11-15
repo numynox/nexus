@@ -311,7 +311,7 @@ fun SettingsScreen(app: AppViewModel, navigator: Navigator) {
                         SwitchLine(
                             "Wallpaper colours",
                             Icons.Rounded.Wallpaper,
-                            info = "Use your wallpaper's palette instead of Abeona orange.",
+                            info = "Use your wallpaper's palette instead of Abeona burgundy.",
                             checked = settings.dynamicColor,
                         ) { app.setDynamicColor(it) }
                     }

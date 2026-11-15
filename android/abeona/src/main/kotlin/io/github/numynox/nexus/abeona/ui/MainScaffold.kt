@@ -156,7 +156,7 @@ fun MainScaffold(app: AppViewModel, openTrip: MutableStateFlow<String?>, incomin
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(app) { app.messages.collect { snackbar.showSnackbar(it) } }
 
-    // The active tab: a brand-soft pill, its icon and label in the brand's orange.
+    // The active tab: a brand-soft pill, its icon and label in the brand's burgundy.
     val scheme = MaterialTheme.colorScheme
     val itemColors = NavigationSuiteDefaults.itemColors(
         navigationBarItemColors = NavigationBarItemDefaults.colors(

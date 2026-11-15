@@ -221,7 +221,7 @@ object SceneModel {
         val trainBody: String,
         /** The livery's red: the ICE's stripe, the regional and suburban bodies. */
         val trainRed: String,
-        /** The brand orange: the rail behind the train, passed stops, the flag. */
+        /** The brand burgundy: the rail behind the train, passed stops, the flag. */
         val accent: String,
         /** "#rrggbbaa". */
         val trainLine: String,
@@ -262,7 +262,7 @@ object SceneModel {
             ground = tone("ground"), rail = tone("rail"), mast = tone("mast"), cloud = tone("cloud"), star = tone("star"),
             sun = tone("sun"), moon = tone("moon"), trainBody = tone("trainBody"),
             trainRed = if (dark) "#d9584e" else "#d9342b",
-            accent = if (dark) "#ff9a52" else "#f2761b",
+            accent = if (dark) "#f08ca8" else "#8c1d40",
             trainLine = if (dark) "#00000000" else "#2a211c40",
             trainWindow = (if (light < 0.5) night else day).getValue("trainWindow"),
             platform = tone("platform"),

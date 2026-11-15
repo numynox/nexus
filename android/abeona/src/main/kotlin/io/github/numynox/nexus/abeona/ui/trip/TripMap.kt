@@ -53,7 +53,7 @@ import io.github.numynox.nexus.abeona.data.Leg
 import io.github.numynox.nexus.abeona.live.EvidenceKind
 import io.github.numynox.nexus.abeona.ui.AbeonaColors
 import io.github.numynox.nexus.abeona.ui.bad
-import io.github.numynox.nexus.abeona.ui.orange
+import io.github.numynox.nexus.abeona.ui.burgundy
 import kotlin.math.PI
 import kotlin.math.ln
 import kotlin.math.tan
@@ -162,7 +162,7 @@ private fun tripStyle(legs: List<Leg>, dark: Boolean, ride: Color, walk: Color, 
     // A ride on its route; a guess (no route, straight through its stops) is dashed and has no casing.
     val routed = JsonArray(listOf(JsonPrimitive("all"), walkIs(false), propIs("estimated", false)))
     val guessed = JsonArray(listOf(JsonPrimitive("all"), walkIs(false), propIs("estimated", true)))
-    // Orange for the route; a ride that does not run in the bad colour.
+    // Burgundy for the route; a ride that does not run in the bad colour.
     val rideColour = JsonArray(listOf(JsonPrimitive("case"), JsonArray(listOf(JsonPrimitive("get"), JsonPrimitive("cancelled"))), JsonPrimitive(hex(broken)), JsonPrimitive(hex(ride))))
     return buildJsonObject {
         put("version", 8)
@@ -321,7 +321,7 @@ private fun RouteMap(legs: List<Leg>, modifier: Modifier, interactive: Boolean, 
     }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val ride = orange.container
+    val ride = burgundy.container
     val walk = MaterialTheme.colorScheme.outline
     val broken = bad.fill.container
     // Stations in ink, whatever the basemap: the dots are white inside.
@@ -397,7 +397,7 @@ private fun SchematicTripMap(legs: List<Leg>, modifier: Modifier, marker: MapMar
     val background = MaterialTheme.colorScheme.surfaceContainer
     val grid = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
     val water = MaterialTheme.colorScheme.surfaceContainerHighest
-    val ride = orange.container
+    val ride = burgundy.container
     val broken = bad.fill.container
     val walk = MaterialTheme.colorScheme.outline
     val surface = MaterialTheme.colorScheme.surface

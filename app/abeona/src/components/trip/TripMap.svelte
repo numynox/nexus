@@ -40,8 +40,8 @@
     if (!L || !map || !layer) return;
     layer.clearLayers();
 
-    // The route in the brand orange, stations in ink, what does not run in bad (abeona-design.md §3).
-    const primary = cssColor("--color-primary", "#f2761b");
+    // The route in the brand burgundy, stations in ink, what does not run in bad (abeona-design.md §3).
+    const primary = cssColor("--color-primary", "#8c1d40");
     const ink = cssColor("--ab-ink", "#2a211c");
     const card = cssColor("--ab-card", "#ffffff");
     const bad = cssColor("--ab-bad", "#c4372b");
@@ -82,7 +82,7 @@
       }
     }
 
-    // Origin, changes and destination: bigger dots, the start in orange, the end in ink.
+    // Origin, changes and destination: bigger dots, the start in burgundy, the end in ink.
     const rides = legs.filter((l) => l.mode !== "walk");
     const ends = rides.flatMap((l, i) => {
       const out: { lat: number | null; lon: number | null; name: string; kind: "start" | "change" | "end" }[] = [];
@@ -132,7 +132,7 @@
     if (!L || !map || !markerLayer) return;
     markerLayer.clearLayers();
     if (!marker) return;
-    const primary = cssColor("--color-primary", "#f2761b");
+    const primary = cssColor("--color-primary", "#8c1d40");
     const card = cssColor("--ab-card", "#ffffff");
     const at: [number, number] = [marker.lat, marker.lon];
     L.circleMarker(at, { radius: 18, stroke: false, fillColor: primary, fillOpacity: 0.22, interactive: false }).addTo(markerLayer);

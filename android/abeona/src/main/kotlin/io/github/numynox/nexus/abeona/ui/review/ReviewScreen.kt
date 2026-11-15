@@ -71,7 +71,7 @@ import io.github.numynox.nexus.abeona.ui.brand
 import io.github.numynox.nexus.abeona.ui.card
 import io.github.numynox.nexus.abeona.ui.hairline
 import io.github.numynox.nexus.abeona.ui.muted
-import io.github.numynox.nexus.abeona.ui.orange
+import io.github.numynox.nexus.abeona.ui.burgundy
 import io.github.numynox.nexus.abeona.ui.watch
 import io.github.numynox.nexus.abeona.ui.well
 import io.github.numynox.nexus.abeona.ui.common.EmptyState
@@ -206,7 +206,7 @@ private fun StoryPager(stats: Statistics, year: Int, map: List<TravelMapLine>, t
                         .padding(horizontal = 3.dp, vertical = 8.dp)
                         .size(width = if (selected) 18.dp else 6.dp, height = 6.dp)
                         .clip(CircleShape)
-                        .background(if (selected) orange.container else hairline),
+                        .background(if (selected) burgundy.container else hairline),
                 )
             }
         }
@@ -421,10 +421,10 @@ private fun ColumnScope.Foot(content: @Composable () -> Unit) {
 @Composable
 private fun Small(text: String) = Text(text, style = AbeonaType.meta, color = muted)
 
-/** The share on time as a ring: orange on the well. */
+/** The share on time as a ring: burgundy on the well. */
 @Composable
 private fun Punctuality(share: Double?) {
-    val ring = orange.container
+    val ring = burgundy.container
     val track = well.container
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Canvas(Modifier.size(144.dp)) {
@@ -437,11 +437,11 @@ private fun Punctuality(share: Double?) {
     }
 }
 
-/** Bars in orange: the strongest full, the others paler, so the eye goes to the top one. */
+/** Bars in burgundy: the strongest full, the others paler, so the eye goes to the top one. */
 @Composable
 private fun ProductBars(products: List<Pair<String, Int>>) {
     val top = products.maxOfOrNull { it.second }?.coerceAtLeast(1) ?: 1
-    val fill = orange.container
+    val fill = burgundy.container
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically)) {
         products.forEach { (product, count) ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -458,12 +458,12 @@ private fun ProductBars(products: List<Pair<String, Int>>) {
     }
 }
 
-/** Trips per month as columns, January to December; the busiest full orange, the rest paler. */
+/** Trips per month as columns, January to December; the busiest full burgundy, the rest paler. */
 @Composable
 private fun MonthBars(stats: Statistics, year: Int) {
     val counts = (1..12).map { month -> stats.byMonth.firstOrNull { it.month == "%d-%02d".format(year, month) }?.trips ?: 0 }
     val top = counts.max().coerceAtLeast(1)
-    val fill = orange.container
+    val fill = burgundy.container
     Row(
         Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 12.dp)
             .semantics { contentDescription = "Trips per month" },

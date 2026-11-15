@@ -96,7 +96,7 @@ object ClaimReminders {
         }
         return NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
-            .setColor(ContextCompat.getColor(context, R.color.abeona_orange))
+            .setColor(ContextCompat.getColor(context, R.color.abeona_burgundy))
             .setContentTitle(title)
             .setContentText(lines.first())
             .setStyle(style)

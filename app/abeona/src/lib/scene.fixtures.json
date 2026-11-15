@@ -343,10 +343,10 @@
       "colour": "#808080"
     },
     {
-      "a": "#f2761b",
+      "a": "#8c1d40",
       "b": "#2a211c",
       "t": 0.25,
-      "colour": "#c0611b"
+      "colour": "#741e37"
     },
     {
       "a": "#d9e7ea",
@@ -363,7 +363,7 @@
       "near": "#a6c2a0",
       "trainWindow": "#2a211c",
       "trainRed": "#d9342b",
-      "accent": "#f2761b"
+      "accent": "#8c1d40"
     },
     {
       "dark": false,
@@ -372,7 +372,7 @@
       "near": "#9995bb",
       "trainWindow": "#ffcf8a",
       "trainRed": "#d9342b",
-      "accent": "#f2761b"
+      "accent": "#8c1d40"
     },
     {
       "dark": true,
@@ -381,7 +381,7 @@
       "near": "#3b5a4d",
       "trainWindow": "#1a1512",
       "trainRed": "#d9584e",
-      "accent": "#ff9a52"
+      "accent": "#f08ca8"
     },
     {
       "dark": true,
@@ -390,7 +390,7 @@
       "near": "#383f52",
       "trainWindow": "#ffcf8a",
       "trainRed": "#d9584e",
-      "accent": "#ff9a52"
+      "accent": "#f08ca8"
     }
   ],
   "light": [

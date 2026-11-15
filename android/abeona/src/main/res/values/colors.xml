@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Abeona's orange (abeona-design.md §3): the notifications' accent and the splash icon's disc. -->
-    <color name="abeona_orange">#F2761B</color>
+    <!-- Abeona's burgundy (abeona-design.md §3): the notifications' accent and the splash icon's disc. -->
+    <color name="abeona_burgundy">#8C1D40</color>
     <color name="splash_background">#FBF7F2</color>
 </resources>

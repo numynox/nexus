@@ -361,7 +361,7 @@
 
     <line x1="0" x2={width} y1={railY} y2={railY} stroke={colours.rail} stroke-width="2" opacity="0.85" />
     {#if rail && stops}
-      <!-- The ride's progress: a bar under the track with a dot per stop, the done part orange up to the train's nose. -->
+      <!-- The ride's progress: a bar under the track with a dot per stop, the done part burgundy up to the train's nose. -->
       <line x1={railX(0, width)} x2={railX(1, width)} y1={barY} y2={barY} stroke={colours.rail} stroke-width={BAR} stroke-linecap="round" opacity="0.28" />
       {#if fraction > 0 && sceneState !== "waiting"}
         <line x1={railX(0, width)} x2={railX(fraction, width)} y1={barY} y2={barY} stroke={colours.accent} stroke-width={BAR} stroke-linecap="round" />

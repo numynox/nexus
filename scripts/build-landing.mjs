@@ -28,7 +28,7 @@ const ACCENTS = {
   noctua: "#8b8cf0",
   vibilia: "#e05a5a",
   annona: "#4bbf7a",
-  abeona: "#f2761b",
+  abeona: "#8c1d40",
 };
 
 function escapeHtml(value) {

@@ -44,7 +44,7 @@ import io.github.numynox.nexus.abeona.domain.delayMinutes
 import io.github.numynox.nexus.abeona.ui.AbeonaType
 import io.github.numynox.nexus.abeona.ui.card
 import io.github.numynox.nexus.abeona.ui.muted
-import io.github.numynox.nexus.abeona.ui.orange
+import io.github.numynox.nexus.abeona.ui.burgundy
 import io.github.numynox.nexus.abeona.ui.scene.Scene
 import io.github.numynox.nexus.abeona.ui.scene.SceneSize
 import io.github.numynox.nexus.abeona.ui.scene.SceneState
@@ -243,10 +243,10 @@ fun SectionHeader(title: String, modifier: Modifier = Modifier, facts: @Composab
     }
 }
 
-/** The one primary action of a screen or sheet: an orange fill with ink on it. */
+/** The one primary action of a screen or sheet: a burgundy fill with white on it. */
 @Composable
 fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null, enabled: Boolean = true) {
-    val colors = orange
+    val colors = burgundy
     Button(
         onClick = onClick,
         enabled = enabled,

@@ -106,7 +106,7 @@ import io.github.numynox.nexus.abeona.ui.common.StopRow
 import io.github.numynox.nexus.abeona.ui.common.TripFormat
 import io.github.numynox.nexus.abeona.ui.hairline
 import io.github.numynox.nexus.abeona.ui.muted
-import io.github.numynox.nexus.abeona.ui.orange
+import io.github.numynox.nexus.abeona.ui.burgundy
 import io.github.numynox.nexus.abeona.ui.scene.Scene
 import io.github.numynox.nexus.abeona.ui.scene.SceneModel
 import io.github.numynox.nexus.abeona.ui.scene.SceneSize
@@ -457,7 +457,7 @@ fun LiveCard(
             Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 // What state, and how Abeona knows.
                 Row(Modifier.heightIn(min = 28.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val disc = if (warn) bad.fill else orange
+                    val disc = if (warn) bad.fill else burgundy
                     Surface(color = disc.container, contentColor = disc.content, shape = CircleShape, modifier = Modifier.size(24.dp)) {
                         Box(contentAlignment = Alignment.Center) { Icon(stateIcon(day), contentDescription = null, modifier = Modifier.size(14.dp)) }
                     }
@@ -777,7 +777,7 @@ fun HowAbeonaKnows(evidence: List<Evidence>, day: TravelDay, onUseLocation: (() 
             val decides = e.state == EvidenceState.Decides
             val off = e.state == EvidenceState.Off || e.state == EvidenceState.Silent
             val disc = when {
-                decides -> orange
+                decides -> burgundy
                 off -> well.copy(content = muted)
                 else -> brandSoft.copy(content = brand)
             }

@@ -19,8 +19,8 @@
     const L = leaflet;
     if (!L || !map || !layer) return;
     layer.clearLayers();
-    // Orange track, ink stations: read from the theme, like TripMap.
-    const primary = cssColor("--color-primary", "#f2761b");
+    // Burgundy track, ink stations: read from the theme, like TripMap.
+    const primary = cssColor("--color-primary", "#8c1d40");
     const ink = cssColor("--ab-ink", "#2a211c");
     const card = cssColor("--ab-card", "#ffffff");
     const drawn = L.latLngBounds([]);

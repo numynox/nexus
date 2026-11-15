@@ -17,7 +17,7 @@
     }),
   );
   const max = $derived(Math.max(1, ...values.map((v) => v.trips)));
-  // The busiest month is the full orange, the others paler: only when one
+  // The busiest month is the full burgundy, the others paler: only when one
   // month clearly leads; a tie has no "busiest" and every bar is full.
   const busiest = $derived(
     values.filter((v) => v.trips === max).length === 1 ? values.findIndex((v) => v.trips === max) : -1,

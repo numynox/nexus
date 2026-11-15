@@ -13,22 +13,25 @@ import androidx.compose.ui.unit.sp
 import io.github.numynox.nexus.core.ui.theme.NexusPalette
 
 /**
- * Abeona's colours (abeona-design.md §3): a warm orange for the brand, the
+ * Abeona's colours (abeona-design.md §3): a burgundy for the brand, the
  * current step and the primary action, on warm paper with ink for text.
  * Green, gold and red are only ever status ([ok], [watch], [bad]) and always
  * come with an icon; nothing else is coloured.
  */
 object AbeonaColors {
-    /** Orange as a fill: the primary button, the train's stripe, rail progress. */
-    val Orange = Color(0xFFF2761B)
-    val OrangeDark = Color(0xFFFF9A52)
-    val OnOrange = Color(0xFF2B1403)
-    val OnOrangeDark = Color(0xFF3A1700)
+    /**
+     * Burgundy as a fill: the primary button, rail progress, the state disc.
+     * It is dark enough to be the text colour too, so fill and [Brand] are one.
+     */
+    val Burgundy = Color(0xFF8C1D40)
+    val BurgundyDark = Color(0xFFF08CA8)
+    val OnBurgundy = Color(0xFFFFFFFF)
+    val OnBurgundyDark = Color(0xFF3D0A1A)
 
-    /** Orange as text and icons on a surface. */
-    val Brand = Color(0xFFB4470A)
-    val BrandSoft = Color(0xFFFFE6D3)
-    val BrandSoftDark = Color(0xFF4A2A14)
+    /** Burgundy as text and icons on a surface. */
+    val Brand = Burgundy
+    val BrandSoft = Color(0xFFF7E1E7)
+    val BrandSoftDark = Color(0xFF452033)
 
     val Paper = Color(0xFFFBF7F2)
     val PaperDark = Color(0xFF1A1512)
@@ -81,20 +84,20 @@ val bad: Status
     )
 
 /**
- * Orange as a fill with the ink that goes on it. With the wallpaper's colours
+ * Burgundy as a fill with what goes on it. With the wallpaper's colours
  * chosen instead of Abeona's, the scheme's own primary.
  */
-val orange: Tone
+val burgundy: Tone
     @Composable @ReadOnlyComposable get() {
         val scheme = MaterialTheme.colorScheme
         return when (scheme.primary) {
-            AbeonaPalette.light.primary -> Tone(AbeonaColors.Orange, AbeonaColors.OnOrange)
-            AbeonaPalette.dark.primary -> Tone(AbeonaColors.OrangeDark, AbeonaColors.OnOrangeDark)
+            AbeonaPalette.light.primary -> Tone(AbeonaColors.Burgundy, AbeonaColors.OnBurgundy)
+            AbeonaPalette.dark.primary -> Tone(AbeonaColors.BurgundyDark, AbeonaColors.OnBurgundyDark)
             else -> Tone(scheme.primary, scheme.onPrimary)
         }
     }
 
-/** Orange as text and icons on a surface: the eyebrow, the countdown, links. */
+/** Burgundy as text and icons on a surface: the eyebrow, the countdown, links. */
 val brand: Color
     @Composable @ReadOnlyComposable get() = MaterialTheme.colorScheme.primary
 
@@ -154,7 +157,7 @@ val AbeonaPalette = NexusPalette(
         onPrimary = Color(0xFFFFFFFF),
         primaryContainer = AbeonaColors.BrandSoft,
         onPrimaryContainer = AbeonaColors.Ink,
-        inversePrimary = AbeonaColors.OrangeDark,
+        inversePrimary = AbeonaColors.BurgundyDark,
         secondary = AbeonaColors.Muted,
         onSecondary = Color(0xFFFFFFFF),
         secondaryContainer = AbeonaColors.Well,
@@ -189,8 +192,8 @@ val AbeonaPalette = NexusPalette(
         surfaceDim = Color(0xFFE9E2D9),
     ),
     dark = darkColorScheme(
-        primary = AbeonaColors.OrangeDark,
-        onPrimary = AbeonaColors.OnOrangeDark,
+        primary = AbeonaColors.BurgundyDark,
+        onPrimary = AbeonaColors.OnBurgundyDark,
         primaryContainer = AbeonaColors.BrandSoftDark,
         onPrimaryContainer = AbeonaColors.InkDark,
         inversePrimary = AbeonaColors.Brand,
@@ -208,7 +211,7 @@ val AbeonaPalette = NexusPalette(
         onSurface = AbeonaColors.InkDark,
         surfaceVariant = AbeonaColors.WellDark,
         onSurfaceVariant = AbeonaColors.MutedDark,
-        surfaceTint = AbeonaColors.OrangeDark,
+        surfaceTint = AbeonaColors.BurgundyDark,
         inverseSurface = AbeonaColors.InkDark,
         inverseOnSurface = AbeonaColors.Ink,
         error = Color(0xFFFFC2B8),

@@ -194,7 +194,7 @@ export interface ScenePalette {
   trainBody: string;
   /** The livery's red: the ICE's stripe, the regional and suburban bodies. */
   trainRed: string;
-  /** The brand orange: the rail behind the train, passed stops, the flag. */
+  /** The brand burgundy: the rail behind the train, passed stops, the flag. */
   accent: string;
   trainWindow: string;
   trainLine: string;
@@ -248,7 +248,7 @@ export function scenePalette(dark: boolean, light: number): ScenePalette {
   return {
     ...tones,
     trainRed: dark ? "#d9584e" : "#d9342b",
-    accent: dark ? "#ff9a52" : "#f2761b",
+    accent: dark ? "#f08ca8" : "#8c1d40",
     trainLine: dark ? "#00000000" : "#2a211c40",
     dot: dark ? "#26201c" : "#ffffff",
   };
