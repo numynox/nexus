@@ -142,7 +142,7 @@ fun BahnCardScreen(app: AppViewModel, cardId: String, navigator: Navigator) {
                     )
                 }
             }
-            Surface(color = AbeonaColors.Mint, contentColor = AbeonaColors.Ink, modifier = Modifier.fillMaxWidth()) {
+            Surface(color = AbeonaColors.BrandSoft, contentColor = AbeonaColors.Ink, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.navigationBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
                         Icon(Icons.Rounded.Badge, contentDescription = null, modifier = Modifier.size(20.dp))

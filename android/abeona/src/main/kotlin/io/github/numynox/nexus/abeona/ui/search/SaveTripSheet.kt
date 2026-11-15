@@ -52,7 +52,7 @@ internal fun euros(cents: Int): String = String.format(java.util.Locale.ROOT, "%
 private fun IntakeBanner(draft: IntakeDraft, more: Int) {
     val full = draft.match.status == MatchStatus.Full
     Surface(
-        color = if (full) MaterialTheme.colorScheme.secondaryContainer else AbeonaColors.Amber.copy(alpha = 0.22f),
+        color = if (full) MaterialTheme.colorScheme.secondaryContainer else AbeonaColors.WatchFill.copy(alpha = 0.22f),
         shape = MaterialTheme.shapes.large,
     ) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -119,7 +119,7 @@ fun SaveTripSheet(
             JourneyCard(journey, onClick = null)
             intake?.let { IntakeBanner(it, more) }
             if (past) {
-                Surface(color = AbeonaColors.Amber.copy(alpha = 0.22f), shape = MaterialTheme.shapes.large) {
+                Surface(color = AbeonaColors.WatchFill.copy(alpha = 0.22f), shape = MaterialTheme.shapes.large) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("A past trip", style = MaterialTheme.typography.titleSmall)
                         Text(

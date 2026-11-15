@@ -36,7 +36,10 @@ import io.github.numynox.nexus.abeona.data.AbeonaRepository
 import io.github.numynox.nexus.abeona.data.ShareLink
 import io.github.numynox.nexus.abeona.data.Trip
 import io.github.numynox.nexus.abeona.data.toInstantOrNull
+import androidx.compose.ui.text.font.FontWeight
+import io.github.numynox.nexus.abeona.ui.AbeonaType
 import io.github.numynox.nexus.abeona.ui.common.TripFormat
+import io.github.numynox.nexus.abeona.ui.muted
 
 /** What the share card can do; the screen wires it to the view model. */
 class ShareActions(
@@ -88,41 +91,41 @@ fun ShareSheet(actions: ShareActions?, onDismiss: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Share", style = MaterialTheme.typography.headlineSmall)
+                Text("Share", style = AbeonaType.headline)
                 Text(
                     "Anyone with a link sees the route and the times, nothing else.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = AbeonaType.meta,
+                    color = muted,
                 )
             }
             if (actions == null) {
                 Text(
                     "Share links need a connection. Try again when you are online.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = AbeonaType.meta,
+                    color = muted,
                 )
             } else {
                 Kinds.forEach { kind ->
                     val link = actions.links.firstOrNull { it.kind == kind.kind }
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-                        Icon(kind.icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 2.dp))
+                        Icon(kind.icon, contentDescription = null, tint = muted, modifier = Modifier.padding(top = 2.dp).size(20.dp))
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(kind.title, style = MaterialTheme.typography.titleSmall)
+                            Text(kind.title, style = AbeonaType.title)
                             if (link == null) {
-                                Text(kind.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(kind.text, style = AbeonaType.meta.copy(fontWeight = FontWeight.Normal), color = muted)
                             } else {
                                 Text(
                                     shareUrl(link),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = AbeonaType.meta,
+                                    color = muted,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
                                 link.expiresAt.toInstantOrNull()?.let {
                                     Text(
                                         "Works until ${TripFormat.day(it)}, ${TripFormat.time(it)}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        style = AbeonaType.meta,
+                                        color = muted,
                                     )
                                 }
                             }

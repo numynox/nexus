@@ -35,6 +35,8 @@ import androidx.glance.layout.padding
 import androidx.glance.layout.size
 import androidx.glance.layout.width
 import androidx.glance.material3.ColorProviders
+import androidx.glance.semantics.contentDescription
+import androidx.glance.semantics.semantics
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextDecoration
@@ -51,14 +53,14 @@ import io.github.numynox.nexus.abeona.domain.worstConfidence
 import io.github.numynox.nexus.abeona.ui.AbeonaColors
 import io.github.numynox.nexus.abeona.ui.AbeonaPalette
 import io.github.numynox.nexus.abeona.ui.common.TripFormat
-import io.github.numynox.nexus.abeona.ui.common.confidenceSummary
+import java.time.Duration
 import java.time.Instant
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 
 /**
- * The next departure on the home screen: time, delay, platform, route and how
- * the changes look. It loads for itself (decisions/2026-10-23-home-screen-widgets.md)
+ * The next departure on the home screen: day or countdown, time, delay,
+ * platform, title, and the arrival with the number of changes. It loads for itself (decisions/2026-10-23-home-screen-widgets.md)
  * and keeps the last good trip, so it still shows the platform in a tunnel.
  * Delays and confidence are worked out when it draws, from the stored trip.
  */
@@ -111,8 +113,10 @@ object NextTripData {
 }
 
 private val WidgetColors = ColorProviders(light = AbeonaPalette.light, dark = AbeonaPalette.dark)
-private val Amber = ColorProvider(day = AbeonaColors.Amber, night = AbeonaColors.Amber)
-private val OnAmber = ColorProvider(day = AbeonaColors.Ink, night = AbeonaColors.Ink)
+
+// A changed platform is the one filled thing: the watch fill, the same in both themes.
+private val Changed = ColorProvider(day = AbeonaColors.WatchFill, night = AbeonaColors.WatchFill)
+private val OnChanged = ColorProvider(day = AbeonaColors.OnWatchFill, night = AbeonaColors.OnWatchFill)
 
 @Composable
 fun NextTripContent(state: NextTripState, now: Instant = Instant.now(), dynamicColor: Boolean = false) {
@@ -159,65 +163,87 @@ private fun Logo() {
     )
 }
 
+/**
+ * The day (or, within twelve hours, the countdown), the departure with its
+ * delay and the platform boxed, the trip's title, and one line to the
+ * destination: its arrival and the number of changes.
+ */
 @Composable
 private fun NextTrip(trip: Trip, now: Instant) {
     val first = trip.legs.firstOrNull { !it.isWalk }
+    val last = trip.legs.lastOrNull { !it.isWalk }
     val delay = first?.let(::departureDelay) ?: 0
     val platform = first?.from?.shownPlatform
     val moved = first?.let { platformChanged(it.from.plannedPlatform, it.from.platform) } == true
     val tall = LocalSize.current.height.value >= 140
+    val minutesToGo = Duration.between(now, trip.expectedDeparture).toMinutes()
     Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Logo()
         Spacer(GlanceModifier.width(8.dp))
         Text(
-            "Next trip",
-            style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium),
-            modifier = GlanceModifier.defaultWeight(),
+            if (minutesToGo in 0..720) TripFormat.relative(minutesToGo) else TripFormat.day(trip.departureAt),
+            style = TextStyle(color = GlanceTheme.colors.primary, fontSize = 13.sp, fontWeight = FontWeight.Medium),
         )
-        Text(TripFormat.day(trip.departureAt), style = TextStyle(color = GlanceTheme.colors.primary, fontSize = 13.sp, fontWeight = FontWeight.Medium))
     }
     Spacer(GlanceModifier.height(if (tall) 8.dp else 4.dp))
     Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         // The new time, and beside it the minutes late above the planned time struck through (glossary: delay).
         Text(
             TripFormat.time(if (delay > 0) first?.from?.expectedAt else first?.from?.plannedAt ?: trip.departureAt),
-            style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = if (tall) 34.sp else 28.sp, fontWeight = FontWeight.Bold),
+            style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 28.sp, fontWeight = FontWeight.Bold),
         )
         if (delay > 0) {
             Spacer(GlanceModifier.width(8.dp))
             Column {
-                Text("+$delay", style = TextStyle(color = GlanceTheme.colors.tertiary, fontSize = 13.sp, fontWeight = FontWeight.Bold))
+                Text("+$delay", style = TextStyle(color = GlanceTheme.colors.tertiary, fontSize = 12.sp, fontWeight = FontWeight.Bold))
                 Text(
                     TripFormat.time(first?.from?.plannedAt),
-                    style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 13.sp, textDecoration = TextDecoration.LineThrough),
+                    style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 12.sp, textDecoration = TextDecoration.LineThrough),
                 )
             }
         }
         Spacer(GlanceModifier.defaultWeight())
         if (platform != null) {
-            Column(
+            // The box is the word: no "Pl."; a screen reader hears "Platform 8".
+            Box(
                 GlanceModifier
-                    .background(if (moved) Amber else GlanceTheme.colors.secondaryContainer)
-                    .cornerRadius(12.dp)
-                    .padding(horizontal = 10.dp, vertical = 4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
+                    .background(if (moved) Changed else GlanceTheme.colors.secondaryContainer)
+                    .cornerRadius(8.dp)
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                    .semantics { contentDescription = "Platform $platform" },
+                contentAlignment = Alignment.Center,
             ) {
-                val ink = if (moved) OnAmber else GlanceTheme.colors.onSecondaryContainer
-                Text("Pl.", style = TextStyle(color = ink, fontSize = 11.sp))
-                Text(platform, style = TextStyle(color = ink, fontSize = 20.sp, fontWeight = FontWeight.Bold))
+                Text(platform, style = TextStyle(color = if (moved) OnChanged else GlanceTheme.colors.onSecondaryContainer, fontSize = 20.sp, fontWeight = FontWeight.Bold))
             }
         }
     }
     Spacer(GlanceModifier.height(4.dp))
-    Text(
-        "${trip.originName} → ${trip.destinationName}",
-        maxLines = 1,
-        style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 13.sp, fontWeight = FontWeight.Medium),
-    )
+    Text(trip.displayTitle, maxLines = 1, style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 13.sp, fontWeight = FontWeight.Medium))
     if (!tall) return
-    Text(
-        listOfNotNull(first?.label, confidenceSummary(changes(trip.legs), worstConfidence(trip.legs))).joinToString(" · "),
-        maxLines = 1,
-        style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 12.sp),
+    Spacer(GlanceModifier.height(4.dp))
+    val small = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 12.sp)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Glyph(R.drawable.ic_widget_flag, "Arrives")
+        Spacer(GlanceModifier.width(4.dp))
+        Text(TripFormat.time(last?.to?.expectedAt ?: trip.expectedArrival), style = small)
+        Spacer(GlanceModifier.width(12.dp))
+        Glyph(R.drawable.ic_widget_changes, "Changes")
+        Spacer(GlanceModifier.width(4.dp))
+        Text("${changes(trip.legs)}", style = small)
+        // The train to catch and how the changes look: small, after the two facts.
+        listOfNotNull(first?.label, worstConfidence(trip.legs)?.label?.lowercase()).joinToString(" · ").takeIf { it.isNotEmpty() }?.let {
+            Spacer(GlanceModifier.width(12.dp))
+            Text(it, maxLines = 1, style = small)
+        }
+    }
+}
+
+@Composable
+private fun Glyph(drawable: Int, description: String) {
+    Image(
+        ImageProvider(drawable),
+        contentDescription = description,
+        colorFilter = ColorFilter.tint(GlanceTheme.colors.onSurfaceVariant),
+        modifier = GlanceModifier.size(14.dp),
     )
 }

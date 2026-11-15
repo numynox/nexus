@@ -84,6 +84,8 @@ import io.github.numynox.nexus.abeona.data.FareType
 import io.github.numynox.nexus.abeona.data.Trip
 import io.github.numynox.nexus.abeona.domain.TicketNeeds
 import io.github.numynox.nexus.abeona.ui.AbeonaColors
+import io.github.numynox.nexus.abeona.ui.AbeonaType
+import androidx.compose.ui.text.font.FontWeight
 import io.github.numynox.nexus.abeona.ui.AppViewModel
 import io.github.numynox.nexus.abeona.ui.Navigator
 import io.github.numynox.nexus.abeona.ui.common.DbNavigator
@@ -234,7 +236,7 @@ fun TicketScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                 Column(Modifier.weight(1f)) {
                     Text(
                         trip?.displayTitle ?: "Ticket",
-                        style = MaterialTheme.typography.titleMedium,
+                        style = AbeonaType.title,
                         color = AbeonaColors.Ink,
                         maxLines = 1,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
@@ -242,11 +244,18 @@ fun TicketScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                     trip?.let {
                         Text(
                             "${TripFormat.day(it.departureAt)} · ${TripFormat.time(it.departureAt)} · ${if (it.travelClass == 1) "1st" else "2nd"} class",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = AbeonaColors.Ink.copy(alpha = 0.7f),
+                            style = AbeonaType.meta,
+                            color = AbeonaColors.Muted,
                         )
                     }
                     (ticket as? Loadable.Ready)?.value?.offlineSince?.let { OfflinePill(it, Modifier.padding(top = 4.dp)) }
+                }
+                // Some proofs are only valid in DB's app: it is always one tap from the ticket.
+                IconButton(onClick = { DbNavigator.open(context) }) {
+                    Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = "Open DB Navigator", tint = AbeonaColors.Ink)
+                }
+                IconButton(onClick = { replace.launch(PickedFile.TYPES) }) {
+                    Icon(Icons.Rounded.SwapHoriz, contentDescription = "Replace ticket", tint = AbeonaColors.Ink)
                 }
             }
             if (documents.size > 1) {
@@ -283,11 +292,7 @@ fun TicketScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                     }
                 }
             }
-            TicketFooter(
-                fareType = (ticket as? Loadable.Ready)?.value?.trip?.fareType,
-                onDbNavigator = { DbNavigator.open(context) },
-                onReplace = { replace.launch(PickedFile.TYPES) },
-            )
+            TicketFooter((ticket as? Loadable.Ready)?.value?.trip?.fareType)
         }
     }
 }
@@ -424,36 +429,21 @@ private fun TicketCodeView(code: Bitmap, onShowPdf: () -> Unit) {
     }
 }
 
+/** What counts as proof, in words: it has legal weight. The screen is white in both themes, so the light tokens. */
 @Composable
-private fun TicketFooter(fareType: FareType?, onDbNavigator: () -> Unit, onReplace: () -> Unit) {
+private fun TicketFooter(fareType: FareType?) {
     val inApp = fareType == FareType.Deutschlandticket || fareType == FareType.BahnCard100
-    Surface(color = AbeonaColors.Mint, contentColor = AbeonaColors.Ink, modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.navigationBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
-                Icon(Icons.Rounded.Badge, contentDescription = null, modifier = Modifier.size(20.dp))
-                Text(
-                    if (inApp) {
-                        "A Deutschlandticket or a digital BahnCard must be shown in DB Navigator; keep this copy for your records."
-                    } else {
-                        "DB accepts a ticket PDF shown on screen, together with an official photo ID. A Deutschlandticket or a digital BahnCard must be shown in DB Navigator."
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = onDbNavigator,
-                    colors = ButtonDefaults.buttonColors(containerColor = AbeonaColors.Green, contentColor = Color.White),
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Text("Open DB Navigator", modifier = Modifier.padding(start = 8.dp))
-                }
-                OutlinedButton(onClick = onReplace, colors = ButtonDefaults.outlinedButtonColors(contentColor = AbeonaColors.Ink)) {
-                    Icon(Icons.Rounded.SwapHoriz, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Text("Replace", modifier = Modifier.padding(start = 6.dp))
-                }
-            }
+    Surface(color = AbeonaColors.Well, contentColor = AbeonaColors.Ink, modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.navigationBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+            Icon(Icons.Rounded.Badge, contentDescription = null, tint = AbeonaColors.Muted, modifier = Modifier.size(20.dp))
+            Text(
+                if (inApp) {
+                    "A Deutschlandticket or a digital BahnCard must be shown in DB Navigator; keep this copy for your records."
+                } else {
+                    "DB accepts a ticket PDF shown on screen, together with an official photo ID. A Deutschlandticket or a digital BahnCard must be shown in DB Navigator."
+                },
+                style = AbeonaType.meta.copy(fontWeight = FontWeight.Normal),
+            )
         }
     }
 }

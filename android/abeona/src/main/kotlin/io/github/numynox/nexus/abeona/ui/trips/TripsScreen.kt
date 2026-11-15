@@ -1,98 +1,112 @@
 package io.github.numynox.nexus.abeona.ui.trips
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
-import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ConfirmationNumber
+import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.rounded.Route
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.SwapHoriz
+import androidx.compose.material.icons.rounded.Timelapse
+import androidx.compose.material.icons.rounded.Train
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LargeTopAppBar
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import io.github.numynox.nexus.abeona.R
 import io.github.numynox.nexus.abeona.data.Approach
 import io.github.numynox.nexus.abeona.data.Statistics
 import io.github.numynox.nexus.abeona.data.Trip
+import io.github.numynox.nexus.abeona.domain.TravelDay
+import io.github.numynox.nexus.abeona.domain.TravelDayRules
+import io.github.numynox.nexus.abeona.domain.alternativesOrigin
+import io.github.numynox.nexus.abeona.domain.alternativesReason
 import io.github.numynox.nexus.abeona.domain.changes
-import io.github.numynox.nexus.abeona.domain.departureDelay
 import io.github.numynox.nexus.abeona.domain.finalArrivalDelay
-import io.github.numynox.nexus.abeona.domain.platformChanged
+import io.github.numynox.nexus.abeona.domain.followed
 import io.github.numynox.nexus.abeona.domain.trainBindingLifted
+import io.github.numynox.nexus.abeona.domain.travelDay
 import io.github.numynox.nexus.abeona.domain.worstConfidence
+import io.github.numynox.nexus.abeona.live.LiveSignals
+import io.github.numynox.nexus.abeona.live.OnboardStatus
+import io.github.numynox.nexus.abeona.ui.AbeonaType
 import io.github.numynox.nexus.abeona.ui.AppViewModel
 import io.github.numynox.nexus.abeona.ui.Navigator
-import io.github.numynox.nexus.abeona.ui.common.ShiftedTime
-import io.github.numynox.nexus.abeona.ui.common.BindingLiftedBanner
+import io.github.numynox.nexus.abeona.ui.brand
+import io.github.numynox.nexus.abeona.ui.common.BindingBanner
 import io.github.numynox.nexus.abeona.ui.common.ConfidenceChip
 import io.github.numynox.nexus.abeona.ui.common.DeadlineBanner
-import io.github.numynox.nexus.abeona.ui.common.Illustration
+import io.github.numynox.nexus.abeona.ui.common.EmptyState
+import io.github.numynox.nexus.abeona.ui.common.Fact
+import io.github.numynox.nexus.abeona.ui.common.FactLine
 import io.github.numynox.nexus.abeona.ui.common.LegChips
 import io.github.numynox.nexus.abeona.ui.common.OfflinePill
 import io.github.numynox.nexus.abeona.ui.common.PlatformBox
-import io.github.numynox.nexus.abeona.ui.common.StatusPill
+import io.github.numynox.nexus.abeona.ui.common.PrimaryButton
+import io.github.numynox.nexus.abeona.ui.common.RowGrid
+import io.github.numynox.nexus.abeona.ui.common.SectionHeader
+import io.github.numynox.nexus.abeona.ui.common.ShiftedTime
+import io.github.numynox.nexus.abeona.ui.common.StatusChip
+import io.github.numynox.nexus.abeona.ui.common.StatusTone
+import io.github.numynox.nexus.abeona.ui.common.SurfaceCard
 import io.github.numynox.nexus.abeona.ui.common.TripFormat
-import io.github.numynox.nexus.abeona.ui.common.confidenceSummary
-import io.github.numynox.nexus.abeona.ui.live.LiveCard
-import io.github.numynox.nexus.abeona.ui.live.liveView
-import io.github.numynox.nexus.abeona.ui.live.rememberApproach
-import io.github.numynox.nexus.abeona.domain.alternativesOrigin
-import io.github.numynox.nexus.abeona.domain.alternativesReason
 import io.github.numynox.nexus.abeona.ui.common.containerViewModel
 import io.github.numynox.nexus.abeona.ui.common.isLiveDay
 import io.github.numynox.nexus.abeona.ui.common.rememberTicker
-import io.github.numynox.nexus.abeona.domain.TravelDay
-import io.github.numynox.nexus.abeona.domain.TravelDayRules
-import io.github.numynox.nexus.abeona.domain.followed
-import io.github.numynox.nexus.abeona.domain.travelDay
-import io.github.numynox.nexus.abeona.live.LiveSignals
-import io.github.numynox.nexus.abeona.live.OnboardStatus
+import io.github.numynox.nexus.abeona.ui.hairline
+import io.github.numynox.nexus.abeona.ui.live.LiveCard
+import io.github.numynox.nexus.abeona.ui.live.liveView
+import io.github.numynox.nexus.abeona.ui.live.rememberApproach
+import io.github.numynox.nexus.abeona.ui.live.sceneTrain
+import io.github.numynox.nexus.abeona.ui.muted
+import io.github.numynox.nexus.abeona.ui.scene.Scene
+import io.github.numynox.nexus.abeona.ui.scene.SceneSize
+import io.github.numynox.nexus.abeona.ui.scene.SceneState
 import io.github.numynox.nexus.core.ui.Loadable
 import io.github.numynox.nexus.core.ui.NexusFormat
 import io.github.numynox.nexus.core.ui.components.ErrorState
-import io.github.numynox.nexus.core.ui.components.NexusCard
 import io.github.numynox.nexus.core.ui.components.PlaceholderList
-import io.github.numynox.nexus.core.ui.components.SectionHeader
 import io.github.numynox.nexus.core.ui.components.UpdateBanner
 import io.github.numynox.nexus.core.ui.components.rememberPullRefresh
-import io.github.numynox.nexus.core.ui.theme.tabular
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 
-/** Home: the next trip as one big card, then what comes after, then the year so far. */
+/**
+ * Home (abeona-design.md §9, Trips): what needs doing, then the next trip (on
+ * its travel day the live card in its compact form), what comes after as
+ * dense rows, the year so far, and the way to the past trips.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TripsScreen(app: AppViewModel, navigator: Navigator) {
     val application = LocalContext.current.applicationContext as android.app.Application
@@ -106,23 +120,16 @@ fun TripsScreen(app: AppViewModel, navigator: Navigator) {
     val fix by LiveSignals.fix.collectAsStateWithLifecycle()
     val now by rememberTicker()
     val pull = rememberPullRefresh(viewModel::load)
-    val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     LaunchedEffect(version) { viewModel.load() }
 
     Scaffold(
         topBar = {
-            LargeTopAppBar(
-                title = {
-                    Column {
-                        Text("Trips")
-                        (trips as? Loadable.Ready)?.value?.offlineSince?.let { OfflinePill(it, Modifier.padding(top = 4.dp)) }
-                    }
-                },
-                scrollBehavior = scroll,
+            TopAppBar(
+                title = { Text("Trips") },
+                actions = { (trips as? Loadable.Ready)?.value?.offlineSince?.let { OfflinePill(it, Modifier.padding(end = 16.dp)) } },
             )
         },
-        modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
     ) { padding ->
         PullToRefreshBox(
             isRefreshing = pull.refreshing,
@@ -144,7 +151,11 @@ fun TripsScreen(app: AppViewModel, navigator: Navigator) {
                             item(key = "deadlines") { DeadlineBanner(deadlines, onClick = navigator::settings) }
                         }
                         if (upcoming.isEmpty()) {
-                            item(key = "empty") { EmptyTrips(onPlan = navigator::search) }
+                            item(key = "empty") {
+                                EmptyState("No trips planned", Modifier.padding(vertical = 8.dp)) {
+                                    PrimaryButton("Plan a trip", onClick = navigator::search, icon = Icons.Rounded.Route)
+                                }
+                            }
                         } else {
                             item(key = "next") {
                                 // As travelled: a connection taken from the alternatives replaces the plan's rides.
@@ -157,17 +168,22 @@ fun TripsScreen(app: AppViewModel, navigator: Navigator) {
                                 )
                             }
                             if (upcoming.size > 1) {
-                                item(key = "upcoming-head") { SectionHeader("Upcoming", supporting = "${upcoming.size - 1} more planned") }
-                                items(upcoming.drop(1), key = { it.id }) { trip ->
-                                    TripRow(trip, onClick = { navigator.trip(trip.id) }, modifier = Modifier.animateItem())
+                                item(key = "upcoming-head") {
+                                    SectionHeader("Upcoming") { Fact(Icons.Rounded.Train, "More planned", "${upcoming.size - 1}") }
                                 }
+                                item(key = "upcoming") { TripRows(upcoming.drop(1), onClick = { navigator.trip(it.id) }) }
                             }
                         }
                         item(key = "history") { HistoryCard(history, onClick = navigator::review) }
                         item(key = "past") {
-                            TextButton(onClick = navigator::pastTrips, modifier = Modifier.fillMaxWidth()) {
-                                Icon(Icons.Rounded.History, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Text("Past trips", modifier = Modifier.padding(start = 8.dp))
+                            Row(
+                                Modifier.fillMaxWidth().clickable(onClick = navigator::pastTrips).heightIn(min = 48.dp).padding(horizontal = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Icon(Icons.Rounded.History, contentDescription = null, tint = muted, modifier = Modifier.size(20.dp))
+                                Text("Past trips", style = AbeonaType.body, modifier = Modifier.weight(1f))
+                                Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = muted, modifier = Modifier.size(20.dp))
                             }
                         }
                     }
@@ -177,29 +193,25 @@ fun TripsScreen(app: AppViewModel, navigator: Navigator) {
     }
 }
 
+/** The trip's day, its title, and under a title of its own the route. */
 @Composable
-private fun EmptyTrips(onPlan: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-        Illustration(R.drawable.illus_empty_trips, height = 220.dp)
-        Spacer(Modifier.height(24.dp))
-        Text("No trips planned", style = MaterialTheme.typography.headlineSmall)
-        Spacer(Modifier.height(6.dp))
-        Text(
-            "Search a connection and save it: Abeona keeps an eye on delays, platforms and your changes on the day.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 16.dp),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-        )
-        Spacer(Modifier.height(20.dp))
-        Button(onClick = onPlan) {
-            Icon(Icons.Rounded.Search, contentDescription = null, modifier = Modifier.size(18.dp))
-            Text("Plan a trip", modifier = Modifier.padding(start = 8.dp))
+private fun DayAndTitle(trip: Trip, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(TripFormat.longDay(trip.departureAt), style = AbeonaType.meta, color = brand)
+        Text(trip.displayTitle, style = AbeonaType.title, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        if (!trip.title.isNullOrBlank()) {
+            Text("${trip.originName} → ${trip.destinationName}", style = AbeonaType.meta, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
 
-/** The one hero of the screen: when to be where, and whether anything has changed. */
+/**
+ * The next trip. On its travel day ([day]): its day and title as plain text,
+ * then the live card in its compact form, so no card sits in a card.
+ * Otherwise one card: the scene with the train parked (the signal at red
+ * when a ride fell out of the timetable), day and title, the departure with
+ * its platform, and one line of facts.
+ */
 @Composable
 fun NextTripCard(
     trip: Trip,
@@ -213,159 +225,128 @@ fun NextTripCard(
     approach: Approach? = null,
 ) {
     val first = trip.legs.firstOrNull { !it.isWalk }
-    val delay = first?.let(::departureDelay) ?: 0
+    val last = trip.legs.lastOrNull { !it.isWalk }
     val arrivalDelay = finalArrivalDelay(trip.legs)
-    val changes = changes(trip.legs)
-    val worst = worstConfidence(trip.legs)
-    val minutesToGo = Duration.between(now, trip.expectedDeparture).toMinutes()
-    Card(
-        onClick = onClick,
-        shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-        modifier = modifier.fillMaxWidth(),
-    ) {
-        Box {
-            Illustration(R.drawable.illus_train_hero, height = 132.dp, corner = 0.dp)
-            StatusPill(
-                if (minutesToGo in 0..720) "Departs ${TripFormat.relative(minutesToGo)}" else TripFormat.day(trip.departureAt),
-                modifier = Modifier.align(Alignment.TopStart).padding(12.dp),
+    val lifted = trainBindingLifted(trip.fareType, trip.trainBinding, arrivalDelay)
+    if (day != null) {
+        val origin = alternativesOrigin(trip.legs, day, now)
+        val reason = alternativesReason(trip.legs, day).takeIf { origin != null }
+        Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            DayAndTitle(trip, Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 4.dp))
+            LiveCard(
+                liveView(trip, day, now, stationMinutes, emptyList(), onboard, null, reason),
+                onAlternatives = onClick,
+                summary = true,
+                approach = approach,
+                onClick = onClick,
             )
+            if (lifted) BindingBanner(arrivalDelay)
         }
-        Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Column {
-                Text(
-                    TripFormat.longDay(trip.departureAt),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                Text(
-                    trip.title?.takeIf { it.isNotBlank() } ?: "${trip.originName} → ${trip.destinationName}",
-                    style = MaterialTheme.typography.titleLarge,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (!trip.title.isNullOrBlank()) {
-                    Text(
-                        "${trip.originName} → ${trip.destinationName}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            // On the travel day: the live card's own top, compact (the same headline and train
-            // line as on the trip screen), then one line to the destination.
-            if (day != null) {
-                val origin = alternativesOrigin(trip.legs, day, now)
-                val reason = alternativesReason(trip.legs, day).takeIf { origin != null }
-                LiveCard(
-                    liveView(trip, day, now, stationMinutes, emptyList(), onboard, null, reason),
-                    onAlternatives = onClick,
-                    summary = true,
-                    approach = approach,
-                )
-                if (trainBindingLifted(trip.fareType, trip.trainBinding, arrivalDelay)) BindingLiftedBanner(arrivalDelay)
-                return@Column
-            }
+        return
+    }
+    val dropped = trip.legs.any { it.dropped }
+    SurfaceCard(modifier, onClick = onClick, padding = PaddingValues(0.dp)) {
+        Scene(
+            // A ride that fell out of the timetable and nothing followed instead: the signal is at red.
+            state = if (dropped && trip.missedLegIdx == null) SceneState.Stopped else SceneState.Parked,
+            size = SceneSize.Header,
+            train = sceneTrain(first),
+            lat = first?.from?.lat,
+            lon = first?.from?.lon,
+        )
+        Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            DayAndTitle(trip)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Departure", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    ShiftedTime(
-                        first?.from?.plannedAt ?: trip.departureAt,
-                        first?.from?.expectedAt,
-                        MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.SemiBold),
-                    )
-                    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Arrives", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        ShiftedTime(
-                            trip.legs.lastOrNull { !it.isWalk }?.to?.plannedAt ?: trip.expectedArrival,
-                            trip.expectedArrival,
-                            MaterialTheme.typography.bodyMedium,
-                            block = false,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-                first?.let {
-                    PlatformBox(
-                        planned = it.from.plannedPlatform,
-                        current = it.from.platform,
-                        changed = platformChanged(it.from.plannedPlatform, it.from.platform),
-                        large = true,
-                    )
-                }
+                ShiftedTime(first?.from?.plannedAt ?: trip.departureAt, first?.from?.expectedAt, AbeonaType.time, cancelled = first?.cancelled == true)
+                Spacer(Modifier.weight(1f))
+                first?.let { PlatformBox(it.from.plannedPlatform, it.from.platform, lead = true) }
             }
-            LegChips(trip.legs)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // How the changes look is the chip's: here only how many.
-                Text(
-                    confidenceSummary(changes, null),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f),
-                )
-                if (worst != null) ConfidenceChip(worst)
-                if (trip.ticketPath != null) {
-                    Icon(
-                        Icons.Rounded.ConfirmationNumber,
-                        contentDescription = "Ticket attached",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp),
-                    )
+            FactLine {
+                Fact(Icons.Rounded.Flag, "Arrives") {
+                    ShiftedTime(last?.to?.plannedAt ?: trip.expectedArrival, trip.expectedArrival, AbeonaType.meta, block = false, color = muted)
                 }
+                Fact(Icons.Rounded.Schedule, "Duration", TripFormat.shortDuration(Duration.between(trip.departureAt, trip.arrivalAt).toMinutes()))
+                Fact(Icons.Rounded.SwapHoriz, "Changes", "${changes(trip.legs)}")
+                worstConfidence(trip.legs)?.let { ConfidenceChip(it) }
+                LegChips(trip.legs)
+                if (trip.ticketPath != null) Icon(Icons.Rounded.ConfirmationNumber, contentDescription = "Ticket attached", tint = muted, modifier = Modifier.size(16.dp))
             }
-            if (trainBindingLifted(trip.fareType, trip.trainBinding, arrivalDelay)) {
-                BindingLiftedBanner(arrivalDelay)
-            }
+            if (dropped) TimetableChip(trip)
+            if (lifted) BindingBanner(arrivalDelay)
         }
     }
 }
 
-/** A later trip (or, in Past trips, an earlier one): its day, route and times on one calm row. */
+/** A ride no longer in the timetable: adjusted once a connection is followed instead. */
 @Composable
-internal fun TripRow(trip: Trip, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    NexusCard(modifier = modifier.fillMaxWidth(), onClick = onClick, containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.width(76.dp)) {
-                Text(TripFormat.day(trip.departureAt), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, maxLines = 1)
-                Text(TripFormat.time(trip.departureAt), style = MaterialTheme.typography.titleLarge.tabular())
+private fun TimetableChip(trip: Trip) {
+    if (trip.missedLegIdx != null) {
+        StatusChip(StatusTone.Watch, Icons.Rounded.Schedule, label = "Adjusted for a timetable change")
+    } else {
+        StatusChip(StatusTone.Bad, Icons.Rounded.Block, label = "Timetable changed")
+    }
+}
+
+/** Trips as dense rows in one card, a hairline between them. */
+@Composable
+internal fun TripRows(trips: List<Trip>, onClick: (Trip) -> Unit, modifier: Modifier = Modifier, past: Boolean = false) {
+    SurfaceCard(modifier, padding = PaddingValues(vertical = 4.dp)) {
+        trips.forEachIndexed { index, trip ->
+            if (index > 0) HorizontalDivider(color = hairline, modifier = Modifier.padding(horizontal = 16.dp))
+            TripRow(trip, onClick = { onClick(trip) }, past = past)
+        }
+    }
+}
+
+/**
+ * A later trip, or in Past trips ([past]) an earlier one, on one row: its day
+ * over its departure where the grid has the time and the mark, then the title
+ * with the arrival and the lines under it, the ticket at the right. A past
+ * trip ends with how late it arrived.
+ */
+@Composable
+internal fun TripRow(trip: Trip, onClick: () -> Unit, modifier: Modifier = Modifier, past: Boolean = false) {
+    Row(
+        modifier.fillMaxWidth().clickable(onClick = onClick).heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(RowGrid.Gap),
+    ) {
+        Column(Modifier.width(RowGrid.Time + RowGrid.Gap + RowGrid.Mark)) {
+            Text(TripFormat.day(trip.departureAt), style = AbeonaType.meta, color = if (past) muted else brand, maxLines = 1)
+            Text(TripFormat.time(trip.departureAt), style = AbeonaType.title, maxLines = 1)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(trip.displayTitle, style = AbeonaType.body.copy(fontWeight = FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // The departure is in the column beside: here only the arrival.
+                Fact(Icons.Rounded.Flag, "Arrives", TripFormat.time(trip.arrivalAt))
+                LegChips(trip.legs)
             }
-            Column(Modifier.weight(1f)) {
-                Text(trip.displayTitle, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    // The departure is in the column beside: here only the arrival.
-                    "→ ${TripFormat.time(trip.arrivalAt)} · " +
-                        TripFormat.duration(Duration.between(trip.departureAt, trip.arrivalAt).toMinutes()),
-                    style = MaterialTheme.typography.bodySmall.tabular(),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                LegChips(trip.legs, Modifier.padding(top = 6.dp))
-                // A ride no longer in the timetable: adjusted once a connection is followed instead.
-                if (trip.legs.any { it.dropped }) {
-                    StatusPill(if (trip.missedLegIdx != null) "Adjusted for a timetable change" else "Timetable changed", Modifier.padding(top = 6.dp))
-                }
-            }
-            if (trip.ticketPath != null) {
-                Icon(Icons.Rounded.ConfirmationNumber, contentDescription = "Ticket attached", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+            if (!past && trip.legs.any { it.dropped }) TimetableChip(trip)
+        }
+        if (trip.ticketPath != null) {
+            Icon(Icons.Rounded.ConfirmationNumber, contentDescription = "Ticket attached", tint = muted, modifier = Modifier.size(20.dp))
+        }
+        if (past) {
+            val delay = finalArrivalDelay(trip.followed.legs)
+            if (delay > 0) {
+                StatusChip(StatusTone.Watch, Icons.Rounded.Timelapse, label = "+$delay", description = "$delay min late")
+            } else {
+                StatusChip(StatusTone.Ok, Icons.Rounded.CheckCircle, description = "On time")
             }
         }
     }
 }
 
-/** The year so far, in one line of figures; the way into the year in review. */
+/** The year so far as four figures in one row; the way into the year in review. */
 @Composable
 private fun HistoryCard(stats: Statistics?, onClick: () -> Unit) {
-    NexusCard(onClick = onClick, containerColor = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.fillMaxWidth()) {
+    SurfaceCard(onClick = onClick) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Rounded.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
-            Text(
-                "${LocalDate.now().year} on rails",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                modifier = Modifier.weight(1f).padding(start = 10.dp),
-            )
-            Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = "Year in review", tint = MaterialTheme.colorScheme.onSecondaryContainer)
+            Text("${LocalDate.now().year} on rails", style = AbeonaType.title, modifier = Modifier.weight(1f))
+            Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = "Year in review", tint = muted, modifier = Modifier.size(20.dp))
         }
-        Row(Modifier.fillMaxWidth().padding(top = 14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
             Figure(stats?.trips?.toString() ?: "–", "trips")
             Figure(stats?.let { NexusFormat.number(it.km) } ?: "–", "km")
             Figure(stats?.let { NexusFormat.number(it.delayMinutes) } ?: "–", "min late")
@@ -377,7 +358,7 @@ private fun HistoryCard(stats: Statistics?, onClick: () -> Unit) {
 @Composable
 private fun Figure(value: String, label: String) {
     Column {
-        Text(value, style = MaterialTheme.typography.titleLarge.tabular(), color = MaterialTheme.colorScheme.onSecondaryContainer)
-        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.75f))
+        Text(value, style = AbeonaType.headline, maxLines = 1)
+        Text(label, style = AbeonaType.meta, color = muted, maxLines = 1)
     }
 }

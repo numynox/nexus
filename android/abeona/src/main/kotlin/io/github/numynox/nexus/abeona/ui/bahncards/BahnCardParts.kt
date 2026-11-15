@@ -71,7 +71,7 @@ import java.time.ZoneOffset
 /** The card itself in miniature: the DB-green rectangle with its number, as on the plastic. */
 @Composable
 fun BahnCardBadge(kind: Int, modifier: Modifier = Modifier) {
-    Surface(color = AbeonaColors.Green, contentColor = Color.White, shape = RoundedCornerShape(8.dp), modifier = modifier.size(width = 48.dp, height = 34.dp)) {
+    Surface(color = AbeonaColors.Orange, contentColor = Color.White, shape = RoundedCornerShape(8.dp), modifier = modifier.size(width = 48.dp, height = 34.dp)) {
         Box(contentAlignment = Alignment.Center) {
             Text("$kind", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
         }

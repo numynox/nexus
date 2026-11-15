@@ -38,7 +38,7 @@ class AfterRideScreenshots {
     @Test
     fun afterTheRide() = with(robot) {
         waitForText("Visit grandma in Bamberg")
-        tap("Review")
+        tap("Year")
         waitForText("Compensation")
         shot("60-review-claims-bar")
         tap("Compensation")

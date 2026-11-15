@@ -116,7 +116,7 @@ object BahnCardReminders {
         }
         return NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
-            .setColor(ContextCompat.getColor(context, R.color.abeona_green))
+            .setColor(ContextCompat.getColor(context, R.color.abeona_orange))
             .setContentTitle(title)
             .setContentText(lines.first())
             .setStyle(style)

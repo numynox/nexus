@@ -50,6 +50,17 @@ object TripFormat {
         }
     }
 
+    /** "2 h 05", "45 min": a duration beside its clock icon. */
+    fun shortDuration(minutes: Long): String {
+        val h = minutes / 60
+        val m = minutes % 60
+        return when {
+            h == 0L -> "$m min"
+            m == 0L -> "$h h"
+            else -> "$h h ${"%02d".format(m)}"
+        }
+    }
+
     /** "in 12 min", "in 2 h 05 min", "now". */
     fun relative(minutes: Long): String = if (minutes <= 0) "now" else "in ${duration(minutes)}"
 

@@ -55,7 +55,9 @@ import io.github.numynox.nexus.abeona.ui.trip.TripMap
 import io.github.numynox.nexus.abeona.ui.AbeonaColors
 import io.github.numynox.nexus.abeona.ui.AbeonaPalette
 import io.github.numynox.nexus.abeona.ui.AppViewModel
-import io.github.numynox.nexus.abeona.ui.common.Illustration
+import io.github.numynox.nexus.abeona.ui.scene.Scene
+import io.github.numynox.nexus.abeona.ui.scene.SceneSize
+import io.github.numynox.nexus.abeona.ui.scene.SceneState
 import io.github.numynox.nexus.abeona.ui.common.containerViewModel
 import io.github.numynox.nexus.core.ui.Loadable
 import io.github.numynox.nexus.core.ui.NexusFormat
@@ -103,11 +105,11 @@ class ReviewViewModel(private val container: AppContainer) : ViewModel() {
 /** One story card's colours: a background and the text on it. */
 private data class CardTone(val background: Color, val content: Color, val accent: Color)
 
-private val Night = CardTone(AbeonaColors.Ink, Color.White, AbeonaColors.Amber)
-private val Green = CardTone(AbeonaColors.Green, Color.White, AbeonaColors.Amber)
-private val Sky = CardTone(AbeonaColors.Sky, AbeonaColors.Ink, AbeonaColors.Green)
-private val Mint = CardTone(AbeonaColors.Mint, AbeonaColors.Ink, AbeonaColors.Green)
-private val Amber = CardTone(AbeonaColors.Amber, AbeonaColors.Ink, AbeonaColors.Ink)
+private val Night = CardTone(AbeonaColors.Ink, Color.White, AbeonaColors.WatchFill)
+private val Green = CardTone(AbeonaColors.Orange, Color.White, AbeonaColors.WatchFill)
+private val Sky = CardTone(AbeonaColors.Well, AbeonaColors.Ink, AbeonaColors.Orange)
+private val Mint = CardTone(AbeonaColors.BrandSoft, AbeonaColors.Ink, AbeonaColors.Orange)
+private val Amber = CardTone(AbeonaColors.WatchFill, AbeonaColors.Ink, AbeonaColors.Ink)
 
 private const val EARTH_KM = 40_075.0
 private const val HAMBURG_MUNICH_KM = 775.0
@@ -192,7 +194,7 @@ private fun StoryPager(stats: Statistics, year: Int, map: List<TravelMapLine>) {
 private fun storyCards(stats: Statistics, year: Int, map: List<TravelMapLine>): List<@Composable () -> Unit> {
     if (stats.trips == 0) {
         return listOf({
-            StoryCard(Night, illustration = R.drawable.illus_year_review) {
+            StoryCard(Night, scene = SceneState.Riding) {
                 Kicker("$year on rails", Night)
                 Headline("No rides yet", Night)
                 Body("Trips count here once they have arrived. Save your next connection, and this deck fills itself.", Night)
@@ -202,7 +204,7 @@ private fun storyCards(stats: Statistics, year: Int, map: List<TravelMapLine>): 
     val hours = stats.minutesOnTrain / 60.0
     return listOfNotNull(
         {
-            StoryCard(Night, illustration = R.drawable.illus_year_review) {
+            StoryCard(Night, scene = SceneState.Riding) {
                 Kicker("$year on rails", Night)
                 Big(NexusFormat.number(stats.trips.toDouble()), Night)
                 Headline(if (stats.trips == 1) "trip" else "trips", Night)
@@ -299,7 +301,7 @@ private fun storyCards(stats: Statistics, year: Int, map: List<TravelMapLine>): 
         },
         if (stats.topRoute != null || stats.topStation != null) {
             {
-                StoryCard(Mint, illustration = R.drawable.illus_station) {
+                StoryCard(Mint, scene = SceneState.Arrived) {
                     Kicker("Favourites", Mint)
                     stats.topRoute?.let {
                         Headline("${it.from} ↔ ${it.to}", Mint)
@@ -335,7 +337,7 @@ private fun trees(kg: Double): String? {
 }
 
 @Composable
-private fun StoryCard(tone: CardTone, illustration: Int? = null, content: @Composable ColumnScope.() -> Unit) {
+private fun StoryCard(tone: CardTone, scene: SceneState? = null, content: @Composable ColumnScope.() -> Unit) {
     Surface(
         color = tone.background,
         contentColor = tone.content,
@@ -343,7 +345,7 @@ private fun StoryCard(tone: CardTone, illustration: Int? = null, content: @Compo
         modifier = Modifier.fillMaxSize().padding(vertical = 8.dp),
     ) {
         Column(Modifier.fillMaxSize()) {
-            illustration?.let { Illustration(it, height = 240.dp, corner = 0.dp) }
+            scene?.let { Scene(it, size = SceneSize.Full) }
             Column(
                 Modifier.fillMaxWidth().weight(1f).padding(28.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
@@ -384,7 +386,7 @@ private fun ColumnScope.ProductSplit(products: Map<String, Int>) {
                     .weight(count.toFloat() / top)
                     .height(22.dp)
                     .clip(RoundedCornerShape(11.dp))
-                    .background(if (product in setOf("ICE", "IC", "EC")) AbeonaColors.Ink else AbeonaColors.Green),
+                    .background(if (product in setOf("ICE", "IC", "EC")) AbeonaColors.Ink else AbeonaColors.Orange),
             )
             if (count < top) Spacer(Modifier.weight(1f - count.toFloat() / top))
             Text("$count", style = MaterialTheme.typography.titleSmall.tabular(), modifier = Modifier.width(40.dp), textAlign = TextAlign.End)
@@ -410,7 +412,7 @@ private fun ColumnScope.MonthChart(stats: Statistics, year: Int) {
     Surface(color = Color.White, shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth().weight(1f)) {
         // The card is light in both themes, so the chart's labels are too.
         MaterialTheme(colorScheme = AbeonaPalette.light) { NexusChart(
-            series = listOf(ChartSeries("Trips", points, AbeonaColors.Green, style = SeriesStyle.Bars)),
+            series = listOf(ChartSeries("Trips", points, AbeonaColors.Orange, style = SeriesStyle.Bars)),
             xFormatter = { Month.of(it.toInt().coerceIn(1, 12)).getDisplayName(TextStyle.NARROW, Locale.ENGLISH) },
             yFormatter = { NexusFormat.number(it) },
             xTicks = (1..12).map { it.toDouble() },

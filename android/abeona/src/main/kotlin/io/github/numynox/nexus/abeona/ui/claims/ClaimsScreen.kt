@@ -36,7 +36,7 @@ import io.github.numynox.nexus.abeona.data.toInstantOrNull
 import io.github.numynox.nexus.abeona.domain.CompensationText
 import io.github.numynox.nexus.abeona.ui.AppViewModel
 import io.github.numynox.nexus.abeona.ui.Navigator
-import io.github.numynox.nexus.abeona.ui.attention
+import io.github.numynox.nexus.abeona.ui.watch
 import io.github.numynox.nexus.abeona.ui.common.TripFormat
 import io.github.numynox.nexus.abeona.ui.common.containerViewModel
 import io.github.numynox.nexus.core.ui.Loadable
@@ -141,7 +141,7 @@ private fun ClaimRow(entry: ClaimEntry, waiting: Boolean, onClick: () -> Unit) {
                             CompensationText.deadline(TripFormat.date(LocalDate.parse(entry.deadline)), entry.daysLeft)
                     },
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (!waiting && entry.daysLeft <= 7) attention.content else MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (!waiting && entry.daysLeft <= 7) watch.soft.content else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Text(entry.amountCents?.let(TripFormat::price) ?: "fare?", style = MaterialTheme.typography.titleMedium.tabular())

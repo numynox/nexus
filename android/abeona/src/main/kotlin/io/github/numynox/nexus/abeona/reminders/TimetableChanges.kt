@@ -47,7 +47,7 @@ object TimetableChanges {
         )
         return NotificationCompat.Builder(context, LiveCompanion.CHANNEL_ALERTS)
             .setSmallIcon(R.drawable.ic_notification)
-            .setColor(ContextCompat.getColor(context, R.color.abeona_green))
+            .setColor(ContextCompat.getColor(context, R.color.abeona_orange))
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))

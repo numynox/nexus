@@ -4,7 +4,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.foundation.layout.widthIn
 import io.github.numynox.nexus.abeona.ui.common.ShiftedTime
 import android.Manifest
 import android.content.pm.PackageManager
@@ -12,33 +11,25 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.DirectionsWalk
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
-import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ConfirmationNumber
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.EventBusy
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.ExpandLess
@@ -52,7 +43,6 @@ import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -76,14 +66,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -93,15 +76,10 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.numynox.nexus.abeona.data.Approach
 import io.github.numynox.nexus.abeona.data.Leg
-import io.github.numynox.nexus.abeona.data.StopTime
 import io.github.numynox.nexus.abeona.data.Trip
 import io.github.numynox.nexus.abeona.data.toInstantOrNull
 import io.github.numynox.nexus.abeona.domain.Transfer
-import io.github.numynox.nexus.abeona.domain.arrivalDelay
-import io.github.numynox.nexus.abeona.domain.delayMinutes
-import io.github.numynox.nexus.abeona.domain.departureDelay
 import io.github.numynox.nexus.abeona.domain.finalArrivalDelay
-import io.github.numynox.nexus.abeona.domain.platformChanged
 import io.github.numynox.nexus.abeona.domain.trainBindingLifted
 import io.github.numynox.nexus.abeona.domain.transfers
 import io.github.numynox.nexus.abeona.domain.AlternativesReason
@@ -123,35 +101,52 @@ import io.github.numynox.nexus.abeona.ui.live.LiveMap
 import io.github.numynox.nexus.abeona.ui.live.LiveCard
 import io.github.numynox.nexus.abeona.ui.live.rememberApproach
 import io.github.numynox.nexus.abeona.ui.live.LiveStatus
-import io.github.numynox.nexus.abeona.ui.live.LiveView
 import io.github.numynox.nexus.abeona.ui.live.liveView
 import io.github.numynox.nexus.abeona.live.LiveSignals
 import io.github.numynox.nexus.abeona.live.OnboardStatus
 import io.github.numynox.nexus.abeona.live.TripLocation
-import io.github.numynox.nexus.abeona.ui.common.TicketNeedsSummary
 import io.github.numynox.nexus.abeona.ui.common.isLiveDay
 import io.github.numynox.nexus.abeona.ui.common.rememberTicker
 import io.github.numynox.nexus.abeona.ui.AppViewModel
 import io.github.numynox.nexus.abeona.ui.Navigator
-import io.github.numynox.nexus.abeona.ui.danger
-import io.github.numynox.nexus.abeona.ui.common.BindingLiftedBanner
 import io.github.numynox.nexus.abeona.ui.common.ConfidenceChip
 import io.github.numynox.nexus.abeona.ui.common.DbNavigator
 import io.github.numynox.nexus.abeona.ui.common.LineChip
-import io.github.numynox.nexus.abeona.ui.common.OfflinePill
-import io.github.numynox.nexus.abeona.ui.common.PlatformBox
-import io.github.numynox.nexus.abeona.ui.common.StatusPill
 import io.github.numynox.nexus.abeona.ui.common.PickedFile
 import io.github.numynox.nexus.abeona.ui.common.TripFormat
 import io.github.numynox.nexus.abeona.ui.common.containerViewModel
 import io.github.numynox.nexus.core.ui.Loadable
-import io.github.numynox.nexus.core.ui.components.ConnectedChoiceRow
 import io.github.numynox.nexus.core.ui.components.ErrorState
-import io.github.numynox.nexus.core.ui.components.NexusCard
 import io.github.numynox.nexus.core.ui.components.PlaceholderList
-import io.github.numynox.nexus.core.ui.components.SectionHeader
 import io.github.numynox.nexus.core.ui.components.rememberPullRefresh
-import io.github.numynox.nexus.core.ui.theme.tabular
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.CreditCard
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material3.ButtonDefaults
+import io.github.numynox.nexus.abeona.ui.AbeonaType
+import androidx.compose.ui.text.font.FontWeight
+import io.github.numynox.nexus.abeona.ui.bad
+import io.github.numynox.nexus.abeona.ui.brand
+import io.github.numynox.nexus.abeona.ui.card
+import io.github.numynox.nexus.abeona.ui.muted
+import io.github.numynox.nexus.abeona.ui.common.Banner
+import io.github.numynox.nexus.abeona.ui.common.BindingBanner
+import io.github.numynox.nexus.abeona.ui.common.Fact
+import io.github.numynox.nexus.abeona.ui.common.FactLine
+import io.github.numynox.nexus.abeona.ui.common.Rail
+import io.github.numynox.nexus.abeona.ui.common.RailDot
+import io.github.numynox.nexus.abeona.ui.common.RailLine
+import io.github.numynox.nexus.abeona.ui.common.SectionHeader
+import io.github.numynox.nexus.abeona.ui.common.StatusChip
+import io.github.numynox.nexus.abeona.ui.common.StatusTone
+import io.github.numynox.nexus.abeona.ui.common.StopRow
+import io.github.numynox.nexus.abeona.ui.common.SurfaceCard
+import io.github.numynox.nexus.abeona.ui.common.bahnCardsShort
+import io.github.numynox.nexus.abeona.ui.live.LiveStatusKind
+import io.github.numynox.nexus.abeona.ui.live.LiveView
+import io.github.numynox.nexus.abeona.ui.live.liveStatusIcon
 import java.time.Duration
 import kotlinx.coroutines.launch
 
@@ -281,7 +276,8 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {},
+                // The route once, here; the trip's own title, when it has one, heads the page.
+                title = { ready?.let { Text("${it.originName} → ${it.destinationName}", style = AbeonaType.body.copy(fontWeight = FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis) } },
                 navigationIcon = { IconButton(onClick = navigator.back) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back") } },
                 actions = {
                     if (ready != null) {
@@ -391,6 +387,7 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                         }
                     },
                     onAlternatives = openAlternatives,
+                    onTicket = openTicket,
                     fetchApproach = app.container.repository::approach,
                     afterRide = afterRide?.let { state ->
                         AfterRideActions(
@@ -571,6 +568,8 @@ private fun TripContent(
     onFollowPlan: () -> Unit,
     /** A ride no longer in the timetable: find another connection. */
     onDroppedAlternatives: () -> Unit,
+    /** The ticket: show it, or pick one to add. */
+    onTicket: () -> Unit,
     /** Where the train to catch is on its way to the boarding stop (AbeonaRepository.approach). */
     fetchApproach: suspend (Leg) -> Approach? = { null },
 ) {
@@ -594,31 +593,30 @@ private fun TripContent(
         val following = !over && trip.followsReplacement
         // The binding and a connection taken instead: in the live card while live.
         val notices: @Composable () -> Unit = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                // A dropped ride says the binding is lifted in its own card.
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 // A dropped ride, or a cancelled one in the live card, says the binding is lifted itself.
                 if (binding && dropped == null && live?.view?.leg?.cancelled != true) {
-                    BindingLiftedBanner(
+                    BindingBanner(
                         arrivalDelay,
                         because = when {
                             arrivalDelay >= 20 -> null
-                            live?.missedShort == true -> "You missed a change that had less than 5 minutes."
-                            else -> "A change on your trip cannot be made."
+                            live?.missedShort == true -> "You missed a change that had less than 5 minutes"
+                            else -> "A change on your trip cannot be made"
                         },
                     )
                 }
-                if (dropped != null && !following) DroppedCard(dropped, bindingLifted = binding, onDroppedAlternatives)
+                if (dropped != null && !following) DroppedBanner(dropped, bindingLifted = binding, onDroppedAlternatives)
                 // The same trains at other times, taken by Abeona for the dropped ride: there is no plan to go back to.
                 if (following && dropped != null && (trip.missedLegIdx ?: Int.MAX_VALUE) <= droppedIdx) {
-                    AdjustedCard(trip, dropped)
+                    AdjustedBanner(trip, dropped)
                 } else if (following) {
-                    FollowingCard(trip, onFollowPlan)
+                    FollowingBanner(trip, onFollowPlan)
                 }
             }
         }
         val anyNotice = binding || following || (!over && dropped != null)
         // While the trip is live, everything live is in the one card; above it only what does not change.
-        item(key = "header") { TripHeader(detail, live = live != null) }
+        item(key = "header") { TripHeader(trip, live = live != null) }
         if (live != null) {
             item(key = "travel-day") {
                 LiveCard(
@@ -649,27 +647,23 @@ private fun TripContent(
                 }
             }
         }
+        // After the ride the verdict is the answer (abeona-design.md §2, moment 12): before the journey it is about.
         afterRide?.let { a ->
             item(key = "compensation") { CompensationCard(trip, a.state, a.onStatus, a.onPrice, a.onForceMajeure) }
             item(key = "what-happened") { WhatHappenedCard(trip, a.state.busy, a.onRecord, a.onClear) }
         }
+        // The header has the duration and the changes when it shows the times; while live the timeline's head does.
+        item(key = "timeline-head") {
+            SectionHeader("Your journey") { if (live != null) JourneyFacts(trip) }
+        }
+        item(key = "timeline") {
+            // "Timetable only" on a ride only when others are live; otherwise the freshness line says it once.
+            Timeline(journey.legs, changes, freshness = if (live == null) freshness(detail) else null)
+        }
+        item(key = "ticket") { TicketCard(trip, onTicket) }
         // While the trip is live the dashboard has the map, with the traveller on it.
         if (live == null || live.day.kind == TravelDayKind.Arrived) {
-            item(key = "map") {
-                TripMap(journey.legs, Modifier.fillMaxWidth().height(220.dp).padding(top = 4.dp))
-            }
-        }
-        item(key = "timeline-head") { SectionHeader("Your journey", supporting = timelineSummary(trip)) }
-        journey.legs.forEachIndexed { index, leg ->
-            if (leg.isWalk) {
-                item(key = "walk-$index") { WalkRow(leg) }
-            } else {
-                changes.firstOrNull { it.departing == index }?.let { change ->
-                    item(key = "change-$index") { TransferRow(change, journey.legs) }
-                }
-                // "Timetable only" on a ride only when others are live; otherwise the header says it once.
-                item(key = "leg-$index") { LegCard(leg, timetableOnly = !leg.realtime && journey.legs.any { it.realtime }) }
-            }
+            item(key = "map") { TripMap(journey.legs, Modifier.fillMaxWidth().height(220.dp)) }
         }
     }
 }
@@ -681,273 +675,239 @@ private fun TripContent(
  */
 @Composable
 private fun LocationPrompt(onAllow: () -> Unit, onDismiss: () -> Unit) {
-    NexusCard(Modifier.fillMaxWidth(), containerColor = MaterialTheme.colorScheme.secondaryContainer) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-            Icon(Icons.Rounded.MyLocation, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.padding(top = 2.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Know where you are on the trip", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                Text(
-                    "With your location, the live companion can tell whether you are at the station, on board, or have missed a change. " +
-                        "Only while it runs, and it never leaves this phone.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
-                    Button(onClick = onAllow) { Text("Use location") }
-                    TextButton(onClick = onDismiss) { Text("Not now") }
-                }
-            }
-        }
+    Banner(
+        StatusTone.Quiet,
+        Icons.Rounded.MyLocation,
+        "Know where you are on the trip",
+        text = "To tell whether you are at the station, on board or have missed a change: only while the live companion runs, and it never leaves this phone.",
+    ) {
+        OutlinedButton(onClick = onAllow) { Text("Use location") }
+        TextButton(onClick = onDismiss) { Text("Not now") }
     }
 }
 
-private fun timelineSummary(trip: Trip): String {
+/** How long the journey takes and how many changes it has. */
+@Composable
+private fun JourneyFacts(trip: Trip) {
     val rides = trip.legs.count { !it.isWalk }
-    val minutes = Duration.between(trip.departureAt, trip.arrivalAt).toMinutes()
-    return listOf(
-        TripFormat.duration(minutes),
-        if (rides <= 1) "direct" else "${rides - 1} ${if (rides == 2) "change" else "changes"}",
-        "${trip.fareType.label}, ${if (trip.travelClass == 1) "1st" else "2nd"} class",
-    ).joinToString(" · ")
+    Fact(Icons.Rounded.Schedule, "Duration", TripFormat.shortDuration(Duration.between(trip.departureAt, trip.arrivalAt).toMinutes()))
+    Fact(Icons.Rounded.SwapHoriz, "Changes", "${(rides - 1).coerceAtLeast(0)}")
 }
 
 /** The live card's last line: how fresh the live values are, or why there are none. */
 private fun liveStatus(detail: TripDetail): LiveStatus? {
     val trip = detail.trip
     val timetableOnly = trip.legs.none { it.realtime } && trip.legs.any { !it.isWalk }
-    val base = when {
-        detail.offlineSince != null -> LiveStatus("Offline · updated ${TripFormat.time(detail.offlineSince)}", offline = true)
-        detail.refreshError != null -> LiveStatus("Live data unavailable", offline = true)
-        trip.refreshedAt != null -> LiveStatus("Live · updated ${TripFormat.time(trip.refreshedAt.toInstantOrNull())}")
+    val refreshed = trip.refreshedAt.toInstantOrNull()
+    return when {
+        detail.offlineSince != null -> LiveStatus(LiveStatusKind.Offline, "Offline · updated", TripFormat.time(detail.offlineSince))
+        detail.refreshError != null -> LiveStatus(LiveStatusKind.Unavailable, "Live data", "unavailable")
+        // Not "Live · … · timetable only": one word for where the times come from.
+        timetableOnly && refreshed != null -> LiveStatus(LiveStatusKind.Timetable, "Timetable · updated", TripFormat.time(refreshed))
+        timetableOnly -> LiveStatus(LiveStatusKind.Timetable, "Times", "Timetable only")
+        refreshed != null -> LiveStatus(LiveStatusKind.Live, "Live · updated", TripFormat.time(refreshed))
         else -> null
     }
-    return when {
-        !timetableOnly -> base
-        base == null -> LiveStatus("Timetable only")
-        // Not "Live · … · timetable only": one word for where the times come from.
-        trip.refreshedAt != null && !base.offline -> LiveStatus("Timetable · updated ${TripFormat.time(trip.refreshedAt.toInstantOrNull())}")
-        else -> base
+}
+
+/** Off the travel day, the timeline's last line: how fresh its times are, or that they are final. */
+private fun freshness(detail: TripDetail): LiveStatus? =
+    if (detail.offlineSince == null && detail.refreshError == null && detail.trip.finalizedAt != null) {
+        LiveStatus(LiveStatusKind.Final, "Times", "Final times recorded")
+    } else {
+        liveStatus(detail)
+    }
+
+/**
+ * The trip's day and, when it has one, its title (the route is the top
+ * bar's). While the trip is live that is all: its times are in the live
+ * card. Otherwise the departure and the arrival with their delays, and one
+ * line of facts.
+ */
+@Composable
+private fun TripHeader(trip: Trip, live: Boolean) {
+    val first = trip.legs.firstOrNull { !it.isWalk }
+    val last = trip.legs.lastOrNull { !it.isWalk }
+    Column(Modifier.padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(TripFormat.longDay(trip.departureAt), style = AbeonaType.meta, color = brand)
+        if (!trip.title.isNullOrBlank()) Text(trip.displayTitle, style = AbeonaType.title, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        if (live) return@Column
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ShiftedTime(first?.from?.plannedAt, first?.from?.expectedAt, AbeonaType.time, cancelled = first?.cancelled == true)
+            Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = "to", tint = muted, modifier = Modifier.size(20.dp))
+            ShiftedTime(last?.to?.plannedAt, last?.to?.expectedAt, AbeonaType.time, cancelled = last?.cancelled == true)
+        }
+        FactLine { JourneyFacts(trip) }
     }
 }
 
 /**
- * The trip's name, day and price. While the trip is live that is all: its
- * times and how fresh they are are in the live card. Otherwise the board
- * times with their delays, and the status pills.
+ * What the ticket is: fare and class in words (they carry the ticket's
+ * terms), the price, the travellers and their BahnCards, and the way to the
+ * ticket itself.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun TripHeader(detail: TripDetail, live: Boolean) {
-    val trip = detail.trip
-    val first = trip.legs.firstOrNull { !it.isWalk }
-    val last = trip.legs.lastOrNull { !it.isWalk }
-    Column(Modifier.padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            listOfNotNull(TripFormat.longDay(trip.departureAt), trip.priceCents?.takeIf { live }?.let { TripFormat.price(it) }).joinToString(" · "),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        // Start and destination once: by the board times below, or, while
-        // live (no board), in the title line.
-        val titled = !trip.title.isNullOrBlank()
-        // A size smaller while live, so the two station names wrap less.
-        if (titled || live) Text(trip.displayTitle, style = if (live) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineMedium)
-        if (titled && live) {
-            Text("${trip.originName} → ${trip.destinationName}", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        // How many the ticket is for and its BahnCards: static, so it stays above the live card too.
-        if (live) {
-            TicketNeedsSummary(trip.travellerCount, trip.bahncardDiscounts)
-            return@Column
-        }
-        Row(
-            Modifier.fillMaxWidth().padding(top = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Column(Modifier.weight(1f)) {
-                ShiftedTime(first?.from?.plannedAt, first?.from?.expectedAt, MaterialTheme.typography.displaySmall)
-                Text(trip.originName, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+private fun TicketCard(trip: Trip, onTicket: () -> Unit) {
+    SurfaceCard(padding = PaddingValues(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Icon(Icons.Rounded.ConfirmationNumber, contentDescription = null, tint = muted, modifier = Modifier.size(20.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("${trip.fareType.label}, ${if (trip.travelClass == 1) "1st" else "2nd"} class", style = AbeonaType.body, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                FactLine {
+                    trip.priceCents?.let { Text(TripFormat.price(it), style = AbeonaType.meta, color = muted) }
+                    trip.travellerCount?.let { Fact(Icons.Rounded.Person, "Travellers", "$it") }
+                    if (trip.bahncardDiscounts.isNotEmpty()) Fact(Icons.Rounded.CreditCard, "BahnCards", bahnCardsShort(trip.bahncardDiscounts))
+                }
             }
-            Text("→", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
-                ShiftedTime(last?.to?.plannedAt, last?.to?.expectedAt, MaterialTheme.typography.displaySmall)
-                Text(trip.destinationName, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End)
-            }
-        }
-        FlowRow(
-            Modifier.padding(top = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            // One pill for how fresh the times are: live, or the timetable's.
-            val timetableOnly = trip.legs.none { it.realtime } && trip.legs.any { !it.isWalk }
-            when {
-                detail.offlineSince != null -> OfflinePill(detail.offlineSince)
-                detail.refreshError != null -> StatusPill("Live data unavailable", offline = true)
-                trip.finalizedAt != null -> StatusPill("Final times recorded")
-                timetableOnly && trip.refreshedAt != null -> StatusPill("Timetable · updated ${TripFormat.time(trip.refreshedAt.toInstantOrNull())}")
-                timetableOnly -> StatusPill("Timetable only")
-                trip.refreshedAt != null -> StatusPill("Live · updated ${TripFormat.time(trip.refreshedAt.toInstantOrNull())}")
-            }
-            trip.priceCents?.let { StatusPill(TripFormat.price(it)) }
-            TicketNeedsSummary(trip.travellerCount, trip.bahncardDiscounts, Modifier.align(Alignment.CenterVertically))
+            TextButton(onClick = onTicket) { Text(if (trip.ticketPath != null) "Show ticket" else "Add ticket") }
         }
     }
 }
 
-/** One ride: the line, where it is headed, and its two stops with times and platforms. */
+/**
+ * The journey on one continuous rail, in the row grid: a ride is its first
+ * and last stop with its line between them and the stops it passes folded
+ * behind "n stops"; a change is one row; a walk at either end one row. The
+ * last line says how fresh the times are.
+ */
 @Composable
-private fun LegCard(leg: Leg, timetableOnly: Boolean) {
-    var expanded by rememberSaveable(leg.tripRef, leg.from.planned) { mutableStateOf(false) }
-    val line = MaterialTheme.colorScheme.primary
-    val hole = MaterialTheme.colorScheme.surfaceContainerLow
-    NexusCard(Modifier.fillMaxWidth(), containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            LineChip(leg, large = true)
-            Column(Modifier.weight(1f)) {
-                leg.headsign?.let { Text("to $it", style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                leg.operator?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1) }
-            }
-            if (leg.cancelled) {
-                val colors = danger
-                Surface(color = colors.container, contentColor = colors.content, shape = RoundedCornerShape(8.dp)) {
-                    Text(if (leg.dropped) "Not in the timetable" else "Cancelled", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
-                }
-            } else if (timetableOnly) {
-                StatusPill("Timetable only")
+private fun Timeline(legs: List<Leg>, changes: List<Transfer>, freshness: LiveStatus?) {
+    val anyLive = legs.any { it.realtime }
+    SurfaceCard(padding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
+        val rides = legs.indices.filter { !legs[it].isWalk }
+        legs.forEachIndexed { index, leg ->
+            val firstRide = index == rides.firstOrNull()
+            val lastRide = index == rides.lastOrNull()
+            if (leg.isWalk) {
+                // A walk between two rides is its change's; only one before the first or after the last is its own row.
+                if (rides.isEmpty() || index < rides.first() || index > rides.last()) WalkRow(leg, after = index > (rides.lastOrNull() ?: -1))
+            } else {
+                changes.firstOrNull { it.departing == index }?.let { ChangeRow(it, legs) }
+                RideRows(leg, timetableOnly = !leg.realtime && anyLive, walkBefore = firstRide && index > 0, walkAfter = lastRide && index < legs.lastIndex)
             }
         }
-        Row(Modifier.padding(top = 14.dp).height(IntrinsicSize.Min)) {
-            Box(
-                Modifier.width(20.dp).fillMaxHeight().drawBehind {
-                    val x = size.width / 2
-                    val top = 14.dp.toPx()
-                    val bottom = size.height - 14.dp.toPx()
-                    drawLine(line, Offset(x, top), Offset(x, bottom), strokeWidth = 4.dp.toPx(), cap = StrokeCap.Round)
-                    drawCircle(line, radius = 7.dp.toPx(), center = Offset(x, top))
-                    drawCircle(hole, radius = 3.dp.toPx(), center = Offset(x, top))
-                    drawCircle(line, radius = 7.dp.toPx(), center = Offset(x, bottom))
-                    drawCircle(hole, radius = 3.dp.toPx(), center = Offset(x, bottom))
-                },
+        freshness?.let {
+            Fact(
+                liveStatusIcon(it.kind),
+                it.label,
+                it.text,
+                Modifier.padding(top = 8.dp, bottom = 4.dp),
             )
-            Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                StopRow(leg.from, departureDelay(leg), leg.cancelled)
-                if (leg.stopovers.isNotEmpty()) {
-                    Row(
-                        Modifier.clickable { expanded = !expanded }.padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            "${leg.stopovers.size} ${if (leg.stopovers.size == 1) "stop" else "stops"}",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                        Icon(if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    }
-                    AnimatedVisibility(expanded) {
-                        Column(Modifier.padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            leg.stopovers.forEach { stop ->
-                                val planned = (stop.plannedArrival ?: stop.plannedDeparture).toInstantOrNull()
-                                val current = (stop.arrival ?: stop.departure).toInstantOrNull()
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    ShiftedTime(
-                                        planned,
-                                        current,
-                                        MaterialTheme.typography.bodySmall,
-                                        block = false,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.widthIn(min = 44.dp).padding(end = 6.dp),
-                                    )
-                                    Text(
-                                        stop.name,
-                                        style = MaterialTheme.typography.bodyMedium.copy(textDecoration = if (stop.cancelled) TextDecoration.LineThrough else null),
-                                        modifier = Modifier.weight(1f),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    Box(Modifier.height(16.dp))
+        }
+    }
+}
+
+/** One ride on the rail: where it starts, its line and where it is headed, the stops it passes, where it ends. */
+@Composable
+private fun RideRows(leg: Leg, timetableOnly: Boolean, walkBefore: Boolean, walkAfter: Boolean) {
+    var expanded by rememberSaveable(leg.tripRef, leg.from.planned) { mutableStateOf(false) }
+    val line = if (leg.cancelled) RailLine.Faint else RailLine.Solid
+    StopRow(
+        name = leg.from.name,
+        planned = leg.from.plannedAt, expected = leg.from.expectedAt, cancelled = leg.cancelled,
+        platformPlanned = leg.from.plannedPlatform, platformCurrent = leg.from.platform,
+        strong = true,
+        rail = Rail(above = if (walkBefore) RailLine.Dashed else RailLine.None, below = line),
+    )
+    StopRow(
+        name = "",
+        rail = Rail(line, line, RailDot.None),
+        content = {
+            LineChip(leg)
+            Text(
+                listOfNotNull(leg.headsign?.let { "to $it" }, leg.operator).joinToString(" · "),
+                style = AbeonaType.meta, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
+            )
+        },
+        trailing = {
+            if (leg.cancelled) {
+                StatusChip(StatusTone.Bad, Icons.Rounded.Block, label = if (leg.dropped) "Not in the timetable" else "Cancelled")
+            } else if (timetableOnly) {
+                StatusChip(StatusTone.Quiet, Icons.Rounded.Schedule, description = "Timetable only")
+            }
+        },
+    )
+    if (leg.stopovers.isNotEmpty()) {
+        StopRow(
+            name = "",
+            rail = Rail(line, line, RailDot.None),
+            onClick = { expanded = !expanded },
+            content = {
+                Text("${leg.stopovers.size} ${if (leg.stopovers.size == 1) "stop" else "stops"}", style = AbeonaType.meta, color = brand)
+                Icon(if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, contentDescription = null, tint = brand, modifier = Modifier.size(20.dp))
+            },
+        )
+        AnimatedVisibility(expanded) {
+            Column {
+                leg.stopovers.forEach { stop ->
+                    StopRow(
+                        name = stop.name,
+                        planned = (stop.plannedArrival ?: stop.plannedDeparture).toInstantOrNull(),
+                        expected = (stop.arrival ?: stop.departure).toInstantOrNull(),
+                        cancelled = stop.cancelled,
+                        quiet = true,
+                        rail = Rail(line, line, RailDot.Through),
+                        minHeight = 36.dp,
+                    )
                 }
-                StopRow(leg.to, arrivalDelay(leg), leg.cancelled)
             }
         }
     }
+    StopRow(
+        name = leg.to.name,
+        planned = leg.to.plannedAt, expected = leg.to.expectedAt, cancelled = leg.cancelled,
+        platformPlanned = leg.to.plannedPlatform, platformCurrent = leg.to.platform,
+        strong = true,
+        rail = Rail(above = line, below = if (walkAfter) RailLine.Dashed else RailLine.None),
+    )
 }
 
+/**
+ * The change between two rides, one row between their stops: how long there
+ * is and what that means, and the walk when the next train leaves from
+ * somewhere else. The platforms are the two stops' own, above and below.
+ */
 @Composable
-private fun StopRow(stop: StopTime, delay: Int, cancelled: Boolean) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            ShiftedTime(stop.plannedAt, stop.expectedAt, MaterialTheme.typography.titleLarge, cancelled = cancelled)
-            Text(stop.name, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        }
-        PlatformBox(stop.plannedPlatform, stop.platform, platformChanged(stop.plannedPlatform, stop.platform))
-    }
-}
-
-/** The change between two rides: how long there is, how long it takes, and what that means. */
-@Composable
-private fun TransferRow(change: Transfer, legs: List<Leg>) {
+private fun ChangeRow(change: Transfer, legs: List<Leg>) {
     val arriving = legs[change.arriving]
     val departing = legs[change.departing]
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        shape = RoundedCornerShape(16.dp),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-    ) {
-        Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Rounded.SwapHoriz, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                Text(
-                    "${change.availableMinutes} min to change" + if (change.changesStation) "" else " at ${departing.from.name}",
-                    style = MaterialTheme.typography.titleSmall,
-                )
-                val platforms = listOfNotNull(arriving.to.shownPlatform, departing.from.shownPlatform)
-                Text(
-                    when {
-                        change.changesStation && change.walkMinutes > 0 -> "Walk ${change.walkMinutes} min to ${departing.from.name}"
-                        change.changesStation -> "Change to ${departing.from.name}"
-                        platforms.size == 2 && platforms[0] == platforms[1] -> "Same platform ${platforms[0]}"
-                        platforms.size == 2 -> "Pl. ${platforms[0]} → Pl. ${platforms[1]}"
-                        else -> "Needs about ${change.requiredMinutes} min"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+    StopRow(
+        name = "",
+        rail = Rail(RailLine.Dashed, RailLine.Dashed, RailDot.None),
+        mark = { RailIcon(Icons.Rounded.SwapHoriz, "Change") },
+        content = {
+            ConfidenceChip(change.confidence, minutes = change.availableMinutes)
+            when {
+                change.walkMinutes > 0 -> Fact(Icons.AutoMirrored.Rounded.DirectionsWalk, "Walk", "${change.walkMinutes} min")
+                // Without both platforms the time it needs is all there is to say about the way.
+                !change.changesStation && (arriving.to.shownPlatform == null || departing.from.shownPlatform == null) ->
+                    Text("needs about ${change.requiredMinutes} min", style = AbeonaType.meta, color = muted, maxLines = 1)
             }
-            ConfidenceChip(change.confidence)
-        }
-    }
+        },
+    )
 }
 
+/** A walk before the first ride or after the last: how long, and where to. */
 @Composable
-private fun WalkRow(leg: Leg) {
+private fun WalkRow(leg: Leg, after: Boolean) {
     val start = leg.from.plannedAt
     val end = leg.to.plannedAt
     val minutes = if (start != null && end != null) Duration.between(start, end).toMinutes() else null
-    val dash = MaterialTheme.colorScheme.outline
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 28.dp).height(IntrinsicSize.Min),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            Modifier.width(4.dp).fillMaxHeight().drawBehind {
-                drawLine(dash, Offset(size.width / 2, 0f), Offset(size.width / 2, size.height), strokeWidth = 3.dp.toPx(),
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 6.dp.toPx())), cap = StrokeCap.Round)
-            },
-        )
-        Icon(Icons.AutoMirrored.Rounded.DirectionsWalk, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 12.dp, top = 6.dp, bottom = 6.dp))
-        Text(
-            "Walk ${minutes?.let { "$it min " } ?: ""}to ${leg.to.name}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 8.dp),
-        )
+    StopRow(
+        name = if (after) leg.to.name else leg.from.name,
+        planned = if (after) end else start,
+        quiet = true,
+        rail = Rail(if (after) RailLine.Dashed else RailLine.None, if (after) RailLine.None else RailLine.Dashed, RailDot.None),
+        mark = { RailIcon(Icons.AutoMirrored.Rounded.DirectionsWalk, "Walk") },
+        trailing = { minutes?.let { Text("$it min", style = AbeonaType.meta, color = muted) } },
+    )
+}
+
+/** An icon standing on the rail: on a disc of the card's colour, so the line stops at it. */
+@Composable
+private fun RailIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, description: String) {
+    Surface(color = card, shape = CircleShape, modifier = Modifier.size(24.dp)) {
+        Box(contentAlignment = Alignment.Center) { Icon(icon, contentDescription = description, tint = muted, modifier = Modifier.size(20.dp)) }
     }
 }
 
@@ -962,9 +922,9 @@ private fun CompanionSmallPrint(offer: CompanionOffer.Automatic) {
         day == "Tomorrow" -> "Live companion starts tomorrow, ${TripFormat.time(offer.at)}"
         else -> "Live companion starts $day, ${TripFormat.time(offer.at)}"
     }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(horizontal = 4.dp)) {
-        Icon(Icons.Rounded.NotificationsActive, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-        Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(horizontal = 4.dp)) {
+        Icon(Icons.Rounded.NotificationsActive, contentDescription = null, tint = muted, modifier = Modifier.size(16.dp))
+        Text(text, style = AbeonaType.meta, color = muted)
     }
 }
 
@@ -974,68 +934,54 @@ private fun LiveUpdatesOff(onSettings: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(start = 4.dp)) {
         Text(
             "Live Updates are off for Abeona: the companion is not pinned to the lock screen and the status bar.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = AbeonaType.meta,
+            color = muted,
             modifier = Modifier.weight(1f),
         )
         TextButton(onClick = onSettings) { Text("Turn on") }
     }
 }
 
-/** A connection from the alternatives was taken: which, and the way back to the plan. */
-/** A ride no longer in the timetable for its day, and nothing followed instead yet. */
+/** A ride no longer in the timetable for its day, and nothing followed instead yet: the one thing that broke. */
 @Composable
-private fun DroppedCard(dropped: Leg, bindingLifted: Boolean, onFindAlternatives: () -> Unit) {
-    val colors = danger
-    NexusCard(Modifier.fillMaxWidth(), containerColor = colors.container) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-            Icon(Icons.Rounded.EventBusy, contentDescription = null, tint = colors.content, modifier = Modifier.padding(top = 2.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("${dropped.label} is no longer in the timetable", style = MaterialTheme.typography.titleSmall, color = colors.content)
-                if (bindingLifted) Text("Train binding lifted.", style = MaterialTheme.typography.bodySmall, color = colors.content)
-            }
+private fun DroppedBanner(dropped: Leg, bindingLifted: Boolean, onFindAlternatives: () -> Unit) {
+    Banner(
+        StatusTone.Bad,
+        Icons.Rounded.Block,
+        "${dropped.label} is no longer in the timetable",
+        text = if (bindingLifted) "Train binding lifted." else null,
+    ) {
+        Button(onClick = onFindAlternatives, colors = ButtonDefaults.buttonColors(containerColor = bad.fill.container, contentColor = bad.fill.content)) {
+            Text("Find another connection")
         }
-        Button(onClick = onFindAlternatives, modifier = Modifier.align(Alignment.End).padding(top = 8.dp)) { Text("Find another connection") }
     }
 }
 
 /** The same trains at other times, taken by Abeona because [dropped] is no longer in the timetable. */
 @Composable
-private fun AdjustedCard(trip: Trip, dropped: Leg) {
+private fun AdjustedBanner(trip: Trip, dropped: Leg) {
     val replacement = trip.replacementLegs.orEmpty()
     if (replacement.none { !it.isWalk }) return
-    NexusCard(Modifier.fillMaxWidth(), containerColor = MaterialTheme.colorScheme.secondaryContainer) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-            Icon(Icons.Rounded.Schedule, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.padding(top = 2.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("${dropped.label} is no longer in the timetable", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                Text(
-                    "Now: " + replacement.filter { !it.isWalk }.joinToString(" › ") { "${it.label} ${TripFormat.time(it.from.plannedAt)} ${it.from.name}" },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
-            }
-        }
-    }
+    Banner(
+        StatusTone.Watch,
+        Icons.Rounded.Schedule,
+        "${dropped.label} is no longer in the timetable",
+        text = "Now: " + replacement.filter { !it.isWalk }.joinToString(" › ") { "${it.label} ${TripFormat.time(it.from.plannedAt)} ${it.from.name}" },
+    )
 }
 
+/** A connection from the alternatives was taken: which, and the way back to the plan. */
 @Composable
-private fun FollowingCard(trip: Trip, onFollowPlan: () -> Unit) {
+private fun FollowingBanner(trip: Trip, onFollowPlan: () -> Unit) {
     val replacement = trip.replacementLegs.orEmpty()
     val first = replacement.firstOrNull { !it.isWalk } ?: replacement.firstOrNull() ?: return
-    NexusCard(Modifier.fillMaxWidth(), containerColor = MaterialTheme.colorScheme.secondaryContainer) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Rounded.Shuffle, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
-            Column(Modifier.weight(1f)) {
-                Text("You follow another connection", style = MaterialTheme.typography.titleSmall)
-                Text(
-                    "From ${first.from.name}: " + replacement.filter { !it.isWalk }.joinToString(" › ") { it.label } +
-                        ". The dashboard and the live companion follow these trains.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
-            }
-        }
-        TextButton(onClick = onFollowPlan, modifier = Modifier.align(Alignment.End)) { Text("Back to the plan") }
+    Banner(
+        StatusTone.Quiet,
+        Icons.Rounded.Shuffle,
+        "You follow another connection",
+        text = "From ${first.from.name}: " + replacement.filter { !it.isWalk }.joinToString(" › ") { it.label } +
+            ", on the live card and in the live companion.",
+    ) {
+        OutlinedButton(onClick = onFollowPlan) { Text("Back to the plan") }
     }
 }

@@ -94,7 +94,7 @@ class AppScreenshots {
 
         tap("Visit grandma in Bamberg")
         waitFor(hasContentDescription("More"))
-        waitForText("Live · updated", substring = true)
+        waitFor(hasContentDescription("Live · updated", substring = true))
         shot("03-trip-detail")
         // The source pill opens how Abeona knows; no signals here, so the timetable.
         tapIcon("How Abeona knows: Timetable")
@@ -141,7 +141,7 @@ class AppScreenshots {
         back()
         back()
 
-        tap("Search")
+        tap("Plan")
         waitForText("Search connections")
         shot("08-search")
         tap("Choose a station")
@@ -169,7 +169,7 @@ class AppScreenshots {
         shot("12-saved-trip")
         back()
 
-        tap("Review")
+        tap("Year")
         waitForText("38")
         shot("13-review-trips")
         tapIcon("Story 2")
