@@ -1,7 +1,7 @@
 # ADR: Abeona's trip page shows one live card
 
 **Date:** 2026-11-13
-**Status:** Accepted
+**Status:** Accepted (the rail and the rows' layout are now `abeona-design.md` §8; what the card says is unchanged)
 
 ## Context
 On a real ride the live trip screen was crowded. The header's times, the

@@ -152,8 +152,10 @@ An app may add its **own** themes on top of the shared set: Abeona defines
 (`{themes, autoLight, autoDark}`, from its `lib/themes.ts`) to the theme
 functions and `ThemePicker`, so "auto" resolves to its own pair. Without a set
 an app behaves as before. An app's own themes live only in its stylesheet and
-its `themes.ts`. Abeona's illustrations are inline SVGs (`?raw`) that read
-`--il-*` colours its stylesheet sets per theme, so they recolour with it.
+its `themes.ts`. Abeona's look, on both clients, is specified in
+`abeona-design.md`: its tokens (`--ab-*`, `AbeonaPalette.kt`), type scale and
+components carry the same names in Svelte and Kotlin, and its one illustration
+is the scene, drawn in code from `lib/scene.ts` and `ui/scene/SceneModel.kt`.
 
 Icons are `lucide-svelte`. Charts are `chart.js` (Vibilia wraps it in
 `svelte-chartjs`; Noctua and Annona draw with their own components). Vibilia's
@@ -488,8 +490,8 @@ Things that differ from the web on purpose:
   goes to the `lookup-food-product` Edge Function as on the web. A daily
   **expiry reminder** (WorkManager, device-local and off by default) lists
   what expires within the chosen window.
-- **Abeona** — Trips (a BahnCard deadline banner, next trip hero, upcoming,
-  a history card), Search, Review (the year in review as a pager), Settings
+- **Abeona** — laid out by `abeona-design.md`. Trips (a BahnCard deadline banner, next trip, upcoming,
+  the year so far), Plan (search), Year (the year in review as a pager), Settings
   (live companion, time to the station, time-to-leave reminder, location,
   alerts, household, the household's BahnCards, compensation claims and
   their reminder). After a trip, its screen shows Compensation and What
