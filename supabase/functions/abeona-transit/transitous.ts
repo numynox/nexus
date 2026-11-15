@@ -10,6 +10,7 @@
 import type { Journey, Leg, LegMode, Station, Stopover, StopTime } from "./contract.ts";
 import { cacheKey, type TransitCache, TTL_SECONDS } from "./cache.ts";
 import { decodePolyline, simplify } from "./polyline.ts";
+import { type Approach, approachOf } from "./approach.ts";
 
 const BASE = "https://api.transitous.org";
 const USER_AGENT = "Nexus-Abeona/1.0 (https://github.com/numynox/nexus)";
@@ -311,4 +312,17 @@ export async function refreshLeg(saved: {
     legGeometry: null,
   });
   return normalised;
+}
+
+/**
+ * Where the train is on its way to the saved boarding stop (approach.ts),
+ * from its whole run as the provider sees it now.
+ */
+export async function approachLeg(saved: { trip_ref: string; from_id: string | null; from_name: string }, now = Date.now()): Promise<Approach | null> {
+  const itinerary = await get("/api/v6/trip", { tripId: saved.trip_ref, detailedLegs: "false" });
+  const leg = Array.isArray(itinerary?.legs) ? itinerary.legs[0] : null;
+  if (!leg) return null;
+  const stops: Json[] = [leg.from, ...(Array.isArray(leg.intermediateStops) ? leg.intermediateStops : []), leg.to];
+  const board = stops.findIndex((s) => sameStop(s, saved.from_id, saved.from_name));
+  return board === -1 ? null : approachOf(stops.map(stopover), board, now);
 }

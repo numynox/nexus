@@ -161,4 +161,11 @@ export type Request =
     refresh_token?: string | null;
     /** The saved legs' trip refs and stop ids, used when the token fails. */
     legs?: { trip_ref: string | null; from_id: string | null; to_id: string | null; from_name: string; to_name: string }[];
+  }
+  | {
+    /** Where the train to catch is on its way to the boarding stop: `{ approach: Approach | null }`. */
+    action: "approach";
+    trip_ref: string;
+    from_id?: string | null;
+    from_name: string;
   };
