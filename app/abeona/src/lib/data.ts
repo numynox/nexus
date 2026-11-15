@@ -10,6 +10,7 @@ import type {
   LegMode,
   RefreshLegRef,
   RefreshResponse,
+  Approach,
   Station,
   Stopover,
 } from "./transit";
@@ -883,6 +884,22 @@ async function refreshReplacement(trip: Trip): Promise<boolean> {
   const { error } = await getSupabaseClient().from("abeona_trips").update({ replacement_legs: fresh }).eq("id", trip.id);
   if (error) throw error;
   return true;
+}
+
+/**
+ * Where the train to catch is now, on its way to the boarding stop: the
+ * stop it is at or last left by its live times, and how many stops it still
+ * has to there. Null when that is not known. Nothing is saved.
+ */
+export async function fetchApproach(leg: Leg): Promise<Approach | null> {
+  if (!leg.trip_ref) return null;
+  const result = await invokeTransit<{ approach?: Approach | null }>({
+    action: "approach",
+    trip_ref: leg.trip_ref,
+    from_id: leg.from.id,
+    from_name: leg.from.name,
+  });
+  return result.approach ?? null;
 }
 
 // ── Transit search (abeona-transit Edge Function) ─────────────────

@@ -26,9 +26,9 @@
     TriangleAlert,
     Wifi,
   } from "lucide-svelte";
-  import type { Snippet } from "svelte";
-  import type { Leg, StopTime } from "../../lib/transit";
-  import type { Trip } from "../../lib/data";
+  import { type Snippet, untrack } from "svelte";
+  import type { Approach, Leg, StopTime } from "../../lib/transit";
+  import { fetchApproach, type Trip } from "../../lib/data";
   import { displayPlatform, formatDuration, formatTime, legLabel, platformChanged, stopDelay } from "../../lib/format";
   import { distanceMetres, distanceToLineMetres, NEAR_STOP_METRES, ON_LINE_METRES, type Position } from "../../lib/travelday";
   import type { LocationState } from "../../lib/position";
@@ -85,6 +85,39 @@
     return null;
   });
 
+  // ------------------------------------------------------------ the train coming in
+
+  /** While waiting for the train: where it is on its way here, asked every minute. */
+  const waitingFor = $derived(
+    !warn && leg && !leg.cancelled && leg.trip_ref && (day.kind === "at_station" || day.kind === "changing") ? leg : null,
+  );
+  const waitingKey = $derived(waitingFor ? `${waitingFor.trip_ref}|${waitingFor.from.id ?? waitingFor.from.name}` : null);
+  let approach: Approach | null = $state(null);
+  $effect(() => {
+    const key = waitingKey;
+    approach = null;
+    const target = untrack(() => waitingFor);
+    if (!key || !target) return;
+    let stopped = false;
+    const load = () =>
+      fetchApproach(target)
+        .then((found) => {
+          if (!stopped) approach = found;
+        })
+        .catch(() => {});
+    load();
+    const timer = setInterval(load, 60_000);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  });
+
+  /** "Train left Aschaffenburg Hbf · 3 stops away". */
+  function approachText(a: Approach): string {
+    return `${a.state === "at" ? "Train is at" : "Train left"} ${a.stop} · ${a.stops_away} ${a.stops_away === 1 ? "stop" : "stops"} away`;
+  }
+
   // ------------------------------------------------------------ now
 
   const eyebrow = $derived.by(() => {
@@ -134,7 +167,7 @@
         return { ...base, headline: `Leave at ${formatTime(day.leaveAt)}`, stop: leg.from, line: leg, platformAt: leg.from, platformLast: true, note: `${stationMinutes} min to ${leg.from.name}`, minutes: day.minutesToLeave };
       case "at_station":
       case "changing":
-        return { ...base, headline: platform ? `Platform ${platform}` : legLabel(leg), stop: leg.from, line: leg, minutes: day.minutesToDeparture };
+        return { ...base, headline: platform ? `Platform ${platform}` : legLabel(leg), stop: leg.from, line: leg, note: approach ? approachText(approach) : null, minutes: day.minutesToDeparture };
       default:
         return { ...base, headline: leg.to.name, stop: leg.to, icon: change ? ("change" as const) : ("flag" as const), platformAt: leg.to, minutes: day.minutesToArrival };
     }
