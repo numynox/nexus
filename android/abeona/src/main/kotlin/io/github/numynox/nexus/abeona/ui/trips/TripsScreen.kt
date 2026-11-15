@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.numynox.nexus.abeona.R
+import io.github.numynox.nexus.abeona.data.Approach
 import io.github.numynox.nexus.abeona.data.Statistics
 import io.github.numynox.nexus.abeona.data.Trip
 import io.github.numynox.nexus.abeona.domain.changes
@@ -66,6 +67,7 @@ import io.github.numynox.nexus.abeona.ui.common.TripFormat
 import io.github.numynox.nexus.abeona.ui.common.confidenceSummary
 import io.github.numynox.nexus.abeona.ui.live.LiveCard
 import io.github.numynox.nexus.abeona.ui.live.liveView
+import io.github.numynox.nexus.abeona.ui.live.rememberApproach
 import io.github.numynox.nexus.abeona.domain.alternativesOrigin
 import io.github.numynox.nexus.abeona.domain.alternativesReason
 import io.github.numynox.nexus.abeona.ui.common.containerViewModel
@@ -151,6 +153,7 @@ fun TripsScreen(app: AppViewModel, navigator: Navigator) {
                                 NextTripCard(
                                     next, now, onClick = { navigator.trip(next.id) },
                                     day = day, stationMinutes = settings.stationMinutes, onboard = LiveSignals.onboardFor(next, now, onboard),
+                                    approach = rememberApproach(day?.legIndex?.let(next.legs::getOrNull), day, app.container.repository::approach),
                                 )
                             }
                             if (upcoming.size > 1) {
@@ -206,6 +209,8 @@ fun NextTripCard(
     day: TravelDay? = null,
     stationMinutes: Int = TravelDayRules.DEFAULT_STATION_MINUTES,
     onboard: OnboardStatus? = null,
+    /** While waiting for the train: where it is on its way here (rememberApproach). */
+    approach: Approach? = null,
 ) {
     val first = trip.legs.firstOrNull { !it.isWalk }
     val delay = first?.let(::departureDelay) ?: 0
@@ -256,6 +261,7 @@ fun NextTripCard(
                     liveView(trip, day, now, stationMinutes, emptyList(), onboard, null, reason),
                     onAlternatives = onClick,
                     summary = true,
+                    approach = approach,
                 )
                 if (trainBindingLifted(trip.fareType, trip.trainBinding, arrivalDelay)) BindingLiftedBanner(arrivalDelay)
                 return@Column

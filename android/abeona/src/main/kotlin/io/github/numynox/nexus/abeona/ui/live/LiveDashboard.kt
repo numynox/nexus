@@ -66,6 +66,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.numynox.nexus.abeona.data.Approach
 import io.github.numynox.nexus.abeona.data.Leg
 import io.github.numynox.nexus.abeona.data.Trip
 import io.github.numynox.nexus.abeona.domain.AlternativesReason
@@ -259,7 +260,44 @@ private data class Lead(
     val cancelled: Boolean = false,
 )
 
-private fun lead(view: LiveView): Lead {
+/** "Train left Aschaffenburg Hbf · 3 stops away". */
+internal fun approachText(a: Approach): String =
+    "${if (a.state == "at") "Train is at" else "Train left"} ${a.stop} · ${a.stopsAway} ${if (a.stopsAway == 1) "stop" else "stops"} away"
+
+/**
+ * While waiting for the train to catch (at the station or changing): where it
+ * is on its way here, asked every minute through [fetch]. Null otherwise, and
+ * whenever it is not known.
+ */
+@Composable
+fun rememberApproach(leg: Leg?, day: TravelDay?, fetch: suspend (Leg) -> Approach?): Approach? {
+    val waiting = leg?.takeIf {
+        day != null && !day.missedChange && !day.cancelled && !it.cancelled && it.tripRef != null &&
+            (day.kind == TravelDayKind.AtStation || day.kind == TravelDayKind.Changing)
+    }
+    val key = waiting?.let { "${it.tripRef}|${it.from.id ?: it.from.name}" }
+    var approach by androidx.compose.runtime.remember(key) { androidx.compose.runtime.mutableStateOf<Approach?>(null) }
+    val current by androidx.compose.runtime.rememberUpdatedState(waiting)
+    val load by androidx.compose.runtime.rememberUpdatedState(fetch)
+    androidx.compose.runtime.LaunchedEffect(key) {
+        if (key == null) return@LaunchedEffect
+        while (true) {
+            current?.let { target ->
+                approach = try {
+                    load(target)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    null
+                }
+            }
+            kotlinx.coroutines.delay(60_000)
+        }
+    }
+    return approach
+}
+
+private fun lead(view: LiveView, approach: Approach? = null): Lead {
     val day = view.day
     val trip = view.trip
     val leg = view.leg
@@ -296,6 +334,7 @@ private fun lead(view: LiveView): Lead {
             leg.from.shownPlatform?.let { "Platform $it" } ?: leg.label,
             stop = leg.from,
             line = leg,
+            note = approach?.let(::approachText),
             minutes = day.minutesToDeparture,
         )
         else -> Lead(
@@ -332,6 +371,8 @@ fun LiveCard(
      * the steps ahead; no source, no notices, no status.
      */
     summary: Boolean = false,
+    /** While waiting for the train: where it is on its way here (rememberApproach). */
+    approach: Approach? = null,
 ) {
     var showSource by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     if (showSource) {
@@ -376,7 +417,7 @@ fun LiveCard(
             }
 
             // The one thing to know now.
-            val lead = lead(view)
+            val lead = lead(view, approach)
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
