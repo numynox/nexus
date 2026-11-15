@@ -204,6 +204,10 @@ new component here, not a local one.
 | `Sheet` | every form and detail; title, content, one primary button at the bottom |
 | `PrimaryButton` | orange fill, ink label; one per screen or sheet |
 | `EmptyState` | `Scene` full, one `headline`, the primary button; no paragraph |
+| `Segmented` | two or three choices side by side in a well track, the chosen one brand-soft with brand text (Depart/Arrive, class, card, theme, year) |
+| `ChoicePills` | more choices than fit a segmented control, as wrapping pills (the fare) |
+| `WellField` | a borderless text field on `well`, the placeholder as its label; one line unless it holds pasted text |
+| `FieldRow` | one line of a form or of Settings: icon, name, optional ⓘ that opens the explanation in place, the value or switch at the right edge |
 
 ---
 

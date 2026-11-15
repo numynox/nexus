@@ -11,7 +11,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -57,13 +56,12 @@ fun EditTripSheet(trip: Trip, onSave: (TripEdit) -> Unit, onDismiss: () -> Unit)
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text("Edit trip", style = AbeonaType.headline)
-            OutlinedTextField(
+            // The same well field as the save sheet, above the same ticket fields.
+            io.github.numynox.nexus.abeona.ui.common.WellField(
                 value = title,
                 onValueChange = { title = it },
-                label = { Text("Title (optional)") },
-                placeholder = { Text("${trip.originName} → ${trip.destinationName}") },
-                singleLine = true,
-                shape = MaterialTheme.shapes.medium,
+                placeholder = "Title (optional), e.g. ${trip.originName} → ${trip.destinationName}",
+                description = "Title",
                 modifier = Modifier.fillMaxWidth(),
             )
             TicketFields(

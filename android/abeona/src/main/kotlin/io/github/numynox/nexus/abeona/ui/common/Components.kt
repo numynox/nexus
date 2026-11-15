@@ -2,6 +2,8 @@ package io.github.numynox.nexus.abeona.ui.common
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -174,10 +176,14 @@ fun LineChip(leg: Leg, modifier: Modifier = Modifier, large: Boolean = false) {
     }
 }
 
-/** The rides of a journey as chips in travel order, a walk as its icon between them. */
+/**
+ * The rides of a journey as chips in travel order, a walk as its icon between
+ * them. [wrap] lets a long journey continue on a second line rather than be cut.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun LegChips(legs: List<Leg>, modifier: Modifier = Modifier) {
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+fun LegChips(legs: List<Leg>, modifier: Modifier = Modifier, wrap: Boolean = false) {
+    val chips: @Composable () -> Unit = {
         legs.forEach { leg ->
             if (leg.isWalk) {
                 Icon(Icons.AutoMirrored.Rounded.DirectionsWalk, contentDescription = "Walk", tint = muted, modifier = Modifier.size(16.dp))
@@ -185,5 +191,15 @@ fun LegChips(legs: List<Leg>, modifier: Modifier = Modifier) {
                 LineChip(leg)
             }
         }
+    }
+    if (wrap) {
+        FlowRow(
+            modifier,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            itemVerticalAlignment = Alignment.CenterVertically,
+        ) { chips() }
+    } else {
+        Row(modifier, horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) { chips() }
     }
 }
