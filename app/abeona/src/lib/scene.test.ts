@@ -18,6 +18,7 @@ import {
   sunTimes,
   trainKind,
   trainLength,
+  trainNoseX,
   travelSpeed,
 } from "./scene.ts";
 
@@ -74,4 +75,5 @@ test("a ride is drawn as the train it is", () => {
     assert.equal(trainKind(c.product, c.line, c.bus), c.kind, `${c.product} ${c.line}`);
     near(trainLength(c.kind), c.length, `${c.kind} length`);
   }
+  for (const c of fixtures.nose) near(trainNoseX(c.kind, c.scale, c.width), c.x, `${c.kind} nose`);
 });

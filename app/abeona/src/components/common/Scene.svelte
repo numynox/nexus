@@ -29,6 +29,7 @@
     TILE,
     type TrainKind,
     trainLength,
+    trainNoseX,
     TRAINS,
     TRAIN_SCALE,
     travelSpeed,
@@ -88,7 +89,7 @@
   const hasTrain = $derived(sceneState !== "idle" && !(sceneState === "stopped" && !rail));
   const atPlatform = $derived(!rail && (sceneState === "parked" || sceneState === "waiting" || sceneState === "arrived"));
   /** Where the train's nose is: on the rail where the ride is, else a little past the middle, its cars running off to the left. */
-  const trainX = $derived(rail ? railX(fraction, width) : Math.min(width - 60, Math.max(width * 0.56, 90)));
+  const trainX = $derived(rail ? railX(fraction, width) : trainNoseX(kind, scale, width));
   const spec = $derived(TRAINS[kind]);
   const lightAt = $derived(lightPosition(sky.across, width, height));
   const lightR = $derived(size === "strip" ? 8 : size === "header" ? 11 : 16);
@@ -182,43 +183,54 @@
   {/if}
 {/snippet}
 
+{#snippet endCar(k: TrainKind)}
+  <!-- An end car with its nose at x = 0; the last car is the same, mirrored. -->
+  {#if k === "ice"}
+    {@render bogies(-44, 40)}
+    <path d="M-44 -13 H-15 C-8 -13 -3 -8.5 0 -4.5 C0.6 -3.2 -0.4 -2 -2 -2 H-44 Z" fill={colours.trainBody} stroke={colours.trainLine} stroke-width="0.5" />
+    <rect x="-41.5" y="-11.2" width="26" height="3.4" rx="1.2" fill={colours.trainWindow} opacity={lit ? 1 : 0.55} />
+    <path d="M-13.5 -11.4 H-11.5 C-8.2 -10.9 -5.6 -9.2 -4.1 -7.6 H-12.5 C-13.1 -7.6 -13.5 -8 -13.5 -8.6 Z" fill={colours.trainWindow} opacity={lit ? 1 : 0.55} />
+    <path d="M-44 -6.6 H-2.4 L-1.6 -5.5 H-44 Z" fill={colours.trainRed} />
+  {:else if k === "regional"}
+    {@render bogies(-38, 36)}
+    <path d="M-38 -17 H-5.5 C-3.4 -17 -1.9 -15.6 -1.5 -13.4 L0 -4.4 C0.2 -3 -0.8 -2 -2.2 -2 H-38 Z" fill={colours.trainRed} />
+    <rect x="-35" y="-15.2" width="25" height="3" rx="1" fill={colours.trainWindow} opacity={lit ? 1 : 0.6} />
+    <rect x="-31" y="-8.6" width="17" height="3" rx="1" fill={colours.trainWindow} opacity={lit ? 1 : 0.6} />
+    <rect x="-35.8" y="-10.5" width="3" height="8" rx="0.8" fill={colours.trainBody} />
+    <path d="M-7.5 -14.6 H-4.6 C-3.9 -14.6 -3.4 -14.1 -3.3 -13.4 L-2.6 -9 H-7.5 Z" fill={colours.trainWindow} opacity={lit ? 1 : 0.6} />
+    <rect x="-12" y="-10.5" width="3" height="8" rx="0.8" fill={colours.trainBody} />
+  {:else if k === "suburban"}
+    {@render bogies(-31, 29)}
+    <path d="M-31 -13 H-4.5 C-2.8 -13 -1.6 -11.9 -1.3 -10.2 L0 -4.2 C0.2 -3 -0.8 -2 -2.2 -2 H-31 Z" fill={colours.trainRed} />
+    <rect x="-29" y="-11" width="21" height="4" rx="1" fill={colours.trainWindow} opacity={lit ? 1 : 0.6} />
+    {#each [-25.5, -15] as door, d (d)}
+      <rect x={door} y="-11.6" width="3.6" height="9.2" rx="0.8" fill={colours.trainBody} />
+    {/each}
+    <path d="M-6.4 -11 H-4 C-3.4 -11 -2.9 -10.6 -2.8 -10 L-2.2 -7 H-6.4 Z" fill={colours.trainWindow} opacity={lit ? 1 : 0.6} />
+  {:else}
+    <!-- A bus: one body, two wheels. -->
+    <rect x="-30" y="-12" width="30" height="10.4" rx="2.2" fill={colours.trainBody} stroke={colours.trainLine} stroke-width="0.5" />
+    <rect x="-30" y="-5.4" width="30" height="3.8" rx="1.6" fill={colours.trainRed} />
+    <rect x="-27.5" y="-10.4" width="20" height="3.8" rx="1" fill={colours.trainWindow} opacity={lit ? 1 : 0.6} />
+    <rect x="-6.2" y="-10.4" width="4.6" height="5.4" rx="1" fill={colours.trainWindow} opacity={lit ? 1 : 0.6} />
+    <circle cx="-23" cy="-1.6" r="2.1" fill={colours.rail} />
+    <circle cx="-7" cy="-1.6" r="2.1" fill={colours.rail} />
+  {/if}
+{/snippet}
+
 {#snippet train(x: number, s: number)}
   <!-- Drawn at scale 1 with its wheels on y = 0, its nose at x = 0, the cars trailing to the left. -->
   <g transform="translate({x} {railY}) scale({s})">
-    {#each { length: spec.cars - 1 } as _, c (c)}
+    {#each { length: Math.max(0, spec.cars - 2) } as _, c (c)}
       {@render car(kind, -spec.head - spec.gap - c * (spec.car + spec.gap), spec.car)}
     {/each}
-    {#if kind === "ice"}
-      {@render bogies(-44, 40)}
-      <path d="M-44 -13 H-15 C-8 -13 -3 -8.5 0 -4.5 C0.6 -3.2 -0.4 -2 -2 -2 H-44 Z" fill={colours.trainBody} stroke={colours.trainLine} stroke-width="0.5" />
-      <rect x="-41.5" y="-11.2" width="26" height="3.4" rx="1.2" fill={colours.trainWindow} opacity={lit ? 1 : 0.55} />
-      <path d="M-13.5 -11.4 H-11.5 C-8.2 -10.9 -5.6 -9.2 -4.1 -7.6 H-12.5 C-13.1 -7.6 -13.5 -8 -13.5 -8.6 Z" fill={colours.trainWindow} opacity={lit ? 1 : 0.55} />
-      <path d="M-44 -6.6 H-2.4 L-1.6 -5.5 H-44 Z" fill={colours.trainRed} />
-    {:else if kind === "regional"}
-      {@render bogies(-38, 36)}
-      <path d="M-38 -17 H-5.5 C-3.4 -17 -1.9 -15.6 -1.5 -13.4 L0 -4.4 C0.2 -3 -0.8 -2 -2.2 -2 H-38 Z" fill={colours.trainRed} />
-      <rect x="-35" y="-15.2" width="25" height="3" rx="1" fill={colours.trainWindow} opacity={lit ? 1 : 0.6} />
-      <rect x="-31" y="-8.6" width="17" height="3" rx="1" fill={colours.trainWindow} opacity={lit ? 1 : 0.6} />
-      <rect x="-35.8" y="-10.5" width="3" height="8" rx="0.8" fill={colours.trainBody} />
-      <path d="M-7.5 -14.6 H-4.6 C-3.9 -14.6 -3.4 -14.1 -3.3 -13.4 L-2.6 -9 H-7.5 Z" fill={colours.trainWindow} opacity={lit ? 1 : 0.6} />
-      <rect x="-12" y="-10.5" width="3" height="8" rx="0.8" fill={colours.trainBody} />
-    {:else if kind === "suburban"}
-      {@render bogies(-31, 29)}
-      <path d="M-31 -13 H-4.5 C-2.8 -13 -1.6 -11.9 -1.3 -10.2 L0 -4.2 C0.2 -3 -0.8 -2 -2.2 -2 H-31 Z" fill={colours.trainRed} />
-      <rect x="-29" y="-11" width="21" height="4" rx="1" fill={colours.trainWindow} opacity={lit ? 1 : 0.6} />
-      {#each [-25.5, -15] as door, d (d)}
-        <rect x={door} y="-11.6" width="3.6" height="9.2" rx="0.8" fill={colours.trainBody} />
-      {/each}
-      <path d="M-6.4 -11 H-4 C-3.4 -11 -2.9 -10.6 -2.8 -10 L-2.2 -7 H-6.4 Z" fill={colours.trainWindow} opacity={lit ? 1 : 0.6} />
-    {:else}
-      <!-- A bus: one body, two wheels. -->
-      <rect x="-30" y="-12" width="30" height="10.4" rx="2.2" fill={colours.trainBody} stroke={colours.trainLine} stroke-width="0.5" />
-      <rect x="-30" y="-5.4" width="30" height="3.8" rx="1.6" fill={colours.trainRed} />
-      <rect x="-27.5" y="-10.4" width="20" height="3.8" rx="1" fill={colours.trainWindow} opacity={lit ? 1 : 0.6} />
-      <rect x="-6.2" y="-10.4" width="4.6" height="5.4" rx="1" fill={colours.trainWindow} opacity={lit ? 1 : 0.6} />
-      <circle cx="-23" cy="-1.6" r="2.1" fill={colours.rail} />
-      <circle cx="-7" cy="-1.6" r="2.1" fill={colours.rail} />
+    {#if spec.cars > 1}
+      <g transform="translate({-trainLength(kind)} 0) scale(-1 1)">
+        {@render endCar(kind)}
+        {#if lit}<circle cx="-1.8" cy="-4.2" r="0.9" fill="#ff6a5a" />{/if}
+      </g>
     {/if}
+    {@render endCar(kind)}
     {#if lit}
       <circle cx="-1.8" cy="-4.2" r={flash ? 2.4 : 0.9} fill="#ffe3a6" class="transition-all duration-200" />
     {/if}

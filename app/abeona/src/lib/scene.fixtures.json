@@ -451,7 +451,7 @@
       "line": null,
       "bus": false,
       "kind": "ice",
-      "length": 161.6
+      "length": 167.6
     },
     {
       "product": "RE",
@@ -465,21 +465,21 @@
       "line": "S 8",
       "bus": false,
       "kind": "suburban",
-      "length": 93.4
+      "length": 94.4
     },
     {
       "product": null,
       "line": "S8",
       "bus": false,
       "kind": "suburban",
-      "length": 93.4
+      "length": 94.4
     },
     {
       "product": null,
       "line": "ICE 528",
       "bus": false,
       "kind": "ice",
-      "length": 161.6
+      "length": 167.6
     },
     {
       "product": "RB",
@@ -508,6 +508,32 @@
       "bus": false,
       "kind": "regional",
       "length": 117
+    }
+  ],
+  "nose": [
+    {
+      "kind": "ice",
+      "scale": 1.5,
+      "width": 380,
+      "x": 263.4
+    },
+    {
+      "kind": "ice",
+      "scale": 1.9,
+      "width": 380,
+      "x": 320
+    },
+    {
+      "kind": "regional",
+      "scale": 1.5,
+      "width": 412,
+      "x": 230.72
+    },
+    {
+      "kind": "bus",
+      "scale": 1,
+      "width": 300,
+      "x": 168
     }
   ],
   "rail": [

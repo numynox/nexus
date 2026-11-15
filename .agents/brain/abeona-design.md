@@ -225,8 +225,9 @@ static illustration.
 - **Train**: the one the ride really is, several cars long, in its real
   livery (`trainKind`): an ICE for long-distance (white, red stripe, long
   nose), a red double-deck set for regional trains, a shorter red set with
-  many doors for the S-Bahn, a bus for a bus. Its nose marks the place and the
-  cars trail off behind. Windows are lit at night. This is the one place
+  many doors for the S-Bahn, a bus for a bus. Every train has an end car at
+  both ends, as the real sets do. Its nose marks the place and the cars trail
+  off behind; off the rail the whole set shows when the box has the room. Windows are lit at night. This is the one place
   where red is not a status.
 - **Motion**: clouds always drift. The land scrolls only while riding, faster
   with the train's speed when its Wi-Fi tells it. Animations off (animator

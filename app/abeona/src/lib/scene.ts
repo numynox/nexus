@@ -13,7 +13,7 @@ export type SceneSize = "strip" | "header" | "full";
 
 export const SCENE_HEIGHT: Record<SceneSize, number> = { strip: 56, header: 96, full: 200 };
 /** How much larger than the strip's the train is drawn. */
-export const TRAIN_SCALE: Record<SceneSize, number> = { strip: 1, header: 1.5, full: 2.2 };
+export const TRAIN_SCALE: Record<SceneSize, number> = { strip: 1, header: 1.5, full: 1.9 };
 
 /** How much larger than the strip's the hills and trees are drawn, growing from the rail. */
 export const LAND_SCALE: Record<SceneSize, number> = { strip: 1, header: 1.35, full: 2.1 };
@@ -32,8 +32,9 @@ export const RAIL_END = 22;
  * The trains, in their real liveries: the one place in Abeona where red is
  * not a status. `ice` is long-distance (white, a red stripe, a long nose),
  * `regional` a red double-deck set, `suburban` a shorter red set with many
- * doors, `bus` a bus. Lengths are per car at scale 1; the nose is at x = 0
- * and the cars trail to the left.
+ * doors, `bus` a bus. Every train has an end car at both ends, as the real
+ * sets do. Lengths are per car at scale 1 (`head` is an end car); the nose is
+ * at x = 0 and the cars trail to the left.
  */
 export type TrainKind = "ice" | "regional" | "suburban" | "bus";
 
@@ -44,9 +45,16 @@ export const TRAINS: Record<TrainKind, { cars: number; head: number; car: number
   bus: { cars: 1, head: 30, car: 0, height: 11, gap: 0 },
 };
 
+/** The whole set: an end car at each end (the same, mirrored) and the cars between; a bus is its one body. */
 export function trainLength(kind: TrainKind): number {
   const t = TRAINS[kind];
-  return t.head + (t.cars - 1) * (t.car + t.gap);
+  if (t.cars < 2) return t.head;
+  return 2 * t.head + (t.cars - 2) * t.car + (t.cars - 1) * t.gap;
+}
+
+/** Where the train's nose stands off the rail: far enough right for the whole set to show when the box has the room. */
+export function trainNoseX(kind: TrainKind, scale: number, width: number): number {
+  return Math.min(width - 60, Math.max(width * 0.56, trainLength(kind) * scale + 12));
 }
 
 const LONG_DISTANCE = new Set(["ICE", "IC", "EC", "ECE", "RJ", "RJX", "TGV", "NJ", "EN", "FLX", "EST", "FR", "IR"]);
