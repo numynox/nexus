@@ -1,6 +1,6 @@
 // Abeona's only door to timetable and realtime data: station search, journey
-// search, refreshing a saved journey's live values, and alternatives for the
-// rest of a trip, marked against its ticket.
+// search, refreshing a saved journey's live values, alternatives for the
+// rest of a trip, marked against its ticket, and where the train to catch is.
 //
 // It runs as an Edge Function, not in the browser, so the provider can change
 // without a client release (an installed APK lags behind) and so every client
@@ -160,6 +160,18 @@ Deno.serve(async (req) => {
 
       case "refresh":
         return json(await refreshJourney(request.refresh_token, request.legs));
+
+      case "approach": {
+        if (!isId(request.trip_ref) || typeof request.from_name !== "string" || request.from_name.length > 300) {
+          return json({ error: "trip_ref and from_name are required" }, 400);
+        }
+        const approach = await transitous.approachLeg({
+          trip_ref: request.trip_ref,
+          from_id: isId(request.from_id) ? request.from_id : null,
+          from_name: request.from_name,
+        });
+        return json({ approach });
+      }
 
       default:
         return json({ error: "Unknown action" }, 400);

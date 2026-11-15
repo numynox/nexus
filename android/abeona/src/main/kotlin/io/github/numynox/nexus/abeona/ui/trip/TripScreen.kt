@@ -91,6 +91,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.numynox.nexus.abeona.data.Approach
 import io.github.numynox.nexus.abeona.data.Leg
 import io.github.numynox.nexus.abeona.data.StopTime
 import io.github.numynox.nexus.abeona.data.Trip
@@ -120,13 +121,13 @@ import io.github.numynox.nexus.abeona.live.LiveCompanion
 import io.github.numynox.nexus.abeona.live.evidence
 import io.github.numynox.nexus.abeona.ui.live.LiveMap
 import io.github.numynox.nexus.abeona.ui.live.LiveCard
+import io.github.numynox.nexus.abeona.ui.live.rememberApproach
 import io.github.numynox.nexus.abeona.ui.live.LiveStatus
 import io.github.numynox.nexus.abeona.ui.live.LiveView
 import io.github.numynox.nexus.abeona.ui.live.liveView
 import io.github.numynox.nexus.abeona.live.LiveSignals
 import io.github.numynox.nexus.abeona.live.OnboardStatus
 import io.github.numynox.nexus.abeona.live.TripLocation
-import io.github.numynox.nexus.abeona.ui.common.TravelDayHero
 import io.github.numynox.nexus.abeona.ui.common.TicketNeedsSummary
 import io.github.numynox.nexus.abeona.ui.common.isLiveDay
 import io.github.numynox.nexus.abeona.ui.common.rememberTicker
@@ -390,6 +391,7 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                         }
                     },
                     onAlternatives = openAlternatives,
+                    fetchApproach = app.container.repository::approach,
                     afterRide = afterRide?.let { state ->
                         AfterRideActions(
                             state = state,
@@ -569,6 +571,8 @@ private fun TripContent(
     onFollowPlan: () -> Unit,
     /** A ride no longer in the timetable: find another connection. */
     onDroppedAlternatives: () -> Unit,
+    /** Where the train to catch is on its way to the boarding stop (AbeonaRepository.approach). */
+    fetchApproach: suspend (Leg) -> Approach? = { null },
 ) {
     val trip = detail.trip
     // The journey as travelled: the plan, or the connection taken instead.
@@ -592,7 +596,8 @@ private fun TripContent(
         val notices: @Composable () -> Unit = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 // A dropped ride says the binding is lifted in its own card.
-                if (binding && dropped == null) {
+                // A dropped ride, or a cancelled one in the live card, says the binding is lifted itself.
+                if (binding && dropped == null && live?.view?.leg?.cancelled != true) {
                     BindingLiftedBanner(
                         arrivalDelay,
                         because = when {
@@ -618,6 +623,7 @@ private fun TripContent(
             item(key = "travel-day") {
                 LiveCard(
                     live.view,
+                    approach = rememberApproach(live.view.leg, live.day, fetchApproach),
                     status = liveStatus(detail),
                     onAlternatives = onAlternatives,
                     onUseLocation = onUseLocation,

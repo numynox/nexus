@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.numynox.nexus.abeona.R
+import io.github.numynox.nexus.abeona.data.Approach
 import io.github.numynox.nexus.abeona.data.Statistics
 import io.github.numynox.nexus.abeona.data.Trip
 import io.github.numynox.nexus.abeona.domain.changes
@@ -64,12 +65,15 @@ import io.github.numynox.nexus.abeona.ui.common.PlatformBox
 import io.github.numynox.nexus.abeona.ui.common.StatusPill
 import io.github.numynox.nexus.abeona.ui.common.TripFormat
 import io.github.numynox.nexus.abeona.ui.common.confidenceSummary
-import io.github.numynox.nexus.abeona.ui.common.TravelDayHero
+import io.github.numynox.nexus.abeona.ui.live.LiveCard
+import io.github.numynox.nexus.abeona.ui.live.liveView
+import io.github.numynox.nexus.abeona.ui.live.rememberApproach
+import io.github.numynox.nexus.abeona.domain.alternativesOrigin
+import io.github.numynox.nexus.abeona.domain.alternativesReason
 import io.github.numynox.nexus.abeona.ui.common.containerViewModel
 import io.github.numynox.nexus.abeona.ui.common.isLiveDay
 import io.github.numynox.nexus.abeona.ui.common.rememberTicker
 import io.github.numynox.nexus.abeona.domain.TravelDay
-import io.github.numynox.nexus.abeona.domain.TravelDayKind
 import io.github.numynox.nexus.abeona.domain.TravelDayRules
 import io.github.numynox.nexus.abeona.domain.followed
 import io.github.numynox.nexus.abeona.domain.travelDay
@@ -149,6 +153,7 @@ fun TripsScreen(app: AppViewModel, navigator: Navigator) {
                                 NextTripCard(
                                     next, now, onClick = { navigator.trip(next.id) },
                                     day = day, stationMinutes = settings.stationMinutes, onboard = LiveSignals.onboardFor(next, now, onboard),
+                                    approach = rememberApproach(day?.legIndex?.let(next.legs::getOrNull), day, app.container.repository::approach),
                                 )
                             }
                             if (upcoming.size > 1) {
@@ -204,6 +209,8 @@ fun NextTripCard(
     day: TravelDay? = null,
     stationMinutes: Int = TravelDayRules.DEFAULT_STATION_MINUTES,
     onboard: OnboardStatus? = null,
+    /** While waiting for the train: where it is on its way here (rememberApproach). */
+    approach: Approach? = null,
 ) {
     val first = trip.legs.firstOrNull { !it.isWalk }
     val delay = first?.let(::departureDelay) ?: 0
@@ -245,20 +252,21 @@ fun NextTripCard(
                     )
                 }
             }
-            day?.let { TravelDayHero(trip, it, stationMinutes, onboard = onboard) }
-            // Once under way the first train's departure and platform are past: the arrival leads.
-            val underWay = day != null && (day.kind == TravelDayKind.OnBoard || day.kind == TravelDayKind.Changing ||
-                day.kind == TravelDayKind.Arrived || (day.kind == TravelDayKind.AtStation && day.legIndex?.let { trip.legs[it] } != first))
-            if (underWay) {
-                Column {
-                    Text("Arrival", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    ShiftedTime(
-                        trip.legs.lastOrNull { !it.isWalk }?.to?.plannedAt ?: trip.expectedArrival,
-                        trip.expectedArrival,
-                        MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.SemiBold),
-                    )
-                }
-            } else Row(verticalAlignment = Alignment.CenterVertically) {
+            // On the travel day: the live card's own top, compact (the same headline and train
+            // line as on the trip screen), then one line to the destination.
+            if (day != null) {
+                val origin = alternativesOrigin(trip.legs, day, now)
+                val reason = alternativesReason(trip.legs, day).takeIf { origin != null }
+                LiveCard(
+                    liveView(trip, day, now, stationMinutes, emptyList(), onboard, null, reason),
+                    onAlternatives = onClick,
+                    summary = true,
+                    approach = approach,
+                )
+                if (trainBindingLifted(trip.fareType, trip.trainBinding, arrivalDelay)) BindingLiftedBanner(arrivalDelay)
+                return@Column
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Departure", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     ShiftedTime(

@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.DirectionsWalk
+import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Flag
@@ -65,6 +66,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.numynox.nexus.abeona.data.Approach
 import io.github.numynox.nexus.abeona.data.Leg
 import io.github.numynox.nexus.abeona.data.Trip
 import io.github.numynox.nexus.abeona.domain.AlternativesReason
@@ -78,6 +80,10 @@ import io.github.numynox.nexus.abeona.domain.departureDelay
 import io.github.numynox.nexus.abeona.domain.platformChanged
 import io.github.numynox.nexus.abeona.domain.rideProgress
 import io.github.numynox.nexus.abeona.domain.transfers
+import io.github.numynox.nexus.abeona.domain.changes
+import io.github.numynox.nexus.abeona.domain.worstConfidence
+import io.github.numynox.nexus.abeona.domain.trainBindingLifted
+import io.github.numynox.nexus.abeona.domain.finalArrivalDelay
 import io.github.numynox.nexus.abeona.live.Evidence
 import io.github.numynox.nexus.abeona.live.EvidenceKind
 import io.github.numynox.nexus.abeona.live.EvidenceState
@@ -187,8 +193,9 @@ private fun eyebrow(view: LiveView): String {
         else -> when (day.kind) {
             TravelDayKind.BeforeLeaving -> "Time to leave"
             TravelDayKind.AtStation -> if (day.source == TravelDaySource.Location) "You're at the station" else "Head to the platform"
-            TravelDayKind.OnBoard -> "On board" + (leg?.let { " · ${it.label}" + (it.headsign?.let { h -> " → ${short(h)}" } ?: "") } ?: "")
-            TravelDayKind.Changing -> "Change trains"
+            // "to" and the train's own destination, as the departure board says it.
+            TravelDayKind.OnBoard -> "On board" + (leg?.let { " · ${it.label}" + (it.headsign?.let { h -> " to $h" } ?: "") } ?: "")
+            TravelDayKind.Changing -> "Change trains" + (leg?.let { " · ${it.from.name}" } ?: "")
             TravelDayKind.Arrived -> "Arrived"
         }
     }
@@ -253,7 +260,44 @@ private data class Lead(
     val cancelled: Boolean = false,
 )
 
-private fun lead(view: LiveView): Lead {
+/** "Train left Aschaffenburg Hbf · 3 stops away". */
+internal fun approachText(a: Approach): String =
+    "${if (a.state == "at") "Train is at" else "Train left"} ${a.stop} · ${a.stopsAway} ${if (a.stopsAway == 1) "stop" else "stops"} away"
+
+/**
+ * While waiting for the train to catch (at the station or changing): where it
+ * is on its way here, asked every minute through [fetch]. Null otherwise, and
+ * whenever it is not known.
+ */
+@Composable
+fun rememberApproach(leg: Leg?, day: TravelDay?, fetch: suspend (Leg) -> Approach?): Approach? {
+    val waiting = leg?.takeIf {
+        day != null && !day.missedChange && !day.cancelled && !it.cancelled && it.tripRef != null &&
+            (day.kind == TravelDayKind.AtStation || day.kind == TravelDayKind.Changing)
+    }
+    val key = waiting?.let { "${it.tripRef}|${it.from.id ?: it.from.name}" }
+    var approach by androidx.compose.runtime.remember(key) { androidx.compose.runtime.mutableStateOf<Approach?>(null) }
+    val current by androidx.compose.runtime.rememberUpdatedState(waiting)
+    val load by androidx.compose.runtime.rememberUpdatedState(fetch)
+    androidx.compose.runtime.LaunchedEffect(key) {
+        if (key == null) return@LaunchedEffect
+        while (true) {
+            current?.let { target ->
+                approach = try {
+                    load(target)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    null
+                }
+            }
+            kotlinx.coroutines.delay(60_000)
+        }
+    }
+    return approach
+}
+
+private fun lead(view: LiveView, approach: Approach? = null): Lead {
     val day = view.day
     val trip = view.trip
     val leg = view.leg
@@ -265,7 +309,15 @@ private fun lead(view: LiveView): Lead {
         return Lead("${leg.label} has left", stop = leg.from, note = "Your ticket may allow another train.")
     }
     if (leg.cancelled) {
-        return Lead(if (leg.dropped) "${leg.label} is not in the timetable" else "${leg.label} is cancelled", stop = leg.from, cancelled = true)
+        // The broken step struck through, with the train it was; whether the ticket now allows others.
+        val lifted = trainBindingLifted(trip.fareType, trip.trainBinding, finalArrivalDelay(trip.legs), connectionBroken = true)
+        return Lead(
+            if (leg.dropped) "${leg.label} is not in the timetable" else "${leg.label} is cancelled",
+            stop = leg.from,
+            line = leg,
+            note = if (lifted) "Train binding lifted." else null,
+            cancelled = true,
+        )
     }
     return when (day.kind) {
         TravelDayKind.BeforeLeaving -> Lead(
@@ -273,13 +325,16 @@ private fun lead(view: LiveView): Lead {
             "Leave at ${TripFormat.time(day.leaveAt)}",
             stop = leg.from,
             line = leg,
-            note = "${view.stationMinutes} min to the station",
+            // The train to catch with all four facts: its time, line, destination and platform.
+            platform = leg.from,
+            note = "${view.stationMinutes} min to ${leg.from.name}",
             minutes = day.minutesToLeave,
         )
         TravelDayKind.AtStation, TravelDayKind.Changing -> Lead(
             leg.from.shownPlatform?.let { "Platform $it" } ?: leg.label,
             stop = leg.from,
             line = leg,
+            note = approach?.let(::approachText),
             minutes = day.minutesToDeparture,
         )
         else -> Lead(
@@ -310,6 +365,14 @@ fun LiveCard(
     onUseLocation: (() -> Unit)? = null,
     /** What else is live about the trip (the binding lifted, a connection taken instead), inside the card. */
     notices: (@Composable () -> Unit)? = null,
+    /**
+     * The Trips screen's next-trip card: the same state line, headline and
+     * train line, then one line to the destination instead of the ride and
+     * the steps ahead; no source, no notices, no status.
+     */
+    summary: Boolean = false,
+    /** While waiting for the train: where it is on its way here (rememberApproach). */
+    approach: Approach? = null,
 ) {
     var showSource by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     if (showSource) {
@@ -350,11 +413,11 @@ fun LiveCard(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                if (day.kind != TravelDayKind.Arrived) SourcePill(day.source) { showSource = true }
+                if (day.kind != TravelDayKind.Arrived && !summary) SourcePill(day.source) { showSource = true }
             }
 
             // The one thing to know now.
-            val lead = lead(view)
+            val lead = lead(view, approach)
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
@@ -376,14 +439,17 @@ fun LiveCard(
                             )
                         }
                         lead.icon?.let { Icon(it, contentDescription = null, tint = scheme.onSurfaceVariant, modifier = Modifier.size(18.dp)) }
-                        lead.platform?.let {
-                            if (lead.platformAtArrival) PlatformBox(it.plannedPlatform, it.platform, platformChanged(it.plannedPlatform, it.platform))
+                        if (lead.platformAtArrival) {
+                            lead.platform?.let { PlatformBox(it.plannedPlatform, it.platform, platformChanged(it.plannedPlatform, it.platform)) }
                         }
                         lead.line?.let { line ->
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 LineChip(line)
-                                line.headsign?.let { Text("→ ${short(it)}", style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant, maxLines = 1) }
+                                line.headsign?.let { Text("to $it", style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                             }
+                        }
+                        if (!lead.platformAtArrival) {
+                            lead.platform?.let { PlatformBox(it.plannedPlatform, it.platform, platformChanged(it.plannedPlatform, it.platform)) }
                         }
                     }
                     lead.note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant) }
@@ -423,30 +489,49 @@ fun LiveCard(
             val onBoard = day.kind == TravelDayKind.OnBoard
             val showRide = leg != null && progress != null && !leg.cancelled && !(day.missedChange && !onBoard) &&
                 (onBoard || day.kind == TravelDayKind.AtStation || day.kind == TravelDayKind.Changing)
-            if (showRide) {
+            if (showRide && !summary) {
                 RideRail(leg!!, progress!!, onBoard)
                 if (onBoard) NextStop(leg, progress, view.onboard)
             }
 
             // After this ride: the next train, and where the trip ends.
-            val next = leg?.takeIf { !warn && day.kind != TravelDayKind.Arrived }?.let { _ ->
+            val ahead = leg != null && !warn && day.kind != TravelDayKind.Arrived
+            val next = leg?.takeIf { ahead }?.let { _ ->
                 transfers(trip.legs).firstOrNull { it.arriving == day.legIndex }
             }
-            if (next != null) ThenBox(trip, next, showStation = !onBoard)
+            val lastRide = leg != null && trip.legs.lastOrNull { !it.isWalk } === leg
+            when {
+                summary && ahead && !(onBoard && lastRide) -> DestinationLine(trip)
+                summary -> Unit
+                next != null -> ThenBox(trip, next, showGetOff = !onBoard)
+                // The last ride, still to board: where it ends is where the trip ends.
+                ahead && !onBoard -> Inset { DestinationRow(trip) }
+            }
 
             if (day.missedChange && onBoard) {
                 Text("You are still on this train after your connection left.", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium))
             }
-            if (view.reason != null && onAlternatives != null) {
-                Button(
-                    onClick = onAlternatives,
-                    colors = ButtonDefaults.buttonColors(containerColor = attention.container, contentColor = attention.content),
-                ) {
-                    Icon(Icons.Rounded.Shuffle, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Text("See alternatives", modifier = Modifier.padding(start = 8.dp))
+            // Amber only when something broke; a change merely at risk gets a quiet button, so
+            // nothing looks wrong that is not (and none on the Trips card).
+            val broken = view.reason != null && view.reason != AlternativesReason.AtRisk
+            if (view.reason != null && onAlternatives != null && (broken || !summary)) {
+                if (broken) {
+                    Button(
+                        onClick = onAlternatives,
+                        colors = ButtonDefaults.buttonColors(containerColor = attention.container, contentColor = attention.content),
+                    ) {
+                        Icon(Icons.Rounded.Shuffle, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Text("See alternatives", modifier = Modifier.padding(start = 8.dp))
+                    }
+                } else {
+                    androidx.compose.material3.OutlinedButton(onClick = onAlternatives) {
+                        Icon(Icons.Rounded.Shuffle, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Text("Alternatives", modifier = Modifier.padding(start = 6.dp))
+                    }
                 }
             }
 
+            if (summary) return@Column
             notices?.invoke()
 
             // How fresh, and the train's speed when its Wi-Fi says: small, last.
@@ -592,47 +677,94 @@ private fun NextStop(leg: Leg, progress: RideProgress, onboard: OnboardStatus?) 
  * After this ride: the change (where, when not on the train yet), its margin,
  * the train to catch with its platform and time, and where the trip ends.
  */
+/** "Pl. 1", amber when it changed; nothing when the timetable has no platform. */
 @Composable
-private fun ThenBox(trip: Trip, change: Transfer, showStation: Boolean) {
+private fun PlatformText(stop: StopTime) {
+    val shown = stop.shownPlatform ?: return
+    Text(
+        "Pl. $shown",
+        style = MaterialTheme.typography.bodyMedium,
+        color = if (platformChanged(stop.plannedPlatform, stop.platform)) attention.content else MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+    )
+}
+
+/** Where the trip ends and when. */
+@Composable
+private fun DestinationRow(trip: Trip) {
+    val last = trip.legs.lastOrNull { !it.isWalk } ?: return
+    val body = MaterialTheme.typography.bodyMedium
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Icon(Icons.Rounded.Flag, contentDescription = "Destination", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+        Text(trip.destinationName, style = body, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        ShiftedTime(last.to.plannedAt, last.to.expectedAt, body, block = false)
+    }
+}
+
+/** The Trips card's one line below the train: when the trip arrives, how many changes, and how they look. */
+@Composable
+private fun DestinationLine(trip: Trip) {
+    val last = trip.legs.lastOrNull { !it.isWalk } ?: return
+    val count = changes(trip.legs)
+    val worst = worstConfidence(trip.legs)
+    val body = MaterialTheme.typography.bodyMedium
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Icon(Icons.Rounded.Flag, contentDescription = "Destination", tint = muted, modifier = Modifier.size(16.dp))
+        ShiftedTime(last.to.plannedAt, last.to.expectedAt, body, block = false, color = muted)
+        Text(
+            if (count == 0) "· direct" else "· $count ${if (count == 1) "change" else "changes"}",
+            style = body,
+            color = muted,
+            modifier = Modifier.weight(1f),
+        )
+        if (worst != null) ConfidenceChip(worst)
+    }
+}
+
+/**
+ * The steps still ahead, each with its time and platform: where this ride
+ * ends ([showGetOff], when it is not the headline already), the change and
+ * its margin, the next train "to" its destination, and where the trip ends.
+ */
+@Composable
+private fun ThenBox(trip: Trip, change: Transfer, showGetOff: Boolean) {
     val scheme = MaterialTheme.colorScheme
+    val arriving = trip.legs[change.arriving]
     val departing = trip.legs[change.departing]
     val last = trip.legs.lastOrNull { !it.isWalk }
+    val body = MaterialTheme.typography.bodyMedium
     Inset {
+        if (showGetOff) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = "Get off", tint = scheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                Text(arriving.to.name, style = body, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                ShiftedTime(arriving.to.plannedAt, arriving.to.expectedAt, body, block = false)
+                PlatformText(arriving.to)
+            }
+        }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(
-                if (change.walkMinutes > 0) Icons.AutoMirrored.Rounded.DirectionsWalk else Icons.Rounded.SwapHoriz,
-                contentDescription = "Then",
-                tint = scheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp),
-            )
-            Text(
-                if (showStation) departing.from.name else "",
-                style = MaterialTheme.typography.bodyMedium,
-                color = scheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
             ConfidenceChip(change.confidence, minutes = change.availableMinutes)
+            if (change.walkMinutes > 0) {
+                Icon(Icons.AutoMirrored.Rounded.DirectionsWalk, contentDescription = "Walk", tint = scheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+                Text("${change.walkMinutes} min", style = body, color = scheme.onSurfaceVariant)
+            } else {
+                arriving.to.shownPlatform?.let { from ->
+                    Text("Pl. $from" + (departing.from.shownPlatform?.let { " → $it" } ?: ""), style = body, color = scheme.onSurfaceVariant)
+                }
+            }
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             LineChip(departing)
-            PlatformBox(departing.from.plannedPlatform, departing.from.platform, platformChanged(departing.from.plannedPlatform, departing.from.platform))
-            Spacer(Modifier.weight(1f))
-            ShiftedTime(departing.from.plannedAt, departing.from.expectedAt, MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold), block = false)
+            Text(departing.headsign?.let { "to $it" } ?: "", style = body, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            ShiftedTime(departing.from.plannedAt, departing.from.expectedAt, body.copy(fontWeight = FontWeight.SemiBold), block = false)
+            PlatformText(departing.from)
         }
-        if (last != null && last !== departing) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Rounded.Flag, contentDescription = "Destination", tint = scheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
-                Text(trip.destinationName, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                ShiftedTime(last.to.plannedAt, last.to.expectedAt, MaterialTheme.typography.bodyMedium, block = false)
-            }
-        } else {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Rounded.Flag, contentDescription = "Destination", tint = scheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
-                Text(departing.to.name, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                ShiftedTime(departing.to.plannedAt, departing.to.expectedAt, MaterialTheme.typography.bodyMedium, block = false)
-            }
+        val end = if (last != null && last !== departing) last else departing
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(Icons.Rounded.Flag, contentDescription = "Destination", tint = scheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+            Text(trip.destinationName, style = body, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            ShiftedTime(end.to.plannedAt, end.to.expectedAt, body, block = false)
         }
     }
 }

@@ -192,6 +192,22 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
         return if (trip.followsReplacement) refreshReplacement(updated) else updated
     }
 
+    /**
+     * Where the train to catch is now, on its way to the boarding stop: the
+     * stop it is at or last left by its live times, and how many stops it
+     * still has to there. Null when that is not known. Nothing is saved.
+     */
+    suspend fun approach(leg: Leg): Approach? {
+        val ref = leg.tripRef ?: return null
+        val body = buildJsonObject {
+            put("action", "approach")
+            put("trip_ref", ref)
+            put("from_id", leg.from.id)
+            put("from_name", leg.from.name)
+        }
+        return NexusJson.decodeFromString<ApproachResponse>(transit(body)).approach
+    }
+
     /** When each trip was last checked against the timetable, in this process. */
     private val timetableChecked = java.util.concurrent.ConcurrentHashMap<String, Instant>()
 

@@ -11,6 +11,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
+import io.github.numynox.nexus.abeona.data.Approach
 import io.github.numynox.nexus.abeona.data.FareType
 import io.github.numynox.nexus.abeona.data.Leg
 import io.github.numynox.nexus.abeona.data.LegMode
@@ -23,7 +24,8 @@ import io.github.numynox.nexus.abeona.domain.alternativesReason
 import io.github.numynox.nexus.abeona.domain.travelDay
 import io.github.numynox.nexus.abeona.live.OnboardStatus
 import io.github.numynox.nexus.abeona.ui.AbeonaPalette
-import io.github.numynox.nexus.abeona.ui.common.TravelDayHero
+import io.github.numynox.nexus.abeona.ui.live.LiveCard
+import io.github.numynox.nexus.abeona.ui.live.liveView
 import io.github.numynox.nexus.core.ui.theme.NexusTheme
 import io.github.numynox.nexus.core.ui.theme.ThemeMode
 import java.time.Instant
@@ -84,6 +86,7 @@ class TravelDayScreenshots {
         onboard: OnboardStatus? = null,
         trip: Trip = trip(),
         mode: ThemeMode = ThemeMode.Light,
+        approach: Approach? = null,
     ) {
         val now = at(nowMinutes)
         val day = travelDay(trip.legs, now, 15, signals)
@@ -92,7 +95,8 @@ class TravelDayScreenshots {
             NexusTheme(AbeonaPalette, themeMode = mode) {
                 Column(Modifier.background(MaterialTheme.colorScheme.surface).padding(16.dp)) {
                     Text(caption, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
-                    TravelDayHero(trip, day, 15, Modifier.fillMaxWidth(), onboard = onboard, reason = reason, onAlternatives = {}, now = now)
+                    // The Trips card's compact live card: what the next-trip card shows on the travel day.
+                    LiveCard(liveView(trip, day, now, 15, emptyList(), onboard, null, reason), Modifier.fillMaxWidth(), onAlternatives = {}, summary = true, approach = approach)
                 }
             }
         }
@@ -104,11 +108,12 @@ class TravelDayScreenshots {
     @Test fun atTheStation() = shot(
         "51-hero-at-the-station", "At the station · by the position", 1,
         signals = TravelSignals(position = Position(50.1068, 8.6630, 0.0, 10.0)),
+        approach = Approach("Hanau Hbf", "left", 1),
     )
 
     @Test fun onBoard() = shot("52-hero-on-board", "On board · the change ahead is tight", 40)
 
-    @Test fun changing() = shot("53-hero-changing", "Changing at Würzburg", 77)
+    @Test fun changing() = shot("53-hero-changing", "Changing at Würzburg", 77, approach = Approach("Karlstadt(Main)", "at", 2))
 
     @Test fun arrived() = shot("54-hero-arrived", "Arrived, 22 min late", 180)
 

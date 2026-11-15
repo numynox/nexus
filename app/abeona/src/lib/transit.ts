@@ -107,6 +107,13 @@ export interface RefreshLegRef {
   to_name: string;
 }
 
+/** Where the train to catch is on its way to the boarding stop (abeona-transit approach.ts). */
+export interface Approach {
+  stop: string;
+  state: "at" | "left";
+  stops_away: number;
+}
+
 export interface RefreshResponse {
   journey: Journey | null;
   /** Index-aligned with the saved legs; null = no update for that leg. */

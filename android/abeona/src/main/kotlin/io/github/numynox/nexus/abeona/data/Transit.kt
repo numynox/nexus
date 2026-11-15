@@ -136,6 +136,19 @@ data class RefreshLegRef(
     @SerialName("to_name") val toName: String,
 )
 
+/** Where the train to catch is on its way to the boarding stop (abeona-transit approach.ts). */
+@Serializable
+data class Approach(
+    /** The stop it is at or last left. */
+    val stop: String,
+    /** "at" or "left". */
+    val state: String,
+    @SerialName("stops_away") val stopsAway: Int,
+)
+
+@Serializable
+data class ApproachResponse(val approach: Approach? = null)
+
 /** [legs] is index-aligned with the saved legs; null means no update for that one. */
 @Serializable
 data class RefreshResponse(
