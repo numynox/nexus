@@ -222,7 +222,12 @@ static illustration.
   theme (a dark theme never gets a bright band).
 - **Land**: far hills, near hills with trees, masts and wire, the track.
   Parallax 0.08 / 0.25 / 1 / 1.
-- **Train**: white, an orange stripe, lit windows at night.
+- **Train**: the one the ride really is, several cars long, in its real
+  livery (`trainKind`): an ICE for long-distance (white, red stripe, long
+  nose), a red double-deck set for regional trains, a shorter red set with
+  many doors for the S-Bahn, a bus for a bus. Its nose marks the place and the
+  cars trail off behind. Windows are lit at night. This is the one place
+  where red is not a status.
 - **Motion**: clouds always drift. The land scrolls only while riding, faster
   with the train's speed when its Wi-Fi tells it. Animations off (animator
   scale 0, `prefers-reduced-motion`) means a still picture.
@@ -245,7 +250,7 @@ Sizes:
 | strip | 56 | top of the live card and of its compact form |
 
 **The strip is the ride's rail.** Its track carries a dot per stop, passed
-ones filled, and the train stands where the ride is. So the strip costs the
+ones filled, and the train's nose is where the ride is. So the strip costs the
 travel day no room: it takes the place of the stop rail the card had. Before
 boarding the train stands at the first dot.
 

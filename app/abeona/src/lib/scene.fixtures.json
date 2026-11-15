@@ -362,7 +362,8 @@
       "sky": "#d9e7ea",
       "near": "#a6c2a0",
       "trainWindow": "#2a211c",
-      "trainStripe": "#f2761b"
+      "trainRed": "#d9342b",
+      "accent": "#f2761b"
     },
     {
       "dark": false,
@@ -370,7 +371,8 @@
       "sky": "#cdc9e0",
       "near": "#9995bb",
       "trainWindow": "#ffcf8a",
-      "trainStripe": "#f2761b"
+      "trainRed": "#d9342b",
+      "accent": "#f2761b"
     },
     {
       "dark": true,
@@ -378,7 +380,8 @@
       "sky": "#2c3d44",
       "near": "#3b5a4d",
       "trainWindow": "#1a1512",
-      "trainStripe": "#ff9a52"
+      "trainRed": "#d9584e",
+      "accent": "#ff9a52"
     },
     {
       "dark": true,
@@ -386,7 +389,8 @@
       "sky": "#282a3c",
       "near": "#383f52",
       "trainWindow": "#ffcf8a",
-      "trainStripe": "#ff9a52"
+      "trainRed": "#d9584e",
+      "accent": "#ff9a52"
     }
   ],
   "light": [
@@ -441,26 +445,91 @@
       "units": 80
     }
   ],
+  "trains": [
+    {
+      "product": "ICE",
+      "line": null,
+      "bus": false,
+      "kind": "ice",
+      "length": 161.6
+    },
+    {
+      "product": "RE",
+      "line": "RE 54",
+      "bus": false,
+      "kind": "regional",
+      "length": 117
+    },
+    {
+      "product": "S",
+      "line": "S 8",
+      "bus": false,
+      "kind": "suburban",
+      "length": 93.4
+    },
+    {
+      "product": null,
+      "line": "S8",
+      "bus": false,
+      "kind": "suburban",
+      "length": 93.4
+    },
+    {
+      "product": null,
+      "line": "ICE 528",
+      "bus": false,
+      "kind": "ice",
+      "length": 161.6
+    },
+    {
+      "product": "RB",
+      "line": null,
+      "bus": false,
+      "kind": "regional",
+      "length": 117
+    },
+    {
+      "product": "Bus",
+      "line": "Bus 20",
+      "bus": true,
+      "kind": "bus",
+      "length": 30
+    },
+    {
+      "product": null,
+      "line": null,
+      "bus": false,
+      "kind": "regional",
+      "length": 117
+    },
+    {
+      "product": "STR",
+      "line": "STR 11",
+      "bus": false,
+      "kind": "regional",
+      "length": 117
+    }
+  ],
   "rail": [
     {
       "fraction": 0,
       "width": 360,
-      "x": 30
+      "x": 64
     },
     {
       "fraction": 0.5,
       "width": 360,
-      "x": 180
+      "x": 201
     },
     {
       "fraction": 1,
       "width": 412,
-      "x": 382
+      "x": 390
     },
     {
       "fraction": 1.4,
       "width": 412,
-      "x": 382
+      "x": 390
     }
   ]
 }

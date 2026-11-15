@@ -16,6 +16,8 @@ import {
   scenePalette,
   skyLight,
   sunTimes,
+  trainKind,
+  trainLength,
   travelSpeed,
 } from "./scene.ts";
 
@@ -56,7 +58,7 @@ test("the land, the colours and the rail", () => {
   for (const c of fixtures.mix) assert.equal(mix(c.a, c.b, c.t), c.colour);
   for (const c of fixtures.palette) {
     const p = scenePalette(c.dark, c.light);
-    assert.deepEqual({ sky: p.sky, near: p.near, trainWindow: p.trainWindow, trainStripe: p.trainStripe }, { sky: c.sky, near: c.near, trainWindow: c.trainWindow, trainStripe: c.trainStripe });
+    assert.deepEqual({ sky: p.sky, near: p.near, trainWindow: p.trainWindow, trainRed: p.trainRed, accent: p.accent }, { sky: c.sky, near: c.near, trainWindow: c.trainWindow, trainRed: c.trainRed, accent: c.accent });
   }
   for (const c of fixtures.light) {
     const at = lightPosition(c.across, c.width, c.height);
@@ -65,4 +67,11 @@ test("the land, the colours and the rail", () => {
   }
   for (const c of fixtures.speed) near(travelSpeed(c.kmh), c.units, `speed at ${c.kmh}`);
   for (const c of fixtures.rail) near(railX(c.fraction, c.width), c.x, `rail at ${c.fraction}`);
+});
+
+test("a ride is drawn as the train it is", () => {
+  for (const c of fixtures.trains) {
+    assert.equal(trainKind(c.product, c.line, c.bus), c.kind, `${c.product} ${c.line}`);
+    near(trainLength(c.kind), c.length, `${c.kind} length`);
+  }
 });

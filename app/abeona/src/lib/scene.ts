@@ -20,11 +20,51 @@ export const LAND_SCALE: Record<SceneSize, number> = { strip: 1, header: 1.35, f
 
 /** The top of the rail above the bottom edge. */
 export const RAIL = 12;
-/** The strip's rail keeps this much clear at both ends, so the train fits at the first and last stop. */
-export const RAIL_INSET = 30;
-/** The train at scale 1. */
-export const TRAIN_LENGTH = 46;
-export const TRAIN_HEIGHT = 15;
+/**
+ * The strip's rail keeps this much clear at its ends. The train's nose marks
+ * where the ride is and its cars trail behind, so the start needs room for
+ * the leading car to show at the first stop.
+ */
+export const RAIL_START = 64;
+export const RAIL_END = 22;
+
+/**
+ * The trains, in their real liveries: the one place in Abeona where red is
+ * not a status. `ice` is long-distance (white, a red stripe, a long nose),
+ * `regional` a red double-deck set, `suburban` a shorter red set with many
+ * doors, `bus` a bus. Lengths are per car at scale 1; the nose is at x = 0
+ * and the cars trail to the left.
+ */
+export type TrainKind = "ice" | "regional" | "suburban" | "bus";
+
+export const TRAINS: Record<TrainKind, { cars: number; head: number; car: number; height: number; gap: number }> = {
+  ice: { cars: 4, head: 44, car: 38, height: 13, gap: 1.2 },
+  regional: { cars: 3, head: 38, car: 38, height: 17, gap: 1.5 },
+  suburban: { cars: 3, head: 31, car: 30, height: 13, gap: 1.2 },
+  bus: { cars: 1, head: 30, car: 0, height: 11, gap: 0 },
+};
+
+export function trainLength(kind: TrainKind): number {
+  const t = TRAINS[kind];
+  return t.head + (t.cars - 1) * (t.car + t.gap);
+}
+
+const LONG_DISTANCE = new Set(["ICE", "IC", "EC", "ECE", "RJ", "RJX", "TGV", "NJ", "EN", "FLX", "EST", "FR", "IR"]);
+
+/**
+ * Which train a ride is drawn as, from its product ("ICE", "RE", "S") or,
+ * failing that, its line's name ("S 8"); a bus by its mode. Long-distance as
+ * in the line chip's colours.
+ */
+export function trainKind(product: string | null | undefined, line: string | null | undefined, bus: boolean): TrainKind {
+  if (bus) return "bus";
+  const p = (product ?? "").trim().toUpperCase();
+  if (LONG_DISTANCE.has(p)) return "ice";
+  const name = p || (line ?? "").trim().toUpperCase();
+  if (/^S(-BAHN)?(\s|\d|$)/.test(name)) return "suburban";
+  if (!p && LONG_DISTANCE.has(name.split(/\s|\d/)[0])) return "ice";
+  return "regional";
+}
 /** The land repeats after this many units. */
 export const TILE = 720;
 export const MAST_EVERY = 90;
@@ -134,14 +174,17 @@ export interface ScenePalette {
   sun: string;
   moon: string;
   trainBody: string;
-  trainStripe: string;
+  /** The livery's red: the ICE's stripe, the regional and suburban bodies. */
+  trainRed: string;
+  /** The brand orange: the rail behind the train, passed stops, the flag. */
+  accent: string;
   trainWindow: string;
   trainLine: string;
   platform: string;
   dot: string;
 }
 
-type Tones = Omit<ScenePalette, "trainStripe" | "trainLine" | "dot">;
+type Tones = Omit<ScenePalette, "trainRed" | "accent" | "trainLine" | "dot">;
 
 const LIGHT_DAY: Tones = {
   sky: "#d9e7ea", glow: "#ffc48f", far: "#c7d8c6", near: "#a6c2a0", tree: "#86a983", ground: "#e7ded3", rail: "#6b5f57",
@@ -186,7 +229,8 @@ export function scenePalette(dark: boolean, light: number): ScenePalette {
   tones.trainWindow = light < 0.5 ? night.trainWindow : day.trainWindow;
   return {
     ...tones,
-    trainStripe: dark ? "#ff9a52" : "#f2761b",
+    trainRed: dark ? "#d9584e" : "#d9342b",
+    accent: dark ? "#ff9a52" : "#f2761b",
     trainLine: dark ? "#00000000" : "#2a211c40",
     dot: dark ? "#26201c" : "#ffffff",
   };
@@ -245,7 +289,7 @@ export function travelSpeed(kmh: number | null | undefined): number {
   return Math.max(10, Math.min(80, 10 + kmh * 0.28));
 }
 
-/** Where on the strip's rail a fraction of the ride lies. */
+/** Where on the strip's rail a fraction of the ride lies: where the train's nose is. */
 export function railX(fraction: number, width: number): number {
-  return RAIL_INSET + (width - 2 * RAIL_INSET) * clamp01(fraction);
+  return RAIL_START + (width - RAIL_START - RAIL_END) * clamp01(fraction);
 }
