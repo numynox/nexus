@@ -125,6 +125,8 @@ Spacing is a 4 dp grid: 4, 8, 12, 16, 24. Screen gutter 16. Card padding 16.
 Between cards 12. Between rows in a card 8. A row is at least 40 high, 48 if
 it is tappable.
 
+The maps follow the theme: in a dark one the basemap is dark too, lifted so roads, water and names stay readable (`decisions/2026-11-15-abeona-dark-map.md`). The route is burgundy, stations ink, a ride that does not run `bad`.
+
 Shapes: card 24, inset 16, line chip and platform box 8 (squared, like a
 board), status chip and buttons fully round. No shadows on Android; one soft
 shadow for cards on the web.

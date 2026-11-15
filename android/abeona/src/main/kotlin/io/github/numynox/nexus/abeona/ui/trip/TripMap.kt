@@ -186,7 +186,19 @@ private fun tripStyle(legs: List<Leg>, dark: Boolean, ride: Color, walk: Color, 
         putJsonArray("layers") {
             addJsonObject {
                 put("id", "base"); put("type", "raster"); put("source", "base")
-                if (dark && !carto) putJsonObject("paint") { put("raster-brightness-max", 0.55); put("raster-saturation", -0.4) }
+                // Dark tiles in a dark theme, tuned so roads, water and names still stand out; the
+                // web applies the same numbers as a CSS filter (lib/basemap.ts,
+                // decisions/2026-11-15-abeona-dark-map.md).
+                if (dark) putJsonObject("paint") {
+                    if (carto) {
+                        // Dark Matter lifted out of black: 0.16 + 0.84 × the tile.
+                        put("raster-brightness-min", 0.16); put("raster-brightness-max", 1.0)
+                    } else {
+                        // OpenStreetMap has no dark style: inverted with its hues kept, calmed, dimmed.
+                        put("raster-brightness-min", 0.81); put("raster-brightness-max", 0.09)
+                        put("raster-hue-rotate", 180); put("raster-saturation", -0.5)
+                    }
+                }
             }
             addJsonObject {
                 put("id", "ride-casing"); put("type", "line"); put("source", "trip")
