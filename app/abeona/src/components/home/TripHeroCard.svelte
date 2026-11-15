@@ -11,8 +11,8 @@
   } from "../../lib/format";
   import { summarise } from "../../lib/journey";
   import { trainBindingLifted } from "../../lib/transfer";
-  import type { TravelDay } from "../../lib/travelday";
-  import TravelDayHero from "../common/TravelDayHero.svelte";
+  import { alternativesOrigin, alternativesReason, type TravelDay } from "../../lib/travelday";
+  import LiveDashboard from "../live/LiveDashboard.svelte";
   import BindingBanner from "../common/BindingBanner.svelte";
   import ConfidenceChip from "../common/ConfidenceChip.svelte";
   import ShiftedTime from "../common/ShiftedTime.svelte";
@@ -35,12 +35,9 @@
   const s = $derived(summarise(trip.legs));
   const firstRide = $derived(s.rides[0] ?? trip.legs[0]);
   const platform = $derived(firstRide ? displayPlatform(firstRide.from) : null);
-  // Once under way the first train's platform is past: it would contradict the travel day's.
-  const underWay = $derived(
-    !!day &&
-      (day.kind === "on_board" || day.kind === "changing" || day.kind === "arrived" ||
-        (day.kind === "at_station" && day.legIndex !== null && trip.legs[day.legIndex] !== firstRide)),
-  );
+
+  // Offered by themselves only while there is somewhere to search from (as on the trip page).
+  const reason = $derived(day && alternativesOrigin(trip.legs, day, now) ? alternativesReason(trip.legs, day) : null);
   const bindingLifted = $derived(trainBindingLifted(trip.fare_type, trip.train_binding, s.arrivalDelay));
   const dayName = $derived(formatRelativeDay(trip.planned_departure));
   const date = $derived(formatShortDate(trip.planned_departure));
@@ -67,7 +64,7 @@
             Live
           </span>
         {/if}
-        {#if s.confidence && s.changes > 0}
+        {#if s.confidence && s.changes > 0 && !day}
           <ConfidenceChip confidence={s.confidence} label={s.changes === 1 ? "Change" : "Changes"} />
         {/if}
       </div>
@@ -78,9 +75,10 @@
     {/if}
 
     {#if day}
-      <div class="mt-5"><TravelDayHero legs={trip.legs} {day} {stationMinutes} {now} /></div>
-    {/if}
-
+      <!-- On the travel day: the live card's own top, compact (the same headline and train line
+           as on the trip page), then one line to the destination. -->
+      <div class="mt-5"><LiveDashboard summary {trip} {day} {now} {stationMinutes} {reason} /></div>
+    {:else}
     <div class="mt-6 grid grid-cols-[1fr_auto_1fr] items-start gap-3 sm:gap-6">
       <div class="min-w-0">
         <ShiftedTime planned={s.departure.planned} current={s.departure.current} cancelled={s.cancelled} class="text-[2rem] leading-none font-semibold tracking-tight sm:text-6xl" />
@@ -105,14 +103,12 @@
     </div>
 
     <div class="mt-6 flex flex-wrap items-center gap-3">
-      {#if !underWay}
       <div class="rounded-2xl bg-card px-4 py-2.5 shadow-card">
         <p class="text-[0.7rem] font-semibold uppercase tracking-[0.12em] text-base-content/55">Platform</p>
         <p class="tabular text-2xl font-semibold leading-tight {firstRide && platformChanged(firstRide.from) ? 'text-amber-ink' : ''}">
           {platform ?? "–"}
         </p>
       </div>
-      {/if}
       <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
         {#each s.rides as ride, i (i)}
           {#if i > 0}<span class="text-base-content/35">›</span>{/if}
@@ -125,6 +121,8 @@
         </span>
       {/if}
     </div>
+
+    {/if}
 
     {#if bindingLifted}
       <div class="mt-5"><BindingBanner delay={s.arrivalDelay} /></div>
