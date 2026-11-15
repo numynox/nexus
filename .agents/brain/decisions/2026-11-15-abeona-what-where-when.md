@@ -38,6 +38,13 @@ prototype first (Design canvas "Abeona travel day prototype").
   (missed, cancelled, not in the timetable, impossible), on every card. A
   change only at risk gets a quiet outlined "Alternatives" on the live card and
   nothing on the Trips card. Otherwise they stay in the ⋮ menu.
+- **Waiting for the train** (at the station, changing): under the train line,
+  where it is on its way here, "Train left Aschaffenburg Hbf · 3 stops away",
+  on both cards. Only from a realtime time the provider reports, never from the
+  timetable; nothing when that is not known. It needs the train's stops before
+  the boarding stop, which Abeona does not store, so the clients ask
+  abeona-transit's `approach` action every minute and keep the answer in
+  memory only.
 - A broken step is the headline, struck through with its train, plus "Train
   binding lifted." when it is. The rest of the plan returns once a connection
   is chosen.
@@ -45,5 +52,8 @@ prototype first (Design canvas "Abeona travel day prototype").
 ## Consequences
 - `TravelDayHero` (both clients) is gone. A change to the travel day's wording
   now goes into the live card only, and the Trips card follows.
+- `approach` is an Edge Function action: deploy abeona-transit before merging
+  a client that asks it. An older function answers "Unknown action", which the
+  clients treat as unknown.
 - On the web the Trips card is one link, so its "See alternatives" opens the
   trip, whose live card has the button.
