@@ -1,12 +1,13 @@
 <script lang="ts">
-  import { ArrowDownUp, ChevronDown, ChevronUp, Search } from "lucide-svelte";
+  import { ArrowDownUp, ChevronDown, ChevronUp, CircleAlert, Flag, MapPin, Search } from "lucide-svelte";
   import { getBaseUrl } from "../../lib/config";
   import { describeError, searchJourneys } from "../../lib/data";
   import { formatLongDate } from "../../lib/format";
   import { getSavedSearch, setSavedSearch } from "../../lib/storage";
   import type { IntakeDraft } from "../../lib/intake/intake";
   import type { Journey } from "../../lib/transit";
-  import Illustration from "../common/Illustration.svelte";
+  import Banner from "../common/Banner.svelte";
+  import SectionHeader from "../common/SectionHeader.svelte";
   import IntakeCard from "./IntakeCard.svelte";
   import JourneyCard from "./JourneyCard.svelte";
   import SaveSheet from "./SaveSheet.svelte";
@@ -118,6 +119,10 @@
     }
   }
 
+  // A compact two-way choice: the chosen side is the brand's soft surface.
+  const segment = "t-meta flex h-9 items-center rounded-full px-3.5 transition-colors";
+  const segmentOn = "bg-brand-soft font-semibold text-brand";
+
   function dayKey(j: Journey): string {
     const t = j.legs[0]?.from.planned;
     return t ? new Date(t).toDateString() : "";
@@ -138,114 +143,91 @@
   }
 </script>
 
-<div class="space-y-8">
-  <header class="pt-2">
-    <p class="text-sm font-medium text-base-content/55">Where to?</p>
-    <h1 class="mt-1 text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Plan a trip</h1>
-  </header>
+<div class="mx-auto max-w-2xl space-y-3">
+  <h1 class="t-headline px-1 pt-2 text-ink">Plan a trip</h1>
 
-  <form class="rounded-[2rem] bg-mint p-5 sm:p-7" onsubmit={search}>
-    <div class="relative grid gap-3">
-      <StationInput id="from" label="From" placeholder="Station" value={from} onSelect={(s) => (from = s)} />
-      <StationInput id="to" label="To" placeholder="Station" value={to} onSelect={(s) => (to = s)} />
-      <button
-        type="button"
-        class="btn btn-circle btn-sm absolute top-[3.1rem] right-4 z-10 border-base-300 bg-card shadow-card sm:right-5"
-        aria-label="Swap stations"
-        onclick={swap}
-      >
-        <ArrowDownUp class="h-4 w-4 text-primary" />
+  <form class="space-y-2 rounded-3xl bg-card p-4 shadow-card" onsubmit={search}>
+    <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+      <div class="space-y-2">
+        <StationInput id="from" label="From" icon={MapPin} value={from} onSelect={(s) => (from = s)} />
+        <StationInput id="to" label="To" icon={Flag} value={to} onSelect={(s) => (to = s)} />
+      </div>
+      <button type="button" class="btn btn-circle btn-ghost" aria-label="Swap stations" onclick={swap}>
+        <ArrowDownUp class="h-6 w-6 text-brand" aria-hidden="true" />
       </button>
     </div>
 
-    <div class="mt-4 grid grid-cols-2 gap-3">
-      <label class="block">
-        <span class="block px-1 pb-1 text-xs font-semibold uppercase tracking-wider text-base-content/55">Date</span>
-        <input type="date" class="input h-12 w-full rounded-2xl border-base-300 bg-card font-medium" bind:value={date} required />
-      </label>
-      <label class="block">
-        <span class="block px-1 pb-1 text-xs font-semibold uppercase tracking-wider text-base-content/55">Time</span>
-        <input type="time" class="input tabular h-12 w-full rounded-2xl border-base-300 bg-card font-medium" bind:value={time} required />
-      </label>
+    <div class="grid grid-cols-2 gap-2">
+      <input type="date" class="input t-body h-12 w-full rounded-2xl border-transparent bg-well font-medium text-ink" aria-label="Date" bind:value={date} required />
+      <input type="time" class="input t-body tabular h-12 w-full rounded-2xl border-transparent bg-well font-medium text-ink" aria-label="Time" bind:value={time} required />
     </div>
 
-    <div class="mt-4 flex flex-wrap items-center gap-3">
-      <div class="inline-flex rounded-full bg-card p-1 shadow-card" role="radiogroup" aria-label="Time refers to">
+    <div class="flex flex-wrap items-center gap-2">
+      <div class="inline-flex rounded-full bg-well p-0.5" role="radiogroup" aria-label="Time refers to">
         {#each [{ v: false, l: "Depart" }, { v: true, l: "Arrive" }] as opt (opt.l)}
           <button
             type="button"
             role="radio"
             aria-checked={arriveBy === opt.v}
-            class="rounded-full px-4 py-1.5 text-sm font-medium transition {arriveBy === opt.v ? 'bg-primary text-primary-content' : 'text-base-content/70'}"
+            class="{segment} {arriveBy === opt.v ? segmentOn : ''}"
             onclick={() => (arriveBy = opt.v)}
           >{opt.l}</button>
         {/each}
       </div>
-      <div class="inline-flex rounded-full bg-card p-1 shadow-card" role="radiogroup" aria-label="Trains">
-        {#each [{ v: false, l: "All trains" }, { v: true, l: "Regional only" }] as opt (opt.l)}
+      <div class="inline-flex rounded-full bg-well p-0.5" role="radiogroup" aria-label="Trains">
+        {#each [{ v: false, l: "All", a: "All trains" }, { v: true, l: "Regional", a: "Regional only" }] as opt (opt.l)}
           <button
             type="button"
             role="radio"
             aria-checked={regionalOnly === opt.v}
-            class="rounded-full px-4 py-1.5 text-sm font-medium transition {regionalOnly === opt.v ? 'bg-primary text-primary-content' : 'text-base-content/70'}"
+            aria-label={opt.a}
+            class="{segment} {regionalOnly === opt.v ? segmentOn : ''}"
             onclick={() => (regionalOnly = opt.v)}
           >{opt.l}</button>
         {/each}
       </div>
-      <button type="submit" class="btn btn-primary ml-auto h-12 rounded-full px-7" disabled={!canSearch || searching}>
-        {#if searching}<span class="loading loading-spinner loading-sm"></span>{:else}<Search class="h-4 w-4" />{/if}
+      <button type="submit" class="btn btn-primary h-12 w-full rounded-full px-6 sm:ml-auto sm:w-auto" disabled={!canSearch || searching}>
+        {#if searching}<span class="loading loading-spinner loading-sm"></span>{:else}<Search class="h-5 w-5" aria-hidden="true" />{/if}
         Search
       </button>
     </div>
   </form>
 
   {#if error}
-    <p class="rounded-2xl bg-error/10 px-5 py-4 text-sm text-error" role="alert">{error}</p>
+    <Banner tone="bad" icon={CircleAlert} title={error} />
   {/if}
 
   <IntakeCard onDrafts={openDrafts} />
 
   {#if searching && journeys.length === 0}
     <div class="space-y-3" aria-busy="true">
-      {#each [0, 1, 2, 3] as i (i)}<div class="h-32 animate-pulse rounded-3xl bg-base-200"></div>{/each}
+      {#each [0, 1, 2, 3] as i (i)}<div class="h-[5.5rem] animate-pulse rounded-3xl bg-well"></div>{/each}
     </div>
   {:else if journeys.length > 0}
-    <section class="space-y-3 {searching ? 'opacity-50' : ''}">
+    <section class="space-y-3 {searching ? 'opacity-50' : ''}" aria-label="Connections">
       {#if previousCursor}
-        <button class="btn btn-ghost btn-sm mx-auto flex rounded-full text-primary" onclick={() => page("earlier")} disabled={paging !== null}>
-          {#if paging === "earlier"}<span class="loading loading-spinner loading-xs"></span>{:else}<ChevronUp class="h-4 w-4" />{/if}
+        <button class="btn btn-ghost btn-sm mx-auto flex h-10 rounded-full text-brand" onclick={() => page("earlier")} disabled={paging !== null}>
+          {#if paging === "earlier"}<span class="loading loading-spinner loading-xs"></span>{:else}<ChevronUp class="h-4 w-4" aria-hidden="true" />{/if}
           Earlier
         </button>
       {/if}
       {#each journeys as journey, i (i)}
         {#if i === 0 || dayKey(journey) !== dayKey(journeys[i - 1])}
-          <p class="px-2 pt-2 text-xs font-semibold uppercase tracking-wider text-base-content/55">
-            {formatLongDate(journey.legs[0]?.from.planned)}
-          </p>
+          <SectionHeader title={formatLongDate(journey.legs[0]?.from.planned)} />
         {/if}
-        <JourneyCard {journey} onChoose={() => (chosen = journey)} />
+        <JourneyCard {journey} fromName={from?.name} toName={to?.name} onChoose={() => (chosen = journey)} />
       {/each}
       {#if nextCursor}
-        <button class="btn btn-ghost btn-sm mx-auto flex rounded-full text-primary" onclick={() => page("later")} disabled={paging !== null}>
-          {#if paging === "later"}<span class="loading loading-spinner loading-xs"></span>{:else}<ChevronDown class="h-4 w-4" />{/if}
+        <button class="btn btn-ghost btn-sm mx-auto flex h-10 rounded-full text-brand" onclick={() => page("later")} disabled={paging !== null}>
+          {#if paging === "later"}<span class="loading loading-spinner loading-xs"></span>{:else}<ChevronDown class="h-4 w-4" aria-hidden="true" />{/if}
           Later
         </button>
       {/if}
     </section>
   {:else if searched}
-    <div class="rounded-[2rem] bg-card p-8 text-center shadow-card">
-      <p class="font-semibold text-ink">No connections found</p>
-      <p class="mt-1 text-sm text-base-content/60">Try another time, or all trains instead of regional only.</p>
-    </div>
-  {:else}
-    <div class="grid items-center gap-6 rounded-[2rem] bg-card p-6 shadow-card sm:p-8 md:grid-cols-[1fr_1.1fr]">
-      <Illustration name="station" class="w-full" />
-      <div>
-        <h2 class="text-xl font-semibold text-ink">Find your connection</h2>
-        <p class="mt-2 text-sm leading-relaxed text-base-content/65">
-          Choose where you start and where you are going. Pick a connection to keep it — Abeona then follows its delays, platforms and changes for you.
-        </p>
-      </div>
+    <div class="rounded-3xl bg-card p-4 shadow-card">
+      <p class="t-title text-ink">No connections found</p>
+      <p class="t-meta mt-1">Try another time, or all trains instead of regional only.</p>
     </div>
   {/if}
 </div>

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { FileText, Trash2, Upload, X } from "lucide-svelte";
+  import { CircleAlert, FileText, Info, Trash2, Upload, X } from "lucide-svelte";
   import {
     deleteBahnCard,
     describeError,
@@ -11,6 +11,7 @@
     type BahnCardKind,
   } from "../../lib/data";
   import { bahnCardName, toDay } from "../../lib/format";
+  import Banner from "../common/Banner.svelte";
 
   interface Props {
     /** Shows the sheet; false closes it. */
@@ -37,6 +38,14 @@
   let removeFile = $state(false);
   let saving = $state(false);
   let error = $state("");
+
+  let renewInfo = $state(false);
+
+  // A compact choice in a row: the chosen side is the brand's soft surface.
+  const segment = "t-meta flex h-9 min-w-10 items-center justify-center rounded-full px-3 transition-colors";
+  const segmentOn = "bg-brand-soft font-semibold text-brand";
+  const row = "flex min-h-12 items-center gap-3 px-4";
+  const field = "input input-sm tabular h-9 rounded-xl border-transparent bg-well text-ink";
 
   const existingFile = $derived(card?.file_path ? card.file_path.split("/").pop()!.replace(/^\d+-/, "") : "");
 
@@ -146,118 +155,104 @@
 
 <dialog bind:this={dialog} class="modal modal-bottom sm:modal-middle" onclose={onClose}>
   {#if open}
-    <form class="modal-box max-w-lg rounded-t-[2rem] bg-base-100 p-0 sm:rounded-[2rem]" onsubmit={save}>
-      <div class="flex items-start justify-between gap-3 bg-sky px-6 pt-6 pb-5">
-        <div>
-          {#if card}<p class="text-xs font-semibold uppercase tracking-[0.12em] text-ink/70">{bahnCardName(card)}</p>{/if}
-          <h2 class="mt-1 text-xl font-semibold text-ink">{card ? "Edit BahnCard" : "Add a BahnCard"}</h2>
+    <form class="modal-box max-w-lg rounded-t-3xl bg-base-100 p-0 sm:rounded-3xl" onsubmit={save}>
+      <div class="space-y-3 p-4">
+        <div class="flex items-center justify-between gap-3">
+          <h2 class="t-title text-ink">{card ? `Edit ${bahnCardName(card)}` : "Add a BahnCard"}</h2>
+          <button type="button" class="btn btn-circle btn-ghost btn-sm -mr-1" aria-label="Close" onclick={() => dialog?.close()}>
+            <X class="h-5 w-5" aria-hidden="true" />
+          </button>
         </div>
-        <button type="button" class="btn btn-circle btn-ghost btn-sm" aria-label="Close" onclick={() => dialog?.close()}>
-          <X class="h-4 w-4" />
-        </button>
-      </div>
 
-      <div class="space-y-5 px-6 py-6">
-        <label class="block">
-          <span class="block px-1 pb-1 text-xs font-semibold uppercase tracking-wider text-base-content/55">Name <span class="normal-case font-normal tracking-normal">(optional)</span></span>
-          <input class="input w-full rounded-2xl bg-card" bind:value={name} maxlength="60" placeholder={`e.g. Mia, or leave empty for "BahnCard ${kind}"`} />
-        </label>
-
-        <div class="grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-4">
-          <fieldset>
-            <legend class="px-1 pb-1 text-xs font-semibold uppercase tracking-wider text-base-content/55">Card</legend>
-            <div class="join w-full">
+        <!-- One line per fact of the card: its name on the left, the value on the right. -->
+        <div class="divide-y divide-line rounded-2xl bg-card">
+          <label class={row}>
+            <span class="t-body shrink-0 text-ink">Name</span>
+            <input class="{field} min-w-0 flex-1 text-right" bind:value={name} maxlength="60" placeholder={`optional, e.g. Mia`} />
+          </label>
+          <div class={row}>
+            <span class="t-body flex-1 text-ink" id="bc-kind">Card</span>
+            <div class="inline-flex rounded-full bg-well p-0.5" role="group" aria-labelledby="bc-kind">
               {#each [25, 50, 100] as const as k (k)}
-                <button
-                  type="button"
-                  class="btn join-item flex-1 {kind === k ? 'btn-primary' : 'bg-card'}"
-                  aria-pressed={kind === k}
-                  onclick={() => (kind = k)}
-                >{k}</button>
+                <button type="button" class="{segment} tabular {kind === k ? segmentOn : ''}" aria-pressed={kind === k} onclick={() => (kind = k)}>{k}</button>
               {/each}
             </div>
-          </fieldset>
-          <fieldset>
-            <legend class="px-1 pb-1 text-xs font-semibold uppercase tracking-wider text-base-content/55">Class</legend>
-            <div class="join w-full">
+          </div>
+          <div class={row}>
+            <span class="t-body flex-1 text-ink" id="bc-class">Class</span>
+            <div class="inline-flex rounded-full bg-well p-0.5" role="group" aria-labelledby="bc-class">
               {#each [1, 2] as const as c (c)}
-                <button
-                  type="button"
-                  class="btn join-item flex-1 {travelClass === c ? 'btn-primary' : 'bg-card'}"
-                  aria-pressed={travelClass === c}
-                  onclick={() => (travelClass = c)}
-                >{c === 1 ? "1st" : "2nd"}</button>
+                <button type="button" class="{segment} {travelClass === c ? segmentOn : ''}" aria-pressed={travelClass === c} onclick={() => (travelClass = c)}>{c === 1 ? "1st" : "2nd"}</button>
               {/each}
             </div>
-          </fieldset>
+          </div>
+          <label class={row}>
+            <span class="t-body flex-1 text-ink">Valid from</span>
+            <input type="date" class="{field} w-40" bind:value={validFrom} required />
+          </label>
+          <label class={row}>
+            <span class="t-body flex-1 text-ink">Valid until</span>
+            <input type="date" class="{field} w-40" bind:value={validTo} min={validFrom} required />
+          </label>
+          <label class={row}>
+            <span class="t-body shrink-0 text-ink">Card number</span>
+            <input class="{field} min-w-0 flex-1 text-right" inputmode="numeric" bind:value={cardNumber} maxlength="40" placeholder="optional" />
+          </label>
         </div>
 
-        <div class="grid grid-cols-2 gap-4">
-          <label class="block">
-            <span class="block px-1 pb-1 text-xs font-semibold uppercase tracking-wider text-base-content/55">Valid from</span>
-            <input type="date" class="input w-full rounded-2xl bg-card" bind:value={validFrom} required />
-          </label>
-          <label class="block">
-            <span class="block px-1 pb-1 text-xs font-semibold uppercase tracking-wider text-base-content/55">Valid until</span>
-            <input type="date" class="input w-full rounded-2xl bg-card" bind:value={validTo} min={validFrom} required />
-          </label>
-        </div>
-
-        <label class="block">
-          <span class="block px-1 pb-1 text-xs font-semibold uppercase tracking-wider text-base-content/55">Card number <span class="normal-case font-normal tracking-normal">(optional)</span></span>
-          <input class="input tabular w-full rounded-2xl bg-card" inputmode="numeric" bind:value={cardNumber} maxlength="40" placeholder="7081 4111 1234 5678" />
-        </label>
-
-        <div class="rounded-2xl bg-card p-4">
-          <label class="flex cursor-pointer items-start gap-3">
-            <input type="checkbox" class="toggle toggle-primary mt-0.5" bind:checked={subscription} />
-            <span>
-              <span class="block font-medium">Renews automatically</span>
-              <span class="block text-sm text-base-content/60">A subscription runs on unless it is cancelled in time. Turn this off once it is cancelled.</span>
-            </span>
-          </label>
+        <div class="divide-y divide-line rounded-2xl bg-card">
+          <div>
+            <div class={row}>
+              <label class="t-body flex-1 text-ink" for="bc-renews">Renews automatically</label>
+              <button type="button" class="btn btn-circle btn-ghost btn-sm text-muted" aria-label="About renewing" aria-expanded={renewInfo} onclick={() => (renewInfo = !renewInfo)}>
+                <Info class="h-5 w-5" aria-hidden="true" />
+              </button>
+              <input id="bc-renews" type="checkbox" class="toggle toggle-primary" bind:checked={subscription} />
+            </div>
+            {#if renewInfo}
+              <p class="t-meta px-4 pb-3">A subscription runs on unless it is cancelled in time. Turn this off once it is cancelled.</p>
+            {/if}
+          </div>
           {#if subscription}
-            <label class="mt-3 flex items-center gap-3 pl-[3.25rem]">
-              <span class="text-sm">Notice period</span>
-              <input type="number" class="input input-sm tabular w-20 rounded-full bg-base-100" min="0" max="26" bind:value={noticeWeeks} />
-              <span class="text-sm text-base-content/60">weeks</span>
+            <label class={row}>
+              <span class="t-body flex-1 text-ink">Notice period</span>
+              <input type="number" class="{field} w-16 text-right" min="0" max="26" bind:value={noticeWeeks} />
+              <span class="t-meta">weeks</span>
             </label>
           {/if}
-        </div>
-
-        <div>
-          <p class="px-1 pb-1 text-xs font-semibold uppercase tracking-wider text-base-content/55">Card file <span class="normal-case font-normal tracking-normal">(optional)</span></p>
           {#if file || (existingFile && !removeFile)}
-            <div class="flex items-center gap-3 rounded-2xl bg-mint p-3">
-              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-card text-primary"><FileText class="h-5 w-5" /></span>
-              <p class="min-w-0 flex-1 truncate text-sm font-medium">{file?.name ?? existingFile}</p>
-              <button type="button" class="btn btn-ghost btn-circle btn-sm text-error" aria-label="Remove file" onclick={() => { file = null; removeFile = true; }}>
-                <Trash2 class="h-4 w-4" />
+            <div class={row}>
+              <FileText class="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />
+              <span class="sr-only">Card file:</span>
+              <span class="t-body min-w-0 flex-1 truncate text-ink">{file?.name ?? existingFile}</span>
+              <button type="button" class="btn btn-ghost btn-circle btn-sm text-bad-ink" aria-label="Remove file" onclick={() => { file = null; removeFile = true; }}>
+                <Trash2 class="h-5 w-5" aria-hidden="true" />
               </button>
             </div>
           {:else}
-            <label class="flex w-full cursor-pointer items-center gap-3 rounded-2xl border-2 border-dashed border-base-300 px-4 py-3 transition hover:border-primary hover:bg-mint/50">
-              <Upload class="h-5 w-5 text-primary" />
-              <span class="text-sm"><span class="font-medium">Add the PDF or a screenshot</span><br /><span class="text-base-content/55">PDF, PNG or JPEG, up to 10 MB</span></span>
+            <label class="{row} cursor-pointer">
+              <Upload class="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />
+              <span class="t-body flex-1 text-ink">Add the card file</span>
+              <span class="t-meta">PDF, PNG or JPEG, up to 10 MB</span>
               <input type="file" accept={TICKET_TYPES.join(",")} class="hidden" onchange={onFile} />
             </label>
           {/if}
         </div>
 
         {#if error}
-          <p class="rounded-2xl bg-error/10 px-4 py-3 text-sm text-error" role="alert">{error}</p>
+          <Banner tone="bad" icon={CircleAlert} title={error} />
         {/if}
       </div>
 
-      <div class="flex gap-3 px-6 pb-6">
+      <div class="sticky bottom-0 flex gap-2 border-t border-line bg-base-100 p-4">
         {#if card}
-          <button type="button" class="btn btn-ghost rounded-full text-error" onclick={remove} disabled={saving}>
-            <Trash2 class="h-4 w-4" /> Delete
+          <button type="button" class="btn btn-ghost h-12 rounded-full text-bad-ink" onclick={remove} disabled={saving}>
+            <Trash2 class="h-5 w-5" aria-hidden="true" /> Delete
           </button>
         {:else}
-          <button type="button" class="btn btn-ghost flex-1 rounded-full" onclick={() => dialog?.close()}>Cancel</button>
+          <button type="button" class="btn btn-ghost h-12 flex-1 rounded-full" onclick={() => dialog?.close()}>Cancel</button>
         {/if}
-        <button type="submit" class="btn btn-primary flex-[2] rounded-full" disabled={saving}>
+        <button type="submit" class="btn btn-primary h-12 flex-[2] rounded-full" disabled={saving}>
           {#if saving}<span class="loading loading-spinner loading-sm"></span>{/if}
           Save card
         </button>

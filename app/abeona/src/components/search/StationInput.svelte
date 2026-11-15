@@ -1,17 +1,18 @@
 <script lang="ts">
-  import { MapPin } from "lucide-svelte";
+  import type { MapPin } from "lucide-svelte";
   import { describeError, searchStations } from "../../lib/data";
   import type { Station } from "../../lib/transit";
 
   interface Props {
     id: string;
     label: string;
-    placeholder?: string;
+    /** The mark in front: where the trip starts, where it ends. */
+    icon: typeof MapPin;
     value: { id: string; name: string } | null;
     onSelect: (station: { id: string; name: string } | null) => void;
   }
 
-  let { id, label, placeholder = "", value, onSelect }: Props = $props();
+  let { id, label, icon: Icon, value, onSelect }: Props = $props();
 
   let text = $state("");
   let results = $state<Station[]>([]);
@@ -91,9 +92,10 @@
 </script>
 
 <div class="relative">
-  <label for={id} class="block px-1 pb-1 text-xs font-semibold uppercase tracking-wider text-base-content/55">{label}</label>
+  <!-- The placeholder is the visible label; the field keeps a real one for screen readers. -->
+  <label for={id} class="sr-only">{label}</label>
   <div class="relative">
-    <MapPin class="pointer-events-none absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-primary" />
+    <Icon class="pointer-events-none absolute top-1/2 left-3.5 z-10 h-5 w-5 -translate-y-1/2 text-muted" aria-hidden="true" />
     <input
       {id}
       type="text"
@@ -103,8 +105,8 @@
       aria-expanded={open}
       aria-controls={`${id}-list`}
       aria-autocomplete="list"
-      class="input h-13 w-full rounded-2xl border-base-300 bg-card pl-11 text-base font-medium"
-      {placeholder}
+      class="input t-body h-12 w-full rounded-2xl border-transparent bg-well pl-11 font-medium text-ink placeholder:font-normal placeholder:text-muted"
+      placeholder={label}
       value={text}
       oninput={onInput}
       onkeydown={onKeydown}
@@ -112,7 +114,7 @@
       onblur={() => setTimeout(() => (open = false), 150)}
     />
     {#if loading}
-      <span class="loading loading-spinner loading-xs absolute top-1/2 right-4 -translate-y-1/2 text-primary"></span>
+      <span class="loading loading-spinner loading-xs absolute top-1/2 right-4 -translate-y-1/2 text-brand"></span>
     {/if}
   </div>
 
@@ -120,24 +122,24 @@
     <ul
       id={`${id}-list`}
       role="listbox"
-      class="absolute z-30 mt-2 max-h-80 w-full overflow-auto rounded-2xl border border-base-200 bg-card p-1.5 shadow-xl"
+      class="absolute z-30 mt-1 max-h-80 w-full overflow-auto rounded-2xl border border-line bg-card p-1 shadow-xl"
     >
       {#if error}
-        <li class="px-3 py-2.5 text-sm text-error">{error}</li>
+        <li class="t-body px-3 py-2.5 text-bad-ink">{error}</li>
       {:else if results.length === 0}
-        <li class="px-3 py-2.5 text-sm text-base-content/60">No stations found</li>
+        <li class="t-body px-3 py-2.5 text-muted">No stations found</li>
       {:else}
         {#each results as station, i (station.id)}
           <li role="option" aria-selected={i === highlighted}>
             <button
               type="button"
-              class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left {i === highlighted ? 'bg-mint' : 'hover:bg-base-200'}"
+              class="flex min-h-10 w-full items-center gap-3 rounded-xl px-3 text-left {i === highlighted ? 'bg-brand-soft' : 'hover:bg-well'}"
               onmousedown={(e) => e.preventDefault()}
               onclick={() => choose(station)}
             >
-              <span class="min-w-0 flex-1 truncate font-medium">{station.name}</span>
+              <span class="t-body min-w-0 flex-1 truncate font-medium text-ink">{station.name}</span>
               {#if station.country}
-                <span class="text-xs font-semibold text-base-content/45">{station.country}</span>
+                <span class="t-meta">{station.country}</span>
               {/if}
             </button>
           </li>

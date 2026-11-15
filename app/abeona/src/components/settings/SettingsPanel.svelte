@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ThemePicker } from "@nexus/ui";
-  import { CreditCard, DoorOpen, LogOut, Palette, Plus, UserPlus, Users } from "lucide-svelte";
+  import { ChevronDown, CircleAlert, CircleCheck, CreditCard, DoorOpen, Info, LogOut, Palette, Plus, User, UserPlus, Users } from "lucide-svelte";
   import { onMount } from "svelte";
   import {
     describeError,
@@ -13,6 +13,9 @@
     type HouseholdMember,
   } from "../../lib/data";
   import { bahnCardLabel, bahnCardName } from "../../lib/format";
+  import Banner from "../common/Banner.svelte";
+  import SectionHeader from "../common/SectionHeader.svelte";
+  import StatusChip from "../common/StatusChip.svelte";
   import BahnCardItem from "../bahncards/BahnCardItem.svelte";
   import BahnCardSheet from "../bahncards/BahnCardSheet.svelte";
   import TicketViewer from "../trip/TicketViewer.svelte";
@@ -42,6 +45,14 @@
   let shownCard = $state<BahnCard | null>(null);
 
   let currentTheme = $state(getTheme());
+  let themeOpen = $state(false);
+  const themeLabel = $derived(
+    currentTheme === "auto" ? "Auto" : (ABEONA_THEMES.themes?.find((t) => t.name === currentTheme)?.label ?? currentTheme),
+  );
+
+  /** The explanation that is open, by its setting; they sit behind the ⓘ of their row. */
+  let info = $state<string | null>(null);
+  const row = "flex min-h-12 items-center gap-3 px-4";
 
   function openCard(card: BahnCard | null) {
     editingCard = card;
@@ -119,125 +130,157 @@
   });
 </script>
 
-<div class="space-y-8">
-  <header class="pt-2">
-    <h1 class="text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Settings</h1>
-  </header>
+{#snippet infoButton(key: string, about: string)}
+  <button
+    type="button"
+    class="btn btn-circle btn-ghost btn-sm text-muted"
+    aria-label="About {about}"
+    aria-expanded={info === key}
+    onclick={() => (info = info === key ? null : key)}
+  >
+    <Info class="h-5 w-5" aria-hidden="true" />
+  </button>
+{/snippet}
+
+<!-- Groups in the order of the moments (abeona-design.md §9); a group the web has no setting for is left out. -->
+<div class="mx-auto max-w-2xl space-y-3">
+  <h1 class="t-headline px-1 pt-2 text-ink">Settings</h1>
 
   {#if error}
-    <p class="rounded-2xl bg-error/10 px-5 py-4 text-sm text-error" role="alert">{error}</p>
+    <Banner tone="bad" icon={CircleAlert} title={error} />
   {/if}
 
-  <section class="rounded-[2rem] bg-card p-6 shadow-card sm:p-8">
-    <div class="flex items-center gap-2">
-      <Users class="h-5 w-5 text-primary" />
-      <h2 class="text-lg font-semibold text-ink">Household</h2>
+  <section class="scroll-mt-6 space-y-2" id="device">
+    <SectionHeader title="Before the trip" />
+    <div class="rounded-3xl bg-card shadow-card">
+      <div class={row}>
+        <DoorOpen class="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />
+        <label class="t-body min-w-0 flex-1 truncate text-ink" for="station-minutes">Time to the station</label>
+        {@render infoButton("station", "the time to the station")}
+        <select
+          id="station-minutes"
+          class="select select-sm tabular h-9 w-24 rounded-xl border-transparent bg-well text-ink"
+          value={stationMinutes}
+          onchange={(e) => chooseStationMinutes(Number(e.currentTarget.value))}
+        >
+          {#each STATION_MINUTES_CHOICES as minutes (minutes)}
+            <option value={minutes}>{minutes} min</option>
+          {/each}
+        </select>
+      </div>
+      {#if info === "station"}
+        <p class="t-meta px-4 pb-3">From your door to the platform. On the day of a trip, the trip shows when to leave. Stored on this device only.</p>
+      {/if}
     </div>
-    <p class="mt-1 text-sm text-base-content/60">Everyone here sees and edits the same trips and tickets.</p>
+  </section>
 
-    {#if loading}
-      <div class="mt-5 h-16 animate-pulse rounded-2xl bg-base-200"></div>
-    {:else}
-      <ul class="mt-5 divide-y divide-base-200">
+  <section class="space-y-2">
+    <SectionHeader title="Household" />
+
+    <div class="divide-y divide-line rounded-3xl bg-card shadow-card">
+      <div>
+        <div class={row}>
+          <Users class="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />
+          <h3 class="t-body flex-1 font-semibold text-ink">Members</h3>
+          {@render infoButton("household", "the household")}
+        </div>
+        {#if info === "household"}
+          <p class="t-meta px-4 pb-3">
+            Everyone here sees and edits the same trips and tickets. Someone you invite needs a Nexus account. If they have trips of their own and nobody else in their household, those come along.
+          </p>
+        {/if}
+      </div>
+      {#if loading}
+        <div class="m-4 h-10 animate-pulse rounded-2xl bg-well"></div>
+      {:else}
         {#each members as m (m.user_id)}
-          <li class="flex items-center gap-3 py-3">
-            <span class="flex h-10 w-10 items-center justify-center rounded-full bg-mint text-sm font-semibold text-primary">
+          <div class={row}>
+            <span class="t-meta flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-well font-semibold text-ink" aria-hidden="true">
               {initials(m.full_name || m.email || "?")}
             </span>
             <div class="min-w-0 flex-1">
-              <p class="truncate font-medium">{m.full_name || m.email}{m.user_id === me ? " (you)" : ""}</p>
-              {#if m.full_name && m.email}<p class="truncate text-sm text-base-content/55">{m.email}</p>{/if}
+              <p class="t-body truncate text-ink">{m.full_name || m.email}{m.user_id === me ? " (you)" : ""}</p>
+              {#if m.full_name && m.email}<p class="t-meta truncate">{m.email}</p>{/if}
             </div>
-            {#if m.role === "owner"}<span class="rounded-full bg-base-200 px-2.5 py-0.5 text-xs font-semibold text-base-content/70">Owner</span>{/if}
-          </li>
+            {#if m.role === "owner"}<StatusChip tone="quiet" label="Owner" />{/if}
+          </div>
         {/each}
-      </ul>
-    {/if}
-
-    <form class="mt-4 flex flex-col gap-2 sm:flex-row" onsubmit={invite}>
-      <input type="email" class="input flex-1 rounded-full bg-base-100" placeholder="Invite by email" bind:value={inviteEmail} required />
-      <button class="btn btn-primary rounded-full px-5" disabled={inviting}>
-        {#if inviting}<span class="loading loading-spinner loading-sm"></span>{:else}<UserPlus class="h-4 w-4" />{/if}
-        Invite
-      </button>
-    </form>
-    <p class="mt-2 text-xs text-base-content/55">They need a Nexus account. If they have trips of their own and nobody else in their household, those come along.</p>
-    {#if inviteMessage}<p class="mt-2 text-sm text-primary">{inviteMessage}</p>{/if}
-    {#if inviteError}<p class="mt-2 text-sm text-error" role="alert">{inviteError}</p>{/if}
-
-    {#if members.length > 1}
-      <button class="btn btn-ghost btn-sm mt-4 rounded-full text-error" onclick={leave}>
-        <LogOut class="h-4 w-4" /> Leave household
-      </button>
-    {/if}
-  </section>
-
-  <section class="rounded-[2rem] bg-card p-6 shadow-card sm:p-8" id="bahncards">
-    <div class="flex items-center gap-2">
-      <CreditCard class="h-5 w-5 text-primary" />
-      <h2 class="mr-auto text-lg font-semibold text-ink">BahnCards</h2>
-      <button class="btn btn-ghost btn-sm rounded-full text-primary" onclick={() => openCard(null)}>
-        <Plus class="h-4 w-4" /> Add BahnCard
-      </button>
+      {/if}
+      <div>
+        <form class="{row} py-2" onsubmit={invite}>
+          <input type="email" class="input t-body h-10 min-w-0 flex-1 rounded-xl border-transparent bg-well" placeholder="Invite by email" aria-label="Invite by email" bind:value={inviteEmail} required />
+          <button class="btn h-10 rounded-full border-transparent bg-well px-4 text-ink" disabled={inviting}>
+            {#if inviting}<span class="loading loading-spinner loading-sm"></span>{:else}<UserPlus class="h-5 w-5" aria-hidden="true" />{/if}
+            Invite
+          </button>
+        </form>
+        {#if inviteMessage}<Banner tone="ok" icon={CircleCheck} title={inviteMessage} class="mx-4 mb-3" />{/if}
+        {#if inviteError}<Banner tone="bad" icon={CircleAlert} title={inviteError} class="mx-4 mb-3" />{/if}
+      </div>
+      {#if members.length > 1}
+        <button class="{row} w-full text-left text-bad-ink" onclick={leave}>
+          <LogOut class="h-5 w-5 shrink-0" aria-hidden="true" />
+          <span class="t-body">Leave household</span>
+        </button>
+      {/if}
     </div>
-    <p class="mt-1 text-sm text-base-content/60">
-      The household's cards. Abeona shows them with the tickets they were booked with and reminds you before a
-      subscription renews. The digital BahnCard only counts as proof inside the DB Navigator app, so keep that at hand
-      on the train.
-    </p>
 
-    {#if loading}
-      <div class="mt-5 h-24 animate-pulse rounded-2xl bg-base-200"></div>
-    {:else}
-      {#if cards.length === 0}
-        <p class="mt-5 px-1 text-sm text-base-content/50">No BahnCard yet.</p>
+    <div class="scroll-mt-6 rounded-3xl bg-card shadow-card" id="bahncards">
+      <div class={row}>
+        <CreditCard class="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />
+        <h3 class="t-body flex-1 font-semibold text-ink">BahnCards</h3>
+        {@render infoButton("bahncards", "BahnCards")}
+        <button class="btn btn-ghost btn-sm h-9 rounded-full px-3 text-brand" onclick={() => openCard(null)}>
+          <Plus class="h-5 w-5" aria-hidden="true" /> Add
+        </button>
+      </div>
+      {#if info === "bahncards"}
+        <p class="t-meta px-4 pb-3">
+          The household's cards. Abeona shows them with the tickets they were booked with and reminds you before a
+          subscription renews. The digital BahnCard only counts as proof inside the DB Navigator app, so keep that at hand
+          on the train.
+        </p>
+      {/if}
+      {#if loading}
+        <div class="m-4 mt-0 h-10 animate-pulse rounded-2xl bg-well"></div>
+      {:else if cards.length === 0}
+        <p class="t-meta px-4 pb-4">No BahnCard yet.</p>
       {:else}
-        <div class="mt-5 space-y-2">
+        <div class="divide-y divide-line border-t border-line pr-1 pl-4">
           {#each cards as card (card.id)}
             <BahnCardItem {card} onShow={() => (shownCard = card)} onEdit={() => openCard(card)} />
           {/each}
         </div>
       {/if}
-    {/if}
+    </div>
   </section>
 
-  <section class="scroll-mt-6 rounded-[2rem] bg-card p-6 shadow-card sm:p-8" id="device">
-    <div class="flex items-center gap-2">
-      <DoorOpen class="h-5 w-5 text-primary" />
-      <h2 class="text-lg font-semibold text-ink">Time to the station</h2>
-    </div>
-    <p class="mt-1 mb-5 text-sm text-base-content/60">
-      From your door to the platform. On the day of a trip, the trip shows when to leave. Stored on this device only.
-    </p>
-    <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="Time to the station">
-      {#each STATION_MINUTES_CHOICES as minutes (minutes)}
-        <button
-          role="radio"
-          aria-checked={stationMinutes === minutes}
-          class="btn btn-sm rounded-full {stationMinutes === minutes ? 'btn-primary' : 'border-base-300 bg-card'}"
-          onclick={() => chooseStationMinutes(minutes)}
-        >
-          {minutes} min
+  <section class="space-y-2">
+    <SectionHeader title="App" />
+    <div class="divide-y divide-line rounded-3xl bg-card shadow-card">
+      <div>
+        <button class="{row} w-full text-left" aria-expanded={themeOpen} onclick={() => (themeOpen = !themeOpen)}>
+          <Palette class="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />
+          <span class="t-body flex-1 text-ink">Theme</span>
+          <span class="t-meta">{themeLabel}</span>
+          <ChevronDown class="h-5 w-5 shrink-0 text-muted transition-transform {themeOpen ? 'rotate-180' : ''}" aria-hidden="true" />
         </button>
-      {/each}
+        {#if themeOpen}
+          <div class="space-y-2 px-4 pb-4">
+            <ThemePicker current={currentTheme} onSelect={chooseTheme} set={ABEONA_THEMES} />
+            <p class="t-meta">Stored on this device only.</p>
+          </div>
+        {/if}
+      </div>
+      <div class={row}>
+        <User class="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />
+        <span class="sr-only">Signed in as</span>
+        <span class="t-body min-w-0 flex-1 truncate text-ink">{$session?.user?.email ?? ""}</span>
+        <button class="btn btn-ghost btn-sm h-9 rounded-full px-3 text-brand" onclick={logout}>
+          <LogOut class="h-5 w-5" aria-hidden="true" /> Sign out
+        </button>
+      </div>
     </div>
-  </section>
-
-  <section class="rounded-[2rem] bg-card p-6 shadow-card sm:p-8">
-    <div class="flex items-center gap-2">
-      <Palette class="h-5 w-5 text-primary" />
-      <h2 class="text-lg font-semibold text-ink">Appearance</h2>
-    </div>
-    <p class="mt-1 mb-5 text-sm text-base-content/60">Stored on this device only.</p>
-    <ThemePicker current={currentTheme} onSelect={chooseTheme} set={ABEONA_THEMES} />
-  </section>
-
-  <section class="flex flex-wrap items-center justify-between gap-4 rounded-[2rem] bg-card p-6 shadow-card sm:p-8">
-    <div class="min-w-0">
-      <p class="text-sm text-base-content/60">Signed in as</p>
-      <p class="truncate font-medium">{$session?.user?.email ?? ""}</p>
-    </div>
-    <button class="btn btn-ghost rounded-full" onclick={logout}><LogOut class="h-4 w-4" /> Sign out</button>
   </section>
 
   <BahnCardSheet
@@ -258,7 +301,7 @@
     />
   {/if}
 
-  <footer class="px-2 pb-4 text-center text-xs leading-relaxed text-base-content/45">
+  <footer class="t-meta px-2 pb-4 text-center text-xs">
     Timetable data: Transitous (transitous.org), © OpenStreetMap contributors, and the respective transit operators.
   </footer>
 </div>
