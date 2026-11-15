@@ -23,7 +23,8 @@ import io.github.numynox.nexus.abeona.domain.alternativesReason
 import io.github.numynox.nexus.abeona.domain.travelDay
 import io.github.numynox.nexus.abeona.live.OnboardStatus
 import io.github.numynox.nexus.abeona.ui.AbeonaPalette
-import io.github.numynox.nexus.abeona.ui.common.TravelDayHero
+import io.github.numynox.nexus.abeona.ui.live.LiveCard
+import io.github.numynox.nexus.abeona.ui.live.liveView
 import io.github.numynox.nexus.core.ui.theme.NexusTheme
 import io.github.numynox.nexus.core.ui.theme.ThemeMode
 import java.time.Instant
@@ -92,7 +93,8 @@ class TravelDayScreenshots {
             NexusTheme(AbeonaPalette, themeMode = mode) {
                 Column(Modifier.background(MaterialTheme.colorScheme.surface).padding(16.dp)) {
                     Text(caption, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
-                    TravelDayHero(trip, day, 15, Modifier.fillMaxWidth(), onboard = onboard, reason = reason, onAlternatives = {}, now = now)
+                    // The Trips card's compact live card: what the next-trip card shows on the travel day.
+                    LiveCard(liveView(trip, day, now, 15, emptyList(), onboard, null, reason), Modifier.fillMaxWidth(), onAlternatives = {}, summary = true)
                 }
             }
         }

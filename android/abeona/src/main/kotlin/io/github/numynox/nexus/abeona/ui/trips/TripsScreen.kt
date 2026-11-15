@@ -64,12 +64,14 @@ import io.github.numynox.nexus.abeona.ui.common.PlatformBox
 import io.github.numynox.nexus.abeona.ui.common.StatusPill
 import io.github.numynox.nexus.abeona.ui.common.TripFormat
 import io.github.numynox.nexus.abeona.ui.common.confidenceSummary
-import io.github.numynox.nexus.abeona.ui.common.TravelDayHero
+import io.github.numynox.nexus.abeona.ui.live.LiveCard
+import io.github.numynox.nexus.abeona.ui.live.liveView
+import io.github.numynox.nexus.abeona.domain.alternativesOrigin
+import io.github.numynox.nexus.abeona.domain.alternativesReason
 import io.github.numynox.nexus.abeona.ui.common.containerViewModel
 import io.github.numynox.nexus.abeona.ui.common.isLiveDay
 import io.github.numynox.nexus.abeona.ui.common.rememberTicker
 import io.github.numynox.nexus.abeona.domain.TravelDay
-import io.github.numynox.nexus.abeona.domain.TravelDayKind
 import io.github.numynox.nexus.abeona.domain.TravelDayRules
 import io.github.numynox.nexus.abeona.domain.followed
 import io.github.numynox.nexus.abeona.domain.travelDay
@@ -245,20 +247,20 @@ fun NextTripCard(
                     )
                 }
             }
-            day?.let { TravelDayHero(trip, it, stationMinutes, onboard = onboard) }
-            // Once under way the first train's departure and platform are past: the arrival leads.
-            val underWay = day != null && (day.kind == TravelDayKind.OnBoard || day.kind == TravelDayKind.Changing ||
-                day.kind == TravelDayKind.Arrived || (day.kind == TravelDayKind.AtStation && day.legIndex?.let { trip.legs[it] } != first))
-            if (underWay) {
-                Column {
-                    Text("Arrival", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    ShiftedTime(
-                        trip.legs.lastOrNull { !it.isWalk }?.to?.plannedAt ?: trip.expectedArrival,
-                        trip.expectedArrival,
-                        MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.SemiBold),
-                    )
-                }
-            } else Row(verticalAlignment = Alignment.CenterVertically) {
+            // On the travel day: the live card's own top, compact (the same headline and train
+            // line as on the trip screen), then one line to the destination.
+            if (day != null) {
+                val origin = alternativesOrigin(trip.legs, day, now)
+                val reason = alternativesReason(trip.legs, day).takeIf { origin != null }
+                LiveCard(
+                    liveView(trip, day, now, stationMinutes, emptyList(), onboard, null, reason),
+                    onAlternatives = onClick,
+                    summary = true,
+                )
+                if (trainBindingLifted(trip.fareType, trip.trainBinding, arrivalDelay)) BindingLiftedBanner(arrivalDelay)
+                return@Column
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Departure", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     ShiftedTime(

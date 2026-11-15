@@ -126,7 +126,6 @@ import io.github.numynox.nexus.abeona.ui.live.liveView
 import io.github.numynox.nexus.abeona.live.LiveSignals
 import io.github.numynox.nexus.abeona.live.OnboardStatus
 import io.github.numynox.nexus.abeona.live.TripLocation
-import io.github.numynox.nexus.abeona.ui.common.TravelDayHero
 import io.github.numynox.nexus.abeona.ui.common.TicketNeedsSummary
 import io.github.numynox.nexus.abeona.ui.common.isLiveDay
 import io.github.numynox.nexus.abeona.ui.common.rememberTicker
@@ -592,7 +591,8 @@ private fun TripContent(
         val notices: @Composable () -> Unit = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 // A dropped ride says the binding is lifted in its own card.
-                if (binding && dropped == null) {
+                // A dropped ride, or a cancelled one in the live card, says the binding is lifted itself.
+                if (binding && dropped == null && live?.view?.leg?.cancelled != true) {
                     BindingLiftedBanner(
                         arrivalDelay,
                         because = when {
