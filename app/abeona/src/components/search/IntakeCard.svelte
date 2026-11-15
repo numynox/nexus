@@ -1,11 +1,12 @@
 <script lang="ts">
-  import { ClipboardPaste, FileText, Ticket } from "lucide-svelte";
+  import { ChevronDown, CircleAlert, ClipboardPaste, FileText, Ticket } from "lucide-svelte";
   import { onMount } from "svelte";
   import { describeError, transitPort } from "../../lib/data";
   import { intake, parseText, parseTicketTrips, type IntakeDraft } from "../../lib/intake/intake";
   import type { Parsed } from "../../lib/intake/parsed";
   import { browserPdfText } from "../../lib/intake/pdfText";
   import { takeSharedIntake } from "../../lib/intake/shared";
+  import Banner from "../common/Banner.svelte";
 
   interface Props {
     /**
@@ -21,6 +22,9 @@
   let busy = $state<"reading" | "matching" | null>(null);
   let error = $state("");
   let fileInput: HTMLInputElement | undefined = $state();
+  /** A quiet row until it is asked for; something being read, or an error, opens it. */
+  let open = $state(false);
+  const shown = $derived(open || busy !== null || error !== "");
 
   async function run(source: "share" | "pdf", read: () => Promise<Parsed[]>, file: File | null) {
     if (busy) return;
@@ -97,46 +101,51 @@
   });
 </script>
 
-<section class="rounded-[2rem] bg-card p-5 shadow-card sm:p-7" aria-labelledby="intake-title">
-  <div class="flex items-start gap-3">
-    <span class="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-mint text-primary"><Ticket class="h-5 w-5" /></span>
-    <div>
-      <h2 id="intake-title" class="font-semibold text-ink">Add from a ticket or a share</h2>
-      <p class="mt-0.5 text-sm text-base-content/60">
-        Paste what DB Navigator's "Share" gives you, or choose a DB or Trenitalia ticket PDF. It is read on this device.
-      </p>
-    </div>
-  </div>
+<section class="rounded-3xl bg-card shadow-card">
+  <button
+    type="button"
+    class="flex min-h-12 w-full items-center gap-3 px-4 text-left"
+    aria-expanded={shown}
+    aria-controls="intake-body"
+    onclick={() => (open = !shown)}
+  >
+    <Ticket class="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />
+    <span class="t-body min-w-0 flex-1 text-ink">Add from a ticket or share</span>
+    <ChevronDown class="h-5 w-5 shrink-0 text-muted transition-transform {shown ? 'rotate-180' : ''}" aria-hidden="true" />
+  </button>
 
-  {#if busy}
-    <!-- Reading or looking up: nothing to type or choose until it is done. -->
-    <div class="mt-6 flex flex-col items-center gap-3 py-6" role="status">
-      <span class="loading loading-spinner loading-lg text-primary"></span>
-      <span class="text-sm text-base-content/60">{busy === "matching" ? "Looking up the connection…" : "Reading…"}</span>
-    </div>
-  {:else}
-    <form class="mt-4 space-y-3" onsubmit={readText}>
-      <textarea
-        class="textarea min-h-24 w-full rounded-2xl bg-base-100 text-sm"
-        placeholder={"Erlangen → Leuven\nFr. 14.11.2025\n\nRE19 (4901)\nAb 06:29 Erlangen, Gleis 4\n…"}
-        bind:value={text}
-        aria-label="Share text from DB Navigator"
-      ></textarea>
-      <div class="flex flex-wrap items-center gap-2">
-        <button type="submit" class="btn btn-primary rounded-full" disabled={!text.trim()}>
-          <ClipboardPaste class="h-4 w-4" />
-          Read the text
-        </button>
-        <button type="button" class="btn btn-ghost rounded-full text-primary" onclick={() => fileInput?.click()}>
-          <FileText class="h-4 w-4" />
-          Choose a ticket PDF
-        </button>
+  <div id="intake-body" class="space-y-2 px-4 pb-4" hidden={!shown}>
+    {#if busy}
+      <!-- Reading or looking up: nothing to type or choose until it is done. -->
+      <div class="flex items-center justify-center gap-3 py-6" role="status">
+        <span class="loading loading-spinner text-brand"></span>
+        <span class="t-meta">{busy === "matching" ? "Looking up the connection…" : "Reading…"}</span>
       </div>
-    </form>
-  {/if}
-  <input bind:this={fileInput} type="file" accept="application/pdf,.pdf" class="hidden" onchange={onFile} />
+    {:else}
+      <form class="space-y-2" onsubmit={readText}>
+        <textarea
+          class="textarea t-body min-h-24 w-full rounded-2xl border-transparent bg-well"
+          placeholder={"Erlangen → Leuven\nFr. 14.11.2025\n\nRE19 (4901)\nAb 06:29 Erlangen, Gleis 4\n…"}
+          bind:value={text}
+          aria-label="Share text from DB Navigator"
+        ></textarea>
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="submit" class="btn btn-sm h-10 rounded-full border-transparent bg-well px-4 text-ink" disabled={!text.trim()}>
+            <ClipboardPaste class="h-4 w-4" aria-hidden="true" />
+            Read the text
+          </button>
+          <button type="button" class="btn btn-ghost btn-sm h-10 rounded-full px-4 text-brand" onclick={() => fileInput?.click()}>
+            <FileText class="h-4 w-4" aria-hidden="true" />
+            Choose a ticket PDF
+          </button>
+        </div>
+        <p class="t-meta">DB Navigator's "Share" text, or a DB or Trenitalia ticket PDF. Read on this device.</p>
+      </form>
+    {/if}
 
-  {#if error}
-    <p class="mt-3 rounded-2xl bg-error/10 px-4 py-3 text-sm text-error" role="alert">{error}</p>
-  {/if}
+    {#if error}
+      <Banner tone="bad" icon={CircleAlert} title={error} />
+    {/if}
+  </div>
+  <input bind:this={fileInput} type="file" accept="application/pdf,.pdf" class="hidden" onchange={onFile} />
 </section>

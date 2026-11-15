@@ -9,10 +9,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -24,6 +22,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.numynox.nexus.abeona.data.FareType
+import io.github.numynox.nexus.abeona.ui.AbeonaType
+import io.github.numynox.nexus.abeona.ui.common.PrimaryButton
 import io.github.numynox.nexus.abeona.data.Trip
 import io.github.numynox.nexus.abeona.data.TripEdit
 import io.github.numynox.nexus.abeona.ui.search.Bindable
@@ -55,14 +55,13 @@ fun EditTripSheet(trip: Trip, onSave: (TripEdit) -> Unit, onDismiss: () -> Unit)
             Modifier.padding(horizontal = 24.dp).navigationBarsPadding().imePadding().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("Edit trip", style = MaterialTheme.typography.headlineSmall)
-            OutlinedTextField(
+            Text("Edit trip", style = AbeonaType.headline)
+            // The same well field as the save sheet, above the same ticket fields.
+            io.github.numynox.nexus.abeona.ui.common.WellField(
                 value = title,
                 onValueChange = { title = it },
-                label = { Text("Title (optional)") },
-                placeholder = { Text("${trip.originName} → ${trip.destinationName}") },
-                singleLine = true,
-                shape = MaterialTheme.shapes.medium,
+                placeholder = "Title (optional), e.g. ${trip.originName} → ${trip.destinationName}",
+                description = "Title",
                 modifier = Modifier.fillMaxWidth(),
             )
             TicketFields(
@@ -85,7 +84,8 @@ fun EditTripSheet(trip: Trip, onSave: (TripEdit) -> Unit, onDismiss: () -> Unit)
             )
             Row(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 16.dp), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = onDismiss) { Text("Cancel") }
-                Button(
+                PrimaryButton(
+                    "Save",
                     onClick = {
                         saving = true
                         onSave(
@@ -101,7 +101,7 @@ fun EditTripSheet(trip: Trip, onSave: (TripEdit) -> Unit, onDismiss: () -> Unit)
                         )
                     },
                     enabled = !saving && priceValid,
-                ) { Text("Save") }
+                )
             }
         }
     }

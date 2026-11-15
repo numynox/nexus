@@ -6,10 +6,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Train
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,12 +28,13 @@ import io.github.numynox.nexus.abeona.AppContainer
 import io.github.numynox.nexus.abeona.data.Trip
 import io.github.numynox.nexus.abeona.ui.AppViewModel
 import io.github.numynox.nexus.abeona.ui.Navigator
+import io.github.numynox.nexus.abeona.ui.common.EmptyState
+import io.github.numynox.nexus.abeona.ui.common.Fact
+import io.github.numynox.nexus.abeona.ui.common.SectionHeader
 import io.github.numynox.nexus.abeona.ui.common.containerViewModel
 import io.github.numynox.nexus.core.data.describe
-import io.github.numynox.nexus.core.ui.components.EmptyState
 import io.github.numynox.nexus.core.ui.components.ErrorState
 import io.github.numynox.nexus.core.ui.components.LoadingState
-import io.github.numynox.nexus.core.ui.components.SectionHeader
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -85,8 +85,9 @@ class PastTripsViewModel(private val container: AppContainer) : ViewModel() {
 private val MonthFormat = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH)
 
 /**
- * Every trip that has arrived, newest first, by month, each opening its trip
- * page (the ticket, compensation, what happened). Reached from the end of
+ * Every trip that has arrived, newest first, as dense rows by month, each
+ * with how late it arrived and opening its trip page (the ticket,
+ * compensation, what happened). Reached from the end of
  * the trips list. The web's /past page is the same.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -109,23 +110,18 @@ fun PastTripsScreen(app: AppViewModel, navigator: Navigator) {
         when {
             state.trips.isEmpty() && state.loading -> LoadingState(modifier.fillMaxSize())
             state.trips.isEmpty() && state.error != null -> ErrorState(state.error!!, onRetry = viewModel::reload, modifier = modifier)
-            state.trips.isEmpty() -> EmptyState(
-                icon = Icons.Rounded.History,
-                title = "No past trips yet",
-                message = "Once a saved trip has arrived, it moves here, with its ticket and what it is owed.",
-                modifier = modifier,
-            )
+            state.trips.isEmpty() -> EmptyState("No past trips yet", modifier.padding(16.dp))
             else -> {
                 val zone = ZoneId.systemDefault()
                 val months = state.trips.groupBy { MonthFormat.format(it.departureAt.atZone(zone)) }
                 LazyColumn(
                     modifier = modifier.fillMaxSize(),
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     months.forEach { (month, trips) ->
-                        item(key = "m-$month") { SectionHeader(month, supporting = "${trips.size} ${if (trips.size == 1) "trip" else "trips"}") }
-                        items(trips, key = { it.id }) { trip -> TripRow(trip, onClick = { navigator.trip(trip.id) }) }
+                        item(key = "m-$month") { SectionHeader(month) { Fact(Icons.Rounded.Train, "Trips", "${trips.size}") } }
+                        item(key = "t-$month") { TripRows(trips, onClick = { navigator.trip(it.id) }, past = true) }
                     }
                     if (state.more) {
                         item(key = "more") {

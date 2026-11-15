@@ -1,7 +1,7 @@
 # ADR: An app may bring its own themes on top of the shared set
 
 **Date:** 2026-11-02
-**Status:** Accepted
+**Status:** Accepted (the green palette and `--il-*` colours it mentions were replaced by `2026-11-15-abeona-design-system.md`)
 
 ## Context
 `@nexus/ui` owns theme handling for every website: a curated set of 11 daisyUI

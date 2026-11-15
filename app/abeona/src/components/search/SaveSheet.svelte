@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { FileText, X } from "lucide-svelte";
+  import { ArrowRightLeft, CircleAlert, CircleCheck, Clock, Ticket, TriangleAlert, X } from "lucide-svelte";
   import {
     describeError,
     ensureHousehold,
@@ -13,6 +13,8 @@
   import { summarise } from "../../lib/journey";
   import { directionLabel, matchSummary, type IntakeDraft } from "../../lib/intake/intake";
   import type { Journey } from "../../lib/transit";
+  import Banner from "../common/Banner.svelte";
+  import Fact from "../common/Fact.svelte";
   import LegChip from "../common/LegChip.svelte";
   import { ticketSummary } from "../../lib/ticketNeeds";
   import TicketFields, { discountsApply } from "../trip/TicketFields.svelte";
@@ -129,78 +131,86 @@
 
 <dialog bind:this={dialog} class="modal modal-bottom sm:modal-middle" onclose={onClose}>
   {#if journey && s}
-    <form class="modal-box max-w-lg rounded-t-[2rem] bg-base-100 p-0 sm:rounded-[2rem]" onsubmit={save}>
-      <div class="bg-mint px-6 pt-6 pb-5">
-        <div class="flex items-start justify-between gap-3">
-          <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-primary">{formatLongDate(s.departure.planned)}</p>
-            <h2 class="mt-1 text-xl font-semibold text-ink">{s.departure.name} → {s.arrival.name}</h2>
+    <form class="modal-box max-w-lg rounded-t-3xl bg-base-100 p-0 sm:rounded-3xl" onsubmit={save}>
+      <div class="space-y-3 p-4">
+        <!-- Route and times: what is being saved. -->
+        <div>
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="t-meta">{formatLongDate(s.departure.planned)}</p>
+              <h2 class="t-title text-ink">{s.departure.name} → {s.arrival.name}</h2>
+            </div>
+            <button type="button" class="btn btn-circle btn-ghost btn-sm -mt-1 -mr-1" aria-label="Close" onclick={() => dialog?.close()}>
+              <X class="h-5 w-5" aria-hidden="true" />
+            </button>
           </div>
-          <button type="button" class="btn btn-circle btn-ghost btn-sm" aria-label="Close" onclick={() => dialog?.close()}>
-            <X class="h-4 w-4" />
-          </button>
+          <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span class="t-body tabular font-semibold text-ink">{formatTime(s.departure.planned)} → {formatTime(s.arrival.planned)}</span>
+            <Fact icon={Clock} label="Duration" value={formatDuration(s.plannedMinutes)} />
+            <Fact icon={ArrowRightLeft} label="Changes" value={s.changes} />
+            <span class="flex flex-wrap gap-1">
+              {#each s.rides as ride, i (i)}<LegChip leg={ride} />{/each}
+            </span>
+          </div>
         </div>
-        <p class="tabular mt-2 text-sm text-base-content/70">
-          {formatTime(s.departure.planned)} – {formatTime(s.arrival.planned)} · {formatDuration(s.plannedMinutes)} ·
-          {s.changes === 0 ? "direct" : s.changes === 1 ? "1 change" : `${s.changes} changes`}
-        </p>
-        <div class="mt-3 flex flex-wrap gap-1.5">
-          {#each s.rides as ride, i (i)}<LegChip leg={ride} />{/each}
-        </div>
-      </div>
 
-      <div class="space-y-5 px-6 py-6">
         {#if intake}
-          <div
-            class="rounded-2xl p-4 text-sm {intake.match.status === 'full' ? 'bg-mint text-primary' : 'bg-amber-soft text-amber-ink'}"
-            role="status"
+          <Banner
+            tone={intake.match.status === "full" ? "ok" : "watch"}
+            icon={intake.match.status === "full" ? CircleCheck : TriangleAlert}
+            title="{intake.parsed.kind === 'ticket' ? 'Read from your ticket' : 'Read from DB Navigator'}{directionLabel(intake.parsed) ? ` · ${directionLabel(intake.parsed)}` : ''}"
           >
-            <p class="font-semibold">
-              {intake.parsed.kind === "ticket" ? "Read from your ticket" : "Read from DB Navigator"}{#if directionLabel(intake.parsed)}
-                · {directionLabel(intake.parsed)}{/if}
-            </p>
-            <p class="mt-1">{matchSummary(intake.match)}</p>
-            {#if more > 0}
-              <p class="mt-1">The ticket is for both directions: the return comes next, with the same PDF.</p>
-            {/if}
-            {#if ticketFile}
-              <p class="mt-2 inline-flex items-center gap-1.5"><FileText class="h-4 w-4" /> The PDF goes into the trip's ticket wallet.</p>
-            {/if}
+            {matchSummary(intake.match)}
+            {#if more > 0}The return comes next, with the same PDF.{/if}
+          </Banner>
+        {/if}
+
+        {#if ticketFile}
+          <!-- The ticket the intake read: it goes into the trip's ticket wallet on save. -->
+          <div class="flex min-h-10 items-center gap-3 rounded-2xl bg-card px-4">
+            <Ticket class="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />
+            <span class="sr-only">Ticket attached on save:</span>
+            <span class="t-body min-w-0 flex-1 truncate text-ink">{ticketFile.name}</span>
           </div>
         {/if}
+
         {#if past}
-          <div class="rounded-2xl bg-amber-soft p-4 text-amber-ink">
-            <p class="font-semibold">A past trip</p>
-            <p class="mt-1 text-sm">It is saved as it happened and not followed live. Say how late you arrived, if you were.</p>
-            <label class="mt-3 block">
-              <span class="block pb-1 text-xs font-semibold uppercase tracking-wider opacity-80">Arrived late by <span class="normal-case font-normal tracking-normal">(minutes, optional)</span></span>
-              <input class="input tabular w-full rounded-2xl bg-card text-base-content" inputmode="numeric" placeholder="0" bind:value={delay} maxlength="4" />
-            </label>
-          </div>
+          <!-- A journey that has already arrived is saved as it happened, not followed live. -->
+          <label class="flex min-h-12 items-center gap-3 rounded-2xl bg-card px-4">
+            <span class="t-body min-w-0 flex-1 text-ink">
+              Arrived late by
+              <span class="t-meta block">A past trip: not followed live</span>
+            </span>
+            <input class="input input-sm tabular h-9 w-16 rounded-xl border-transparent bg-well text-right" inputmode="numeric" placeholder="0" bind:value={delay} maxlength="4" />
+            <span class="t-meta">min</span>
+          </label>
         {/if}
-        <label class="block">
-          <span class="block px-1 pb-1 text-xs font-semibold uppercase tracking-wider text-base-content/55">Title <span class="normal-case font-normal tracking-normal">(optional)</span></span>
-          <input class="input w-full rounded-2xl bg-card" placeholder="e.g. Weekend in Berlin" bind:value={title} maxlength="80" />
-        </label>
+
+        <input
+          class="input t-body h-12 w-full rounded-2xl border-transparent bg-card"
+          placeholder="Title (optional), e.g. Weekend in Berlin"
+          aria-label="Title (optional)"
+          bind:value={title}
+          maxlength="80"
+        />
 
         <TicketFields bind:fareType bind:trainBinding bind:bindingTouched bind:travelClass bind:price />
 
         <fieldset>
-          <legend class="px-1 pb-2 text-xs font-semibold uppercase tracking-wider text-base-content/55">
-            Travellers &amp; BahnCards
-            {#if intake?.parsed.kind === "ticket"}<span class="normal-case font-normal tracking-normal">· from the ticket</span>{/if}
+          <legend class="sr-only">
+            Travellers and BahnCards{#if intake?.parsed.kind === "ticket"}, from the ticket{/if}
           </legend>
           <TicketNeedsEditor bind:travellerCount bind:discounts showDiscounts={showDiscount} />
         </fieldset>
 
         {#if error}
-          <p class="rounded-2xl bg-error/10 px-4 py-3 text-sm text-error" role="alert">{error}</p>
+          <Banner tone="bad" icon={CircleAlert} title={error} />
         {/if}
       </div>
 
-      <div class="flex gap-3 px-6 pb-6">
-        <button type="button" class="btn btn-ghost flex-1 rounded-full" onclick={() => dialog?.close()}>Cancel</button>
-        <button type="submit" class="btn btn-primary flex-[2] rounded-full" disabled={saving}>
+      <div class="sticky bottom-0 flex gap-2 border-t border-line bg-base-100 p-4">
+        <button type="button" class="btn btn-ghost h-12 flex-1 rounded-full" onclick={() => dialog?.close()}>Cancel</button>
+        <button type="submit" class="btn btn-primary h-12 flex-[2] rounded-full" disabled={saving}>
           {#if saving}<span class="loading loading-spinner loading-sm"></span>{/if}
           {past ? "Save past trip" : "Save trip"}{more > 0 ? " · then the return" : ""}
         </button>

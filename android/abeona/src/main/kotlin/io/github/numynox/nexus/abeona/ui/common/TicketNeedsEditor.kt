@@ -27,7 +27,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import io.github.numynox.nexus.core.ui.theme.tabular
+import io.github.numynox.nexus.abeona.ui.AbeonaType
 
 /** The most travellers the editor counts to; the database allows more, a ticket rarely has them. */
 private const val MAX_TRAVELLERS = 9
@@ -75,12 +75,12 @@ fun TicketNeedsSummary(
     ) {
         if (travellerCount != null) {
             Icon(Icons.Rounded.Person, contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
-            Text("$travellerCount", style = MaterialTheme.typography.labelMedium.tabular(), color = color)
+            Text("$travellerCount", style = AbeonaType.meta, color = color)
         }
         if (discounts.isNotEmpty()) {
-            if (travellerCount != null) Text("·", style = MaterialTheme.typography.labelMedium, color = color)
+            if (travellerCount != null) Text("·", style = AbeonaType.meta, color = color)
             Icon(Icons.Rounded.CreditCard, contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
-            Text(bahnCardsShort(discounts), style = MaterialTheme.typography.labelMedium, color = color)
+            Text(bahnCardsShort(discounts), style = AbeonaType.meta, color = color)
         }
     }
 }
@@ -106,7 +106,7 @@ fun TicketNeedsEditor(
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Icon(Icons.Rounded.Person, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("Travellers", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+            Text("Travellers", style = AbeonaType.body, modifier = Modifier.weight(1f))
             val count = travellerCount
             FilledTonalIconButton(
                 onClick = { if (count != null) onTravellerCount((count - 1).coerceAtLeast(1)) },
@@ -116,7 +116,7 @@ fun TicketNeedsEditor(
             }
             Text(
                 count?.toString() ?: "?",
-                style = MaterialTheme.typography.titleMedium.tabular(),
+                style = AbeonaType.title,
                 modifier = Modifier.semantics {
                     contentDescription = count?.let { if (it == 1) "1 traveller" else "$it travellers" } ?: "Travellers unknown"
                 },
@@ -133,7 +133,7 @@ fun TicketNeedsEditor(
                 Icon(Icons.Rounded.CreditCard, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
                     if (discounts.isEmpty()) "No BahnCard" else "BahnCards",
-                    style = MaterialTheme.typography.titleSmall,
+                    style = AbeonaType.body,
                 )
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {

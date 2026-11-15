@@ -10,31 +10,35 @@
     emerald, lofi;
 }
 
-/* Calm, airy, green — inspired by Scandinavian rail apps. */
+/*
+ * Abeona's own two themes: burgundy on paper. The values and what each
+ * colour may mean are in .agents/brain/abeona-design.md (§3); change them
+ * there and in android/abeona/.../ui/AbeonaPalette.kt together.
+ */
 @plugin "daisyui/theme" {
   name: "abeona";
   default: true;
   prefersdark: false;
   color-scheme: light;
-  --color-base-100: #f7f8f5;
-  --color-base-200: #eef1ec;
-  --color-base-300: #dfe5df;
-  --color-base-content: #12313a;
-  --color-primary: #1f6f5c;
+  --color-base-100: #fbf7f2;
+  --color-base-200: #f4eee6;
+  --color-base-300: #e7ded3;
+  --color-base-content: #2a211c;
+  --color-primary: #8c1d40;
   --color-primary-content: #ffffff;
-  --color-secondary: #cfe6f2;
-  --color-secondary-content: #12313a;
-  --color-accent: #f2b84b;
-  --color-accent-content: #3d2a05;
-  --color-neutral: #12313a;
-  --color-neutral-content: #f7f8f5;
-  --color-info: #3c87a8;
+  --color-secondary: #f4eee6;
+  --color-secondary-content: #2a211c;
+  --color-accent: #f2c230;
+  --color-accent-content: #3a2a00;
+  --color-neutral: #2a211c;
+  --color-neutral-content: #fbf7f2;
+  --color-info: #4f7391;
   --color-info-content: #ffffff;
-  --color-success: #1f6f5c;
+  --color-success: #2e7d5b;
   --color-success-content: #ffffff;
-  --color-warning: #f2b84b;
-  --color-warning-content: #3d2a05;
-  --color-error: #c4553b;
+  --color-warning: #f2c230;
+  --color-warning-content: #3a2a00;
+  --color-error: #c4372b;
   --color-error-content: #ffffff;
   --radius-selector: 2rem;
   --radius-field: 0.875rem;
@@ -51,26 +55,26 @@
   default: false;
   prefersdark: true;
   color-scheme: dark;
-  --color-base-100: #0e1f24;
-  --color-base-200: #132a30;
-  --color-base-300: #1d3a41;
-  --color-base-content: #e3eeea;
-  --color-primary: #4fb394;
-  --color-primary-content: #062019;
-  --color-secondary: #1c3a45;
-  --color-secondary-content: #cfe6f2;
-  --color-accent: #f2b84b;
-  --color-accent-content: #2b1d03;
-  --color-neutral: #e3eeea;
-  --color-neutral-content: #0e1f24;
-  --color-info: #7fbfdc;
-  --color-info-content: #06202b;
-  --color-success: #4fb394;
-  --color-success-content: #062019;
-  --color-warning: #f2b84b;
-  --color-warning-content: #2b1d03;
-  --color-error: #e07a5f;
-  --color-error-content: #2a0b04;
+  --color-base-100: #1a1512;
+  --color-base-200: #221c18;
+  --color-base-300: #322a24;
+  --color-base-content: #f3eae2;
+  --color-primary: #f08ca8;
+  --color-primary-content: #3d0a1a;
+  --color-secondary: #322a24;
+  --color-secondary-content: #f3eae2;
+  --color-accent: #f2c230;
+  --color-accent-content: #2b1f00;
+  --color-neutral: #f3eae2;
+  --color-neutral-content: #1a1512;
+  --color-info: #9dbad3;
+  --color-info-content: #0f2233;
+  --color-success: #7fd1a8;
+  --color-success-content: #06281a;
+  --color-warning: #f2c230;
+  --color-warning-content: #2b1f00;
+  --color-error: #ff8a7a;
+  --color-error-content: #3d0a04;
   --radius-selector: 2rem;
   --radius-field: 0.875rem;
   --radius-box: 1.5rem;
@@ -85,80 +89,145 @@
 @source "../../../../packages/ui/src";
 
 /*
- * App tokens on top of daisyUI's. Every theme gets values derived from its
- * own colours; Abeona's two themes pin them to the brand palette.
- *   card   — the raised surface of a card
- *   mint   — calm tinted surface (hero cards, chips)
- *   sky    — secondary tinted surface
- *   amber  — the one accent for delays and attention; amber-ink is its
- *            readable text colour on light surfaces
- *   ink    — headline text
+ * App tokens on top of daisyUI's (abeona-design.md §3). Every theme gets
+ * values derived from its own colours; Abeona's two themes pin them.
+ *   card, well        — raised surface; inset, platform box, quiet chip
+ *   brand, brand-soft — burgundy as text and icons; the tinted surface of the live card
+ *   ink, muted, line  — text, secondary text, hairlines
+ *   ok, watch, bad    — status only, always with an icon: -soft is the chip
+ *                       or banner surface, -ink the text on it; watch and bad
+ *                       also have a fill (bg-watch, bg-bad) for the one thing
+ *                       that broke
  */
 :root {
   --ab-card: color-mix(in oklab, var(--color-base-100) 70%, white 30%);
-  --ab-mint: color-mix(in oklab, var(--color-primary) 12%, var(--color-base-100));
-  --ab-sky: color-mix(in oklab, var(--color-info) 14%, var(--color-base-100));
-  --ab-amber: #f2b84b;
-  --ab-amber-soft: color-mix(in oklab, #f2b84b 22%, var(--color-base-100));
-  --ab-amber-ink: color-mix(in oklab, #f2b84b 55%, var(--color-base-content));
+  --ab-well: var(--color-base-200);
+  --ab-brand: var(--color-primary);
+  --ab-brand-soft: color-mix(in oklab, var(--color-primary) 14%, var(--color-base-100));
   --ab-ink: var(--color-base-content);
-  --ab-shadow: 0 1px 2px rgb(18 49 58 / 0.04), 0 8px 24px -12px rgb(18 49 58 / 0.12);
-
-  /* Illustration palette (src/illustrations/*.svg read these). */
-  --il-sky: #cfe6f2;
-  --il-mint: #e8f3ee;
-  --il-hill: #9cc8b5;
-  --il-green: #1f6f5c;
-  --il-ink: #12313a;
-  --il-rail: #12313a;
-  --il-white: #ffffff;
-  --il-amber: #f2b84b;
-  --il-danger: #c4553b;
-  --il-night: #12313a;
-  --il-moon: #e8f3ee;
+  --ab-muted: color-mix(in oklab, var(--color-base-content) 66%, var(--color-base-100));
+  --ab-line: color-mix(in oklab, var(--color-base-content) 12%, transparent);
+  --ab-ok-soft: color-mix(in oklab, var(--color-success) 18%, var(--color-base-100));
+  --ab-ok-ink: color-mix(in oklab, var(--color-success) 60%, var(--color-base-content));
+  --ab-watch: var(--color-warning);
+  --ab-watch-content: var(--color-warning-content);
+  --ab-watch-soft: color-mix(in oklab, var(--color-warning) 22%, var(--color-base-100));
+  --ab-watch-ink: color-mix(in oklab, var(--color-warning) 50%, var(--color-base-content));
+  --ab-bad: var(--color-error);
+  --ab-bad-content: var(--color-error-content);
+  --ab-bad-soft: color-mix(in oklab, var(--color-error) 16%, var(--color-base-100));
+  --ab-bad-ink: color-mix(in oklab, var(--color-error) 60%, var(--color-base-content));
+  --ab-shadow: 0 1px 2px rgb(42 33 28 / 0.04), 0 8px 24px -12px rgb(42 33 28 / 0.12);
 }
 
 .dark,
 [data-theme="abeona-dark"] {
   --ab-card: color-mix(in oklab, var(--color-base-200) 80%, white 4%);
-  --il-sky: #1c3a45;
-  --il-mint: #173530;
-  --il-hill: #24564a;
-  --il-green: #2e8c73;
-  --il-ink: #0a1d22;
-  --il-rail: #5e8f86;
-  --il-white: #e8f3ee;
-  --il-night: #0a1d22;
+  --ab-well: var(--color-base-300);
+  --ab-line: color-mix(in oklab, var(--color-base-content) 14%, transparent);
 }
 
 [data-theme="abeona"] {
   --ab-card: #ffffff;
-  --ab-mint: #e8f3ee;
-  --ab-sky: #cfe6f2;
-  --ab-amber-soft: #fcefd2;
-  --ab-amber-ink: #8a5a06;
-  --ab-ink: #12313a;
+  --ab-well: #f4eee6;
+  --ab-brand: #8c1d40;
+  --ab-brand-soft: #f7e1e7;
+  --ab-ink: #2a211c;
+  --ab-muted: #6b5f57;
+  --ab-ok-soft: #ddf0e6;
+  --ab-ok-ink: #1b5a40;
+  --ab-watch-soft: #fcefc2;
+  --ab-watch-ink: #6b4d00;
+  --ab-bad-soft: #fbdad5;
+  --ab-bad-ink: #9e241a;
 }
 
 [data-theme="abeona-dark"] {
-  --ab-card: #132a30;
-  --ab-mint: #173530;
-  --ab-sky: #1c3a45;
-  --ab-amber-soft: rgb(242 184 75 / 0.16);
-  --ab-amber-ink: #f2b84b;
-  --ab-ink: #f1f7f4;
+  --ab-card: #26201c;
+  --ab-well: #322a24;
+  --ab-brand: #f08ca8;
+  --ab-brand-soft: #452033;
+  --ab-ink: #f3eae2;
+  --ab-muted: #b5a79c;
+  --ab-ok-soft: #1d4634;
+  --ab-ok-ink: #a6e3c4;
+  --ab-watch-soft: #4a3a00;
+  --ab-watch-ink: #ffe08a;
+  --ab-bad: #c4372b;
+  --ab-bad-content: #ffffff;
+  --ab-bad-soft: #5c1a12;
+  --ab-bad-ink: #ffc2b8;
   --ab-shadow: 0 1px 2px rgb(0 0 0 / 0.2), 0 8px 24px -12px rgb(0 0 0 / 0.5);
 }
 
 @theme inline {
   --color-card: var(--ab-card);
-  --color-mint: var(--ab-mint);
-  --color-sky: var(--ab-sky);
-  --color-amber: var(--ab-amber);
-  --color-amber-soft: var(--ab-amber-soft);
-  --color-amber-ink: var(--ab-amber-ink);
+  --color-well: var(--ab-well);
+  --color-brand: var(--ab-brand);
+  --color-brand-soft: var(--ab-brand-soft);
   --color-ink: var(--ab-ink);
+  --color-muted: var(--ab-muted);
+  --color-line: var(--ab-line);
+  --color-ok-soft: var(--ab-ok-soft);
+  --color-ok-ink: var(--ab-ok-ink);
+  --color-watch: var(--ab-watch);
+  --color-watch-content: var(--ab-watch-content);
+  --color-watch-soft: var(--ab-watch-soft);
+  --color-watch-ink: var(--ab-watch-ink);
+  --color-bad: var(--ab-bad);
+  --color-bad-content: var(--ab-bad-content);
+  --color-bad-soft: var(--ab-bad-soft);
+  --color-bad-ink: var(--ab-bad-ink);
   --shadow-card: var(--ab-shadow);
+}
+
+/*
+ * The type scale (abeona-design.md §4): one name per role, the same names as
+ * AbeonaType on Android. Figures are tabular everywhere.
+ */
+@utility t-numeral {
+  font-size: 3rem;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+@utility t-time {
+  font-size: 1.75rem;
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+@utility t-headline {
+  font-size: 1.5rem;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+@utility t-title {
+  font-size: 1.0625rem;
+  line-height: 1.3;
+  font-weight: 600;
+}
+@utility t-body {
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  font-weight: 400;
+}
+@utility t-meta {
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  font-weight: 500;
+  color: var(--ab-muted);
+  font-variant-numeric: tabular-nums;
+}
+@utility t-label {
+  font-size: 0.6875rem;
+  line-height: 1.3;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
 html {
@@ -183,13 +252,6 @@ html.theme-transition * {
     color 0.3s ease,
     border-color 0.3s ease,
     box-shadow 0.3s ease;
-}
-
-/* Inline illustrations scale with their box. */
-.illustration svg {
-  display: block;
-  width: 100%;
-  height: auto;
 }
 
 /* Times and platforms line up in columns. */

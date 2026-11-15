@@ -116,24 +116,24 @@
   }
 </script>
 
-<div class="fixed inset-0 z-[100] flex flex-col bg-white text-[#12313a]" role="dialog" aria-modal="true" aria-label={label}>
-  <header class="flex items-center gap-3 border-b border-black/5 px-4 py-3" style="padding-top: max(0.75rem, env(safe-area-inset-top))">
-    <button class="btn btn-circle btn-ghost btn-sm text-[#12313a]" aria-label="Close {label.toLowerCase()}" onclick={onClose}>
+<div data-theme="abeona" class="fixed inset-0 z-[100] flex flex-col bg-white text-ink" role="dialog" aria-modal="true" aria-label={label}>
+  <header class="flex items-center gap-3 border-b border-line px-4 py-3" style="padding-top: max(0.75rem, env(safe-area-inset-top))">
+    <button class="btn btn-circle btn-ghost btn-sm text-ink" aria-label="Close {label.toLowerCase()}" onclick={onClose}>
       <X class="h-5 w-5" />
     </button>
-    <p class="min-w-0 flex-1 truncate font-semibold">{title}</p>
+    <p class="t-title min-w-0 flex-1 truncate">{title}</p>
     {#if navigatorUrl}
-      <a href={navigatorUrl} target="_blank" rel="noopener" class="btn btn-sm rounded-full border-[#1f6f5c]/30 bg-white text-[#1f6f5c]">
+      <a href={navigatorUrl} target="_blank" rel="noopener" class="btn btn-sm rounded-full border-line bg-white text-brand">
         <ExternalLink class="h-4 w-4" /> DB Navigator
       </a>
     {/if}
   </header>
   {#if documents.length > 1}
-    <div class="flex gap-2 overflow-x-auto border-b border-black/5 px-4 py-2">
+    <div class="flex gap-2 overflow-x-auto border-b border-line px-4 py-2">
       {#each documents as d (d.key)}
         <button
           type="button"
-          class="btn btn-sm shrink-0 rounded-full {current === d.key ? 'bg-[#1f6f5c] text-white' : 'border-[#12313a]/20 bg-white text-[#12313a]'}"
+          class="btn btn-sm shrink-0 rounded-full {current === d.key ? 'border-none bg-brand-soft text-brand' : 'border-line bg-white text-ink'}"
           aria-pressed={current === d.key}
           onclick={() => (current = d.key)}
         >{d.label}</button>
@@ -141,14 +141,14 @@
     </div>
   {/if}
   {#if note}
-    <p class="border-b border-black/5 bg-[#fdf3dd] px-4 py-2 text-center text-sm text-[#5c4210]">{note}</p>
+    <p class="t-meta border-b border-line bg-watch-soft px-4 py-2 text-center text-watch-ink">{note}</p>
   {/if}
   <div class="flex-1 overflow-auto bg-white px-3 py-4">
     {#if loading && !codeUrl}
-      <div class="flex h-full items-center justify-center"><span class="loading loading-spinner loading-lg text-[#1f6f5c]"></span></div>
+      <div class="flex h-full items-center justify-center"><span class="loading loading-spinner loading-lg text-brand"></span></div>
     {/if}
     {#if error}
-      <p class="mx-auto max-w-md rounded-2xl bg-[#c4553b]/10 px-4 py-3 text-sm text-[#c4553b]">{error}</p>
+      <p class="mx-auto max-w-md rounded-2xl bg-bad-soft px-4 py-3 text-sm text-bad-ink">{error}</p>
     {/if}
     {#if imageUrl}
       <img src={imageUrl} alt={label} class="mx-auto block h-auto max-w-full bg-white" />
@@ -157,7 +157,7 @@
       <div class="flex min-h-full flex-col items-center justify-center gap-6">
         <!-- Pixelated: every module of the code stays sharp when scaled up. -->
         <img src={codeUrl} alt="Ticket barcode" class="block aspect-square w-full max-w-[min(32rem,70vh)] bg-white p-4 [image-rendering:pixelated]" />
-        <button type="button" class="btn rounded-full border-[#12313a]/20 bg-white text-[#12313a]" onclick={() => (showPdf = true)}>
+        <button type="button" class="btn rounded-full border-line bg-white text-ink" onclick={() => (showPdf = true)}>
           <FileText class="h-4 w-4" /> Show PDF
         </button>
       </div>
@@ -165,7 +165,7 @@
     <div bind:this={pages} class="space-y-4" class:hidden={codeUrl && !showPdf}></div>
     {#if codeUrl && showPdf}
       <div class="sticky bottom-2 mt-4 flex justify-center">
-        <button type="button" class="btn rounded-full bg-[#dff3ec] text-[#12313a] shadow-card" onclick={() => (showPdf = false)}>
+        <button type="button" class="btn rounded-full border-none bg-brand-soft text-brand shadow-card" onclick={() => (showPdf = false)}>
           <QrCode class="h-4 w-4" /> Show code
         </button>
       </div>

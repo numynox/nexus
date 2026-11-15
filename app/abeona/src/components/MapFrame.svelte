@@ -9,7 +9,7 @@
   import "leaflet/dist/leaflet.css";
   import { Maximize2, X } from "lucide-svelte";
   import { onMount } from "svelte";
-  import { basemap } from "../lib/basemap";
+  import { basemap, isDarkTheme } from "../lib/basemap";
 
   type Leaflet = typeof import("leaflet");
 
@@ -54,18 +54,32 @@
 
   onMount(() => {
     let disposed = false;
+    let themes: MutationObserver | null = null;
     void (async () => {
       const L = await import("leaflet");
       if (disposed || !container || map) return;
       map = L.map(container, { zoomControl: false, attributionControl: true });
       zoom = L.control.zoom({ position: "bottomright" });
-      const b = basemap();
-      L.tileLayer(b.url, { attribution: b.attribution, subdomains: b.subdomains, maxZoom: b.maxZoom }).addTo(map);
+      // The tiles follow the theme: dark tiles in a dark theme, swapped when it changes.
+      let dark = isDarkTheme();
+      const b = basemap(dark);
+      const tiles = L.tileLayer(b.url, { attribution: b.attribution, subdomains: b.subdomains, maxZoom: b.maxZoom }).addTo(map);
+      const pane = map.getPane("tilePane");
+      if (pane) pane.style.filter = b.filter;
+      themes = new MutationObserver(() => {
+        if (isDarkTheme() === dark) return;
+        dark = !dark;
+        const next = basemap(dark);
+        tiles.setUrl(next.url);
+        if (pane) pane.style.filter = next.filter;
+      });
+      themes.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "class"] });
       setInteractive(false);
       onready(L, map);
     })();
     return () => {
       disposed = true;
+      themes?.disconnect();
       map?.remove();
       map = null;
       zoom = null;
@@ -93,7 +107,7 @@
   });
 </script>
 
-<div class={full ? "fixed inset-0 z-[1000] bg-base-200" : `relative overflow-hidden bg-base-200 ${frameClass}`}>
+<div class={full ? "fixed inset-0 z-[1000] bg-well" : `relative overflow-hidden bg-well ${frameClass}`}>
   <div class="map-frame h-full w-full" bind:this={container}></div>
   {#if full}
     <button
@@ -118,7 +132,12 @@
 <style>
   .map-frame :global(.leaflet-container) {
     font: inherit;
-    background: var(--color-base-200);
+    background: var(--ab-well);
+  }
+  /* Between tiles the browser can leave a hairline of the background: in a dark theme it is the dark map's own tone, so no seam shows. */
+  :global(.dark) .map-frame :global(.leaflet-container),
+  :global([data-theme="abeona-dark"]) .map-frame :global(.leaflet-container) {
+    background: #262624;
   }
   .map-frame :global(.abeona-map-label) {
     border: none;
@@ -126,7 +145,7 @@
     padding: 2px 10px;
     font-size: 0.75rem;
     font-weight: 600;
-    color: var(--color-base-content);
+    color: var(--ab-ink);
     background: var(--ab-card);
     box-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
   }

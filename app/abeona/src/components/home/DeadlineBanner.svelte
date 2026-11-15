@@ -2,6 +2,7 @@
   import { CalendarClock } from "lucide-svelte";
   import type { BahnCardDeadline } from "../../lib/data";
   import { bahnCardName, deadlineText } from "../../lib/format";
+  import Banner from "../common/Banner.svelte";
 
   interface Props {
     deadlines: BahnCardDeadline[];
@@ -9,23 +10,19 @@
   }
 
   let { deadlines, settingsHref }: Props = $props();
+
+  const line = (d: BahnCardDeadline) => `${d.name ? `${bahnCardName(d)} (BahnCard ${d.kind})` : bahnCardName(d)}: ${deadlineText(d)}`;
 </script>
 
-<section class="flex items-start gap-3 rounded-2xl bg-amber-soft px-4 py-3 text-amber-ink" aria-label="BahnCard cancellation deadlines">
-  <span class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber text-accent-content">
-    <CalendarClock class="h-4 w-4" />
-  </span>
-  <div class="min-w-0 flex-1 text-sm leading-snug">
-    <p class="font-semibold">
-      {deadlines.length === 1 ? "A BahnCard renews soon" : `${deadlines.length} BahnCards renew soon`}
-    </p>
-    <ul class="mt-1 space-y-0.5 opacity-90">
-      {#each deadlines as d (d.card_id)}
-        <li>{d.name ? `${bahnCardName(d)} (BahnCard ${d.kind})` : bahnCardName(d)}: {deadlineText(d)}.</li>
-      {/each}
+<Banner
+  tone="watch"
+  icon={CalendarClock}
+  title={deadlines.length === 1 ? line(deadlines[0]) : `${deadlines.length} BahnCards renew soon`}
+>
+  {#if deadlines.length > 1}
+    <ul>
+      {#each deadlines as d (d.card_id)}<li>{line(d)}.</li>{/each}
     </ul>
-    <a href={settingsHref} class="mt-1 inline-block font-medium underline underline-offset-2">
-      Already cancelled? Turn off "Renews automatically" on the card.
-    </a>
-  </div>
-</section>
+  {/if}
+  <a href={settingsHref} class="underline underline-offset-2">Already cancelled? Turn off "Renews automatically" on the card.</a>
+</Banner>

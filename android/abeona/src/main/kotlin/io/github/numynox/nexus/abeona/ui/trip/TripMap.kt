@@ -52,6 +52,8 @@ import io.github.numynox.nexus.abeona.BuildConfig
 import io.github.numynox.nexus.abeona.data.Leg
 import io.github.numynox.nexus.abeona.live.EvidenceKind
 import io.github.numynox.nexus.abeona.ui.AbeonaColors
+import io.github.numynox.nexus.abeona.ui.bad
+import io.github.numynox.nexus.abeona.ui.burgundy
 import kotlin.math.PI
 import kotlin.math.ln
 import kotlin.math.tan
@@ -116,7 +118,7 @@ private fun hex(color: Color) = "#%06X".format(0xFFFFFF and color.toArgb())
  * someone gets on or off as a dot. All in one style document, so the map has
  * nothing to add after it loads.
  */
-private fun tripStyle(legs: List<Leg>, dark: Boolean, ride: Color, walk: Color, marker: MapMarker?): String {
+private fun tripStyle(legs: List<Leg>, dark: Boolean, ride: Color, walk: Color, broken: Color, ink: Color, marker: MapMarker?): String {
     val key = BuildConfig.CARTO_API_KEY
     val carto = key.isNotBlank()
     val tiles = if (carto) {
@@ -133,7 +135,7 @@ private fun tripStyle(legs: List<Leg>, dark: Boolean, ride: Color, walk: Color, 
                 if (points.size < 2) return@forEach
                 addJsonObject {
                     put("type", "Feature")
-                    putJsonObject("properties") { put("walk", leg.isWalk); put("estimated", leg.estimated) }
+                    putJsonObject("properties") { put("walk", leg.isWalk); put("estimated", leg.estimated); put("cancelled", leg.cancelled) }
                     putJsonObject("geometry") {
                         put("type", "LineString")
                         putJsonArray("coordinates") { points.forEach { (lon, lat) -> addJsonArray { add(lon); add(lat) } } }
@@ -160,6 +162,8 @@ private fun tripStyle(legs: List<Leg>, dark: Boolean, ride: Color, walk: Color, 
     // A ride on its route; a guess (no route, straight through its stops) is dashed and has no casing.
     val routed = JsonArray(listOf(JsonPrimitive("all"), walkIs(false), propIs("estimated", false)))
     val guessed = JsonArray(listOf(JsonPrimitive("all"), walkIs(false), propIs("estimated", true)))
+    // Burgundy for the route; a ride that does not run in the bad colour.
+    val rideColour = JsonArray(listOf(JsonPrimitive("case"), JsonArray(listOf(JsonPrimitive("get"), JsonPrimitive("cancelled"))), JsonPrimitive(hex(broken)), JsonPrimitive(hex(ride))))
     return buildJsonObject {
         put("version", 8)
         putJsonObject("sources") {
@@ -182,7 +186,19 @@ private fun tripStyle(legs: List<Leg>, dark: Boolean, ride: Color, walk: Color, 
         putJsonArray("layers") {
             addJsonObject {
                 put("id", "base"); put("type", "raster"); put("source", "base")
-                if (dark && !carto) putJsonObject("paint") { put("raster-brightness-max", 0.55); put("raster-saturation", -0.4) }
+                // Dark tiles in a dark theme, tuned so roads, water and names still stand out; the
+                // web applies the same numbers as a CSS filter (lib/basemap.ts,
+                // decisions/2026-11-15-abeona-dark-map.md).
+                if (dark) putJsonObject("paint") {
+                    if (carto) {
+                        // Dark Matter lifted out of black: 0.16 + 0.84 × the tile.
+                        put("raster-brightness-min", 0.16); put("raster-brightness-max", 1.0)
+                    } else {
+                        // OpenStreetMap has no dark style: inverted with its hues kept, calmed, dimmed.
+                        put("raster-brightness-min", 0.81); put("raster-brightness-max", 0.09)
+                        put("raster-hue-rotate", 180); put("raster-saturation", -0.5)
+                    }
+                }
             }
             addJsonObject {
                 put("id", "ride-casing"); put("type", "line"); put("source", "trip")
@@ -194,13 +210,13 @@ private fun tripStyle(legs: List<Leg>, dark: Boolean, ride: Color, walk: Color, 
                 put("id", "ride"); put("type", "line"); put("source", "trip")
                 put("filter", routed)
                 putJsonObject("layout") { put("line-cap", "round"); put("line-join", "round") }
-                putJsonObject("paint") { put("line-color", hex(ride)); put("line-width", 5) }
+                putJsonObject("paint") { put("line-color", rideColour); put("line-width", 5) }
             }
             addJsonObject {
                 put("id", "ride-estimated"); put("type", "line"); put("source", "trip")
                 put("filter", guessed)
                 putJsonObject("paint") {
-                    put("line-color", hex(ride)); put("line-width", 5)
+                    put("line-color", rideColour); put("line-width", 5)
                     putJsonArray("line-dasharray") { add(1.6); add(2.4) }
                 }
             }
@@ -217,7 +233,7 @@ private fun tripStyle(legs: List<Leg>, dark: Boolean, ride: Color, walk: Color, 
                 put("filter", JsonArray(listOf(JsonPrimitive("=="), JsonArray(listOf(JsonPrimitive("geometry-type"))), JsonPrimitive("Point"))))
                 putJsonObject("paint") {
                     put("circle-radius", 6); put("circle-color", "#FFFFFF")
-                    put("circle-stroke-color", hex(AbeonaColors.Ink)); put("circle-stroke-width", 3)
+                    put("circle-stroke-color", hex(ink)); put("circle-stroke-width", 3)
                 }
             }
             // Where the traveller is: a soft halo, then the dot; hollow when
@@ -261,7 +277,7 @@ private const val MARKER_SOURCE = "me-source"
 @Composable
 fun TripMap(legs: List<Leg>, modifier: Modifier = Modifier, marker: MapMarker? = null, focus: Leg? = null) {
     var fullScreen by rememberSaveable { mutableStateOf(false) }
-    val shape = RoundedCornerShape(28.dp)
+    val shape = RoundedCornerShape(24.dp)
     Box(modifier.clip(shape)) {
         RouteMap(legs, Modifier.fillMaxSize(), interactive = false, marker = marker, focus = focus)
         // Over the map view, which would otherwise take the touch itself.
@@ -317,8 +333,11 @@ private fun RouteMap(legs: List<Leg>, modifier: Modifier, interactive: Boolean, 
     }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val ride = MaterialTheme.colorScheme.primary
+    val ride = burgundy.container
     val walk = MaterialTheme.colorScheme.outline
+    val broken = bad.fill.container
+    // Stations in ink, whatever the basemap: the dots are white inside.
+    val ink = AbeonaColors.Ink
     val padding = with(LocalDensity.current) { (if (interactive) 64.dp else 28.dp).roundToPx() }
     val mapView = remember { MapView(context).apply { onCreate(null) } }
     val loaded = remember { mutableStateOf<MapLibreMap?>(null) }
@@ -351,7 +370,7 @@ private fun RouteMap(legs: List<Leg>, modifier: Modifier, interactive: Boolean, 
             map.uiSettings.isTiltGesturesEnabled = false
             map.uiSettings.isLogoEnabled = false
             if (!interactive) map.uiSettings.setAllGesturesEnabled(false)
-            map.setStyle(Style.Builder().fromJson(tripStyle(legs, dark, ride, walk, marker))) {
+            map.setStyle(Style.Builder().fromJson(tripStyle(legs, dark, ride, walk, broken, ink, marker))) {
                 loaded.value = map
                 val points = cameraPoints(legs, marker, focus).map { (lon, lat) -> LatLng(lat, lon) }
                 // Fitting bounds needs the view's real size; before layout it
@@ -389,8 +408,9 @@ private fun RouteMap(legs: List<Leg>, modifier: Modifier, interactive: Boolean, 
 private fun SchematicTripMap(legs: List<Leg>, modifier: Modifier, marker: MapMarker? = null, focus: Leg? = null) {
     val background = MaterialTheme.colorScheme.surfaceContainer
     val grid = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
-    val water = MaterialTheme.colorScheme.secondaryContainer
-    val ride = MaterialTheme.colorScheme.primary
+    val water = MaterialTheme.colorScheme.surfaceContainerHighest
+    val ride = burgundy.container
+    val broken = bad.fill.container
     val walk = MaterialTheme.colorScheme.outline
     val surface = MaterialTheme.colorScheme.surface
     val ink = MaterialTheme.colorScheme.onSurface
@@ -430,10 +450,10 @@ private fun SchematicTripMap(legs: List<Leg>, modifier: Modifier, marker: MapMar
             if (leg.isWalk) {
                 drawPath(path, walk, style = Stroke(3.dp.toPx(), cap = StrokeCap.Round, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 6.dp.toPx()))))
             } else if (leg.estimated) {
-                drawPath(path, ride, style = Stroke(5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 12.dp.toPx()))))
+                drawPath(path, if (leg.cancelled) broken else ride, style = Stroke(5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 12.dp.toPx()))))
             } else {
                 drawPath(path, surface, style = Stroke(9.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
-                drawPath(path, ride, style = Stroke(5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+                drawPath(path, if (leg.cancelled) broken else ride, style = Stroke(5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
             }
         }
         legs.filter { !it.isWalk }.flatMap { listOf(it.from, it.to) }.forEach { stop ->

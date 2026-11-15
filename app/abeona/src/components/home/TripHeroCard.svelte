@@ -1,23 +1,25 @@
 <script lang="ts">
-  import { ArrowRight, Ticket } from "lucide-svelte";
+  /**
+   * The next trip. On the travel day its day and title as plain text over
+   * the live card's compact form; before it, the departure overview under
+   * the scene (abeona-design.md §9, Trips).
+   */
+  import { ArrowRightLeft, CalendarX2, Clock, Flag, RefreshCw, Shuffle, Ticket } from "lucide-svelte";
   import type { Trip } from "../../lib/data";
-  import {
-    displayPlatform,
-    formatDuration,
-    formatRelativeDay,
-    formatShortDate,
-    formatTime,
-    platformChanged,
-  } from "../../lib/format";
+  import { formatDuration, formatRelativeDay, formatShortDate, legLabel } from "../../lib/format";
+  import { trainKind } from "../../lib/scene";
   import { summarise } from "../../lib/journey";
   import { trainBindingLifted } from "../../lib/transfer";
   import { alternativesOrigin, alternativesReason, type TravelDay } from "../../lib/travelday";
   import LiveDashboard from "../live/LiveDashboard.svelte";
   import BindingBanner from "../common/BindingBanner.svelte";
   import ConfidenceChip from "../common/ConfidenceChip.svelte";
-  import ShiftedTime from "../common/ShiftedTime.svelte";
-  import Illustration from "../common/Illustration.svelte";
+  import Fact from "../common/Fact.svelte";
   import LegChip from "../common/LegChip.svelte";
+  import PlatformBox from "../common/PlatformBox.svelte";
+  import Scene from "../common/Scene.svelte";
+  import ShiftedTime from "../common/ShiftedTime.svelte";
+  import StatusChip from "../common/StatusChip.svelte";
 
   interface Props {
     trip: Trip;
@@ -34,105 +36,83 @@
 
   const s = $derived(summarise(trip.legs));
   const firstRide = $derived(s.rides[0] ?? trip.legs[0]);
-  const platform = $derived(firstRide ? displayPlatform(firstRide.from) : null);
 
   // Offered by themselves only while there is somewhere to search from (as on the trip page).
   const reason = $derived(day && alternativesOrigin(trip.legs, day, now) ? alternativesReason(trip.legs, day) : null);
   const bindingLifted = $derived(trainBindingLifted(trip.fare_type, trip.train_binding, s.arrivalDelay));
   const dayName = $derived(formatRelativeDay(trip.planned_departure));
   const date = $derived(formatShortDate(trip.planned_departure));
+  /** A ride no longer in the timetable, before the travel day: the plan broke. */
+  const dropped = $derived(trip.legs.some((l) => l.mode !== "walk" && !!l.dropped_at));
+  const route = $derived(`${trip.origin_name} → ${trip.destination_name}`);
 </script>
 
-<a
-  {href}
-  class="group relative block overflow-hidden rounded-[2rem] bg-mint text-ink transition hover:brightness-[0.99] focus-visible:outline-2 focus-visible:outline-primary"
->
-  <div class="relative z-10 p-6 sm:p-8">
-    <div class="flex flex-wrap items-center justify-between gap-2">
-      <p class="text-xs font-semibold sm:text-sm uppercase tracking-[0.12em] text-primary">
-        Next trip · {dayName}{dayName !== date ? `, ${date}` : ""}
-      </p>
-      <div class="flex items-center gap-2">
-        {#if refreshing}
-          <span class="loading loading-dots loading-xs text-primary" aria-label="Updating live times"></span>
-        {:else if s.hasRealtime}
-          <span class="inline-flex items-center gap-1.5 text-xs font-medium text-primary">
-            <span class="relative flex h-2 w-2">
-              <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-50"></span>
-              <span class="relative inline-flex h-2 w-2 rounded-full bg-primary"></span>
-            </span>
-            Live
-          </span>
-        {/if}
-        {#if s.confidence && s.changes > 0 && !day}
-          <ConfidenceChip confidence={s.confidence} label={s.changes === 1 ? "Change" : "Changes"} />
-        {/if}
-      </div>
-    </div>
-
-    {#if trip.title}
-      <h2 class="mt-2 text-lg font-semibold">{trip.title}</h2>
+{#snippet when()}
+  <p class="t-label flex items-center gap-2 text-brand">
+    <span>{dayName}{dayName !== date ? `, ${date}` : ""}</span>
+    {#if refreshing}
+      <RefreshCw class="h-3.5 w-3.5 animate-spin" aria-label="Updating live times" />
+    {:else if s.hasRealtime}
+      <RefreshCw class="h-3.5 w-3.5" aria-label="Live" />
     {/if}
+  </p>
+{/snippet}
 
-    {#if day}
-      <!-- On the travel day: the live card's own top, compact (the same headline and train line
-           as on the trip page), then one line to the destination. -->
-      <div class="mt-5"><LiveDashboard summary {trip} {day} {now} {stationMinutes} {reason} /></div>
-    {:else}
-    <div class="mt-6 grid grid-cols-[1fr_auto_1fr] items-start gap-3 sm:gap-6">
-      <div class="min-w-0">
-        <ShiftedTime planned={s.departure.planned} current={s.departure.current} cancelled={s.cancelled} class="text-[2rem] leading-none font-semibold tracking-tight sm:text-6xl" />
-        <p class="mt-2 text-sm leading-snug font-medium sm:truncate sm:text-lg">{s.departure.name}</p>
+{#if day}
+  <section class="space-y-2">
+    <a {href} class="block px-1">
+      {@render when()}
+      <h2 class="t-title mt-0.5 text-ink">{trip.title ?? route}</h2>
+    </a>
+    <a {href} class="block rounded-3xl focus-visible:outline-2 focus-visible:outline-primary">
+      <LiveDashboard summary {trip} {day} {now} {stationMinutes} {reason} />
+    </a>
+    {#if bindingLifted}<BindingBanner delay={s.arrivalDelay} />{/if}
+  </section>
+{:else}
+  <a {href} class="block overflow-hidden rounded-3xl bg-card shadow-card transition hover:brightness-[0.99] focus-visible:outline-2 focus-visible:outline-primary">
+    <Scene state={dropped || s.cancelled ? "stopped" : "parked"} size="header"
+      train={firstRide ? trainKind(firstRide.product, legLabel(firstRide), firstRide.mode === "bus") : undefined}
+      lat={firstRide?.from.lat} lon={firstRide?.from.lon} />
+    <div class="space-y-2 p-4 pt-2">
+      <div>
+        {@render when()}
+        <h2 class="t-title mt-0.5 text-ink">{trip.title ?? route}</h2>
       </div>
 
-      <div class="flex flex-col items-center pt-3 text-base-content/55 sm:pt-5">
-        <span class="text-xs font-medium whitespace-nowrap">{formatDuration(s.plannedMinutes)}</span>
-        <span class="mt-1 flex items-center">
-          <span class="h-px w-4 bg-current sm:w-12"></span>
-          <ArrowRight class="h-4 w-4" />
+      <div class="flex items-center gap-3">
+        <ShiftedTime planned={s.departure.planned} current={s.departure.current} cancelled={s.cancelled} class="t-time text-ink" />
+        <span class="t-body min-w-0 flex-1 truncate text-ink">{s.departure.name}</span>
+        {#if firstRide}
+          <PlatformBox planned={firstRide.from.planned_platform} current={firstRide.from.platform} size="lead" />
+        {/if}
+      </div>
+
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <Fact icon={Flag} label="Arrives">
+          <ShiftedTime planned={s.arrival.planned} current={s.arrival.current} block={false} />
+          {#if trip.title}<span>{s.arrival.name}</span>{/if}
+        </Fact>
+        <Fact icon={Clock} label="Duration" value={formatDuration(s.plannedMinutes)} />
+        <Fact icon={ArrowRightLeft} label={s.changes === 0 ? "Direct, changes" : "Changes"} value={s.changes} />
+        <span class="flex flex-wrap items-center gap-1">
+          {#each s.rides as ride, i (i)}<LegChip leg={ride} />{/each}
         </span>
-        <span class="mt-1 text-xs whitespace-nowrap">
-          {s.changes === 0 ? "Direct" : s.changes === 1 ? "1 change" : `${s.changes} changes`}
-        </span>
+        {#if s.confidence && s.changes > 0}<ConfidenceChip confidence={s.confidence} />{/if}
+        {#if trip.ticket_path}
+          <span class="text-muted" role="img" aria-label="Ticket attached" title="Ticket attached"><Ticket class="h-4 w-4" aria-hidden="true" /></span>
+        {/if}
       </div>
 
-      <div class="min-w-0 text-right">
-        <ShiftedTime planned={s.arrival.planned} current={s.arrival.current} class="text-[2rem] leading-none font-semibold tracking-tight sm:text-6xl" />
-        <p class="mt-2 text-sm leading-snug font-medium sm:truncate sm:text-lg">{s.arrival.name}</p>
-      </div>
-    </div>
-
-    <div class="mt-6 flex flex-wrap items-center gap-3">
-      <div class="rounded-2xl bg-card px-4 py-2.5 shadow-card">
-        <p class="text-[0.7rem] font-semibold uppercase tracking-[0.12em] text-base-content/55">Platform</p>
-        <p class="tabular text-2xl font-semibold leading-tight {firstRide && platformChanged(firstRide.from) ? 'text-amber-ink' : ''}">
-          {platform ?? "–"}
-        </p>
-      </div>
-      <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-        {#each s.rides as ride, i (i)}
-          {#if i > 0}<span class="text-base-content/35">›</span>{/if}
-          <LegChip leg={ride} size="md" />
-        {/each}
-      </div>
-      {#if trip.ticket_path}
-        <span class="inline-flex items-center gap-1.5 rounded-full bg-card px-3 py-1.5 text-xs font-semibold text-primary shadow-card">
-          <Ticket class="h-3.5 w-3.5" /> Ticket
-        </span>
+      {#if dropped && trip.missed_leg_idx === null}
+        <!-- The plan broke before the day: what broke is struck above; the trip has the connections. -->
+        <div class="flex flex-wrap items-center gap-2 pt-1">
+          <StatusChip tone="bad" icon={CalendarX2} label="Timetable changed" />
+          <span class="btn btn-sm rounded-full border-none bg-bad text-bad-content"><Shuffle class="h-4 w-4" aria-hidden="true" /> Find another connection</span>
+        </div>
       {/if}
+
+      {#if bindingLifted}<BindingBanner delay={s.arrivalDelay} />{/if}
     </div>
-
-    {/if}
-
-    {#if bindingLifted}
-      <div class="mt-5"><BindingBanner delay={s.arrivalDelay} /></div>
-    {/if}
-  </div>
-
-  <div class="pointer-events-none -mt-2 flex justify-end overflow-hidden">
-    <Illustration
-      name="train-hero"
-      class="w-72 max-w-none translate-x-16 transition-transform duration-700 group-hover:translate-x-10 sm:w-[26rem] sm:translate-x-20"
-    />
-  </div>
-</a>
+  </a>
+{/if}

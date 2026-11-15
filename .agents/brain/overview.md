@@ -18,6 +18,7 @@ The brain records **why**. The repository's other documents record **what** and
 | :--- | :--- |
 | How do the pieces fit together? | `architecture.md` |
 | What is this thing called, in code and in the UI? | `glossary.md` |
+| How does Abeona look, and what does it show when? | `abeona-design.md` |
 | Why was it decided this way? | `decisions/` |
 | What is broken or constrained, and what do we do about it? | `issues/` |
 | How do I run the project locally? | `README.md` |
@@ -41,6 +42,7 @@ scripts that had been renamed away.
 ├── overview.md      ← this file: index and conventions
 ├── architecture.md  ← how the three apps and the one backend fit together
 ├── glossary.md      ← the domain nouns, in code and in the UI
+├── abeona-design.md ← Abeona's design and UX system: moments, tokens, components, screens
 ├── decisions/       ← architectural decision records (ADRs)
 └── issues/          ← known constraints, blockers, technical debt
 ```
@@ -55,6 +57,7 @@ Read this file first. Then load only what the task needs:
 | :--- | :--- |
 | Anything structural, or your first task in an app | `architecture.md` |
 | Anything user-facing, or naming a new table/column | `glossary.md` |
+| Any Abeona screen, colour, icon or label | `abeona-design.md` |
 | A choice that seems arbitrary | `decisions/` — it probably is not |
 | The database, RLS, or an Edge Function | `decisions/`, then the migrations themselves |
 | Deployment, hosting, CI, backups | `decisions/`, `issues/`, then `DEPLOYMENT.md` |

@@ -1,23 +1,35 @@
 <script lang="ts">
+  /**
+   * How a change looks: its icon and the minutes ("✓ 12 min"). The word
+   * (Safe, Tight …) shows only when there are no minutes to show, and is
+   * always the chip's label for screen readers.
+   */
+  import { Ban, CircleAlert, CircleCheck, Timer } from "lucide-svelte";
   import type { Confidence } from "../../lib/transfer";
+  import StatusChip from "./StatusChip.svelte";
 
   interface Props {
     confidence: Confidence;
-    /** Prefix, e.g. "Changes". */
-    label?: string;
+    minutes?: number | null;
+    class?: string;
   }
 
-  let { confidence, label = "" }: Props = $props();
+  let { confidence, minutes = null, class: klass = "" }: Props = $props();
 
-  const meta: Record<Confidence, { text: string; tone: string; dot: string }> = {
-    safe: { text: "Safe", tone: "bg-mint text-primary", dot: "bg-primary" },
-    tight: { text: "Tight", tone: "bg-amber-soft text-amber-ink", dot: "bg-amber" },
-    at_risk: { text: "At risk", tone: "bg-error/12 text-error", dot: "bg-error" },
-    impossible: { text: "Impossible", tone: "bg-error text-error-content", dot: "bg-error-content" },
-  };
+  const meta = {
+    safe: { text: "Safe", tone: "ok", icon: CircleCheck },
+    tight: { text: "Tight", tone: "watch", icon: Timer },
+    at_risk: { text: "At risk", tone: "bad", icon: CircleAlert },
+    impossible: { text: "Impossible", tone: "bad", icon: Ban },
+  } as const;
+
+  const m = $derived(meta[confidence]);
 </script>
 
-<span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold {meta[confidence].tone}">
-  <span class="h-1.5 w-1.5 rounded-full {meta[confidence].dot}"></span>
-  {label ? `${label}: ` : ""}{meta[confidence].text}
-</span>
+<StatusChip
+  tone={m.tone}
+  icon={m.icon}
+  label={minutes === null ? m.text : `${minutes} min`}
+  title={minutes === null ? `${m.text} change` : `${m.text} change, ${minutes} min`}
+  class={klass}
+/>

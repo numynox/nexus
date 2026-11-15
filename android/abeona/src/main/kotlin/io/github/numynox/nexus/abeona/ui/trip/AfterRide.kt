@@ -20,9 +20,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.ContentCopy
-import androidx.compose.material.icons.rounded.Euro
-import androidx.compose.material.icons.rounded.Route
-import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -55,13 +52,27 @@ import io.github.numynox.nexus.abeona.data.Leg
 import io.github.numynox.nexus.abeona.data.Trip
 import io.github.numynox.nexus.abeona.domain.CompensationText
 import io.github.numynox.nexus.abeona.domain.manualReplacement
-import io.github.numynox.nexus.abeona.ui.attention
-import io.github.numynox.nexus.abeona.ui.calm
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.Event
+import androidx.compose.material.icons.rounded.Flag
+import androidx.compose.material.icons.rounded.Train
+import androidx.compose.ui.text.font.FontWeight
+import io.github.numynox.nexus.abeona.ui.AbeonaType
+import io.github.numynox.nexus.abeona.ui.Tone
+import io.github.numynox.nexus.abeona.ui.bad
+import io.github.numynox.nexus.abeona.ui.muted
+import io.github.numynox.nexus.abeona.ui.ok
+import io.github.numynox.nexus.abeona.ui.watch
+import io.github.numynox.nexus.abeona.ui.well
+import io.github.numynox.nexus.abeona.ui.common.Fact
+import io.github.numynox.nexus.abeona.ui.common.MarkIcon
+import io.github.numynox.nexus.abeona.ui.common.PrimaryButton
+import io.github.numynox.nexus.abeona.ui.common.StopRow
+import io.github.numynox.nexus.abeona.ui.common.SurfaceCard
 import io.github.numynox.nexus.abeona.ui.common.LegChips
 import io.github.numynox.nexus.abeona.ui.common.LineChip
 import io.github.numynox.nexus.abeona.ui.common.TripFormat
-import io.github.numynox.nexus.core.ui.components.NexusCard
-import io.github.numynox.nexus.core.ui.theme.tabular
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -69,8 +80,9 @@ import java.time.format.DateTimeParseException
 
 /**
  * What the trip's delay is worth (abeona_compensation), the German text for
- * DB's form, and the household's claim. The same card as the web's
- * CompensationCard.svelte; reasons and hints come from SQL, as they are.
+ * DB's form, and the household's claim: the verdict and the amount first.
+ * The same card as the web's CompensationCard.svelte; reasons and hints come
+ * from SQL, as they are.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -87,23 +99,15 @@ internal fun CompensationCard(
     var copied by remember { mutableStateOf(false) }
     val amount = c.amountCents?.let(TripFormat::price)
     val colors = when (c.verdict) {
-        "eligible", "unknown_price" -> calm
-        "unknown_arrival" -> attention
-        else -> null
+        "eligible", "unknown_price" -> ok.soft
+        "unknown_arrival" -> watch.soft
+        else -> Tone(well.container, MaterialTheme.colorScheme.onSurface)
     }
-    NexusCard(Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(Icons.Rounded.Euro, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Text("Compensation", style = MaterialTheme.typography.titleMedium)
-        }
-        Surface(
-            color = colors?.container ?: MaterialTheme.colorScheme.surfaceContainerHighest,
-            contentColor = colors?.content ?: MaterialTheme.colorScheme.onSurfaceVariant,
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-        ) {
-            Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
-                Text(CompensationText.headline(c.verdict, amount), style = MaterialTheme.typography.titleLarge)
+    SurfaceCard {
+        Text("Compensation", style = AbeonaType.title)
+        Surface(color = colors.container, contentColor = colors.content, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                Text(CompensationText.headline(c.verdict, amount), style = AbeonaType.headline)
                 c.delayMinutes?.let { delay ->
                     Text(
                         listOfNotNull(
@@ -111,13 +115,13 @@ internal fun CompensationCard(
                             c.actualArrival?.let { "arrived ${TripFormat.time(java.time.Instant.parse(it))}" },
                             CompensationText.source(c.delaySource).ifEmpty { null },
                         ).joinToString(" · "),
-                        style = MaterialTheme.typography.bodySmall,
+                        style = AbeonaType.meta,
                     )
                 }
             }
         }
-        c.reasons.forEach { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp)) }
-        c.hints.forEach { Text(it, style = MaterialTheme.typography.bodySmall, color = attention.content, modifier = Modifier.padding(top = 6.dp)) }
+        c.reasons.forEach { Text(it, style = AbeonaType.meta, color = muted, modifier = Modifier.padding(top = 8.dp)) }
+        c.hints.forEach { Text(it, style = AbeonaType.meta, color = watch.soft.content, modifier = Modifier.padding(top = 4.dp)) }
 
         if (c.verdict == "unknown_price") {
             var price by rememberSaveable { mutableStateOf("") }
@@ -130,39 +134,40 @@ internal fun CompensationCard(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.weight(1f),
                 )
-                Button(
+                PrimaryButton(
+                    "Save",
                     onClick = { price.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 }?.let { onPrice(Math.round(it * 100).toInt()) } },
                     enabled = !state.busy,
-                ) { Text("Save") }
+                )
             }
         }
 
         if (c.verdict != "unknown_arrival" && (trip.forceMajeure || (c.delayMinutes ?: 0) >= (c.thresholdMinutes ?: 60))) {
             Row(
-                Modifier.fillMaxWidth().padding(top = 8.dp).clickable(enabled = !state.busy) { onForceMajeure(!trip.forceMajeure) },
+                Modifier.fillMaxWidth().padding(top = 4.dp).clickable(enabled = !state.busy) { onForceMajeure(!trip.forceMajeure) },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Checkbox(checked = trip.forceMajeure, onCheckedChange = { onForceMajeure(it) }, enabled = !state.busy)
-                Text("Caused by a storm, flooding or a person on the track", style = MaterialTheme.typography.bodyMedium)
+                Text("Caused by a storm, flooding or a person on the track", style = AbeonaType.body)
             }
         }
 
         if (CompensationText.claimable(c.verdict) && c.summaryDe != null) {
             val days = java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), LocalDate.parse(c.deadline)).toInt()
-            Text(
-                CompensationText.deadline(TripFormat.date(LocalDate.parse(c.deadline)), days),
-                style = MaterialTheme.typography.titleSmall,
-                color = if (c.deadlinePassed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(top = 12.dp),
-            )
+            val deadline = if (c.deadlinePassed) bad.soft.content else MaterialTheme.colorScheme.onSurface
+            Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Rounded.Event, contentDescription = null, tint = deadline, modifier = Modifier.size(20.dp))
+                Text(CompensationText.deadline(TripFormat.date(LocalDate.parse(c.deadline)), days), style = AbeonaType.body, color = deadline)
+            }
             Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = {
-                    clipboard.setText(AnnotatedString(c.summaryDe))
-                    copied = true
-                }) {
-                    Icon(Icons.Rounded.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Text(if (copied) "Copied" else "Copy for the form", modifier = Modifier.padding(start = 8.dp))
-                }
+                PrimaryButton(
+                    if (copied) "Copied" else "Copy for the form",
+                    onClick = {
+                        clipboard.setText(AnnotatedString(c.summaryDe))
+                        copied = true
+                    },
+                    icon = Icons.Rounded.ContentCopy,
+                )
                 OutlinedButton(onClick = {
                     runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(c.claimUrl))) }
                 }) {
@@ -173,7 +178,7 @@ internal fun CompensationCard(
         }
 
         if ((CompensationText.claimable(c.verdict) && c.summaryDe != null) || state.claim != null) {
-            Text("Your claim", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 14.dp, bottom = 8.dp))
+            Text("Your claim", style = AbeonaType.meta, color = muted, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 CompensationText.STATUSES.forEach { status ->
                     FilterChip(
@@ -190,13 +195,13 @@ internal fun CompensationCard(
                 claim?.status == "claimed" && claim.claimedAt != null ->
                     "Claimed on ${TripFormat.date(LocalDate.parse(claim.claimedAt.take(10)))}"
                 else -> null
-            }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp)) }
+            }?.let { Text(it, style = AbeonaType.meta, color = muted, modifier = Modifier.padding(top = 4.dp)) }
         }
 
         Text(
             "A summary of DB's passenger rights, not legal advice. Check fahrgastrechte.info or bahn.de before you claim.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = AbeonaType.meta.copy(fontWeight = FontWeight.Normal),
+            color = muted,
             modifier = Modifier.padding(top = 12.dp),
         )
     }
@@ -207,31 +212,42 @@ internal fun CompensationCard(
 internal fun WhatHappenedCard(trip: Trip, busy: Boolean, onRecord: () -> Unit, onClear: () -> Unit) {
     val missed = trip.missedLegIdx?.let { trip.legs.getOrNull(it) }
     val replacement = trip.replacementLegs.orEmpty().filter { !it.isWalk }
-    NexusCard(Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(Icons.Rounded.Route, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Text("What happened", style = MaterialTheme.typography.titleMedium)
-        }
+    SurfaceCard {
+        Text("What happened", style = AbeonaType.title)
         if (missed == null) {
             Text(
                 "Missed a change, or a train was cancelled? Record the trains you took instead: the delay and the compensation follow your real arrival.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 8.dp),
+                style = AbeonaType.meta,
+                color = muted,
+                modifier = Modifier.padding(top = 4.dp),
             )
-            OutlinedButton(onClick = onRecord, modifier = Modifier.padding(top = 10.dp)) { Text("Record a missed connection") }
+            OutlinedButton(onClick = onRecord, modifier = Modifier.padding(top = 8.dp)) { Text("Record a missed connection") }
         } else {
-            Text("Missed or cancelled: ${missed.label} from ${missed.from.name}", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
+            StopRow(
+                name = "",
+                planned = missed.from.plannedAt,
+                cancelled = true,
+                mark = { MarkIcon(Icons.Rounded.Block, "Missed or cancelled", tint = bad.soft.content) },
+                content = {
+                    LineChip(missed)
+                    Text("from ${missed.from.name}", style = AbeonaType.body, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                },
+            )
             if (replacement.isEmpty()) {
-                Text("Add the train you took instead, so the delay can be worked out.", style = MaterialTheme.typography.bodySmall, color = attention.content, modifier = Modifier.padding(top = 4.dp))
+                Text("Add the train you took instead, so the delay can be worked out.", style = AbeonaType.meta, color = watch.soft.content, modifier = Modifier.padding(top = 4.dp))
             } else {
-                Text("Taken instead", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
+                Text("Taken instead", style = AbeonaType.meta, color = muted, modifier = Modifier.padding(top = 8.dp))
                 replacement.forEach { ride ->
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 2.dp)) {
-                        LineChip(ride)
-                        Text("${ride.from.name} → ${ride.to.name}", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("arr. ${TripFormat.time(ride.to.expectedAt)}", style = MaterialTheme.typography.bodyMedium.tabular())
-                    }
+                    StopRow(
+                        name = "",
+                        planned = ride.from.plannedAt, expected = ride.from.expectedAt,
+                        mark = { MarkIcon(Icons.Rounded.Train, "Train") },
+                        content = {
+                            LineChip(ride)
+                            Text("${ride.from.name} → ${ride.to.name}", style = AbeonaType.body, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                        },
+                        trailing = { Fact(Icons.Rounded.Flag, "Arrives", TripFormat.time(ride.to.expectedAt)) },
+                    )
                 }
             }
             Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -269,10 +285,10 @@ internal fun RecordDisruptionSheet(
             verticalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.navigationBarsPadding(),
         ) {
-            item(key = "head") { Text("Record a missed connection", style = MaterialTheme.typography.titleLarge) }
+            item(key = "head") { Text("Record a missed connection", style = AbeonaType.headline) }
             item(key = "which") {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Which train did you miss?", style = MaterialTheme.typography.labelLarge)
+                    Text("Which train did you miss?", style = AbeonaType.title)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         rides.forEach { (idx, leg) ->
                             FilterChip(selected = missedIdx == idx, onClick = { missedIdx = idx }, label = { Text("${leg.label} · ${TripFormat.time(leg.from.plannedAt)}") })
@@ -282,11 +298,11 @@ internal fun RecordDisruptionSheet(
             }
             item(key = "instead") {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("What did you take instead?", style = MaterialTheme.typography.labelLarge)
-                    Button(onClick = { onSearch(missedIdx) }, enabled = search?.loading != true) { Text("Find the connections from there") }
+                    Text("What did you take instead?", style = AbeonaType.title)
+                    OutlinedButton(onClick = { onSearch(missedIdx) }, enabled = search?.loading != true) { Text("Find the connections from there") }
                     if (search?.loading == true && search.missedIdx == missedIdx) LinearProgressIndicator(Modifier.fillMaxWidth())
-                    search?.error?.let { Text("Could not search: $it", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-                    if (search?.options?.isEmpty() == true) Text("No connections found. Enter your train below.", style = MaterialTheme.typography.bodySmall)
+                    search?.error?.let { Text("Could not search: $it", color = bad.soft.content, style = AbeonaType.meta) }
+                    if (search?.options?.isEmpty() == true) Text("No connections found. Enter your train below.", style = AbeonaType.meta, color = muted)
                 }
             }
             if (search != null && search.missedIdx == missedIdx) {
@@ -294,7 +310,7 @@ internal fun RecordDisruptionSheet(
             }
             item(key = "manual") {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Or by hand", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 6.dp))
+                    Text("Or by hand", style = AbeonaType.title, modifier = Modifier.padding(top = 4.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(line, { line = it }, label = { Text("Train") }, placeholder = { Text("IC 2063") }, singleLine = true, modifier = Modifier.weight(1f))
                         OutlinedTextField(
@@ -308,7 +324,7 @@ internal fun RecordDisruptionSheet(
                             modifier = Modifier.weight(0.7f),
                         )
                     }
-                    Button(onClick = {
+                    PrimaryButton("Save", onClick = {
                         val day = (last.to.plannedAt ?: java.time.Instant.now()).atZone(zone).toLocalDate()
                         val time = try { LocalTime.parse(arrived.trim().padStart(5, '0')) } catch (_: DateTimeParseException) { null }
                         if (time == null) {
@@ -317,7 +333,7 @@ internal fun RecordDisruptionSheet(
                             val at = day.atTime(time).atZone(zone).toInstant().toString()
                             onSave(missedIdx, listOf(manualReplacement(trip.legs[missedIdx], last, line, at)))
                         }
-                    }) { Text("Save") }
+                    })
                 }
             }
         }
@@ -328,21 +344,15 @@ internal fun RecordDisruptionSheet(
 private fun ReplacementRow(journey: Journey, onPick: () -> Unit) {
     val first = journey.legs.firstOrNull { !it.isWalk } ?: return
     val last = journey.legs.lastOrNull { !it.isWalk } ?: return
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        shape = RoundedCornerShape(18.dp),
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onPick),
-    ) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("${TripFormat.time(first.from.plannedAt)} – ${TripFormat.time(last.to.expectedAt)}", style = MaterialTheme.typography.titleMedium.tabular())
-            LegChips(journey.legs)
-            Text(
-                journey.legs.filter { !it.isWalk }.joinToString(" › ") { it.label } + " · from ${first.from.name}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+    Surface(onClick = onPick, color = well.container, contentColor = well.content, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(TripFormat.time(first.from.plannedAt), style = AbeonaType.title)
+                Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = "to", tint = muted, modifier = Modifier.size(16.dp))
+                Text(TripFormat.time(last.to.expectedAt), style = AbeonaType.title)
+                LegChips(journey.legs)
+            }
+            Text("from ${first.from.name}", style = AbeonaType.meta, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }

@@ -4,9 +4,11 @@
    * web's copy of Android's ShiftedTime. The new time is the one to read.
    * Block, where there is room: the new time, and beside it a column with
    * the minutes late above the planned time, struck through and grey (sized
-   * from the time's own font size). Inline, in rows and lists: the planned
-   * time struck through, then the new one. On time: the time alone.
-   * Cancelled: the planned time struck through (the caller says so).
+   * from the time's own font size). Inline, in rows and lists: the new time
+   * alone, the minutes late beside it (the time column stays one width).
+   * On time: the time alone. Cancelled: the planned time struck through
+   * (the caller says so). The delay is watch, never red: red is a ride that
+   * does not run.
    */
   import { delayMinutes } from "../../lib/transfer";
   import { formatTime } from "../../lib/format";
@@ -26,20 +28,20 @@
 </script>
 
 {#if cancelled}
-  <span class="tabular text-base-content/50 line-through {klass}">{formatTime(planned)}</span>
+  <span class="tabular text-muted line-through {klass}">{formatTime(planned)}</span>
 {:else if delay <= 0}
   <span class="tabular {klass}">{formatTime(planned ?? current)}</span>
 {:else if block}
   <span class="tabular inline-flex items-center gap-[0.25em] whitespace-nowrap {klass}" aria-label={`${formatTime(current)}, ${delay} min late`}>
     <span>{formatTime(current)}</span>
-    <span class="flex flex-col text-[max(0.42em,0.7rem)] leading-[1.1]" aria-hidden="true">
-      <span class="font-bold text-amber-ink">+{delay}</span>
-      <span class="font-normal text-base-content/50 line-through">{formatTime(planned)}</span>
+    <span class="flex flex-col text-[max(0.42em,0.6875rem)] leading-[1.1] tracking-normal" aria-hidden="true">
+      <span class="font-bold text-watch-ink">+{delay}</span>
+      <span class="font-normal text-muted line-through">{formatTime(planned)}</span>
     </span>
   </span>
 {:else}
-  <span class="tabular inline-flex items-baseline gap-[0.3em] whitespace-nowrap {klass}" aria-label={`${formatTime(current)}, ${delay} min late`}>
-    <span class="text-[0.82em] font-normal text-base-content/50 line-through" aria-hidden="true">{formatTime(planned)}</span>
+  <span class="tabular inline-flex items-baseline gap-[0.25em] whitespace-nowrap {klass}" aria-label={`${formatTime(current)}, ${delay} min late`}>
     <span aria-hidden="true">{formatTime(current)}</span>
+    <span class="text-[0.8em] font-bold text-watch-ink" aria-hidden="true">+{delay}</span>
   </span>
 {/if}

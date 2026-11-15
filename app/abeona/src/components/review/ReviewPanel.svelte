@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ChevronLeft, ChevronRight } from "lucide-svelte";
+  import { ChevronLeft, ChevronRight, CircleAlert, MapPin, TrainFront } from "lucide-svelte";
   import { onMount } from "svelte";
   import { getBaseUrl } from "../../lib/config";
   import { countryFlag, countryName } from "../../lib/basemap";
@@ -12,7 +12,10 @@
     type TravelMapLine,
   } from "../../lib/data";
   import { formatNumber, formatShortDate } from "../../lib/format";
-  import Illustration from "../common/Illustration.svelte";
+  import Banner from "../common/Banner.svelte";
+  import EmptyState from "../common/EmptyState.svelte";
+  import Fact from "../common/Fact.svelte";
+  import Scene from "../common/Scene.svelte";
   import ClaimsSection from "./ClaimsSection.svelte";
   import MonthChart from "./MonthChart.svelte";
   import TravelMap from "./TravelMap.svelte";
@@ -41,6 +44,21 @@
   const productMax = $derived(Math.max(1, ...products.map((p) => p.n)));
   const punctual = $derived(stats?.punctual_share === null || !stats ? null : Math.round(stats.punctual_share * 100));
   const isCurrent = $derived(year === new Date().getFullYear());
+
+  /** The month with the most trips, for the last card's figure; a tie names none. */
+  const busiest = $derived.by(() => {
+    const months = stats?.by_month ?? [];
+    const most = Math.max(0, ...months.map((m) => m.trips));
+    const top = months.filter((m) => m.trips === most);
+    const name =
+      top.length === 1 ? new Date(`${top[0].month}-01T12:00:00`).toLocaleDateString("en-GB", { month: "long" }) : null;
+    return { trips: most, name };
+  });
+
+  /** Today at an hour of the day: each card's scene gets the sky that suits it. */
+  function todayAt(hour: number): number {
+    return new Date().setHours(hour, 0, 0, 0);
+  }
 
   async function load(y: number) {
     loading = true;
@@ -94,18 +112,15 @@
   }
 </script>
 
-<div class="space-y-6">
-  <header class="flex flex-wrap items-end justify-between gap-4 pt-2">
-    <div>
-      <p class="text-sm font-medium text-base-content/55">Your household on rails</p>
-      <h1 class="mt-1 text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Year in review</h1>
-    </div>
-    <div class="flex flex-wrap gap-1.5 rounded-full bg-base-200 p-1" role="radiogroup" aria-label="Year">
+<div class="space-y-3">
+  <header class="flex flex-wrap items-center justify-between gap-3 px-1 pt-2">
+    <h1 class="t-headline text-ink">Year in review</h1>
+    <div class="inline-flex flex-wrap rounded-full bg-well p-0.5" role="radiogroup" aria-label="Year">
       {#each years as y (y)}
         <button
           role="radio"
           aria-checked={y === year}
-          class="tabular rounded-full px-4 py-1.5 text-sm font-semibold transition {y === year ? 'bg-card text-primary shadow-card' : 'text-base-content/60'}"
+          class="t-meta flex h-9 items-center rounded-full px-3.5 transition-colors {y === year ? 'bg-brand-soft font-semibold text-brand' : ''}"
           onclick={() => choose(y)}
         >{y}</button>
       {/each}
@@ -113,188 +128,191 @@
   </header>
 
   {#if error}
-    <p class="rounded-2xl bg-error/10 px-5 py-4 text-sm text-error" role="alert">{error}</p>
+    <Banner tone="bad" icon={CircleAlert} title={error} />
   {/if}
 
   {#if loading}
-    <div class="flex gap-4 overflow-hidden" aria-busy="true">
-      {#each [0, 1, 2] as i (i)}<div class="h-[28rem] w-[85%] shrink-0 animate-pulse rounded-[2rem] bg-base-200 sm:w-80"></div>{/each}
+    <div class="flex gap-3 overflow-hidden" aria-busy="true">
+      {#each [0, 1, 2] as i (i)}<div class="h-[25rem] w-[85%] max-w-[22rem] shrink-0 animate-pulse rounded-3xl bg-well"></div>{/each}
     </div>
   {:else if stats && stats.trips === 0}
-    <section class="grid items-center gap-8 rounded-[2rem] bg-card p-6 shadow-card sm:p-10 md:grid-cols-2">
-      <Illustration name="year-review" class="w-full" />
-      <div>
-        <h2 class="text-2xl font-semibold text-ink">{isCurrent ? "Your year is still ahead" : `No trips in ${year}`}</h2>
-        <p class="mt-2 text-base-content/70">
-          Every trip you save counts here once it has arrived: kilometres, hours on board, delays and your favourite routes.
-        </p>
-        <a href={`${base}/search`} class="btn btn-primary mt-6 rounded-full px-6">Plan a trip</a>
-      </div>
+    <section class="overflow-hidden rounded-3xl bg-card pb-6 shadow-card">
+      <EmptyState title={isCurrent ? "Your year is still ahead" : `No trips in ${year}`}>
+        <a href={`${base}/search`} class="btn btn-primary h-12 rounded-full px-6">Plan a trip</a>
+      </EmptyState>
     </section>
   {:else if stats}
     <div class="relative">
+      <!-- Every card: a scene or a chart on top, one figure, one line under it; what else it knew sits small at the bottom. -->
       <div
         bind:this={track}
-        class="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth px-4 pb-4 [scrollbar-width:none] md:-mx-6 md:px-6 lg:-mx-8 lg:px-8"
+        class="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth px-4 pb-3 [scrollbar-width:none] md:-mx-6 md:px-6 lg:-mx-8 lg:px-8"
       >
         <!-- 1. Cover -->
-        <article class="story bg-neutral text-neutral-content">
-          <Illustration name="year-review" class="-mx-2 -mt-2 w-[calc(100%+1rem)]" />
-          <p class="mt-6 text-sm font-semibold uppercase tracking-[0.14em] opacity-70">{year}{isCurrent ? " so far" : ""}</p>
-          <p class="tabular mt-2 text-7xl font-semibold tracking-tight">{formatNumber(stats.trips)}</p>
-          <p class="mt-1 text-xl font-medium">{stats.trips === 1 ? "trip" : "trips"} by train</p>
-          <p class="mt-auto pt-6 text-sm opacity-70">{formatNumber(stats.rides)} rides · {formatNumber(stats.stations)} stations</p>
+        <article class="story">
+          <Scene state="idle" size="full" />
+          <div class="body">
+            <p class="t-numeral text-ink">{formatNumber(stats.trips)}</p>
+            <p class="t-body text-ink">{stats.trips === 1 ? "trip" : "trips"} by train in {year}{isCurrent ? " so far" : ""}</p>
+            <p class="foot">
+              <Fact icon={TrainFront} label="Rides" value={formatNumber(stats.rides)} />
+              <Fact icon={MapPin} label="Stations" value={formatNumber(stats.stations)} />
+            </p>
+          </div>
         </article>
 
         <!-- 2. Distance -->
-        <article class="story bg-mint text-ink">
-          <p class="eyebrow text-primary">Distance</p>
-          <p class="tabular mt-6 text-6xl font-semibold tracking-tight">{formatNumber(stats.km)}<span class="ml-2 text-2xl font-medium opacity-60">km</span></p>
-          <p class="mt-4 text-lg leading-snug">{acrossGermany(stats.km)}</p>
-          <div class="mt-auto rounded-2xl bg-card p-4">
-            <p class="text-xs font-semibold uppercase tracking-wider text-base-content/55">Longest trip</p>
-            <p class="tabular mt-1 text-2xl font-semibold">{formatNumber(stats.longest_trip?.km ?? stats.longest_km)} km</p>
-            {#if stats.longest_trip}
-              <a class="mt-1 block text-sm text-base-content/70 hover:text-primary" href={`${base}/trip?id=${stats.longest_trip.trip_id}`}>
-                {stats.longest_trip.from} → {stats.longest_trip.to} · {formatShortDate(stats.longest_trip.date)}
-              </a>
-            {/if}
+        <article class="story">
+          <Scene state="riding" size="full" at={todayAt(11)} />
+          <div class="body">
+            <p class="t-numeral text-ink">{formatNumber(stats.km)}<span class="unit">km</span></p>
+            <p class="t-body text-ink">{acrossGermany(stats.km)}</p>
+            <p class="foot">
+              {#if stats.longest_trip}
+                <a class="t-meta hover:text-brand" href={`${base}/trip?id=${stats.longest_trip.trip_id}`}>
+                  Longest trip {formatNumber(stats.longest_trip.km)} km · {stats.longest_trip.from} → {stats.longest_trip.to} · {formatShortDate(stats.longest_trip.date)}
+                </a>
+              {:else}
+                <span class="t-meta">Longest trip {formatNumber(stats.longest_km)} km</span>
+              {/if}
+            </p>
           </div>
         </article>
 
         <!-- 2b. The map of everything travelled -->
         {#if lines.length > 0}
-          <article class="story bg-card text-ink shadow-card">
-            <p class="eyebrow text-primary">Where you went</p>
-            <p class="mt-3 text-lg leading-snug">
-              {formatNumber(lines.length)} {lines.length === 1 ? "stretch" : "stretches"} of track{#if stats.countries.length > 1}, in {stats.countries.length} countries{/if}.
-            </p>
-            <div class="mt-4 -mx-3 flex-1">
-              <TravelMap {lines} />
+          <article class="story">
+            <div class="h-60 p-2 pb-0"><TravelMap {lines} /></div>
+            <div class="body">
+              <p class="t-numeral text-ink">{formatNumber(lines.length)}</p>
+              <p class="t-body text-ink">
+                {lines.length === 1 ? "stretch" : "stretches"} of track{#if stats.countries.length > 1}, in {stats.countries.length} countries{/if}
+              </p>
             </div>
           </article>
         {/if}
 
         <!-- 2c. Footprint -->
         {#if stats.co2_saved_kg > 0}
-          <article class="story bg-mint text-ink">
-            <p class="eyebrow text-primary">Footprint</p>
-            <p class="tabular mt-6 text-6xl font-semibold tracking-tight">{formatNumber(stats.co2_saved_kg, stats.co2_saved_kg < 10 ? 1 : 0)}<span class="ml-2 text-2xl font-medium opacity-60">kg</span></p>
-            <p class="mt-1 text-xl font-medium">CO₂ saved against the car</p>
-            <p class="mt-4 text-lg leading-snug">{trees(stats.co2_saved_kg)}</p>
-            <div class="mt-auto grid grid-cols-2 gap-3">
-              <div class="rounded-2xl bg-card p-4">
-                <p class="text-xs font-semibold uppercase tracking-wider text-base-content/55">By train</p>
-                <p class="tabular mt-1 text-xl font-semibold">{formatNumber(stats.co2_train_kg)} kg</p>
-              </div>
-              <div class="rounded-2xl bg-card p-4">
-                <p class="text-xs font-semibold uppercase tracking-wider text-base-content/55">By car</p>
-                <p class="tabular mt-1 text-xl font-semibold">{formatNumber(stats.co2_car_kg)} kg</p>
-              </div>
+          <article class="story">
+            <Scene state="idle" size="full" at={todayAt(9)} />
+            <div class="body">
+              <p class="t-numeral text-ink">{formatNumber(stats.co2_saved_kg, stats.co2_saved_kg < 10 ? 1 : 0)}<span class="unit">kg CO₂</span></p>
+              <p class="t-body text-ink">saved against the car. {trees(stats.co2_saved_kg)}</p>
+              <p class="foot t-meta">
+                By train {formatNumber(stats.co2_train_kg)} kg · by car {formatNumber(stats.co2_car_kg)} kg · per traveller. {stats.co2_source ?? "Approximate."}
+              </p>
             </div>
-            <p class="mt-3 text-xs text-base-content/60">Per traveller. {stats.co2_source ?? "Approximate."}</p>
           </article>
         {/if}
 
         <!-- 2d. Countries -->
         {#if stats.countries.length > 0}
-          <article class="story bg-sky text-ink">
-            <p class="eyebrow text-info">Countries</p>
-            <p class="tabular mt-6 text-7xl font-semibold tracking-tight">{stats.countries.length}</p>
-            <p class="mt-1 text-xl font-medium">{stats.countries.length === 1 ? "country" : "countries"} by train</p>
-            <ul class="mt-auto space-y-2">
-              {#each stats.countries.slice(0, 6) as code (code)}
-                <li class="flex items-center gap-3 rounded-2xl bg-card px-4 py-2.5 font-medium">
-                  <span class="text-xl" aria-hidden="true">{countryFlag(code)}</span>{countryName(code)}
-                </li>
-              {/each}
-            </ul>
+          <article class="story">
+            <Scene state="parked" size="full" at={todayAt(15)} />
+            <div class="body">
+              <p class="t-numeral text-ink">{stats.countries.length}</p>
+              <p class="t-body text-ink">{stats.countries.length === 1 ? "country" : "countries"} by train</p>
+              <ul class="foot">
+                {#each stats.countries.slice(0, 6) as code (code)}
+                  <li class="t-meta inline-flex h-6 items-center gap-1 rounded-full bg-well px-2">
+                    <span aria-hidden="true">{countryFlag(code)}</span>{countryName(code)}
+                  </li>
+                {/each}
+              </ul>
+            </div>
           </article>
         {/if}
 
-        <!-- 3. Time on board -->
-        <article class="story bg-sky text-ink">
-          <p class="eyebrow text-info">On board</p>
-          <p class="tabular mt-6 text-6xl font-semibold tracking-tight">{formatNumber(hours, hours < 10 ? 1 : 0)}<span class="ml-2 text-2xl font-medium opacity-60">h</span></p>
-          <p class="mt-4 text-lg leading-snug">
-            Time to read about {formatNumber(Math.max(1, Math.round(hours / 7)))} {Math.round(hours / 7) <= 1 ? "book" : "books"}, look out of the window, or simply arrive rested.
-          </p>
-          <Illustration name="train-hero" class="mt-auto -mr-8 w-[115%]" />
+        <!-- 3. Time on board: the night train -->
+        <article class="story">
+          <Scene state="riding" size="full" at={todayAt(23)} />
+          <div class="body">
+            <p class="t-numeral text-ink">{formatNumber(hours, hours < 10 ? 1 : 0)}<span class="unit">h</span></p>
+            <p class="t-body text-ink">
+              on board: time to read about {formatNumber(Math.max(1, Math.round(hours / 7)))} {Math.round(hours / 7) <= 1 ? "book" : "books"}, or simply arrive rested.
+            </p>
+          </div>
         </article>
 
         <!-- 4. Punctuality -->
-        <article class="story bg-card text-ink shadow-card">
-          <p class="eyebrow text-primary">Punctuality</p>
-          <div class="mt-6 flex items-center gap-5">
-            <svg viewBox="0 0 36 36" class="h-28 w-28 -rotate-90" aria-hidden="true">
-              <circle cx="18" cy="18" r="15.5" fill="none" class="stroke-base-300" stroke-width="5" />
+        <article class="story">
+          <div class="chart">
+            <svg viewBox="0 0 36 36" class="h-36 w-36 -rotate-90" aria-hidden="true">
+              <circle cx="18" cy="18" r="15.5" fill="none" class="stroke-well" stroke-width="5" />
               <circle cx="18" cy="18" r="15.5" fill="none" class="stroke-primary" stroke-width="5" stroke-linecap="round"
                 stroke-dasharray="{((punctual ?? 0) / 100) * 97.4} 97.4" />
             </svg>
-            <div>
-              <p class="tabular text-5xl font-semibold tracking-tight">{punctual ?? "–"}<span class="text-2xl">%</span></p>
-              <p class="text-sm text-base-content/60">arrived on time<br />(less than 6 min late)</p>
-            </div>
           </div>
-          <div class="mt-auto grid grid-cols-2 gap-3">
-            <div class="rounded-2xl bg-amber-soft p-4 text-amber-ink">
-              <p class="text-xs font-semibold uppercase tracking-wider opacity-80">Delay in total</p>
-              <p class="tabular mt-1 text-2xl font-semibold">{formatNumber(stats.delay_minutes)} min</p>
-            </div>
-            <div class="rounded-2xl bg-base-300/60 p-4">
-              <p class="text-xs font-semibold uppercase tracking-wider text-base-content/55">Worst arrival</p>
-              <p class="tabular mt-1 text-2xl font-semibold">+{formatNumber(stats.max_delay_minutes)} min</p>
-            </div>
+          <div class="body">
+            <p class="t-numeral text-ink">{punctual ?? "–"}<span class="unit">%</span></p>
+            <p class="t-body text-ink">arrived on time (less than 6 min late)</p>
+            <p class="foot t-meta">
+              <span>
+                Delay in total {formatNumber(stats.delay_minutes)} min · worst arrival
+                <span class="font-bold text-watch-ink">+{formatNumber(stats.max_delay_minutes)}</span>
+              </span>
+            </p>
           </div>
         </article>
 
         <!-- 5. Favourites -->
-        <article class="story bg-primary text-primary-content">
-          <p class="eyebrow opacity-80">Favourites</p>
-          {#if stats.top_route}
-            <p class="mt-6 text-sm opacity-80">Your route</p>
-            <p class="mt-1 text-2xl leading-tight font-semibold">{stats.top_route.from}<br /><span class="opacity-60">⇄</span> {stats.top_route.to}</p>
-            <p class="mt-1 text-sm opacity-80">{stats.top_route.count} {stats.top_route.count === 1 ? "time" : "times"}</p>
-          {/if}
-          {#if stats.top_station}
-            <div class="mt-auto rounded-2xl bg-white/12 p-4">
-              <p class="text-xs font-semibold uppercase tracking-wider opacity-80">Most visited station</p>
-              <p class="mt-1 text-xl font-semibold">{stats.top_station.name}</p>
-              <p class="text-sm opacity-80">{stats.top_station.count} arrivals and departures</p>
+        {#if stats.top_route || stats.top_station}
+          <article class="story">
+            <Scene state="arrived" size="full" at={todayAt(13)} />
+            <div class="body">
+              {#if stats.top_route}
+                <p class="t-numeral text-ink">{stats.top_route.count}<span class="unit">×</span></p>
+                <p class="t-body text-ink">{stats.top_route.from} ⇄ {stats.top_route.to}, your route</p>
+                {#if stats.top_station}
+                  <p class="foot t-meta">
+                    Most visited station: {stats.top_station.name} · {stats.top_station.count} arrivals and departures
+                  </p>
+                {/if}
+              {:else if stats.top_station}
+                <p class="t-numeral text-ink">{stats.top_station.count}</p>
+                <p class="t-body text-ink">arrivals and departures at {stats.top_station.name}, your most visited station</p>
+              {/if}
             </div>
-          {/if}
-        </article>
+          </article>
+        {/if}
 
         <!-- 6. Trains -->
-        <article class="story bg-card text-ink shadow-card">
-          <p class="eyebrow text-primary">Trains</p>
-          <p class="mt-6 text-lg">What you rode most</p>
-          <ul class="mt-4 space-y-3">
-            {#each products as p (p.name)}
-              <li title="{p.n} {p.n === 1 ? 'ride' : 'rides'}">
-                <div class="flex justify-between text-sm"><span class="font-semibold">{p.name}</span><span class="tabular text-base-content/60">{p.n}</span></div>
-                <div class="mt-1 h-2.5 rounded-full bg-base-200">
-                  <div class="h-2.5 rounded-full bg-primary" style="width: {(p.n / productMax) * 100}%"></div>
-                </div>
-              </li>
-            {/each}
-          </ul>
-        </article>
+        {#if products.length > 0}
+          <article class="story">
+            <ul class="chart flex-col !items-stretch gap-2">
+              {#each products as p (p.name)}
+                <li class="grid grid-cols-[3.5rem_minmax(0,1fr)_2rem] items-center gap-2" title="{p.n} {p.n === 1 ? 'ride' : 'rides'}">
+                  <span class="t-meta truncate font-semibold text-ink">{p.name}</span>
+                  <span class="h-3 rounded-full bg-well">
+                    <span class="block h-3 rounded-full bg-primary" style="width: {(p.n / productMax) * 100}%"></span>
+                  </span>
+                  <span class="t-meta text-right">{p.n}</span>
+                </li>
+              {/each}
+            </ul>
+            <div class="body">
+              <p class="t-numeral text-ink">{formatNumber(products[0].n)}</p>
+              <p class="t-body text-ink">{products[0].n === 1 ? "ride" : "rides"} by {products[0].name}, what you rode most</p>
+            </div>
+          </article>
+        {/if}
 
         <!-- 7. Months -->
-        <article class="story bg-card text-ink shadow-card">
-          <p class="eyebrow text-primary">Month by month</p>
-          <p class="mt-6 text-lg">Trips per month</p>
-          <div class="mt-auto text-primary">
-            <MonthChart {year} months={stats.by_month} />
+        <article class="story">
+          <div class="chart !items-end"><div class="w-full"><MonthChart {year} months={stats.by_month} /></div></div>
+          <div class="body">
+            <p class="t-numeral text-ink">{formatNumber(busiest.trips)}</p>
+            <p class="t-body text-ink">
+              {busiest.trips === 1 ? "trip" : "trips"} in {busiest.name ? `${busiest.name}, your busiest month` : "each of your busiest months"}
+            </p>
           </div>
-          <p class="mt-3 text-xs text-base-content/55">The busiest month in amber · hover a bar for details</p>
         </article>
       </div>
 
-      <div class="mt-2 flex justify-center gap-2">
-        <button class="btn btn-circle btn-sm bg-card shadow-card" aria-label="Previous card" onclick={() => scrollBy(-1)}><ChevronLeft class="h-4 w-4" /></button>
-        <button class="btn btn-circle btn-sm bg-card shadow-card" aria-label="Next card" onclick={() => scrollBy(1)}><ChevronRight class="h-4 w-4" /></button>
+      <div class="flex justify-center gap-2">
+        <button class="btn btn-circle btn-ghost btn-sm" aria-label="Previous card" onclick={() => scrollBy(-1)}><ChevronLeft class="h-5 w-5" /></button>
+        <button class="btn btn-circle btn-ghost btn-sm" aria-label="Next card" onclick={() => scrollBy(1)}><ChevronRight class="h-5 w-5" /></button>
       </div>
     </div>
   {/if}
@@ -303,22 +321,46 @@
 </div>
 
 <style>
+  /* A story card: 200 of scene or chart, then the figure and its line. */
   .story {
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
     width: 85%;
     max-width: 22rem;
-    min-height: 28rem;
-    padding: 1.75rem;
-    border-radius: 2rem;
+    min-height: 25rem;
+    border-radius: 1.5rem;
     overflow: hidden;
     scroll-snap-align: start;
+    background: var(--ab-card);
+    box-shadow: var(--ab-shadow);
   }
-  .eyebrow {
-    font-size: 0.75rem;
+  .chart {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    padding: 1rem 1rem 0;
+  }
+  .body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 1rem;
+  }
+  .unit {
+    margin-left: 0.375rem;
+    font-size: 1.0625rem;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.14em;
+    letter-spacing: 0;
+    color: var(--ab-muted);
+  }
+  .foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.75rem;
+    margin-top: auto;
+    padding-top: 0.75rem;
   }
 </style>

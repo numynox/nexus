@@ -10,13 +10,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.automirrored.rounded.HelpOutline
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.RemoveCircleOutline
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -43,14 +41,23 @@ import androidx.compose.ui.unit.dp
 import io.github.numynox.nexus.abeona.data.Alternative
 import io.github.numynox.nexus.abeona.data.Validity
 import io.github.numynox.nexus.abeona.domain.AlternativesReason
-import io.github.numynox.nexus.abeona.domain.arrivalDelay
 import io.github.numynox.nexus.abeona.domain.changes
-import io.github.numynox.nexus.abeona.ui.attention
-import io.github.numynox.nexus.abeona.ui.calm
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.SwapHoriz
+import io.github.numynox.nexus.abeona.ui.AbeonaType
+import io.github.numynox.nexus.abeona.ui.bad
+import io.github.numynox.nexus.abeona.ui.muted
+import io.github.numynox.nexus.abeona.ui.well
+import io.github.numynox.nexus.abeona.ui.common.Banner
+import io.github.numynox.nexus.abeona.ui.common.Fact
+import io.github.numynox.nexus.abeona.ui.common.PlatformBox
+import io.github.numynox.nexus.abeona.ui.common.StatusChip
+import io.github.numynox.nexus.abeona.ui.common.StatusTone
 import io.github.numynox.nexus.abeona.ui.common.ShiftedTime
 import io.github.numynox.nexus.abeona.ui.common.LegChips
 import io.github.numynox.nexus.abeona.ui.common.TripFormat
-import io.github.numynox.nexus.core.ui.theme.tabular
 import java.time.Duration
 
 /** The sheet's headline: why it is worth a look, or just what it is. */
@@ -92,12 +99,12 @@ fun AlternativesSheet(
         ) {
             item(key = "head") {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(alternativesTitle(reason), style = MaterialTheme.typography.titleLarge)
+                    Text(alternativesTitle(reason), style = AbeonaType.headline)
                     state?.let {
                         Text(
                             "From ${it.origin.name}, ${TripFormat.time(it.origin.time)}, to $destination",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = AbeonaType.meta,
+                            color = muted,
                         )
                     }
                     state?.result?.allowance?.takeIf { it.bindingLifted }?.let { BindingLiftedLine(it.bindingLiftedReason) }
@@ -112,7 +119,7 @@ fun AlternativesSheet(
             }
             state?.error?.let { message ->
                 item(key = "error") {
-                    Text("Could not search: $message", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+                    Text("Could not search: $message", color = bad.soft.content, style = AbeonaType.body)
                 }
             }
             val list = state?.result?.alternatives
@@ -120,8 +127,8 @@ fun AlternativesSheet(
                 item(key = "none") {
                     Text(
                         "No connections found from here. DB Navigator may know more.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = AbeonaType.body,
+                        color = muted,
                     )
                 }
             }
@@ -135,9 +142,9 @@ fun AlternativesSheet(
                 item(key = "hint") {
                     Text(
                         result.allowance?.hint ?: "Check the terms of your ticket before you board another train.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 6.dp),
+                        style = AbeonaType.meta.copy(fontWeight = FontWeight.Normal),
+                        color = muted,
+                        modifier = Modifier.padding(top = 4.dp),
                     )
                 }
             }
@@ -148,19 +155,19 @@ fun AlternativesSheet(
 /** Why any train on the route counts now, from the database's reason. */
 @Composable
 private fun BindingLiftedLine(reason: String?) {
-    Surface(color = calm.container, contentColor = calm.content, shape = RoundedCornerShape(12.dp), modifier = Modifier.padding(vertical = 4.dp)) {
-        Text(
-            "Train binding lifted: " + when (reason) {
-                "impossible_connection" -> "a change cannot be made, so other trains on your route count."
-                "missed_connection" -> "you missed a short change, so other trains on your route count."
-                "cancelled" -> "a train is cancelled, so other trains on your route count."
-                "delay" -> "20 minutes late, so other trains on your route count."
-                else -> "other trains on your route count."
-            },
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-        )
-    }
+    Banner(
+        StatusTone.Watch,
+        Icons.Rounded.SwapHoriz,
+        "Train binding lifted",
+        Modifier.padding(vertical = 4.dp),
+        text = when (reason) {
+            "impossible_connection" -> "A change cannot be made, so other trains on your route count."
+            "missed_connection" -> "You missed a short change, so other trains on your route count."
+            "cancelled" -> "A train is cancelled, so other trains on your route count."
+            "delay" -> "20 minutes late, so other trains on your route count."
+            else -> "Other trains on your route count."
+        },
+    )
 }
 
 /**
@@ -186,6 +193,10 @@ internal fun TakeAnywayDialog(alternative: Alternative, onConfirm: () -> Unit, o
     )
 }
 
+/**
+ * One connection: departure → arrival, how long and how many changes, its
+ * lines, where it leaves from, and whether the ticket covers it.
+ */
 @Composable
 private fun AlternativeRow(alternative: Alternative, onTake: (() -> Unit)? = null) {
     val legs = alternative.legs
@@ -196,67 +207,48 @@ private fun AlternativeRow(alternative: Alternative, onTake: (() -> Unit)? = nul
         val b = legs.last().to.plannedAt
         if (a != null && b != null) Duration.between(a, b).toMinutes() else null
     }
-    val n = changes(legs)
     Surface(
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        shape = RoundedCornerShape(18.dp),
-        modifier = Modifier.fillMaxWidth().alpha(if (alternative.validity == Validity.Invalid) 0.62f else 1f),
+        color = well.container,
+        contentColor = well.content,
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth().alpha(if (alternative.validity == Validity.Invalid) 0.7f else 1f),
     ) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ShiftedTime(first.from.plannedAt, first.from.expectedAt, MaterialTheme.typography.titleLarge, block = false)
-                Text("–", style = MaterialTheme.typography.titleLarge)
-                ShiftedTime(last.to.plannedAt, last.to.expectedAt, MaterialTheme.typography.titleLarge, block = false)
-                Text(
-                    listOfNotNull(minutes?.let { TripFormat.duration(it) }, if (n == 0) "direct" else if (n == 1) "1 change" else "$n changes").joinToString(" · "),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                ShiftedTime(first.from.plannedAt, first.from.expectedAt, AbeonaType.title, block = false)
+                Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = "to", tint = muted, modifier = Modifier.size(16.dp))
+                ShiftedTime(last.to.plannedAt, last.to.expectedAt, AbeonaType.title, block = false)
+                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
+                    minutes?.let { Fact(Icons.Rounded.Schedule, "Duration", TripFormat.shortDuration(it)) }
+                    Fact(Icons.Rounded.SwapHoriz, "Changes", "${changes(legs)}")
+                }
             }
-            LegChips(legs)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ValidityChip(alternative.validity)
-                Text(
-                    "from ${first.from.name}" + (first.from.shownPlatform?.let { ", Pl. $it" } ?: ""),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                LegChips(legs)
+                Text("from ${first.from.name}", style = AbeonaType.meta, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                PlatformBox(first.from.plannedPlatform, first.from.platform)
             }
+            ValidityChip(alternative.validity)
             if (alternative.validity != Validity.Valid && alternative.validityNote.isNotBlank()) {
-                Text(alternative.validityNote, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(alternative.validityNote, style = AbeonaType.meta.copy(fontWeight = FontWeight.Normal), color = muted)
             }
             if (onTake != null) {
                 if (alternative.validity == Validity.Valid) {
-                    FilledTonalButton(onClick = onTake) { Text("Take this connection") }
+                    OutlinedButton(onClick = onTake) { Text("Take this connection") }
                 } else {
-                    OutlinedButton(onClick = onTake) { Text("Take it anyway…") }
+                    TextButton(onClick = onTake) { Text("Take it anyway…") }
                 }
             }
         }
     }
 }
 
+/** Whether the ticket covers a connection, in its words: they carry the ticket's terms. */
 @Composable
 private fun ValidityChip(validity: Validity) {
-    val (container, content) = when (validity) {
-        Validity.Valid -> calm.container to calm.content
-        Validity.Check -> attention.container.copy(alpha = 0.45f) to attention.content
-        Validity.Invalid -> MaterialTheme.colorScheme.surfaceContainerHighest to MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    val icon = when (validity) {
-        Validity.Valid -> Icons.Rounded.CheckCircle
-        Validity.Check -> Icons.AutoMirrored.Rounded.HelpOutline
-        Validity.Invalid -> Icons.Rounded.RemoveCircleOutline
-    }
-    Surface(color = container, contentColor = content, shape = CircleShape) {
-        Row(Modifier.padding(start = 6.dp, end = 10.dp, top = 3.dp, bottom = 3.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(15.dp))
-            Text(validity.label, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold))
-        }
+    when (validity) {
+        Validity.Valid -> StatusChip(StatusTone.Ok, Icons.Rounded.CheckCircle, label = validity.label)
+        Validity.Check -> StatusChip(StatusTone.Watch, Icons.AutoMirrored.Rounded.HelpOutline, label = validity.label)
+        Validity.Invalid -> StatusChip(StatusTone.Bad, Icons.Rounded.Block, label = validity.label)
     }
 }

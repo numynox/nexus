@@ -19,8 +19,9 @@
     const L = leaflet;
     if (!L || !map || !layer) return;
     layer.clearLayers();
-    const primary = cssColor("--color-primary", "#1f6f5c");
-    const ink = cssColor("--color-neutral", "#12313a");
+    // Burgundy track, ink stations: read from the theme, like TripMap.
+    const primary = cssColor("--color-primary", "#8c1d40");
+    const ink = cssColor("--ab-ink", "#2a211c");
     const card = cssColor("--ab-card", "#ffffff");
     const drawn = L.latLngBounds([]);
     const most = Math.max(1, ...lines.map((l) => l.count));
@@ -69,4 +70,4 @@
   });
 </script>
 
-<MapFrame class="h-full min-h-56 w-full rounded-3xl" label="the map of the year" onready={ready} {fit} />
+<MapFrame class="h-full min-h-56 w-full rounded-2xl" label="the map of the year" onready={ready} {fit} />

@@ -16,12 +16,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Badge
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -39,6 +35,7 @@ import androidx.lifecycle.viewModelScope
 import io.github.numynox.nexus.abeona.AppContainer
 import io.github.numynox.nexus.abeona.data.BahnCard
 import io.github.numynox.nexus.abeona.ui.AbeonaColors
+import io.github.numynox.nexus.abeona.ui.AbeonaType
 import io.github.numynox.nexus.abeona.ui.AppViewModel
 import io.github.numynox.nexus.abeona.ui.Navigator
 import io.github.numynox.nexus.abeona.ui.common.DbNavigator
@@ -114,7 +111,7 @@ fun BahnCardScreen(app: AppViewModel, cardId: String, navigator: Navigator) {
                 Column(Modifier.weight(1f)) {
                     Text(
                         listOfNotNull(ready?.card?.name?.takeIf { it.isNotBlank() }, ready?.card?.label).joinToString(" · ").ifEmpty { "BahnCard" },
-                        style = MaterialTheme.typography.titleMedium,
+                        style = AbeonaType.title,
                         color = AbeonaColors.Ink,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -122,11 +119,15 @@ fun BahnCardScreen(app: AppViewModel, cardId: String, navigator: Navigator) {
                     ready?.card?.let { card ->
                         Text(
                             "Valid ${TripFormat.date(card.from)} – ${TripFormat.date(card.to)}" + (card.cardNumber?.let { " · $it" } ?: ""),
-                            style = MaterialTheme.typography.bodySmall,
+                            style = AbeonaType.meta,
                             color = AbeonaColors.Ink.copy(alpha = 0.7f),
                         )
                     }
                     ready?.offlineSince?.let { OfflinePill(it, Modifier.padding(top = 4.dp)) }
+                }
+                // The proof is DB Navigator's card: one tap away, as on the ticket.
+                IconButton(onClick = { DbNavigator.open(context) }) {
+                    Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = "Open DB Navigator", tint = AbeonaColors.Ink)
                 }
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -142,16 +143,18 @@ fun BahnCardScreen(app: AppViewModel, cardId: String, navigator: Navigator) {
                     )
                 }
             }
-            Surface(color = AbeonaColors.Mint, contentColor = AbeonaColors.Ink, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.navigationBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
-                        Icon(Icons.Rounded.Badge, contentDescription = null, modifier = Modifier.size(20.dp))
-                        Text(
-                            "The digital BahnCard only counts as proof inside the DB Navigator app. Keep this copy for your records.",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                }
+            // The white page is the card's; the note under it stays quiet.
+            Row(
+                Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                Icon(Icons.Rounded.Badge, contentDescription = null, tint = AbeonaColors.Ink.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
+                Text(
+                    "The digital BahnCard only counts as proof inside the DB Navigator app. Keep this copy for your records.",
+                    style = AbeonaType.meta,
+                    color = AbeonaColors.Ink.copy(alpha = 0.7f),
+                )
             }
         }
     }

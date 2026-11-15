@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -17,32 +18,31 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ConfirmationNumber
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.SwapVert
-import androidx.compose.material.icons.rounded.TripOrigin
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -74,26 +74,35 @@ import io.github.numynox.nexus.abeona.data.Journey
 import io.github.numynox.nexus.abeona.data.ProductFilter
 import io.github.numynox.nexus.abeona.data.Station
 import io.github.numynox.nexus.abeona.domain.changes
-import io.github.numynox.nexus.abeona.domain.departureDelay
-import io.github.numynox.nexus.abeona.domain.finalArrivalDelay
 import io.github.numynox.nexus.abeona.domain.worstConfidence
+import io.github.numynox.nexus.abeona.ui.AbeonaType
 import io.github.numynox.nexus.abeona.ui.AppViewModel
 import io.github.numynox.nexus.abeona.ui.Navigator
-import io.github.numynox.nexus.abeona.ui.common.ShiftedTime
+import io.github.numynox.nexus.abeona.ui.bad
+import io.github.numynox.nexus.abeona.ui.brand
+import io.github.numynox.nexus.abeona.ui.hairline
+import io.github.numynox.nexus.abeona.ui.muted
+import io.github.numynox.nexus.abeona.ui.well
+import io.github.numynox.nexus.abeona.ui.common.Banner
 import io.github.numynox.nexus.abeona.ui.common.ConfidenceChip
+import io.github.numynox.nexus.abeona.ui.common.Fact
 import io.github.numynox.nexus.abeona.ui.common.LegChips
+import io.github.numynox.nexus.abeona.ui.common.PlatformBox
+import io.github.numynox.nexus.abeona.ui.common.PrimaryButton
+import io.github.numynox.nexus.abeona.ui.common.Segmented
+import io.github.numynox.nexus.abeona.ui.common.ShiftedTime
+import io.github.numynox.nexus.abeona.ui.common.StatusChip
+import io.github.numynox.nexus.abeona.ui.common.StatusTone
+import io.github.numynox.nexus.abeona.ui.common.SurfaceCard
 import io.github.numynox.nexus.abeona.ui.common.TripFormat
+import io.github.numynox.nexus.abeona.ui.common.WellField
 import io.github.numynox.nexus.abeona.ui.common.containerViewModel
 import io.github.numynox.nexus.abeona.ui.intake.IntakeSheet
 import io.github.numynox.nexus.abeona.ui.intake.IntakeState
 import io.github.numynox.nexus.abeona.ui.intake.IntakeViewModel
 import io.github.numynox.nexus.core.ui.Loadable
-import io.github.numynox.nexus.core.ui.components.ConnectedChoiceRow
-import io.github.numynox.nexus.core.ui.components.EmptyState
 import io.github.numynox.nexus.core.ui.components.ErrorState
-import io.github.numynox.nexus.core.ui.components.NexusCard
 import io.github.numynox.nexus.core.ui.components.PlaceholderList
-import io.github.numynox.nexus.core.ui.theme.tabular
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -133,14 +142,8 @@ fun SearchScreen(app: AppViewModel, navigator: Navigator) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Search") },
-                actions = {
-                    IconButton(onClick = { intakeOpen = true }) {
-                        Icon(Icons.Rounded.ConfirmationNumber, contentDescription = "Add from a ticket or share")
-                    }
-                },
-            )
+            // Intake is the quiet row under the form, so the bar holds the title alone.
+            TopAppBar(title = { Text("Plan") })
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
@@ -171,7 +174,7 @@ fun SearchScreen(app: AppViewModel, navigator: Navigator) {
                 is Loadable.Ready -> {
                     if (state.value.journeys.isEmpty()) {
                         item(key = "none") {
-                            EmptyState(Icons.Rounded.Search, "No connections", "Try another time, or all trains instead of regional only.")
+                            Banner(StatusTone.Quiet, Icons.Rounded.Search, "No connections", text = "Try another time, or all trains instead of regional only.")
                         }
                     } else {
                         if (state.value.earlier != null) {
@@ -301,85 +304,73 @@ private fun SearchFormCard(
     onProducts: (ProductFilter) -> Unit,
     onSearch: () -> Unit,
 ) {
-    NexusCard(containerColor = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
-        Box {
-            Column {
-                StationField("From", form.from, Icons.Rounded.TripOrigin, onPickFrom)
-                HorizontalDivider(Modifier.padding(start = 44.dp, end = 56.dp))
-                StationField("To", form.to, Icons.Rounded.Place, onPickTo)
+    SurfaceCard {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                StationField("From", form.from, Icons.Rounded.Place, onPickFrom)
+                StationField("To", form.to, Icons.Rounded.Flag, onPickTo)
             }
-            FilledTonalIconButton(onClick = onSwap, modifier = Modifier.align(Alignment.CenterEnd)) {
-                Icon(Icons.Rounded.SwapVert, contentDescription = "Swap stations")
+            IconButton(onClick = onSwap) {
+                Icon(Icons.Rounded.SwapVert, contentDescription = "Swap stations", tint = brand)
             }
         }
+        // When: the day and the time on one line; "now" until a time is chosen.
         Row(
-            Modifier.fillMaxWidth().padding(top = 12.dp),
+            Modifier.fillMaxWidth().padding(top = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             val time = form.time
-            PickerPill(
+            PickerField(
                 Icons.Rounded.CalendarMonth,
                 time?.toLocalDate()?.let { if (it == LocalDate.now()) "Today" else DateTimeFormatter.ofPattern("EEE d MMM", Locale.ENGLISH).format(it) } ?: "Today",
+                "Date",
                 onPickDate,
+                Modifier.weight(1f),
             )
-            PickerPill(Icons.Rounded.Schedule, time?.let { "%02d:%02d".format(it.hour, it.minute) } ?: "Now", onPickTime)
+            PickerField(Icons.Rounded.Schedule, time?.let { "%02d:%02d".format(it.hour, it.minute) } ?: "Now", "Time", onPickTime, Modifier.weight(1f))
             if (time != null) {
-                IconButton(onClick = onNow) { Icon(Icons.Rounded.Close, contentDescription = "Leave now") }
+                IconButton(onClick = onNow) { Icon(Icons.Rounded.Close, contentDescription = "Leave now", tint = muted) }
             }
         }
-        ConnectedChoiceRow(
-            options = listOf(false, true),
-            selected = form.arriveBy,
-            onSelect = onArriveBy,
-            label = { if (it) "Arrive by" else "Depart at" },
-            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-        )
-        ConnectedChoiceRow(
-            options = ProductFilter.entries,
-            selected = form.products,
-            onSelect = onProducts,
-            label = { if (it == ProductFilter.All) "All trains" else "Regional only" },
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-        )
-        Button(onClick = onSearch, enabled = form.complete, modifier = Modifier.fillMaxWidth().padding(top = 16.dp).height(52.dp)) {
-            Icon(Icons.Rounded.Search, contentDescription = null, modifier = Modifier.size(20.dp))
-            Text("Search connections", modifier = Modifier.padding(start = 8.dp), style = MaterialTheme.typography.titleSmall)
+        Row(
+            Modifier.fillMaxWidth().padding(top = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Segmented(listOf(false, true), form.arriveBy, onArriveBy, { if (it) "Arrive" else "Depart" }, description = "Depart at or arrive by")
+            Segmented(ProductFilter.entries, form.products, onProducts, { if (it == ProductFilter.All) "All" else "Regional" }, description = "All trains or regional only")
         }
+        PrimaryButton("Search", onSearch, Modifier.fillMaxWidth().padding(top = 16.dp).height(48.dp), icon = Icons.Rounded.Search, enabled = form.complete)
     }
 }
 
-/** The way in to intake, under the search form. */
+/** The way in to intake, under the search form: a quiet row. */
 @Composable
 private fun IntakeEntry(onClick: () -> Unit) {
-    NexusCard(onClick = onClick, containerColor = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Rounded.ConfirmationNumber, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
-            Column(Modifier.padding(start = 14.dp).weight(1f)) {
-                Text("Add from a ticket or share", style = MaterialTheme.typography.titleSmall)
-                Text(
-                    "A DB Navigator share or a DB or Trenitalia ticket PDF, read on this phone.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+    SurfaceCard(onClick = onClick, padding = PaddingValues(horizontal = 16.dp)) {
+        Row(Modifier.heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Icon(Icons.Rounded.ConfirmationNumber, contentDescription = null, tint = muted, modifier = Modifier.size(20.dp))
+            Text("Add from a ticket or share", style = AbeonaType.body, modifier = Modifier.weight(1f))
+            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = muted)
         }
     }
 }
 
+/** A station in the well; the placeholder ("From", "To") is the label. */
 @Composable
 private fun StationField(label: String, station: Station?, icon: ImageVector, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(end = 56.dp, top = 8.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 8.dp).size(22.dp))
-        Column(Modifier.padding(start = 6.dp)) {
-            Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Surface(onClick = onClick, color = well.container, contentColor = well.content, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.heightIn(min = 48.dp).padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(icon, contentDescription = if (station == null) null else label, tint = muted, modifier = Modifier.size(20.dp))
             Text(
-                station?.name ?: "Choose a station",
-                style = MaterialTheme.typography.titleMedium,
-                color = if (station == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                station?.name ?: label,
+                style = AbeonaType.body.copy(fontWeight = if (station == null) FontWeight.Normal else FontWeight.SemiBold),
+                color = if (station == null) muted else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -387,33 +378,42 @@ private fun StationField(label: String, station: Station?, icon: ImageVector, on
     }
 }
 
+/** The date or the time, in the well like the stations. */
 @Composable
-private fun PickerPill(icon: ImageVector, text: String, onClick: () -> Unit) {
-    Surface(onClick = onClick, shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerLowest) {
-        Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
-            Text(text, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(start = 8.dp))
+private fun PickerField(icon: ImageVector, text: String, description: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(onClick = onClick, color = well.container, contentColor = well.content, shape = RoundedCornerShape(12.dp), modifier = modifier) {
+        Row(Modifier.heightIn(min = 44.dp).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(icon, contentDescription = description, tint = muted, modifier = Modifier.size(18.dp))
+            Text(text, style = AbeonaType.body, maxLines = 1)
         }
     }
 }
 
 @Composable
 private fun MoreButton(label: String, icon: ImageVector, loading: Boolean, onClick: () -> Unit) {
-    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.Center) {
         if (loading) {
             LoadingIndicator(Modifier.size(40.dp))
         } else {
             TextButton(onClick = onClick) {
-                Icon(icon, contentDescription = null)
-                Text(label, modifier = Modifier.padding(start = 6.dp))
+                Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text(label, style = AbeonaType.meta.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(start = 4.dp))
             }
         }
     }
 }
 
-/** One connection: when, how long, how many changes, and how they look today. */
+/** Width of the duration and changes columns, so cards compare at a glance. */
+private val DurationColumn = 64.dp
+private val ChangesColumn = 40.dp
+
+/**
+ * One connection in fixed columns: departure → arrival with the worst change
+ * at the right; then duration, changes, the trains and the first platform.
+ * The same lines as [JourneyCard] without the card, for the save sheet's head.
+ */
 @Composable
-fun JourneyCard(journey: Journey, onClick: (() -> Unit)?, modifier: Modifier = Modifier) {
+internal fun JourneySummary(journey: Journey, modifier: Modifier = Modifier) {
     val first = journey.legs.firstOrNull { !it.isWalk } ?: journey.legs.firstOrNull() ?: return
     val last = journey.legs.lastOrNull { !it.isWalk } ?: journey.legs.last()
     val start = journey.legs.first().from.plannedAt
@@ -421,31 +421,34 @@ fun JourneyCard(journey: Journey, onClick: (() -> Unit)?, modifier: Modifier = M
     val changes = changes(journey.legs)
     val worst = worstConfidence(journey.legs)
     val cancelled = journey.legs.any { it.cancelled }
-    NexusCard(modifier = modifier.fillMaxWidth(), onClick = onClick, containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    ShiftedTime(first.from.plannedAt, first.from.expectedAt, MaterialTheme.typography.headlineSmall, block = false)
-                    Text("→", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    ShiftedTime(last.to.plannedAt, last.to.expectedAt, MaterialTheme.typography.headlineSmall, block = false)
-                }
-                Text(
-                    listOfNotNull(
-                        if (start != null && end != null) TripFormat.duration(Duration.between(start, end).toMinutes()) else null,
-                        if (changes == 0) "direct" else if (changes == 1) "1 change" else "$changes changes",
-                        first.from.shownPlatform?.let { "from Pl. $it" },
-                    ).joinToString(" · "),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ShiftedTime(first.from.plannedAt, first.from.expectedAt, AbeonaType.title, block = false, cancelled = cancelled)
+            Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = "to", tint = muted, modifier = Modifier.size(16.dp))
+            ShiftedTime(last.to.plannedAt, last.to.expectedAt, AbeonaType.title, block = false, cancelled = cancelled)
+            Spacer(Modifier.weight(1f))
             if (cancelled) {
-                Text("Cancelled", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.error)
+                StatusChip(StatusTone.Bad, Icons.Rounded.Block, label = "Cancelled")
             } else if (worst != null) {
                 ConfidenceChip(worst)
             }
         }
-        LegChips(journey.legs, Modifier.padding(top = 10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.width(DurationColumn)) {
+                if (start != null && end != null) Fact(Icons.Rounded.Schedule, "Duration", TripFormat.shortDuration(Duration.between(start, end).toMinutes()))
+            }
+            Box(Modifier.width(ChangesColumn)) { Fact(Icons.Rounded.SwapHoriz, "Changes", "$changes") }
+            LegChips(journey.legs, Modifier.weight(1f), wrap = true)
+            PlatformBox(first.from.plannedPlatform, first.from.platform, Modifier.padding(start = 8.dp))
+        }
+    }
+}
+
+/** One connection as a card; tapping it opens the save sheet. */
+@Composable
+fun JourneyCard(journey: Journey, onClick: (() -> Unit)?, modifier: Modifier = Modifier) {
+    SurfaceCard(modifier = modifier, onClick = onClick, padding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)) {
+        JourneySummary(journey)
     }
 }
 
@@ -454,45 +457,41 @@ private fun StationSheet(title: String, viewModel: SearchViewModel, onPick: (Sta
     val query by viewModel.stationQuery.collectAsStateWithLifecycle()
     val stations by viewModel.stations.collectAsStateWithLifecycle()
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(Modifier.padding(horizontal = 24.dp).navigationBarsPadding().imePadding()) {
-            Text(title, style = MaterialTheme.typography.headlineSmall)
+        Column(Modifier.padding(horizontal = 16.dp).navigationBarsPadding().imePadding()) {
+            Text(title, style = AbeonaType.headline, modifier = Modifier.padding(horizontal = 4.dp))
             Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
+            WellField(
                 value = query,
                 onValueChange = { viewModel.stationQuery.value = it },
-                label = { Text("Station") },
-                placeholder = { Text("Frankfurt Hbf") },
-                leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
-                singleLine = true,
-                shape = MaterialTheme.shapes.medium,
+                placeholder = "Station, e.g. Frankfurt Hbf",
+                description = "Station",
+                icon = Icons.Rounded.Search,
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(8.dp))
             Box(Modifier.fillMaxWidth().height(360.dp)) {
                 when (val state = stations) {
-                    null -> Text(
-                        "Type at least two letters.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(8.dp),
-                    )
+                    null -> Text("Type at least two letters.", style = AbeonaType.meta, color = muted, modifier = Modifier.padding(12.dp))
                     Loadable.Loading -> LoadingIndicator(Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
-                    is Loadable.Failed -> Text(state.message, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(8.dp))
+                    is Loadable.Failed -> Text(state.message, style = AbeonaType.body, color = bad.soft.content, modifier = Modifier.padding(12.dp))
                     is Loadable.Ready -> LazyColumn {
-                        if (state.value.isEmpty()) item { Text("No station by that name.", modifier = Modifier.padding(8.dp)) }
+                        if (state.value.isEmpty()) item { Text("No station by that name.", style = AbeonaType.body, modifier = Modifier.padding(12.dp)) }
                         items(state.value, key = { it.id }) { station ->
-                            ListItem(
-                                headlineContent = { Text(station.name) },
-                                supportingContent = station.country?.let { { Text(it) } },
-                                leadingContent = { Icon(Icons.Rounded.Place, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                                colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                                modifier = Modifier.clickable { onPick(station) },
-                            )
+                            Row(
+                                Modifier.fillMaxWidth().clickable { onPick(station) }.heightIn(min = 48.dp).padding(horizontal = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Icon(Icons.Rounded.Place, contentDescription = null, tint = muted, modifier = Modifier.size(20.dp))
+                                Text(station.name, style = AbeonaType.body, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                                station.country?.let { Text(it, style = AbeonaType.meta, color = muted) }
+                            }
+                            HorizontalDivider(color = hairline, modifier = Modifier.padding(start = 36.dp))
                         }
                     }
                 }
             }
-            Spacer(Modifier.width(1.dp).height(16.dp))
+            Spacer(Modifier.height(16.dp))
         }
     }
 }

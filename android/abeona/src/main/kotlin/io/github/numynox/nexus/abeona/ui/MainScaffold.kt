@@ -13,14 +13,18 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Route
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Train
 import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Route
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Train
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.NavigationRailItemDefaults
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -95,12 +99,12 @@ class Navigator(
 
 private data class TopLevel(val route: NavKey, val label: String, val icon: ImageVector, val selectedIcon: ImageVector)
 
-// Trips is home: the next ride first. Search plans a new one; Review is the
-// year in rails; Settings holds the household and BahnCards.
+// Trips is home: the next ride first. Plan finds and saves a new one; Year is
+// the year in review; Settings holds the household and BahnCards.
 private val TopLevels = listOf(
     TopLevel(TripsRoute, "Trips", Icons.Outlined.Train, Icons.Rounded.Train),
-    TopLevel(SearchRoute, "Search", Icons.Outlined.Search, Icons.Rounded.Search),
-    TopLevel(ReviewRoute, "Review", Icons.Outlined.AutoAwesome, Icons.Rounded.AutoAwesome),
+    TopLevel(SearchRoute, "Plan", Icons.Outlined.Route, Icons.Rounded.Route),
+    TopLevel(ReviewRoute, "Year", Icons.Outlined.AutoAwesome, Icons.Rounded.AutoAwesome),
     TopLevel(SettingsRoute, "Settings", Icons.Outlined.Settings, Icons.Rounded.Settings),
 )
 
@@ -152,6 +156,16 @@ fun MainScaffold(app: AppViewModel, openTrip: MutableStateFlow<String?>, incomin
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(app) { app.messages.collect { snackbar.showSnackbar(it) } }
 
+    // The active tab: a brand-soft pill, its icon and label in the brand's burgundy.
+    val scheme = MaterialTheme.colorScheme
+    val itemColors = NavigationSuiteDefaults.itemColors(
+        navigationBarItemColors = NavigationBarItemDefaults.colors(
+            indicatorColor = scheme.primaryContainer, selectedIconColor = scheme.primary, selectedTextColor = scheme.primary,
+        ),
+        navigationRailItemColors = NavigationRailItemDefaults.colors(
+            indicatorColor = scheme.primaryContainer, selectedIconColor = scheme.primary, selectedTextColor = scheme.primary,
+        ),
+    )
     Box(Modifier.fillMaxSize()) {
         NavigationSuiteScaffold(
             navigationSuiteItems = {
@@ -162,6 +176,7 @@ fun MainScaffold(app: AppViewModel, openTrip: MutableStateFlow<String?>, incomin
                         onClick = { open(item.route) },
                         icon = { Icon(if (selected) item.selectedIcon else item.icon, contentDescription = null) },
                         label = { Text(item.label) },
+                        colors = itemColors,
                     )
                 }
             },

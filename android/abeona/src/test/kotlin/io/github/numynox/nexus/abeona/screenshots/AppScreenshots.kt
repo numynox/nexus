@@ -94,7 +94,7 @@ class AppScreenshots {
 
         tap("Visit grandma in Bamberg")
         waitFor(hasContentDescription("More"))
-        waitForText("Live · updated", substring = true)
+        waitFor(hasContentDescription("Live · updated", substring = true))
         shot("03-trip-detail")
         // The source pill opens how Abeona knows; no signals here, so the timetable.
         tapIcon("How Abeona knows: Timetable")
@@ -141,19 +141,20 @@ class AppScreenshots {
         back()
         back()
 
-        tap("Search")
-        waitForText("Search connections")
+        tap("Plan")
+        waitForText("Search")
         shot("08-search")
-        tap("Choose a station")
+        // The empty station fields are labelled by their placeholders.
+        tap("From")
         type("Frank")
         waitForText("Frankfurt(Main)Süd")
         shot("09-station-sheet")
         tap("Frankfurt(Main)Hbf")
-        tap("Choose a station")
+        tap("To")
         type("Mün")
         waitForText("München Ost")
         tap("München Hbf")
-        tap("Search connections")
+        tap("Search")
         waitForText("ICE 599")
         shot("10-search-results")
         scrollTo("Later")
@@ -169,7 +170,7 @@ class AppScreenshots {
         shot("12-saved-trip")
         back()
 
-        tap("Review")
+        tap("Year")
         waitForText("38")
         shot("13-review-trips")
         tapIcon("Story 2")
@@ -194,12 +195,15 @@ class AppScreenshots {
 
         tap("Settings")
         waitForText("Time to the station")
+        // The household loads on its own; without this the shot can catch it half drawn.
+        waitForText("alex@example.com")
         shot("20-settings")
         scrollTo("Use location during a trip")
         shot("20b-settings-on-the-day")
         scrollTo("Remind me before a card renews")
         shot("21b-settings-bahncards")
-        tap("Show")
+        // Show and edit are icon buttons on the card's row.
+        tapIcon("Show Jannis")
         waitFor(hasContentDescription("BahnCard"))
         shot("21c-bahncard")
         back()

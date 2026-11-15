@@ -86,7 +86,7 @@ object LeaveReminder {
     fun build(context: Context, trip: Trip, title: String, text: String): Notification =
         NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
-            .setColor(ContextCompat.getColor(context, R.color.abeona_green))
+            .setColor(ContextCompat.getColor(context, R.color.abeona_burgundy))
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))

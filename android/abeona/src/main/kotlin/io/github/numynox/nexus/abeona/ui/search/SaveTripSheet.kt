@@ -2,21 +2,24 @@ package io.github.numynox.nexus.abeona.ui.search
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.HelpOutline
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -25,48 +28,55 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.numynox.nexus.abeona.data.FareType
 import io.github.numynox.nexus.abeona.data.Journey
 import io.github.numynox.nexus.abeona.data.SaveTripInput
 import io.github.numynox.nexus.abeona.domain.AppClock
 import io.github.numynox.nexus.abeona.domain.TicketNeeds
-import io.github.numynox.nexus.abeona.ui.common.TicketNeedsEditor
 import io.github.numynox.nexus.abeona.domain.intake.IntakeDraft
-import io.github.numynox.nexus.abeona.domain.intake.ParsedTicket
 import io.github.numynox.nexus.abeona.domain.intake.MatchStatus
+import io.github.numynox.nexus.abeona.domain.intake.ParsedTicket
 import io.github.numynox.nexus.abeona.domain.intake.directionLabel
 import io.github.numynox.nexus.abeona.domain.intake.matchSummary
-import androidx.compose.material3.Surface
-import io.github.numynox.nexus.abeona.ui.AbeonaColors
-import io.github.numynox.nexus.core.ui.components.ConnectedChoiceRow
-import io.github.numynox.nexus.core.ui.settings.SettingSwitch
+import io.github.numynox.nexus.abeona.ui.AbeonaType
+import io.github.numynox.nexus.abeona.ui.muted
+import io.github.numynox.nexus.abeona.ui.common.Banner
+import io.github.numynox.nexus.abeona.ui.common.ChoicePills
+import io.github.numynox.nexus.abeona.ui.common.FieldRow
+import io.github.numynox.nexus.abeona.ui.common.PrimaryButton
+import io.github.numynox.nexus.abeona.ui.common.Segmented
+import io.github.numynox.nexus.abeona.ui.common.StatusTone
+import io.github.numynox.nexus.abeona.ui.common.TicketNeedsEditor
+import io.github.numynox.nexus.abeona.ui.common.TripFormat
+import io.github.numynox.nexus.abeona.ui.common.WellField
 
 /** Cents as the price field shows them: "117.40". */
 internal fun euros(cents: Int): String = String.format(java.util.Locale.ROOT, "%d.%02d", cents / 100, cents % 100)
 
-/** What intake read, and how well the timetable knows it. */
+/**
+ * What intake read, and how well the timetable knows it: ok when every ride
+ * was found, watch (check it) when some are saved as printed.
+ */
 @Composable
 private fun IntakeBanner(draft: IntakeDraft, more: Int) {
     val full = draft.match.status == MatchStatus.Full
-    Surface(
-        color = if (full) MaterialTheme.colorScheme.secondaryContainer else AbeonaColors.Amber.copy(alpha = 0.22f),
-        shape = MaterialTheme.shapes.large,
-    ) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            val source = if (draft.parsed is ParsedTicket) "Read from your ticket" else "Read from DB Navigator"
-            Text(directionLabel(draft.parsed)?.let { "$source · $it" } ?: source, style = MaterialTheme.typography.titleSmall)
-            Text(matchSummary(draft.match), style = MaterialTheme.typography.bodyMedium)
-            if (more > 0) {
-                Text("The ticket is for both directions: the return comes next, with the same PDF.", style = MaterialTheme.typography.bodyMedium)
-            }
-            if (draft.ticket != null) {
-                Text("The PDF goes into the trip's ticket wallet.", style = MaterialTheme.typography.bodySmall)
-            }
-        }
-    }
+    val source = if (draft.parsed is ParsedTicket) "Read from your ticket" else "Read from DB Navigator"
+    Banner(
+        if (full) StatusTone.Ok else StatusTone.Watch,
+        if (full) Icons.Rounded.CheckCircle else Icons.AutoMirrored.Rounded.HelpOutline,
+        directionLabel(draft.parsed)?.let { "$source · $it" } ?: source,
+        text = listOfNotNull(
+            matchSummary(draft.match),
+            if (more > 0) "The ticket is for both directions: the return comes next, with the same PDF." else null,
+            if (draft.ticket != null) "The PDF goes into the trip's ticket wallet." else null,
+        ).joinToString(" "),
+    )
 }
 
 /** "117,40" or "117.40" as cents; null when empty or not a number. */
@@ -79,7 +89,6 @@ internal val FareType.takesDiscounts: Boolean get() = this != FareType.BahnCard1
 internal val Bindable = setOf(FareType.Flex, FareType.Saver, FareType.Other)
 
 /** Saving a connection as a trip: what the ticket is, so the app knows what applies. */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SaveTripSheet(
     journey: Journey,
@@ -112,40 +121,41 @@ fun SaveTripSheet(
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(
-            Modifier.padding(horizontal = 24.dp).navigationBarsPadding().imePadding().verticalScroll(rememberScrollState()),
+            Modifier.padding(horizontal = 16.dp).navigationBarsPadding().imePadding().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(if (past) "Save past trip" else "Save trip", style = MaterialTheme.typography.headlineSmall)
-            JourneyCard(journey, onClick = null)
+            // One header block: the day, the route, then times and facts in the same columns as the results.
+            Column(Modifier.padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                journey.legs.firstOrNull()?.from?.plannedAt?.let { Text(TripFormat.longDay(it), style = AbeonaType.meta, color = muted) }
+                Text("$origin → $destination", style = AbeonaType.title, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                JourneySummary(journey, Modifier.padding(top = 6.dp))
+            }
             intake?.let { IntakeBanner(it, more) }
             if (past) {
-                Surface(color = AbeonaColors.Amber.copy(alpha = 0.22f), shape = MaterialTheme.shapes.large) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("A past trip", style = MaterialTheme.typography.titleSmall)
-                        Text(
-                            "It is saved as it happened and not followed live. Say how late you arrived, if you were.",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        OutlinedTextField(
-                            value = delay,
-                            onValueChange = { delay = it.filter(Char::isDigit).take(4) },
-                            label = { Text("Arrived late by (optional)") },
-                            suffix = { Text("min") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            shape = MaterialTheme.shapes.medium,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
+                Banner(
+                    StatusTone.Quiet,
+                    Icons.Rounded.History,
+                    "A past trip",
+                    text = "It is saved as it happened and not followed live. Say how late you arrived, if you were.",
+                )
+                FieldRow("Arrived late by (optional)") {
+                    WellField(
+                        value = delay,
+                        onValueChange = { delay = it.filter(Char::isDigit).take(4) },
+                        placeholder = "0",
+                        description = "Arrived late by, minutes",
+                        suffix = "min",
+                        keyboard = KeyboardType.Number,
+                        textAlign = TextAlign.End,
+                        modifier = Modifier.width(112.dp),
+                    )
                 }
             }
-            OutlinedTextField(
+            WellField(
                 value = title,
                 onValueChange = { title = it },
-                label = { Text("Title (optional)") },
-                placeholder = { Text("$origin → $destination") },
-                singleLine = true,
-                shape = MaterialTheme.shapes.medium,
+                placeholder = "Title (optional), e.g. $origin → $destination",
+                description = "Title",
                 modifier = Modifier.fillMaxWidth(),
             )
             TicketFields(
@@ -166,9 +176,10 @@ fun SaveTripSheet(
                 price = price,
                 onPrice = { price = it },
             )
-            Row(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 16.dp), horizontalArrangement = Arrangement.End) {
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = onDismiss) { Text("Cancel") }
-                Button(
+                PrimaryButton(
+                    (if (past) "Save past trip" else "Save trip") + if (more > 0) " · then the return" else "",
                     onClick = {
                         saving = true
                         onSave(
@@ -186,8 +197,9 @@ fun SaveTripSheet(
                             ),
                         )
                     },
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                     enabled = !saving,
-                ) { Text((if (past) "Save past trip" else "Save trip") + if (more > 0) " · then the return" else "") }
+                )
             }
         }
     }
@@ -197,7 +209,6 @@ fun SaveTripSheet(
  * The ticket's facts, as the save sheet and the trip's "Edit trip" sheet ask
  * them: fare type, train binding, class, travellers and BahnCards, price.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun TicketFields(
     fare: FareType,
@@ -213,34 +224,17 @@ internal fun TicketFields(
     price: String,
     onPrice: (String) -> Unit,
 ) {
-    Text("Ticket", style = MaterialTheme.typography.labelLarge)
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        FareType.entries.forEach { option ->
-            FilterChip(
-                selected = option == fare,
-                onClick = { onFare(option) },
-                label = { Text(option.label) },
-            )
-        }
+    ChoicePills(FareType.entries, fare, onFare, { it.label })
+    FieldRow("Train binding", info = if (fare in Bindable) {
+        "Only valid on the booked trains. Abeona tells you when a delay of 20 minutes lifts it."
+    } else {
+        "${fare.label} tickets have no train binding."
+    }, toggle = binding && fare in Bindable, onToggle = onBinding, enabled = fare in Bindable) {
+        Switch(checked = binding && fare in Bindable, onCheckedChange = null, enabled = fare in Bindable)
     }
-    SettingSwitch(
-        title = "Train binding",
-        description = if (fare in Bindable) {
-            "Only valid on the booked trains. Abeona tells you when a delay of 20 minutes lifts it."
-        } else {
-            "${fare.label} tickets have no train binding."
-        },
-        checked = binding && fare in Bindable,
-        onCheckedChange = onBinding,
-        enabled = fare in Bindable,
-    )
-    ConnectedChoiceRow(
-        options = listOf(2, 1),
-        selected = travelClass,
-        onSelect = onTravelClass,
-        label = { if (it == 1) "1st class" else "2nd class" },
-        modifier = Modifier.fillMaxWidth(),
-    )
+    FieldRow("Class") {
+        Segmented(listOf(1, 2), travelClass, onTravelClass, { if (it == 1) "1st" else "2nd" }, description = "Class")
+    }
     TicketNeedsEditor(
         travellerCount = travellerCount,
         discounts = discounts,
@@ -248,14 +242,16 @@ internal fun TicketFields(
         onDiscounts = onDiscounts,
         showDiscounts = fare.takesDiscounts,
     )
-    OutlinedTextField(
-        value = price,
-        onValueChange = { onPrice(it.filter { c -> c.isDigit() || c == ',' || c == '.' }.take(8)) },
-        label = { Text("Price (optional)") },
-        suffix = { Text("€") },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-        shape = MaterialTheme.shapes.medium,
-        modifier = Modifier.fillMaxWidth(),
-    )
+    FieldRow("Price (optional)") {
+        WellField(
+            value = price,
+            onValueChange = { onPrice(it.filter { c -> c.isDigit() || c == ',' || c == '.' }.take(8)) },
+            placeholder = "0.00",
+            description = "Price in euros",
+            suffix = "€",
+            keyboard = KeyboardType.Decimal,
+            textAlign = TextAlign.End,
+            modifier = Modifier.width(132.dp),
+        )
+    }
 }

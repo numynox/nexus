@@ -20,7 +20,8 @@ const assetBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
 const siteTitle = getWebsiteTitle();
 const siteDescription = getWebsiteDescription();
 const { title = "", description = siteDescription, noindex = false } = Astro.props;
-const themeColor = "#1f6f5c";
+// The paper background, so the browser's bars continue the page.
+const themeColor = "#fbf7f2";
 const themeScript = themeBootstrapScript("abeona_theme", ABEONA_THEMES);
 ---
 

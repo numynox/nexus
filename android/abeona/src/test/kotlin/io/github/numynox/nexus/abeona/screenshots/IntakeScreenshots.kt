@@ -89,7 +89,7 @@ class IntakeScreenshots {
     fun ticketPdfWithBookingPrice() = with(robot) {
         FakeBackend.intakeTimetable = timetable("return: the whole journey")
         waitForText("Visit grandma in Bamberg")
-        tap("Search")
+        tap("Plan")
         waitForText("Add from a ticket or share")
         tap("Add from a ticket or share")
         waitForText("Share text from DB Navigator")

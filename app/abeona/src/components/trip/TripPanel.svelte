@@ -1,9 +1,12 @@
 <script lang="ts">
   import {
     ArrowLeft,
+    ArrowRightLeft,
     CalendarClock,
     CalendarX2,
-    CreditCard,
+    CircleCheck,
+    Clock,
+    CloudOff,
     EllipsisVertical,
     ExternalLink,
     Pencil,
@@ -12,7 +15,6 @@
     Shuffle,
     Ticket,
     Trash2,
-    User,
   } from "lucide-svelte";
   import { onMount } from "svelte";
   import { getBaseUrl } from "../../lib/config";
@@ -26,39 +28,31 @@
     refreshTripLive,
     type Trip,
   } from "../../lib/data";
-  import {
-    bahnCardName,
-    bahnCardsShort,
-    fareLabel,
-    formatLongDate,
-    formatPrice,
-    formatTime,
-    legLabel,
-    ticketNeedsLabel,
-  } from "../../lib/format";
+  import { bahnCardName, formatDuration, formatLongDate, formatTime, legLabel } from "../../lib/format";
   import { dbNavigatorUrl, hasArrived, isLiveWindow, LIVE_REFRESH_MS, summarise } from "../../lib/journey";
   import { FRESH_MS, type Fix, type LocationState, watchPosition } from "../../lib/position";
   import { getStationMinutes, getTripLocation, setTripLocation } from "../../lib/storage";
-  import { hasImpossibleChange, trainBindingLifted, transfers } from "../../lib/transfer";
+  import { hasImpossibleChange, trainBindingLifted } from "../../lib/transfer";
   import { takeConnection, tripFollowedLegs } from "../../lib/followed";
   import type { Leg } from "../../lib/transit";
-  import { type AlternativesOrigin, alternativesOrigin, alternativesReason, missedShortConnection, travelDay } from "../../lib/travelday";
+  import { type AlternativesOrigin, alternativesOrigin, alternativesReason, missedShortConnection, type TravelDay, travelDay } from "../../lib/travelday";
   import { cardsForTrip } from "../../lib/ticketNeeds";
+  import Banner from "../common/Banner.svelte";
   import BindingBanner from "../common/BindingBanner.svelte";
+  import ConfidenceChip from "../common/ConfidenceChip.svelte";
+  import EmptyState from "../common/EmptyState.svelte";
+  import Fact from "../common/Fact.svelte";
   import LiveDashboard from "../live/LiveDashboard.svelte";
   import ShiftedTime from "../common/ShiftedTime.svelte";
   import AlternativesSection from "./AlternativesSection.svelte";
   import CompensationCard from "./CompensationCard.svelte";
   import DisruptionCard from "./DisruptionCard.svelte";
-  import Illustration from "../common/Illustration.svelte";
-  import LegCard from "./LegCard.svelte";
   import EditTripSheet from "./EditTripSheet.svelte";
   import ShareSheet from "./ShareSheet.svelte";
   import TicketCard from "./TicketCard.svelte";
   import TicketViewer from "./TicketViewer.svelte";
-  import TransferRow from "./TransferRow.svelte";
+  import Timeline from "./Timeline.svelte";
   import TripMap from "./TripMap.svelte";
-  import WalkRow from "./WalkRow.svelte";
 
   const base = getBaseUrl();
 
@@ -90,15 +84,26 @@
   const shown = $derived(trip ? { ...trip, legs } : null);
   const following = $derived(!!trip && trip.missed_leg_idx !== null && (trip.replacement_legs?.length ?? 0) > 0);
   const s = $derived(legs.length > 0 ? summarise(legs) : null);
-  const transferByTarget = $derived(new Map(transfers(legs).map((t) => [t.toIndex, t])));
-  const firstRideIndex = $derived(legs.findIndex((l) => l.mode !== "walk"));
-  const lastRideIndex = $derived(legs.findLastIndex((l) => l.mode !== "walk"));
   const navigatorUrl = $derived(dbNavigatorUrl(legs, trip?.travel_class ?? 2));
   const arrived = $derived(legs.length > 0 && hasArrived(legs));
   // The travel day only while the trip is live: from a day before it leaves
   // until shortly after it arrives.
   const live = $derived(legs.length > 0 && isLiveWindow(legs, now));
   const day = $derived(live ? travelDay(legs, now, stationMinutes, { position }) : null);
+  /** After the live window the arrived card stays: where, when, the delay. The same card as the travel day's last state. */
+  const ARRIVED: TravelDay = {
+    kind: "arrived",
+    legIndex: null,
+    fromLegIndex: null,
+    leaveAt: null,
+    minutesToLeave: null,
+    minutesToDeparture: null,
+    minutesToArrival: null,
+    cancelled: false,
+    missedChange: false,
+    source: "time",
+  };
+  const cardDay = $derived(day ?? (arrived ? ARRIVED : null));
   // The ticket's binding is about the booked journey (as on the server), not a connection taken instead.
   const planDelay = $derived(trip && trip.legs.length > 0 ? summarise(trip.legs).arrivalDelay : 0);
   const missedShort = $derived(day ? missedShortConnection(legs, day) : false);
@@ -134,14 +139,18 @@
   const origin = $derived(day ? alternativesOrigin(legs, day, now) : null);
   /** The travel day is on: the live card holds everything live, the header only what does not change. */
   const liveCard = $derived(!!day && !arrived);
-  /** How fresh the live values are: the live card's last line, or a line under the header. */
-  const status = $derived.by((): { text: string; offline?: boolean } | null => {
+  /** How fresh the live values are: an icon and a time, the last and smallest line of the card or the page. */
+  const status = $derived.by((): { text: string; label: string; kind: "live" | "timetable" | "offline" | "done" } | null => {
     if (!trip || !s) return null;
-    if (arrived) return { text: `Arrived${trip.finalized_at ? " · final times recorded" : ""}` };
-    if (liveCard && refreshError) return { text: "Live data unavailable", offline: true };
-    if (s.hasRealtime && trip.refreshed_at) return { text: `Live · updated ${formatTime(trip.refreshed_at)}` };
+    if (arrived) return trip.finalized_at ? { text: "Final times", label: "Arrived, final times recorded", kind: "done" } : null;
+    if (liveCard && refreshError) return { text: "Live data unavailable", label: "Offline", kind: "offline" };
+    if (s.hasRealtime && trip.refreshed_at) return { text: formatTime(trip.refreshed_at), label: "Live, updated", kind: "live" };
     if (trip.refreshed_at) {
-      return { text: `Timetable as of ${formatTime(trip.refreshed_at)}, ${new Date(trip.refreshed_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` };
+      return {
+        text: `${formatTime(trip.refreshed_at)}, ${new Date(trip.refreshed_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`,
+        label: "Timetable as of",
+        kind: "timetable",
+      };
     }
     return null;
   });
@@ -186,17 +195,6 @@
     void loadTicketCards(fresh);
     void compensationCard?.reload();
   }
-
-  /** How many travellers the ticket is for and its BahnCards, small: "2", "BC25 · BC50"; null when nothing is known. */
-  const ticketNeeds = $derived(
-    trip && (trip.traveller_count !== null || trip.bahncard_discounts.length > 0)
-      ? {
-          count: trip.traveller_count,
-          cards: bahnCardsShort(trip.bahncard_discounts),
-          label: ticketNeedsLabel(trip.traveller_count, trip.bahncard_discounts),
-        }
-      : null,
-  );
 
   async function refresh() {
     if (!trip || refreshing) return;
@@ -353,27 +351,13 @@
   });
 </script>
 
-{#snippet needs(tone: string)}
-  {#if ticketNeeds}
-    <!-- Small on purpose: what the ticket was booked for, not something to act on. -->
-    <span class="inline-flex items-center gap-2 normal-case tracking-normal {tone}" role="img" aria-label={ticketNeeds.label} title={ticketNeeds.label}>
-      {#if ticketNeeds.count !== null}
-        <span class="inline-flex items-center gap-0.5"><User class="h-3.5 w-3.5" />{ticketNeeds.count}</span>
-      {/if}
-      {#if ticketNeeds.cards}
-        <span class="inline-flex items-center gap-1"><CreditCard class="h-3.5 w-3.5" />{ticketNeeds.cards}</span>
-      {/if}
-    </span>
-  {/if}
-{/snippet}
-
 {#snippet tripNotices()}
   {#if trip}
-  <div class="space-y-3">
-    {#if liveCard && refreshError}
-      <p class="rounded-2xl bg-error/10 px-4 py-3 text-sm text-error" role="alert">Could not update live times: {refreshError}</p>
+  <div class="space-y-2">
+    {#if refreshError}
+      <Banner tone="bad" icon={CloudOff} title="Could not update live times">{refreshError}</Banner>
     {/if}
-    <!-- A dropped ride says the binding is lifted in its own card. -->
+    <!-- A dropped ride says the binding is lifted in its own banner. -->
     {#if bindingLifted && !arrived && !dropped}
       <BindingBanner
         delay={planDelay}
@@ -382,156 +366,92 @@
     {/if}
 
     {#if dropped && !arrived && !following}
-      <div class="flex items-start gap-3 rounded-2xl bg-error/10 px-4 py-3 text-error" role="alert">
-        <CalendarX2 class="mt-0.5 h-5 w-5 shrink-0" />
-        <div class="min-w-0 flex-1 text-sm leading-snug">
-          <p class="font-semibold">{legLabel(dropped)} is no longer in the timetable</p>
-          {#if bindingLifted}<p class="opacity-80">Train binding lifted.</p>{/if}
-        </div>
-      </div>
+      <Banner tone="bad" icon={CalendarX2} title={`${legLabel(dropped)} is no longer in the timetable`}>
+        {#if bindingLifted}Train binding lifted.{/if}
+        {#snippet action()}
+          {#if droppedOrigin}
+            <button class="btn btn-sm rounded-full border-none bg-bad text-bad-content" onclick={() => alternativesSection?.reveal()}>
+              <Shuffle class="h-4 w-4" aria-hidden="true" /> Find another connection
+            </button>
+          {/if}
+        {/snippet}
+      </Banner>
     {/if}
 
     {#if following && !arrived && trip.replacement_legs && adjusted}
-      <div class="flex items-start gap-3 rounded-2xl bg-secondary px-4 py-3 text-secondary-content">
-        <CalendarClock class="mt-0.5 h-5 w-5 shrink-0" />
-        <div class="min-w-0 flex-1 text-sm leading-snug">
-          <p class="font-semibold">{legLabel(dropped!)} is no longer in the timetable</p>
-          <p class="opacity-80">
-            Now: {trip.replacement_legs.filter((l) => l.mode !== "walk").map((l) => `${legLabel(l)} ${formatTime(l.from.planned)} ${l.from.name}`).join(" › ")}
-          </p>
-        </div>
-      </div>
+      <Banner tone="watch" icon={CalendarClock} title={`${legLabel(dropped!)} is no longer in the timetable`}>
+        Now: {trip.replacement_legs.filter((l) => l.mode !== "walk").map((l) => `${legLabel(l)} ${formatTime(l.from.planned)} ${l.from.name}`).join(" › ")}
+      </Banner>
     {:else if following && !arrived && trip.replacement_legs}
       {@const first = trip.replacement_legs.find((l) => l.mode !== "walk") ?? trip.replacement_legs[0]}
-      <div class="flex flex-wrap items-center gap-3 rounded-2xl bg-secondary px-4 py-3 text-secondary-content">
-        <Shuffle class="h-5 w-5 shrink-0" />
-        <div class="min-w-0 flex-1 text-sm leading-snug">
-          <p class="font-semibold">You follow another connection</p>
-          <p class="opacity-80">
-            From {first.from.name}: {trip.replacement_legs.filter((l) => l.mode !== "walk").map((l) => legLabel(l)).join(" › ")}. The page follows these trains.
-          </p>
-        </div>
-        <button class="btn btn-ghost btn-sm rounded-full" onclick={followPlan} disabled={busyTaking}>Back to the plan</button>
-      </div>
+      <Banner tone="ok" icon={Shuffle} title="You follow another connection">
+        From {first.from.name}: {trip.replacement_legs.filter((l) => l.mode !== "walk").map((l) => legLabel(l)).join(" › ")}.
+        {#snippet action()}
+          <button class="btn btn-ghost btn-sm rounded-full" onclick={followPlan} disabled={busyTaking}>Back to the plan</button>
+        {/snippet}
+      </Banner>
     {/if}
   </div>
   {/if}
 {/snippet}
 
 {#if loading}
-  <div class="space-y-4" aria-busy="true">
-    <div class="h-44 animate-pulse rounded-[2rem] bg-mint"></div>
-    <div class="h-56 animate-pulse rounded-3xl bg-base-200"></div>
-    <div class="h-56 animate-pulse rounded-3xl bg-base-200"></div>
+  <div class="space-y-3" aria-busy="true">
+    <div class="h-10 animate-pulse rounded-full bg-well"></div>
+    <div class="h-56 animate-pulse rounded-3xl bg-brand-soft"></div>
+    <div class="h-56 animate-pulse rounded-3xl bg-well"></div>
   </div>
 {:else if !trip || !s}
-  <div class="mx-auto max-w-md pt-10 text-center">
-    <Illustration name="station" class="mx-auto w-72" />
-    <p class="mt-6 font-semibold text-ink">{error || "Trip not found"}</p>
-    <a href={`${base}/`} class="btn btn-primary mt-6 rounded-full px-6">Back to trips</a>
+  <div class="mx-auto max-w-md pt-6">
+    <EmptyState title={error || "Trip not found"} state="stopped">
+      <a href={`${base}/`} class="btn btn-primary rounded-full px-6">Back to trips</a>
+    </EmptyState>
   </div>
 {:else}
-  <div class="space-y-6">
-    <!-- The trip's actions: the ticket one tap away, the rest under ⋮. -->
-    <div class="flex items-center gap-1">
-      <a href={`${base}/`} class="mr-auto inline-flex items-center gap-1.5 text-sm font-medium text-base-content/60 hover:text-primary">
-        <ArrowLeft class="h-4 w-4" /> Trips
-      </a>
+  {@const route = `${trip.origin_name} → ${trip.destination_name}`}
+  <div class="space-y-3">
+    <!-- The top bar: the trip's name, the ticket one tap away, refresh, the rest under ⋮. -->
+    <div class="flex min-h-12 items-center gap-1">
+      <a href={`${base}/`} class="btn btn-ghost btn-circle btn-sm -ml-1" aria-label="Trips" title="Trips"><ArrowLeft class="h-5 w-5" aria-hidden="true" /></a>
+      <div class="min-w-0 flex-1">
+        <h1 class="t-title truncate text-ink">{trip.title ?? route}</h1>
+        <p class="t-meta truncate">{formatLongDate(trip.planned_departure)}{trip.title ? ` · ${route}` : ""}</p>
+      </div>
       <button class="btn btn-ghost btn-circle btn-sm" onclick={openTicket} aria-label={trip.ticket_path ? "Show ticket" : "Add ticket"} title={trip.ticket_path ? "Show ticket" : "Add ticket"}>
-        <Ticket class="h-5 w-5" />
+        <Ticket class="h-6 w-6 {trip.ticket_path ? 'text-brand' : ''}" aria-hidden="true" />
       </button>
       <button class="btn btn-ghost btn-circle btn-sm" onclick={refresh} disabled={refreshing} aria-label="Refresh" title="Refresh">
-        <RefreshCw class="h-5 w-5 {refreshing ? 'animate-spin' : ''}" />
+        <RefreshCw class="h-6 w-6 {refreshing ? 'animate-spin' : ''}" aria-hidden="true" />
       </button>
       <details class="dropdown dropdown-end" bind:this={menu}>
-        <summary class="btn btn-ghost btn-circle btn-sm" aria-label="More"><EllipsisVertical class="h-5 w-5" /></summary>
+        <summary class="btn btn-ghost btn-circle btn-sm" aria-label="More"><EllipsisVertical class="h-6 w-6" aria-hidden="true" /></summary>
         <ul class="menu dropdown-content z-20 mt-2 w-56 rounded-2xl bg-card p-2 shadow-card">
           <li>
-            <a href={navigatorUrl} target="_blank" rel="noopener" onclick={closeMenu}><ExternalLink class="h-4 w-4" /> Open DB Navigator</a>
+            <a href={navigatorUrl} target="_blank" rel="noopener" onclick={closeMenu}><ExternalLink class="h-4 w-4" aria-hidden="true" /> Open DB Navigator</a>
           </li>
           <li>
-            <button onclick={() => { closeMenu(); editing = true; }}><Pencil class="h-4 w-4" /> Edit trip</button>
+            <button onclick={() => { closeMenu(); editing = true; }}><Pencil class="h-4 w-4" aria-hidden="true" /> Edit trip</button>
           </li>
           <li>
-            <button onclick={() => { closeMenu(); sharing = true; }}><Share2 class="h-4 w-4" /> Share</button>
+            <button onclick={() => { closeMenu(); sharing = true; }}><Share2 class="h-4 w-4" aria-hidden="true" /> Share</button>
           </li>
           {#if day && origin && !arrived}
             <li>
-              <button onclick={() => { closeMenu(); alternativesSection?.reveal(); }}><Shuffle class="h-4 w-4" /> Alternatives</button>
+              <button onclick={() => { closeMenu(); alternativesSection?.reveal(); }}><Shuffle class="h-4 w-4" aria-hidden="true" /> Alternatives</button>
             </li>
           {/if}
           <li>
-            <button class="text-error" onclick={() => { closeMenu(); confirmDialog?.showModal(); }}><Trash2 class="h-4 w-4" /> Delete trip</button>
+            <button class="text-bad-ink" onclick={() => { closeMenu(); confirmDialog?.showModal(); }}><Trash2 class="h-4 w-4" aria-hidden="true" /> Delete trip</button>
           </li>
         </ul>
       </details>
     </div>
 
-    {#if liveCard}
-      <!-- While the trip is live, everything live is in the one card below; here only what does not change. -->
-      <header class="px-1">
-        <p class="flex flex-wrap items-center gap-x-1 text-xs font-semibold uppercase tracking-[0.12em] text-primary">
-          <span>{formatLongDate(trip.planned_departure)}{trip.price_cents !== null ? ` · ${formatPrice(trip.price_cents)}` : ""}</span>
-          {#if ticketNeeds}
-            <span aria-hidden="true">·</span>
-            {@render needs("text-primary/70")}
-          {/if}
-        </p>
-        <h1 class="mt-2 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
-          {trip.title ?? `${trip.origin_name} → ${trip.destination_name}`}
-        </h1>
-        {#if trip.title}
-          <p class="mt-1 text-base-content/70">{trip.origin_name} → {trip.destination_name}</p>
-        {/if}
-      </header>
-    {:else}
-      <header class="rounded-[2rem] bg-mint p-6 sm:p-8">
-        <p class="text-xs font-semibold uppercase tracking-[0.12em] text-primary">{formatLongDate(trip.planned_departure)}</p>
-        <!-- Start and destination once: on the board below, with their times. -->
-        {#if trip.title}
-          <h1 class="mt-2 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">{trip.title}</h1>
-        {:else}
-          <h1 class="sr-only">{trip.origin_name} → {trip.destination_name}</h1>
-        {/if}
-        <div class="mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3">
-          <div class="min-w-0">
-            <ShiftedTime planned={s.departure.planned} current={s.departure.current} cancelled={s.cancelled} class="text-3xl font-semibold tracking-tight text-ink sm:text-4xl" />
-            <p class="mt-1 text-sm font-medium leading-snug text-ink/80">{trip.origin_name}</p>
-          </div>
-          <span class="pt-2 text-xl text-base-content/40" aria-hidden="true">→</span>
-          <div class="flex min-w-0 flex-col items-end text-right">
-            <ShiftedTime planned={s.arrival.planned} current={s.arrival.current} class="text-3xl font-semibold tracking-tight text-ink sm:text-4xl" />
-            <p class="mt-1 text-sm font-medium leading-snug text-ink/80">{trip.destination_name}</p>
-          </div>
-        </div>
-
-        <div class="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
-          <span class="rounded-full bg-card px-3 py-1 text-ink">{fareLabel(trip.fare_type)}</span>
-          <span class="rounded-full bg-card px-3 py-1 text-ink">{trip.travel_class === 1 ? "1st" : "2nd"} class</span>
-          {#if trip.price_cents !== null}
-            <span class="tabular rounded-full bg-card px-3 py-1 text-ink">{formatPrice(trip.price_cents)}</span>
-          {/if}
-          {#if trip.train_binding}
-            <span class="rounded-full bg-card px-3 py-1 text-ink">Train-bound</span>
-          {/if}
-          {#if ticketNeeds}
-            <span class="rounded-full bg-card/60 px-3 py-1">{@render needs("text-ink/70")}</span>
-          {/if}
-        </div>
-      </header>
-
-      {#if status}
-        <p class="flex items-center gap-1.5 px-1 text-sm text-base-content/60">{status.text}</p>
-      {/if}
-      {#if refreshError}
-        <p class="rounded-2xl bg-error/10 px-4 py-3 text-sm text-error" role="alert">Could not update live times: {refreshError}</p>
-      {/if}
-    {/if}
-
-    {#if day}
+    {#if cardDay}
+      <!-- The travel day, and afterwards the arrival: everything live is in the one card. -->
       <LiveDashboard
         trip={shown ?? trip}
-        {day}
+        day={cardDay}
         {now}
         {stationMinutes}
         {reason}
@@ -541,10 +461,25 @@
         settingsHref={`${base}/settings#device`}
         onAlternatives={() => alternativesSection?.reveal()}
         {status}
-        notices={anyNotice ? tripNotices : undefined}
+        notices={anyNotice || refreshError ? tripNotices : undefined}
       />
-    {:else if anyNotice}
-      {@render tripNotices()}
+    {:else}
+      <!-- Before the travel day: when it leaves and arrives, and how the trip is made up. -->
+      <header class="space-y-2 px-1">
+        <p class="flex items-center gap-2">
+          <ShiftedTime planned={s.departure.planned} current={s.departure.current} cancelled={s.cancelled} class="t-time text-ink" />
+          <span class="t-time text-muted" aria-label="to">→</span>
+          <ShiftedTime planned={s.arrival.planned} current={s.arrival.current} class="t-time text-ink" />
+        </p>
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <Fact icon={Clock} label="Duration" value={formatDuration(s.plannedMinutes)} />
+          <Fact icon={ArrowRightLeft} label={s.changes === 0 ? "Direct, changes" : "Changes"} value={s.changes} />
+          {#if s.confidence && s.changes > 0}<ConfidenceChip confidence={s.confidence} />{/if}
+        </div>
+      </header>
+      {#if anyNotice || refreshError}
+        {@render tripNotices()}
+      {/if}
     {/if}
 
     {#if droppedOrigin}
@@ -570,7 +505,7 @@
 
     {#if arrived}
       <!-- After the ride: what it is worth, and what really happened. -->
-      <div class="grid gap-6 lg:grid-cols-2 lg:items-start">
+      <div class="grid gap-3 lg:grid-cols-2 lg:items-start">
         <CompensationCard bind:this={compensationCard} {trip} onTripChanged={(changed) => (trip = changed)} />
         <DisruptionCard
           {trip}
@@ -582,24 +517,10 @@
       </div>
     {/if}
 
-    <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
-      <section aria-label="Journey" class="space-y-1">
-        {#each legs as leg, i (i)}
-          {#if leg.mode === "walk"}
-            {#if i < firstRideIndex || i > lastRideIndex}
-              <WalkRow {leg} />
-            {/if}
-          {:else}
-            {@const transfer = transferByTarget.get(i)}
-            {#if transfer}
-              <TransferRow {transfer} arriving={legs[transfer.fromIndex]} departing={leg} />
-            {/if}
-            <LegCard {leg} />
-          {/if}
-        {/each}
-      </section>
+    <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+      <Timeline {legs} />
 
-      <aside class="space-y-4 lg:sticky lg:top-6">
+      <aside class="space-y-3 lg:sticky lg:top-6">
         {#if !day || arrived}
           <!-- While the trip is live the dashboard has the map, with you on it. -->
           <TripMap {legs} />
@@ -612,6 +533,11 @@
         />
       </aside>
     </div>
+
+    {#if status && !cardDay}
+      <!-- How fresh it all is: the last, smallest line. -->
+      <Fact icon={status.kind === "timetable" ? Clock : status.kind === "done" ? CircleCheck : RefreshCw} label={status.label} value={status.text} class="px-1" />
+    {/if}
   </div>
 
   {#if showTicket && trip.ticket_path}
@@ -628,14 +554,14 @@
   <ShareSheet {trip} open={sharing} onClose={() => (sharing = false)} />
 
   <dialog bind:this={confirmDialog} class="modal modal-bottom sm:modal-middle">
-    <div class="modal-box rounded-t-[2rem] sm:rounded-[2rem]">
-      <h3 class="text-lg font-semibold text-ink">Delete this trip?</h3>
-      <p class="mt-2 text-sm text-base-content/70">
+    <div class="modal-box rounded-t-3xl bg-card sm:rounded-3xl">
+      <h3 class="t-title text-ink">Delete this trip?</h3>
+      <p class="t-body mt-2 text-muted">
         It disappears for everyone in your household, together with its ticket and its place in the statistics.
       </p>
       <div class="modal-action">
         <form method="dialog"><button class="btn btn-ghost rounded-full">Keep it</button></form>
-        <button class="btn btn-error rounded-full" onclick={remove} disabled={deleting}>
+        <button class="btn rounded-full border-none bg-bad text-bad-content" onclick={remove} disabled={deleting}>
           {#if deleting}<span class="loading loading-spinner loading-sm"></span>{/if}
           Delete
         </button>

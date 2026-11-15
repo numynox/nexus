@@ -82,37 +82,37 @@
 
 <dialog bind:this={dialog} class="modal modal-bottom sm:modal-middle" onclose={onClose}>
   {#if trip}
-    <form class="modal-box max-w-lg rounded-t-[2rem] bg-base-100 p-0 sm:rounded-[2rem]" onsubmit={save}>
-      <div class="flex items-start justify-between gap-3 bg-mint px-6 pt-6 pb-5">
+    <form class="modal-box max-w-lg rounded-t-3xl bg-base-100 p-0 sm:rounded-3xl" onsubmit={save}>
+      <div class="flex items-start justify-between gap-3 px-4 pt-4">
         <div class="min-w-0">
-          <p class="truncate text-xs font-semibold uppercase tracking-[0.12em] text-primary">{trip.origin_name} → {trip.destination_name}</p>
-          <h2 class="mt-1 text-xl font-semibold text-ink">Edit trip</h2>
+          <p class="t-meta truncate">{trip.origin_name} → {trip.destination_name}</p>
+          <h2 class="t-title text-ink">Edit trip</h2>
         </div>
         <button type="button" class="btn btn-circle btn-ghost btn-sm" aria-label="Close" onclick={() => dialog?.close()}>
-          <X class="h-4 w-4" />
+          <X class="h-5 w-5" aria-hidden="true" />
         </button>
       </div>
 
-      <div class="space-y-5 px-6 py-6">
+      <div class="space-y-4 p-4">
         <label class="block">
-          <span class="block px-1 pb-1 text-xs font-semibold uppercase tracking-wider text-base-content/55">Title <span class="normal-case font-normal tracking-normal">(optional)</span></span>
-          <input class="input w-full rounded-2xl bg-card" placeholder={`${trip.origin_name} → ${trip.destination_name}`} bind:value={title} maxlength="80" />
+          <span class="t-meta block px-1 pb-1">Title (optional)</span>
+          <input class="input w-full rounded-2xl border-line bg-well" placeholder={`${trip.origin_name} → ${trip.destination_name}`} bind:value={title} maxlength="80" />
         </label>
 
         <!-- The binding was chosen once already: a new fare leaves it as it is. -->
         <TicketFields bind:fareType bind:trainBinding bindingTouched={true} bind:travelClass bind:price />
 
         <fieldset>
-          <legend class="px-1 pb-2 text-xs font-semibold uppercase tracking-wider text-base-content/55">Travellers &amp; BahnCards</legend>
+          <legend class="t-meta px-1 pb-2">Travellers &amp; BahnCards</legend>
           <TicketNeedsEditor bind:travellerCount bind:discounts {showDiscounts} disabled={saving} />
         </fieldset>
 
         {#if error}
-          <p class="rounded-2xl bg-error/10 px-4 py-3 text-sm text-error" role="alert">{error}</p>
+          <p class="t-meta rounded-2xl bg-bad-soft px-4 py-3 text-bad-ink" role="alert">{error}</p>
         {/if}
       </div>
 
-      <div class="flex gap-3 px-6 pb-6">
+      <div class="flex gap-3 px-4 pb-4">
         <button type="button" class="btn btn-ghost flex-1 rounded-full" onclick={() => dialog?.close()}>Cancel</button>
         <button type="submit" class="btn btn-primary flex-[2] rounded-full" disabled={saving}>
           {#if saving}<span class="loading loading-spinner loading-sm"></span>{/if}

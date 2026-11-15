@@ -26,6 +26,10 @@ CI/CD. Link to them rather than restating them — duplicated documentation drif
 
 Start with `.agents/brain/architecture.md` for anything structural and
 `.agents/brain/glossary.md` before naming anything user-facing.
+Any Abeona screen, colour, icon or label follows
+`.agents/brain/abeona-design.md` (why:
+`.agents/brain/decisions/2026-11-15-abeona-design-system.md`); change a rule
+there rather than working around it on a screen.
 
 ## Environment
 
