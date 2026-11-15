@@ -11,7 +11,7 @@
 export type SceneState = "idle" | "parked" | "waiting" | "riding" | "stopped" | "arrived";
 export type SceneSize = "strip" | "header" | "full";
 
-export const SCENE_HEIGHT: Record<SceneSize, number> = { strip: 56, header: 96, full: 200 };
+export const SCENE_HEIGHT: Record<SceneSize, number> = { strip: 64, header: 96, full: 200 };
 /** How much larger than the strip's the train is drawn. */
 export const TRAIN_SCALE: Record<SceneSize, number> = { strip: 1, header: 1.5, full: 1.9 };
 
@@ -20,6 +20,16 @@ export const LAND_SCALE: Record<SceneSize, number> = { strip: 1, header: 1.35, f
 
 /** The top of the rail above the bottom edge. */
 export const RAIL = 12;
+/**
+ * The ride's progress bar in the strip: a thick bar in the ground under the
+ * track, so the train rides above it and never hides it. The ground is this
+ * deep then; the bar's centre is BAR_UP above the bottom edge.
+ */
+export const RAIL_WITH_BAR = 20;
+export const BAR_UP = 8;
+export const BAR = 6;
+export const BAR_DOT = 4.6;
+export const BAR_DOT_END = 6;
 /**
  * The strip's rail keeps this much clear at its ends. The train's nose marks
  * where the ride is and its cars trail behind, so the start needs room for

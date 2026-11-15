@@ -17,7 +17,12 @@
     moonPhase,
     moonPhaseName,
     PARALLAX,
+    BAR,
+    BAR_DOT,
+    BAR_DOT_END,
+    BAR_UP,
     RAIL,
+    RAIL_WITH_BAR,
     railX,
     SCENE_HEIGHT,
     scenePalette,
@@ -85,7 +90,9 @@
   const colours = $derived(scenePalette(dark, sky.light));
   const rail = $derived(stops != null && stops.length > 1 && size === "strip");
   const scale = $derived(TRAIN_SCALE[size]);
-  const railY = $derived(height - RAIL);
+  const ground = $derived(rail ? RAIL_WITH_BAR : RAIL);
+  const railY = $derived(height - ground);
+  const barY = $derived(height - BAR_UP);
   const hasTrain = $derived(sceneState !== "idle" && !(sceneState === "stopped" && !rail));
   const atPlatform = $derived(!rail && (sceneState === "parked" || sceneState === "waiting" || sceneState === "arrived"));
   /** Where the train's nose is: on the rail where the ride is, else a little past the middle, its cars running off to the left. */
@@ -254,7 +261,7 @@
     </defs>
 
     <rect width={width} height={height} fill="url(#{uid}-sky)" />
-    {#if sky.glow > 0}<rect width={width} height={height - RAIL} fill="url(#{uid}-glow)" />{/if}
+    {#if sky.glow > 0}<rect width={width} height={railY} fill="url(#{uid}-glow)" />{/if}
 
     {#if sky.light < 0.6}
       <g fill={colours.star} opacity={1 - sky.light / 0.6}>
@@ -316,14 +323,14 @@
     </g>
 
     <!-- The ground, the masts and their wire, the sleepers. -->
-    <rect x="0" y={railY} width={width} height={RAIL} fill={colours.ground} />
+    <rect x="0" y={railY} width={width} height={ground} fill={colours.ground} />
     <g transform="translate({-mod(travel * PARALLAX.track, MAST_EVERY)} 0)" stroke={colours.mast} stroke-width="1" fill="none" opacity="0.7">
       {#each { length: Math.ceil(width / MAST_EVERY) + 2 } as _, m (m)}
         <path d="M{m * MAST_EVERY + 20} {railY} v-{26 * Math.min(scale, 1.6)} h7" />
       {/each}
     </g>
     <line x1="0" x2={width} y1={railY - 24 * Math.min(scale, 1.6)} y2={railY - 24 * Math.min(scale, 1.6)} stroke={colours.mast} stroke-width="0.6" opacity="0.6" />
-    <g transform="translate({-mod(travel * PARALLAX.track, SLEEPER_EVERY)} 0)" fill={colours.rail} opacity="0.3">
+    <g transform="translate({-mod(travel * PARALLAX.track, SLEEPER_EVERY)} 0)" fill={colours.rail} opacity={rail ? 0 : 0.3}>
       {#each { length: Math.ceil(width / SLEEPER_EVERY) + 2 } as _, s (s)}
         <rect x={s * SLEEPER_EVERY} y={railY + 3} width="6" height="2" rx="1" />
       {/each}
@@ -352,23 +359,23 @@
       <circle cx={x} cy={railY - (sceneState === "stopped" ? 23 : 18) * scale} r={1.9 * scale} fill={sceneState === "stopped" ? "#ff5a4a" : "#57d39a"} />
     {/if}
 
-    <!-- The rail: on the travel day it carries the ride's stops. -->
-    <line x1="0" x2={width} y1={railY} y2={railY} stroke={colours.rail} stroke-width="2" opacity={rail ? 0.35 : 0.85} />
+    <line x1="0" x2={width} y1={railY} y2={railY} stroke={colours.rail} stroke-width="2" opacity="0.85" />
     {#if rail && stops}
-      <line x1={railX(0, width)} x2={railX(1, width)} y1={railY} y2={railY} stroke={colours.rail} stroke-width="3" stroke-linecap="round" opacity="0.55" />
-      {#if fraction > 0}
-        <line x1={railX(0, width)} x2={railX(fraction, width)} y1={railY} y2={railY} stroke={colours.accent} stroke-width="3" stroke-linecap="round" />
+      <!-- The ride's progress: a bar under the track with a dot per stop, the done part orange up to the train's nose. -->
+      <line x1={railX(0, width)} x2={railX(1, width)} y1={barY} y2={barY} stroke={colours.rail} stroke-width={BAR} stroke-linecap="round" opacity="0.28" />
+      {#if fraction > 0 && sceneState !== "waiting"}
+        <line x1={railX(0, width)} x2={railX(fraction, width)} y1={barY} y2={barY} stroke={colours.accent} stroke-width={BAR} stroke-linecap="round" />
       {/if}
       {#each stops as stop, i (i)}
         {@const end = i === 0 || i === stops.length - 1}
         {@const passed = sceneState !== "waiting" && stop.fraction <= fraction}
         <circle
           cx={railX(stop.fraction, width)}
-          cy={railY}
-          r={end ? 4.5 : 3.2}
+          cy={barY}
+          r={end ? BAR_DOT_END : BAR_DOT}
           fill={passed ? colours.accent : colours.dot}
-          stroke={passed ? colours.accent : end ? colours.accent : colours.rail}
-          stroke-width="1.6"
+          stroke={passed || end ? colours.accent : colours.rail}
+          stroke-width="2"
         >
           {#if stop.name}<title>{stop.name}</title>{/if}
         </circle>

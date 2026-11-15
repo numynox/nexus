@@ -248,12 +248,14 @@ Sizes:
 | :--- | :--- | :--- |
 | full | 200 | empty Trips, year-in-review cards, the status page |
 | header | 96 | top of the next-trip card off the travel day; arrived |
-| strip | 56 | top of the live card and of its compact form |
+| strip | 64 | top of the live card and of its compact form |
 
-**The strip is the ride's rail.** Its track carries a dot per stop, passed
-ones filled, and the train's nose is where the ride is. So the strip costs the
-travel day no room: it takes the place of the stop rail the card had. Before
-boarding the train stands at the first dot.
+**The strip is the ride's rail.** Under its track runs the progress bar:
+thick, a dot per stop, the part done in orange up to where the train's nose
+is. It lies in the ground below the train, so the train never hides it and it
+is the strongest line in the strip. So the strip costs the travel day no
+room: it takes the place of the stop rail the card had. Before boarding the
+bar is empty and the train stands at the first dot.
 
 Small things, both clients: tapping the train flashes its headlight; tapping
 the sun or moon makes it swell for a moment (its accessibility label names
@@ -271,7 +273,7 @@ on the trip screen, compact as the next-trip card on the travel day.
 
 ```
 ┌──────────────────────────────────────────────┐
-│ ~~~~ scene strip: the rail, the train ~~~~~~ │  56
+│ ~~~~ scene strip: the rail, the train ~~~~~~ │  64
 ├──────────────────────────────────────────────┤
 │ ● ON BOARD · ICE 528 to München      [wifi]▾ │  label, source pill (icon only)
 │ Würzburg Hbf                             23  │  headline          numeral
