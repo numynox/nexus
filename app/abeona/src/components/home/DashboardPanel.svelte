@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Plus } from "lucide-svelte";
+  import { CircleAlert, FileUp, Plus } from "lucide-svelte";
   import { onMount } from "svelte";
   import { getBaseUrl } from "../../lib/config";
   import {
@@ -18,7 +18,9 @@
   import { hasArrived, isLiveWindow, LIVE_REFRESH_MS } from "../../lib/journey";
   import { getStationMinutes } from "../../lib/storage";
   import { travelDay } from "../../lib/travelday";
-  import Illustration from "../common/Illustration.svelte";
+  import Banner from "../common/Banner.svelte";
+  import EmptyState from "../common/EmptyState.svelte";
+  import SectionHeader from "../common/SectionHeader.svelte";
   import DeadlineBanner from "./DeadlineBanner.svelte";
   import HistoryCard from "./HistoryCard.svelte";
   import TripHeroCard from "./TripHeroCard.svelte";
@@ -47,14 +49,6 @@
   const later = $derived(upcoming.slice(1));
 
   const tripHref = (id: string) => `${base}/trip?id=${encodeURIComponent(id)}`;
-
-  function greeting(): string {
-    const h = new Date().getHours();
-    if (h < 5) return "Good night";
-    if (h < 12) return "Good morning";
-    if (h < 18) return "Good afternoon";
-    return "Good evening";
-  }
 
   async function load() {
     loading = true;
@@ -136,31 +130,29 @@
   });
 </script>
 
-<div class="space-y-10">
-  <header class="flex items-end justify-between gap-4 pt-2">
-    <div>
-      <p class="text-sm font-medium text-base-content/55">
-        {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
-      </p>
-      <h1 class="mt-1 text-3xl font-semibold tracking-tight text-ink sm:text-4xl">{greeting()}</h1>
-    </div>
-    <a href={`${base}/search`} class="btn btn-primary rounded-full px-5">
-      <Plus class="h-4 w-4" /> <span class="hidden sm:inline">Plan a trip</span><span class="sm:hidden">Plan</span>
-    </a>
+<div class="space-y-6">
+  <!-- The date, and the way to a new trip; with no trip ahead the empty state has the button. -->
+  <header class="flex min-h-10 items-center justify-between gap-4 px-1">
+    <h1 class="sr-only">Trips</h1>
+    <p class="t-meta">{new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</p>
+    {#if loading || next}
+      <a href={`${base}/search`} class="btn btn-primary btn-sm rounded-full"><Plus class="h-4 w-4" aria-hidden="true" /> Plan</a>
+    {/if}
   </header>
 
   {#if error}
-    <div class="flex items-center justify-between gap-4 rounded-2xl bg-error/10 px-5 py-4 text-sm text-error" role="alert">
-      <span>{error}</span>
-      <button class="btn btn-sm rounded-full" onclick={() => load().then(refreshLive)}>Try again</button>
-    </div>
+    <Banner tone="bad" icon={CircleAlert} title={error}>
+      {#snippet action()}
+        <button class="btn btn-sm rounded-full" onclick={() => load().then(refreshLive)}>Try again</button>
+      {/snippet}
+    </Banner>
   {/if}
 
   {#if loading}
-    <div class="space-y-4" aria-busy="true">
-      <div class="h-80 animate-pulse rounded-[2rem] bg-mint"></div>
-      <div class="h-24 animate-pulse rounded-3xl bg-base-200"></div>
-      <div class="h-24 animate-pulse rounded-3xl bg-base-200"></div>
+    <div class="space-y-3" aria-busy="true">
+      <div class="h-64 animate-pulse rounded-3xl bg-brand-soft"></div>
+      <div class="h-14 animate-pulse rounded-3xl bg-well"></div>
+      <div class="h-14 animate-pulse rounded-3xl bg-well"></div>
     </div>
   {:else if !error}
     {#if deadlines.length > 0}
@@ -170,24 +162,16 @@
     {#if next}
       <TripHeroCard trip={{ ...next, legs: nextLegs }} href={tripHref(next.id)} refreshing={refreshingIds.has(next.id)} {day} {stationMinutes} {now} />
     {:else}
-      <section class="grid items-center gap-8 rounded-[2rem] bg-card p-6 shadow-card sm:p-10 md:grid-cols-2">
-        <Illustration name="empty-trips" class="w-full" />
-        <div>
-          <h2 class="text-2xl font-semibold tracking-tight text-ink">No trips ahead</h2>
-          <p class="mt-2 text-base-content/70">
-            Search a connection and keep it here — with live delays, platforms, your changes and your ticket, all in one calm place.
-          </p>
-          <a href={`${base}/search`} class="btn btn-primary mt-6 rounded-full px-6">
-            <Plus class="h-4 w-4" /> Plan a trip
-          </a>
-        </div>
-      </section>
+      <EmptyState title="No trips ahead">
+        <a href={`${base}/search`} class="btn btn-primary rounded-full px-6"><Plus class="h-4 w-4" aria-hidden="true" /> Plan a trip</a>
+        <a href={`${base}/search`} class="btn btn-ghost rounded-full text-brand"><FileUp class="h-4 w-4" aria-hidden="true" /> Add from a ticket</a>
+      </EmptyState>
     {/if}
 
     {#if later.length > 0}
-      <section>
-        <h2 class="mb-4 px-1 text-xl font-semibold text-ink">Upcoming</h2>
-        <div class="space-y-3">
+      <section class="space-y-2">
+        <SectionHeader title="Upcoming" />
+        <div class="divide-y divide-line overflow-hidden rounded-3xl bg-card shadow-card">
           {#each later as trip (trip.id)}
             <TripListItem {trip} href={tripHref(trip.id)} />
           {/each}
@@ -195,6 +179,6 @@
       </section>
     {/if}
 
-    <HistoryCard {year} {stats} {recent} reviewHref={`${base}/review`} pastHref={`${base}/past`} {tripHref} />
+    <HistoryCard {year} {stats} {recent} reviewHref={`${base}/review`} pastHref={`${base}/past`} />
   {/if}
 </div>

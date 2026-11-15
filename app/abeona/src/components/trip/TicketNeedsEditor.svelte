@@ -41,10 +41,10 @@
   }
 </script>
 
-<div class="space-y-4">
-  <div class="flex items-center justify-between gap-3 rounded-2xl bg-card p-3 pl-4">
-    <span class="flex items-center gap-2 font-medium" id="{uid}-travellers">
-      <User class="h-4 w-4 text-base-content/60" aria-hidden="true" /> Travellers
+<div class="space-y-3">
+  <div class="flex min-h-12 items-center justify-between gap-3 rounded-2xl bg-well py-1 pl-4 pr-2">
+    <span class="t-body flex items-center gap-2 font-semibold text-ink" id="{uid}-travellers">
+      <User class="h-5 w-5 text-muted" aria-hidden="true" /> Travellers
     </span>
     <div class="flex items-center gap-1" role="group" aria-labelledby="{uid}-travellers">
       <button
@@ -55,7 +55,7 @@
         onclick={() => step(-1)}
       ><Minus class="h-4 w-4" /></button>
       <span class="tabular min-w-[4.5rem] text-center text-lg font-semibold" aria-live="polite">
-        {#if travellerCount === null}<span class="text-sm font-normal text-base-content/55">Not known</span>{:else}{travellerCount}{/if}
+        {#if travellerCount === null}<span class="t-meta">Not known</span>{:else}{travellerCount}{/if}
       </span>
       <button
         type="button"
@@ -69,12 +69,12 @@
 
   {#if showDiscounts}
     <div>
-      <p class="flex items-center gap-2 px-1 pb-2 text-sm font-medium">
-        <CreditCard class="h-4 w-4 text-base-content/60" aria-hidden="true" /> Booked with BahnCards
+      <p class="t-body flex items-center gap-2 px-1 pb-2 font-semibold text-ink">
+        <CreditCard class="h-5 w-5 text-muted" aria-hidden="true" /> Booked with BahnCards
       </p>
       <div class="flex flex-wrap items-center gap-2">
         {#each discounts as d, i (i)}
-          <span class="inline-flex items-center gap-1 rounded-full bg-mint py-1 pl-3 pr-1 text-sm font-medium text-primary">
+          <span class="inline-flex items-center gap-1 rounded-full bg-brand-soft py-1 pl-3 pr-1 text-[0.8125rem] font-semibold text-brand">
             BahnCard {d}
             <button
               type="button"
@@ -85,12 +85,12 @@
             ><X class="h-3.5 w-3.5" /></button>
           </span>
         {:else}
-          <span class="px-1 text-sm text-base-content/55">None</span>
+          <span class="t-meta px-1">None</span>
         {/each}
         {#each [25, 50] as const as kind (kind)}
           <button
             type="button"
-            class="btn btn-sm rounded-full border-base-300 bg-card font-normal"
+            class="btn btn-ghost btn-sm rounded-full border border-line text-ink"
             aria-label="Add BahnCard {kind}"
             {disabled}
             onclick={() => add(kind)}

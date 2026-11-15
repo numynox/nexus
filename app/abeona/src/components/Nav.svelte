@@ -18,12 +18,12 @@
     return `${base}/${path}`;
   }
 
-  // `label` fits the phone's tab bar; `wide` is the sidebar's.
-  const items: { id: NavId; label: string; wide: string; path: string; icon: typeof TrainFront }[] = [
-    { id: "trips", label: "Trips", wide: "Trips", path: "", icon: TrainFront },
-    { id: "search", label: "Plan", wide: "Plan a trip", path: "search", icon: Search },
-    { id: "review", label: "Year", wide: "Year in review", path: "review", icon: ChartNoAxesColumn },
-    { id: "settings", label: "Settings", wide: "Settings", path: "settings", icon: Settings },
+  // The same four words in the tab bar and the sidebar (abeona-design.md §9).
+  const items: { id: NavId; label: string; path: string; icon: typeof TrainFront }[] = [
+    { id: "trips", label: "Trips", path: "", icon: TrainFront },
+    { id: "search", label: "Plan", path: "search", icon: Search },
+    { id: "review", label: "Year", path: "review", icon: ChartNoAxesColumn },
+    { id: "settings", label: "Settings", path: "settings", icon: Settings },
   ];
 </script>
 
@@ -38,14 +38,12 @@
     {#each items as item (item.id)}
       <a
         href={href(item.path)}
-        class="flex items-center gap-3 rounded-2xl px-4 py-3 text-[0.95rem] transition-colors
-          {activeId === item.id
-          ? 'bg-mint font-semibold text-primary'
-          : 'text-base-content/70 hover:bg-base-200 hover:text-base-content'}"
+        class="t-body flex min-h-12 items-center gap-3 rounded-full px-4 transition-colors
+          {activeId === item.id ? 'bg-brand-soft font-semibold text-brand' : 'text-muted hover:bg-well hover:text-ink'}"
         aria-current={activeId === item.id ? "page" : undefined}
       >
         <item.icon class="h-5 w-5" strokeWidth={activeId === item.id ? 2.4 : 2} />
-        <span>{item.wide}</span>
+        <span>{item.label}</span>
       </a>
     {/each}
   </nav>
@@ -53,20 +51,20 @@
 
 <!-- Phones: a tab bar, thumbs-first. -->
 <nav
-  class="fixed inset-x-0 bottom-0 z-40 border-t border-base-300/70 bg-base-100/90 backdrop-blur-lg lg:hidden"
+  class="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-base-100/90 backdrop-blur-lg lg:hidden"
   style="padding-bottom: env(safe-area-inset-bottom)"
 >
   <div class="mx-auto flex max-w-md items-stretch justify-around px-2">
     {#each items as item (item.id)}
       <a
         href={href(item.path)}
-        class="flex flex-1 flex-col items-center gap-1 py-2.5 text-xs transition-colors
-          {activeId === item.id ? 'font-semibold text-primary' : 'text-base-content/60'}"
+        class="flex flex-1 flex-col items-center gap-1 py-2 text-xs transition-colors
+          {activeId === item.id ? 'font-semibold text-brand' : 'font-medium text-muted'}"
         aria-current={activeId === item.id ? "page" : undefined}
       >
         <span
           class="flex h-8 w-14 items-center justify-center rounded-full transition-colors
-            {activeId === item.id ? 'bg-mint' : ''}"
+            {activeId === item.id ? 'bg-brand-soft' : ''}"
         >
           <item.icon class="h-5 w-5" strokeWidth={activeId === item.id ? 2.4 : 2} />
         </span>

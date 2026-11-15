@@ -1,8 +1,16 @@
 <script lang="ts">
-  import { Clock, MapPin, RefreshCw, TrainFront } from "lucide-svelte";
+  import { Ban, CircleCheck, Clock, Flag, RefreshCw } from "lucide-svelte";
   import { onMount } from "svelte";
-  import { fetchSharedStatus, type SharedStatus, type SharedStatusStop } from "../../lib/data";
+  import { fetchSharedStatus, type SharedStatus, type SharedStatusLeg } from "../../lib/data";
   import { formatRelativeDay, formatTime } from "../../lib/format";
+  import { type SceneState, trainKind } from "../../lib/scene";
+  import EmptyState from "../common/EmptyState.svelte";
+  import Fact from "../common/Fact.svelte";
+  import LegChip from "../common/LegChip.svelte";
+  import Scene from "../common/Scene.svelte";
+  import ShiftedTime from "../common/ShiftedTime.svelte";
+  import StatusChip from "../common/StatusChip.svelte";
+  import StopRow from "../common/StopRow.svelte";
 
   // The status a share link opens (decisions/2026-11-04-abeona-share-links.md):
   // read-only, no session, no app chrome. Asked again every minute while open.
@@ -18,8 +26,18 @@
     cancelled: "Trip cancelled",
   };
 
-  const expected = (stop: SharedStatusStop) => stop.current ?? stop.planned;
-  const platform = (stop: SharedStatusStop) => stop.platform ?? stop.planned_platform;
+  const SCENE: Record<SharedStatus["state"], SceneState> = {
+    upcoming: "waiting",
+    on_board: "riding",
+    changing: "waiting",
+    arrived: "arrived",
+    cancelled: "stopped",
+  };
+
+  /** A shared ride as the line chip reads it; the link does not say more than its name. */
+  const chip = (leg: SharedStatusLeg) => ({ mode: "train" as const, line_name: leg.line_name, product: leg.product, cancelled: leg.cancelled });
+  /** The ride the scene draws: the current one, else the last. */
+  const ride = $derived(status ? (status.current ?? status.legs[status.legs.length - 1] ?? null) : null);
 
   async function load(token: string) {
     try {
@@ -42,77 +60,85 @@
   });
 </script>
 
-<main class="mx-auto min-h-dvh max-w-md px-4 py-6 sm:py-10">
-  <p class="text-center text-xs font-semibold uppercase tracking-[0.16em] text-base-content/50">Abeona · shared trip</p>
+<!-- The rail through a row's mark column, as on the trip's timeline. -->
+{#snippet rail(part: "start" | "through" | "end", bad: boolean)}
+  <span
+    class="absolute left-1/2 w-0.5 -translate-x-1/2 {part === 'start' ? 'top-1/2 bottom-0' : part === 'end' ? 'top-0 bottom-1/2' : 'inset-y-0'} {bad ? 'bg-bad' : 'bg-ink'}"
+    aria-hidden="true"
+  ></span>
+{/snippet}
 
+{#snippet dot(bad: boolean, now: boolean)}
+  <span class="relative h-3.5 w-3.5 rounded-full border-[3px] {bad ? 'border-bad bg-card' : now ? 'border-primary bg-primary' : 'border-ink bg-card'}" aria-hidden="true"></span>
+{/snippet}
+
+<main class="mx-auto min-h-dvh max-w-md space-y-3 px-4 py-4">
   {#if loading}
-    <div class="mt-6 h-64 animate-pulse rounded-[2rem] bg-base-200"></div>
+    <div class="h-64 animate-pulse rounded-3xl bg-brand-soft" aria-busy="true"></div>
   {:else if error && !status}
-    <section class="mt-6 rounded-[2rem] bg-card p-6 text-center shadow-card">
-      <h1 class="text-xl font-semibold text-ink">This link does not work</h1>
-      <p class="mt-2 text-base-content/70">{error}</p>
-    </section>
+    <EmptyState title="This link does not work" state="stopped">
+      <p class="t-meta">{error}</p>
+    </EmptyState>
   {:else if status}
-    <section class="mt-6 overflow-hidden rounded-[2rem] bg-neutral text-neutral-content shadow-card">
-      <div class="p-6">
-        <p class="text-sm opacity-70">{status.origin} → {status.destination}</p>
-        <h1 class="mt-1 text-3xl font-semibold tracking-tight">{HEADLINE[status.state]}</h1>
+    <section class="overflow-hidden rounded-3xl shadow-card {status.state === 'cancelled' ? 'bg-bad-soft' : 'bg-brand-soft'}">
+      <Scene state={SCENE[status.state]} size="header" train={ride ? trainKind(ride.product, ride.line_name, false) : undefined} />
+      <div class="space-y-2 px-4 pb-4">
+        <!-- Where they are, in a word; then where they are going and when they get there. -->
+        <p class="t-label {status.state === 'cancelled' ? 'text-bad-ink' : 'text-brand'}">{HEADLINE[status.state]}</p>
+        <h1 class="t-headline text-ink">{status.origin} → {status.destination}</h1>
         {#if status.state !== "cancelled"}
-          <p class="mt-5 text-sm opacity-70">{status.state === "arrived" ? "Arrived in" : "Arrives in"} {status.destination}</p>
-          <p class="tabular mt-1 flex items-baseline gap-3">
-            <span class="text-6xl font-semibold tracking-tight">{formatTime(status.expected_arrival)}</span>
-            {#if status.delay_minutes > 0}
-              <span class="rounded-full bg-amber-soft px-3 py-1 text-base font-semibold text-amber-ink">+{status.delay_minutes} min</span>
-            {:else if status.live}
-              <span class="rounded-full bg-white/15 px-3 py-1 text-base font-semibold">on time</span>
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <ShiftedTime planned={status.planned_arrival} current={status.expected_arrival} class="t-time text-ink" />
+            <Flag class="h-5 w-5 text-muted" aria-label={status.state === "arrived" ? "Arrived" : "Arrives"} />
+            <span class="t-meta">{formatRelativeDay(status.expected_arrival)}</span>
+            {#if status.delay_minutes <= 0 && status.live}
+              <StatusChip tone="ok" icon={CircleCheck} label="On time" />
             {/if}
-          </p>
-          <p class="mt-1 text-sm opacity-70">
-            {formatRelativeDay(status.expected_arrival)}{status.delay_minutes > 0 ? ` · planned ${formatTime(status.planned_arrival)}` : ""}
-          </p>
+          </div>
         {/if}
       </div>
-
-      {#if status.current && status.state !== "arrived"}
-        {@const leg = status.current}
-        <div class="bg-white/8 px-6 py-5">
-          <p class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider opacity-70">
-            <TrainFront class="h-4 w-4" />{status.state === "on_board" ? "Now" : "Next"}
-          </p>
-          <p class="mt-1 text-xl font-semibold">{leg.line_name ?? leg.product ?? "Train"}{leg.cancelled ? " · cancelled" : ""}</p>
-          <p class="tabular mt-1 text-sm opacity-80">
-            {leg.from.name} {formatTime(expected(leg.from))}{platform(leg.from) ? `, platform ${platform(leg.from)}` : ""}
-            → {leg.to.name} {formatTime(expected(leg.to))}{platform(leg.to) ? `, platform ${platform(leg.to)}` : ""}
-          </p>
-        </div>
-      {/if}
     </section>
 
-    {#if status.legs.length > 1}
-      <section class="mt-4 rounded-[2rem] bg-card p-5 shadow-card" aria-label="Rides">
-        <ol class="space-y-3">
-          {#each status.legs as leg, i (i)}
-            <li class="flex items-start gap-3">
-              <MapPin class="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-              <div class="min-w-0 flex-1">
-                <p class="font-medium">{leg.line_name ?? leg.product ?? "Train"}{leg.cancelled ? " · cancelled" : ""}</p>
-                <p class="tabular text-sm text-base-content/70">
-                  {leg.from.name} {formatTime(expected(leg.from))} → {leg.to.name} {formatTime(expected(leg.to))}
-                  {#if leg.delay_minutes > 0}<span class="font-semibold text-amber-ink"> +{leg.delay_minutes}</span>{/if}
-                </p>
-              </div>
-            </li>
-          {/each}
-        </ol>
-      </section>
-    {/if}
+    {@const state = status.state}
+    {@const current = status.current}
+    <section class="rounded-3xl bg-card px-4 py-2 shadow-card" aria-label="Rides">
+      {#each status.legs as leg, i (i)}
+        {@const now = state !== "arrived" && !!current && leg.from.name === current.from.name && leg.from.planned === current.from.planned}
+        <StopRow planned={leg.from.planned} current={leg.from.current} cancelled={leg.cancelled} name={leg.from.name} platformPlanned={leg.from.planned_platform} platformCurrent={leg.from.platform} strong>
+          {#snippet mark()}
+            {@render rail("start", leg.cancelled)}
+            {@render dot(leg.cancelled, false)}
+          {/snippet}
+        </StopRow>
+        <StopRow>
+          {#snippet mark()}{@render rail("through", leg.cancelled)}{/snippet}
+          {#snippet line()}
+            <LegChip leg={chip(leg)} size="md" />
+            {#if now}<span class="t-label text-brand">{state === "on_board" ? "Now" : "Next"}</span>{/if}
+          {/snippet}
+          {#snippet trailing()}
+            {#if leg.cancelled}<StatusChip tone="bad" icon={Ban} label="Cancelled" />{/if}
+          {/snippet}
+        </StopRow>
+        <StopRow planned={leg.to.planned} current={leg.to.current} cancelled={leg.cancelled} name={leg.to.name} platformPlanned={leg.to.planned_platform} platformCurrent={leg.to.platform} strong>
+          {#snippet mark()}
+            {@render rail("end", leg.cancelled)}
+            {@render dot(leg.cancelled, false)}
+          {/snippet}
+        </StopRow>
+      {/each}
+    </section>
 
-    <p class="mt-5 flex items-center justify-center gap-1.5 text-center text-xs text-base-content/55">
-      {#if status.live}<RefreshCw class="h-3 w-3" />{:else}<Clock class="h-3 w-3" />{/if}
-      {status.final ? "Final times" : status.live ? `Live · updated ${formatTime(status.updated_at)}` : "Timetable times; no live data yet"}
-      · link works until {formatTime(status.expires_at)}
-    </p>
-    {#if error}<p class="mt-2 text-center text-xs text-error">{error}</p>{/if}
-    <p class="mt-6 text-center text-xs text-base-content/45">Timetable data: Transitous, © OpenStreetMap contributors, the operators</p>
+    <!-- How fresh it is, and how long the link works: the last, smallest lines. -->
+    <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1">
+      <Fact
+        icon={status.final ? CircleCheck : status.live ? RefreshCw : Clock}
+        label={status.final ? "Final times" : status.live ? "Live, updated" : "Timetable times; no live data yet"}
+        value={status.final ? "Final times" : status.live ? formatTime(status.updated_at) : "Timetable"}
+      />
+      <span class="t-meta">Link works until {formatTime(status.expires_at)}</span>
+    </div>
+    {#if error}<p class="t-meta px-1 text-bad-ink">{error}</p>{/if}
+    <p class="t-meta px-1 text-xs">Abeona · shared trip · Timetable data: Transitous, © OpenStreetMap contributors, the operators</p>
   {/if}
 </main>

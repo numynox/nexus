@@ -1,11 +1,14 @@
 <script lang="ts">
-  import { Route, Undo2 } from "lucide-svelte";
+  import { Ban, Flag, Pencil, Route, Shuffle, Undo2 } from "lucide-svelte";
   import { describeError, fetchAlternatives, recordDisruption, type Trip } from "../../lib/data";
   import { manualReplacement } from "../../lib/compensation";
   import { formatTime, legLabel } from "../../lib/format";
   import { summarise } from "../../lib/journey";
   import type { Alternative, Leg } from "../../lib/transit";
   import LegChip from "../common/LegChip.svelte";
+  import SectionHeader from "../common/SectionHeader.svelte";
+  import StatusChip from "../common/StatusChip.svelte";
+  import StopRow from "../common/StopRow.svelte";
 
   interface Props {
     trip: Trip;
@@ -99,47 +102,49 @@
   }
 </script>
 
-<section class="rounded-3xl bg-card p-5 shadow-card sm:p-6" id="what-happened">
-  <div class="flex items-center gap-2">
-    <Route class="h-5 w-5 text-primary" />
-    <h2 class="font-semibold text-ink">What happened</h2>
-  </div>
-
+<section class="space-y-2" id="what-happened">
+  <SectionHeader title="What happened" />
+  <div class="space-y-3 rounded-3xl bg-card p-4 shadow-card">
   {#if !editing}
     {#if missed}
-      <p class="mt-3 text-sm text-base-content/75">
-        Missed or cancelled: <span class="font-semibold text-ink">{legLabel(missed)}</span> from {missed.from.name}.
-      </p>
+      <!-- What broke, struck through; then the trains taken instead, in the row grid. -->
+      <div class="flex flex-wrap items-center gap-2">
+        <StatusChip tone="bad" icon={Ban} label="Missed or cancelled" />
+        <span class="t-body text-muted line-through">{legLabel(missed)}</span>
+        <span class="t-meta">{missed.from.name}</span>
+      </div>
       {#if replacement.length > 0}
-        <p class="mt-2 text-xs font-semibold uppercase tracking-wider text-base-content/55">Taken instead</p>
-        <ul class="mt-1.5 space-y-1.5">
+        <div>
           {#each replacement as ride, i (i)}
-            <li class="flex flex-wrap items-center gap-2 text-sm">
-              <LegChip leg={ride} />
-              <span class="text-base-content/70">{ride.from.name} → {ride.to.name}</span>
-              <span class="tabular ml-auto font-medium">arr. {formatTime(ride.to.current ?? ride.to.planned)}</span>
-            </li>
+            <StopRow planned={ride.to.planned} current={ride.to.current} name={`${ride.from.name} → ${ride.to.name}`}>
+              {#snippet mark()}<Flag class="h-5 w-5" aria-label="Arrived" />{/snippet}
+              {#snippet line()}<LegChip leg={ride} />{/snippet}
+            </StopRow>
           {/each}
-        </ul>
+        </div>
       {:else}
-        <p class="mt-2 text-sm text-amber-ink">Add the train you took instead, so the delay can be worked out.</p>
+        <p class="t-meta text-watch-ink">Add the train you took instead, so the delay can be worked out.</p>
       {/if}
-      <div class="mt-4 flex gap-2">
-        <button class="btn btn-sm rounded-full border-base-300 bg-card" onclick={start} disabled={busy}>Change</button>
-        <button class="btn btn-ghost btn-sm rounded-full" onclick={clear} disabled={busy}><Undo2 class="h-4 w-4" /> Clear</button>
+      <div class="flex gap-2">
+        <button class="btn btn-ghost btn-sm rounded-full border border-line text-ink" onclick={start} disabled={busy}><Pencil class="h-4 w-4" aria-hidden="true" /> Change</button>
+        <button class="btn btn-ghost btn-sm rounded-full text-muted" onclick={clear} disabled={busy}><Undo2 class="h-4 w-4" aria-hidden="true" /> Clear</button>
       </div>
     {:else}
-      <p class="mt-3 text-sm text-base-content/70">
-        Missed a change, or a train was cancelled? Record the trains you took instead: the delay and the compensation follow your real arrival.
-      </p>
-      <button class="btn btn-sm mt-4 rounded-full border-base-300 bg-card" onclick={start}>Record a missed connection</button>
+      <button class="flex min-h-12 w-full items-center gap-3 rounded-2xl bg-well px-3 text-left transition hover:bg-brand-soft" onclick={start}>
+        <Route class="h-5 w-5 shrink-0 text-brand" aria-hidden="true" />
+        <span class="min-w-0">
+          <span class="t-body block font-semibold text-ink">Record a missed connection</span>
+          <span class="t-meta block">The delay and the compensation follow your real arrival.</span>
+        </span>
+      </button>
     {/if}
   {:else}
-    <p class="mt-4 text-xs font-semibold uppercase tracking-wider text-base-content/55">Which train did you miss?</p>
-    <div class="mt-2 flex flex-wrap gap-1.5">
+    <p class="t-meta">Which train did you miss?</p>
+    <div class="flex flex-wrap gap-2">
       {#each rides as ride (ride.idx)}
         <button
-          class="rounded-full border px-3 py-1 text-sm font-medium transition {missedIdx === ride.idx ? 'border-primary bg-mint text-primary' : 'border-base-300 text-base-content/70'}"
+          class="tabular min-h-8 rounded-full px-3 text-[0.8125rem] font-semibold transition {missedIdx === ride.idx ? 'bg-brand-soft text-brand' : 'bg-well text-muted'}"
+          aria-pressed={missedIdx === ride.idx}
           onclick={() => {
             missedIdx = ride.idx;
             alternatives = null;
@@ -148,26 +153,22 @@
       {/each}
     </div>
 
-    <p class="mt-5 text-xs font-semibold uppercase tracking-wider text-base-content/55">What did you take instead?</p>
-    <button class="btn btn-primary btn-sm mt-2 rounded-full" onclick={search} disabled={searching || missedIdx === null}>
-      {#if searching}<span class="loading loading-spinner loading-xs"></span>{/if}
+    <p class="t-meta">What did you take instead?</p>
+    <button class="btn btn-ghost btn-sm rounded-full border border-line text-ink" onclick={search} disabled={searching || missedIdx === null}>
+      {#if searching}<span class="loading loading-spinner loading-xs"></span>{:else}<Shuffle class="h-4 w-4" aria-hidden="true" />{/if}
       Find the connections from there
     </button>
     {#if alternatives}
       {#if alternatives.length === 0}
-        <p class="mt-3 text-sm text-base-content/60">No connections found. Enter your train below.</p>
+        <p class="t-meta">No connections found. Enter your train below.</p>
       {:else}
-        <ul class="mt-3 space-y-2">
+        <ul class="divide-y divide-line">
           {#each alternatives as alt, i (i)}
             {@const s = summarise(alt.legs)}
             <li>
-              <button
-                class="w-full rounded-2xl border border-base-300/70 px-4 py-2.5 text-left transition hover:border-primary hover:bg-mint/40"
-                onclick={() => save(alt.legs)}
-                disabled={busy}
-              >
-                <span class="tabular font-semibold text-ink">{formatTime(s.departure.planned)} – {formatTime(s.arrival.current ?? s.arrival.planned)}</span>
-                <span class="ml-2 inline-flex flex-wrap gap-1 align-middle">
+              <button class="flex min-h-12 w-full flex-wrap items-center gap-x-3 gap-y-1 py-1 text-left transition hover:bg-well" onclick={() => save(alt.legs)} disabled={busy}>
+                <span class="tabular t-body font-semibold text-ink">{formatTime(s.departure.planned)} → {formatTime(s.arrival.current ?? s.arrival.planned)}</span>
+                <span class="inline-flex flex-wrap gap-1">
                   {#each s.rides as ride, r (r)}<LegChip leg={ride} />{/each}
                 </span>
               </button>
@@ -177,21 +178,22 @@
       {/if}
     {/if}
 
-    <form class="mt-4 grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end" onsubmit={saveManual}>
-      <label class="form-control">
-        <span class="mb-1 text-xs font-semibold text-base-content/60">Or by hand: the train</span>
-        <input class="input input-bordered input-sm rounded-xl" placeholder="IC 2063" bind:value={line} />
+    <form class="grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end" onsubmit={saveManual}>
+      <label>
+        <span class="t-meta mb-1 block">Or by hand: the train</span>
+        <input class="input input-sm w-full rounded-xl border-line bg-well" placeholder="IC 2063" bind:value={line} />
       </label>
-      <label class="form-control">
-        <span class="mb-1 text-xs font-semibold text-base-content/60">Arrived at {trip.destination_name}</span>
-        <input class="input input-bordered input-sm rounded-xl" type="datetime-local" bind:value={arrivedAt} />
+      <label>
+        <span class="t-meta mb-1 block">Arrived at {trip.destination_name}</span>
+        <input class="input input-sm w-full rounded-xl border-line bg-well" type="datetime-local" bind:value={arrivedAt} />
       </label>
       <button class="btn btn-primary btn-sm rounded-full" disabled={busy || missedIdx === null}>Save</button>
     </form>
-    <button class="btn btn-ghost btn-sm mt-2 rounded-full" onclick={() => (editing = false)}>Cancel</button>
+    <button class="btn btn-ghost btn-sm rounded-full text-muted" onclick={() => (editing = false)}>Cancel</button>
   {/if}
 
   {#if error}
-    <p class="mt-3 text-sm text-error" role="alert">{error}</p>
+    <p class="t-meta text-bad-ink" role="alert">{error}</p>
   {/if}
+  </div>
 </section>

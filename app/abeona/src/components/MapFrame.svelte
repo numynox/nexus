@@ -93,7 +93,7 @@
   });
 </script>
 
-<div class={full ? "fixed inset-0 z-[1000] bg-base-200" : `relative overflow-hidden bg-base-200 ${frameClass}`}>
+<div class={full ? "fixed inset-0 z-[1000] bg-well" : `relative overflow-hidden bg-well ${frameClass}`}>
   <div class="map-frame h-full w-full" bind:this={container}></div>
   {#if full}
     <button
@@ -118,7 +118,7 @@
 <style>
   .map-frame :global(.leaflet-container) {
     font: inherit;
-    background: var(--color-base-200);
+    background: var(--ab-well);
   }
   .map-frame :global(.abeona-map-label) {
     border: none;
@@ -126,7 +126,7 @@
     padding: 2px 10px;
     font-size: 0.75rem;
     font-weight: 600;
-    color: var(--color-base-content);
+    color: var(--ab-ink);
     background: var(--ab-card);
     box-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
   }

@@ -40,17 +40,18 @@
     if (!L || !map || !layer) return;
     layer.clearLayers();
 
-    const primary = cssColor("--color-primary", "#1f6f5c");
-    const ink = cssColor("--color-neutral", "#12313a");
+    // The route in the brand orange, stations in ink, what does not run in bad (abeona-design.md §3).
+    const primary = cssColor("--color-primary", "#f2761b");
+    const ink = cssColor("--ab-ink", "#2a211c");
     const card = cssColor("--ab-card", "#ffffff");
-    const amber = "#f2b84b";
+    const bad = cssColor("--ab-bad", "#c4372b");
     const drawn = L.latLngBounds([]);
 
     for (const leg of legs) {
       const pts = pointsOf(leg);
       if (pts.length < 2) continue;
       const family = productFamily(leg);
-      const color = family === "walk" ? ink : family === "long" ? ink : primary;
+      const color = family === "walk" ? ink : primary;
       const guess = estimated(leg);
       // A pale casing under each ride keeps it readable on any basemap; a
       // dashed guess goes without, or the casing would fill its gaps.
@@ -58,7 +59,7 @@
         L.polyline(pts, { color: card, weight: 9, opacity: 0.9, lineCap: "round", lineJoin: "round" }).addTo(layer);
       }
       L.polyline(pts, {
-        color: leg.cancelled ? cssColor("--color-error", "#c4553b") : color,
+        color: leg.cancelled ? bad : color,
         weight: family === "walk" ? 3 : 5,
         opacity: family === "walk" ? 0.6 : 0.95,
         dashArray: family === "walk" ? "2 8" : guess ? "8 12" : undefined,
@@ -71,7 +72,7 @@
         if (typeof stop.lat !== "number" || typeof stop.lon !== "number") continue;
         L.circleMarker([stop.lat, stop.lon], {
           radius: 3,
-          color: family === "long" ? ink : primary,
+          color: ink,
           weight: 2,
           fillColor: card,
           fillOpacity: 1,
@@ -81,7 +82,7 @@
       }
     }
 
-    // Origin, changes and destination: bigger dots, the ends in amber/green.
+    // Origin, changes and destination: bigger dots, the start in orange, the end in ink.
     const rides = legs.filter((l) => l.mode !== "walk");
     const ends = rides.flatMap((l, i) => {
       const out: { lat: number | null; lon: number | null; name: string; kind: "start" | "change" | "end" }[] = [];
@@ -95,7 +96,7 @@
         radius: p.kind === "change" ? 6 : 8,
         color: p.kind === "change" ? ink : card,
         weight: 3,
-        fillColor: p.kind === "start" ? primary : p.kind === "end" ? amber : card,
+        fillColor: p.kind === "start" ? primary : p.kind === "end" ? ink : card,
         fillOpacity: 1,
       })
         .bindTooltip(p.name, { direction: "top", offset: [0, -6], className: "abeona-map-label" })
@@ -131,7 +132,7 @@
     if (!L || !map || !markerLayer) return;
     markerLayer.clearLayers();
     if (!marker) return;
-    const primary = cssColor("--color-primary", "#1f6f5c");
+    const primary = cssColor("--color-primary", "#f2761b");
     const card = cssColor("--ab-card", "#ffffff");
     const at: [number, number] = [marker.lat, marker.lon];
     L.circleMarker(at, { radius: 18, stroke: false, fillColor: primary, fillOpacity: 0.22, interactive: false }).addTo(markerLayer);

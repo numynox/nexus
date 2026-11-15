@@ -10,7 +10,8 @@ export async function GET() {
 
   const name = getWebsiteTitle();
   const description = getWebsiteDescription();
-  const themeColor = "#1f6f5c";
+  // The paper background, so the bars continue the page.
+  const themeColor = "#fbf7f2";
 
   const manifest = {
     name,
@@ -19,7 +20,7 @@ export async function GET() {
     start_url: base || "/",
     scope: base || "/",
     display: "standalone",
-    background_color: "#f7f8f5",
+    background_color: "#fbf7f2",
     theme_color: themeColor,
     // "Share" from DB Navigator, or a ticket PDF from mail or files, opens the
     // intake on the search page. The service worker (public/sw.js) receives

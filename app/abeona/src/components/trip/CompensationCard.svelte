@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ClipboardCheck, Copy, ExternalLink, HandCoins } from "lucide-svelte";
+  import { CalendarClock, CircleCheck, CircleHelp, ClipboardCheck, Clock, Copy, ExternalLink, Flag, Minus } from "lucide-svelte";
   import { onMount } from "svelte";
   import {
     type Claim,
@@ -15,6 +15,8 @@
   } from "../../lib/data";
   import { CLAIM_STATUS_LABELS, claimDeadlineText, delaySourceText, verdictHeadline } from "../../lib/compensation";
   import { formatDay, formatPrice, formatTime } from "../../lib/format";
+  import Fact from "../common/Fact.svelte";
+  import SectionHeader from "../common/SectionHeader.svelte";
 
   interface Props {
     trip: Trip;
@@ -42,12 +44,13 @@
     today.setHours(0, 0, 0, 0);
     return Math.round((new Date(y!, m! - 1, d!).getTime() - today.getTime()) / 86_400_000);
   });
+  /** The verdict's status: money to claim is ok, something to fill in is watch, nothing owed is quiet. */
   const tone = $derived(
-    comp?.verdict === "eligible" || comp?.verdict === "unknown_price"
-      ? "bg-mint text-primary"
-      : comp?.verdict === "unknown_arrival"
-        ? "bg-amber-soft text-amber-ink"
-        : "bg-base-200 text-base-content/70",
+    comp?.verdict === "eligible"
+      ? ({ box: "bg-ok-soft text-ok-ink", icon: CircleCheck } as const)
+      : comp?.verdict === "unknown_price" || comp?.verdict === "unknown_arrival"
+        ? ({ box: "bg-watch-soft text-watch-ink", icon: CircleHelp } as const)
+        : ({ box: "bg-well text-ink", icon: Minus } as const),
   );
 
   export async function reload() {
@@ -122,99 +125,100 @@
   }
 </script>
 
-<section class="rounded-3xl bg-card p-5 shadow-card sm:p-6" id="compensation" aria-busy={loading}>
-  <div class="flex items-center gap-2">
-    <HandCoins class="h-5 w-5 text-primary" />
-    <h2 class="font-semibold text-ink">Compensation</h2>
-  </div>
-
+<section class="space-y-2" id="compensation" aria-busy={loading}>
+  <SectionHeader title="Compensation" />
+  <div class="space-y-3 rounded-3xl bg-card p-4 shadow-card">
   {#if loading}
-    <div class="mt-4 h-20 animate-pulse rounded-2xl bg-base-200"></div>
+    <div class="h-16 animate-pulse rounded-2xl bg-well"></div>
   {:else if comp}
-    <div class="mt-4 rounded-2xl px-4 py-3 {tone}">
-      <p class="text-lg font-semibold">{verdictHeadline(comp.verdict, amount)}</p>
-      {#if comp.delay_minutes !== null}
-        <p class="mt-0.5 text-sm opacity-80">
-          {comp.delay_minutes === 0 ? "On time" : `${comp.delay_minutes} min late`}
-          {#if comp.actual_arrival}· arrived {formatTime(comp.actual_arrival)}{/if}
-          {#if delaySourceText(comp.delay_source)}· {delaySourceText(comp.delay_source)}{/if}
-        </p>
-      {/if}
+    <!-- The verdict and the amount first; how late, when and by whose word as facts. -->
+    <div class="flex items-start gap-3 rounded-2xl px-4 py-3 {tone.box}">
+      <tone.icon class="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+      <div class="min-w-0">
+        <p class="t-title">{verdictHeadline(comp.verdict, amount)}</p>
+        {#if comp.delay_minutes !== null}
+          <p class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <Fact icon={Clock} label="Delay" value={comp.delay_minutes === 0 ? "On time" : `+${comp.delay_minutes} min`} class="text-current" />
+            {#if comp.actual_arrival}<Fact icon={Flag} label="Arrived" value={formatTime(comp.actual_arrival)} class="text-current" />{/if}
+            {#if delaySourceText(comp.delay_source)}<span class="t-meta text-current">{delaySourceText(comp.delay_source)}</span>{/if}
+          </p>
+        {/if}
+      </div>
     </div>
 
-    <ul class="mt-3 space-y-1 text-sm text-base-content/75">
+    <ul class="t-meta space-y-1">
       {#each comp.reasons as reason, i (i)}<li>{reason}</li>{/each}
     </ul>
     {#if comp.hints.length > 0}
-      <ul class="mt-2 space-y-1 text-sm text-amber-ink">
+      <ul class="t-meta space-y-1 text-watch-ink">
         {#each comp.hints as hint, i (i)}<li>{hint}</li>{/each}
       </ul>
     {/if}
 
     {#if comp.verdict === "unknown_price"}
-      <form class="mt-4 flex items-end gap-2" onsubmit={savePrice}>
-        <label class="form-control flex-1">
-          <span class="mb-1 text-xs font-semibold text-base-content/60">What the ticket cost (€)</span>
-          <input class="input input-bordered rounded-xl" inputmode="decimal" placeholder="34.90" bind:value={price} />
+      <form class="flex items-end gap-2" onsubmit={savePrice}>
+        <label class="flex-1">
+          <span class="t-meta mb-1 block">What the ticket cost (€)</span>
+          <input class="input w-full rounded-xl border-line bg-well" inputmode="decimal" placeholder="34.90" bind:value={price} />
         </label>
         <button class="btn btn-primary rounded-full" disabled={busy}>Save</button>
       </form>
     {/if}
 
     {#if comp.verdict !== "unknown_arrival" && (trip.force_majeure || (comp.delay_minutes ?? 0) >= (comp.threshold_minutes ?? 60))}
-      <label class="mt-4 flex cursor-pointer items-start gap-3 text-sm">
-        <input type="checkbox" class="checkbox checkbox-sm mt-0.5" checked={trip.force_majeure} onchange={toggleForceMajeure} disabled={busy} />
+      <label class="t-body flex min-h-12 cursor-pointer items-center gap-3 text-ink">
+        <input type="checkbox" class="checkbox checkbox-sm" checked={trip.force_majeure} onchange={toggleForceMajeure} disabled={busy} />
         <span>Caused by a storm, flooding or a person on the track</span>
       </label>
     {/if}
 
     {#if canClaim}
-      <p class="mt-4 text-sm font-medium {comp.deadline_passed ? 'text-error' : 'text-ink'}">
-        {claimDeadlineText(formatDay(comp.deadline), daysLeft)}
-      </p>
-      <div class="mt-3 flex flex-wrap gap-2">
+      <Fact icon={CalendarClock} label="Claim deadline" value={claimDeadlineText(formatDay(comp.deadline), daysLeft)} class={comp.deadline_passed ? "text-bad-ink" : "text-ink"} />
+      <div class="flex flex-wrap gap-2">
         <button class="btn btn-primary btn-sm rounded-full" onclick={copy}>
-          {#if copied}<ClipboardCheck class="h-4 w-4" /> Copied{:else}<Copy class="h-4 w-4" /> Copy for the form{/if}
+          {#if copied}<ClipboardCheck class="h-4 w-4" aria-hidden="true" /> Copied{:else}<Copy class="h-4 w-4" aria-hidden="true" /> Copy for the form{/if}
         </button>
-        <a class="btn btn-sm rounded-full border-base-300 bg-card" href={comp.claim_url} target="_blank" rel="noopener">
-          <ExternalLink class="h-4 w-4" /> DB passenger rights
+        <a class="btn btn-ghost btn-sm rounded-full border border-line text-ink" href={comp.claim_url} target="_blank" rel="noopener">
+          <ExternalLink class="h-4 w-4" aria-hidden="true" /> DB passenger rights
         </a>
       </div>
-      <details class="mt-3 text-sm">
-        <summary class="cursor-pointer text-base-content/60">The text, in German</summary>
-        <pre class="mt-2 whitespace-pre-wrap rounded-2xl bg-base-200 p-3 font-sans text-xs leading-relaxed">{comp.summary_de}</pre>
+      <details>
+        <summary class="t-meta cursor-pointer">The text, in German</summary>
+        <pre class="mt-2 whitespace-pre-wrap rounded-2xl bg-well p-3 font-sans text-xs leading-relaxed text-ink">{comp.summary_de}</pre>
       </details>
     {/if}
 
     {#if canClaim || claim}
-      <div class="mt-4">
-        <p class="text-xs font-semibold uppercase tracking-wider text-base-content/55">Your claim</p>
-        <div class="mt-2 flex flex-wrap gap-1.5 rounded-full bg-base-200 p-1" role="radiogroup" aria-label="Claim status">
+      <div>
+        <div class="flex flex-wrap gap-1 rounded-full bg-well p-1" role="radiogroup" aria-label="Your claim">
           {#each statuses as status (status)}
             {@const on = (claim?.status ?? "open") === status}
             <button
               role="radio"
               aria-checked={on}
-              class="flex-1 rounded-full px-3 py-1.5 text-xs font-semibold transition {on ? 'bg-card text-primary shadow-card' : 'text-base-content/60'}"
+              class="min-h-8 flex-1 rounded-full px-1.5 text-xs leading-tight font-semibold transition {on ? 'bg-brand-soft text-brand' : 'text-muted'}"
               onclick={() => setStatus(status)}
               disabled={busy}
             >{CLAIM_STATUS_LABELS[status]}</button>
           {/each}
         </div>
         {#if claim?.status === "paid" && claim.paid_at}
-          <p class="mt-2 text-xs text-base-content/60">{formatPrice(claim.amount_cents)} paid on {formatDay(claim.paid_at.slice(0, 10))}</p>
+          <p class="t-meta mt-2">{formatPrice(claim.amount_cents)} paid on {formatDay(claim.paid_at.slice(0, 10))}</p>
         {:else if claim?.status === "claimed" && claim.claimed_at}
-          <p class="mt-2 text-xs text-base-content/60">Claimed on {formatDay(claim.claimed_at.slice(0, 10))}</p>
+          <p class="t-meta mt-2">Claimed on {formatDay(claim.claimed_at.slice(0, 10))}</p>
         {/if}
       </div>
     {/if}
 
-    <p class="mt-4 text-xs leading-relaxed text-base-content/50">
-      A summary of DB's passenger rights, not legal advice. Check fahrgastrechte.info or bahn.de before you claim.
-    </p>
+    <!-- The rule, one tap away. -->
+    <details>
+      <summary class="t-meta cursor-pointer">About this estimate</summary>
+      <p class="t-meta mt-1">A summary of DB's passenger rights, not legal advice. Check fahrgastrechte.info or bahn.de before you claim.</p>
+    </details>
   {/if}
 
   {#if error}
-    <p class="mt-3 text-sm text-error" role="alert">{error}</p>
+    <p class="t-meta text-bad-ink" role="alert">{error}</p>
   {/if}
+  </div>
 </section>

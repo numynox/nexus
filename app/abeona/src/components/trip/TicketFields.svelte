@@ -39,15 +39,15 @@
   }
 </script>
 
-<div class="space-y-5">
+<div class="space-y-4">
   <fieldset>
-    <legend class="px-1 pb-2 text-xs font-semibold uppercase tracking-wider text-base-content/55">Ticket</legend>
+    <legend class="t-meta px-1 pb-2">Ticket</legend>
     <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
       {#each FARE_TYPES as fare (fare.value)}
         <button
           type="button"
-          class="rounded-2xl border px-3 py-2.5 text-sm font-medium transition
-            {fareType === fare.value ? 'border-primary bg-mint text-primary' : 'border-base-300 bg-card hover:border-base-content/30'}"
+          class="min-h-10 rounded-2xl px-3 py-2 text-[0.8125rem] font-semibold transition
+            {fareType === fare.value ? 'bg-brand-soft text-brand' : 'bg-well text-ink hover:bg-brand-soft'}"
           aria-pressed={fareType === fare.value}
           onclick={() => chooseFare(fare.value)}
         >
@@ -57,27 +57,27 @@
     </div>
   </fieldset>
 
-  <label class="flex cursor-pointer items-start gap-3 rounded-2xl bg-card p-4">
+  <label class="flex min-h-12 cursor-pointer items-center gap-3 rounded-2xl bg-well px-4 py-2">
     <input
       type="checkbox"
-      class="toggle toggle-primary mt-0.5"
+      class="toggle toggle-primary"
       bind:checked={trainBinding}
       onchange={() => (bindingTouched = true)}
     />
     <span>
-      <span class="block font-medium">Bound to these trains</span>
-      <span class="block text-sm text-base-content/60">Abeona tells you when a delay of 20 minutes or more lifts the binding.</span>
+      <span class="t-body block font-semibold text-ink">Bound to these trains</span>
+      <span class="t-meta block">Abeona tells you when a delay of 20 minutes or more lifts the binding.</span>
     </span>
   </label>
 
   <div class="grid grid-cols-2 gap-4">
     <fieldset>
-      <legend class="px-1 pb-1 text-xs font-semibold uppercase tracking-wider text-base-content/55">Class</legend>
+      <legend class="t-meta px-1 pb-1">Class</legend>
       <div class="join w-full">
         {#each [1, 2] as const as c (c)}
           <button
             type="button"
-            class="btn join-item flex-1 {travelClass === c ? 'btn-primary' : 'bg-card'}"
+            class="btn join-item flex-1 {travelClass === c ? 'btn-primary' : 'border-line bg-well'}"
             aria-pressed={travelClass === c}
             onclick={() => (travelClass = c)}
           >{c === 1 ? "1st" : "2nd"}</button>
@@ -85,9 +85,9 @@
       </div>
     </fieldset>
     <label class="block">
-      <span class="block px-1 pb-1 text-xs font-semibold uppercase tracking-wider text-base-content/55">Price <span class="normal-case font-normal tracking-normal">(optional)</span></span>
-      <span class="input w-full rounded-2xl bg-card">
-        <span class="text-base-content/50">€</span>
+      <span class="t-meta block px-1 pb-1">Price (optional)</span>
+      <span class="input w-full rounded-2xl border-line bg-well">
+        <span class="text-muted">€</span>
         <input inputmode="decimal" placeholder="0.00" bind:value={price} class="tabular" />
       </span>
     </label>

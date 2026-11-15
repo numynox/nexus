@@ -1,19 +1,21 @@
 <script lang="ts">
-  import { ChevronRight } from "lucide-svelte";
+  /** An upcoming trip as one dense row: day and time left, title and trains, what is wrong and the ticket right. */
+  import { Ban, CalendarClock, CalendarX2, Clock, Flag, Ticket } from "lucide-svelte";
   import type { Trip } from "../../lib/data";
-  import { formatDuration, formatTime } from "../../lib/format";
+  import { formatDuration } from "../../lib/format";
   import { tripFollowedLegs } from "../../lib/followed";
   import { summarise } from "../../lib/journey";
-  import ShiftedTime from "../common/ShiftedTime.svelte";
+  import Fact from "../common/Fact.svelte";
   import LegChip from "../common/LegChip.svelte";
+  import ShiftedTime from "../common/ShiftedTime.svelte";
+  import StatusChip from "../common/StatusChip.svelte";
 
   interface Props {
     trip: Trip;
     href: string;
-    muted?: boolean;
   }
 
-  let { trip, href, muted = false }: Props = $props();
+  let { trip, href }: Props = $props();
 
   // As travelled: a connection followed instead (taken, or adjusted for a timetable change) counts.
   const s = $derived(summarise(tripFollowedLegs(trip)));
@@ -24,47 +26,36 @@
   const when = $derived(new Date(trip.planned_departure));
 </script>
 
-<a
-  {href}
-  class="flex items-center gap-4 rounded-3xl bg-card p-3.5 pr-4 shadow-card transition hover:-translate-y-px hover:shadow-md"
->
-  <div class="flex w-14 shrink-0 flex-col items-center rounded-2xl py-2 {muted ? 'bg-base-200' : 'bg-mint'}">
-    <span class="text-[0.65rem] font-semibold uppercase tracking-wider {muted ? 'text-base-content/60' : 'text-primary'}">
-      {when.toLocaleDateString("en-GB", { month: "short" })}
+<a {href} class="grid min-h-12 grid-cols-[3.25rem_minmax(0,1fr)_auto] items-center gap-x-3 px-4 py-2 transition-colors hover:bg-well">
+  <span class="leading-tight">
+    <span class="t-meta block">{when.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>
+    <ShiftedTime planned={s.departure.planned} current={s.departure.current} block={false} cancelled={s.cancelled} class="t-body flex-wrap gap-y-0 font-semibold text-ink" />
+  </span>
+
+  <span class="min-w-0">
+    <span class="flex min-w-0 items-baseline gap-2">
+      <span class="t-body truncate font-semibold text-ink">{trip.title ?? `${trip.origin_name} → ${trip.destination_name}`}</span>
+      {#if trip.title}<span class="t-meta hidden truncate sm:inline">{trip.origin_name} → {trip.destination_name}</span>{/if}
     </span>
-    <span class="tabular text-xl font-semibold leading-tight text-ink">{when.getDate()}</span>
-    <span class="text-[0.65rem] text-base-content/55">{when.toLocaleDateString("en-GB", { weekday: "short" })}</span>
-  </div>
-
-  <div class="min-w-0 flex-1">
-    <p class="truncate font-semibold text-ink">
-      {trip.title ?? `${trip.origin_name} → ${trip.destination_name}`}
-    </p>
-    {#if trip.title}
-      <p class="truncate text-xs text-base-content/60">{trip.origin_name} → {trip.destination_name}</p>
-    {/if}
-    <p class="tabular mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-base-content/70">
-      <span class="inline-flex items-baseline gap-1 whitespace-nowrap">
-        <ShiftedTime planned={s.departure.planned} current={s.departure.current} block={false} cancelled={s.cancelled} />
-        –
+    <span class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+      {#each s.rides as ride, i (i)}<LegChip leg={ride} />{/each}
+      <Fact icon={Flag} label="Arrives">
         <ShiftedTime planned={s.arrival.planned} current={s.arrival.current} block={false} cancelled={s.cancelled} />
-      </span>
-      <span class="text-base-content/30">·</span>
-      <span class="whitespace-nowrap">{formatDuration(s.plannedMinutes)}</span>
-      {#if changed === "Adjusted"}
-        <span class="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-secondary-content">Adjusted</span>
-      {:else if changed}
-        <span class="inline-flex items-center rounded-full bg-error/12 px-2 py-0.5 text-xs font-semibold text-error">{changed}</span>
-      {:else if s.cancelled}
-        <span class="inline-flex items-center rounded-full bg-error/12 px-2 py-0.5 text-xs font-semibold text-error">Cancelled</span>
-      {/if}
-    </p>
-    <div class="mt-2 flex flex-wrap gap-1">
-      {#each s.rides as ride, i (i)}
-        <LegChip leg={ride} />
-      {/each}
-    </div>
-  </div>
+      </Fact>
+      <Fact icon={Clock} label="Duration" value={formatDuration(s.plannedMinutes)} />
+    </span>
+  </span>
 
-  <ChevronRight class="h-5 w-5 shrink-0 text-base-content/30" />
+  <span class="flex items-center gap-2">
+    {#if changed === "Adjusted"}
+      <StatusChip tone="watch" icon={CalendarClock} title="Adjusted to the new timetable" />
+    {:else if changed}
+      <StatusChip tone="bad" icon={CalendarX2} title="Timetable changed" />
+    {:else if s.cancelled}
+      <StatusChip tone="bad" icon={Ban} title="Cancelled" />
+    {/if}
+    {#if trip.ticket_path}
+      <span class="text-muted" role="img" aria-label="Ticket attached" title="Ticket attached"><Ticket class="h-4 w-4" aria-hidden="true" /></span>
+    {/if}
+  </span>
 </a>
