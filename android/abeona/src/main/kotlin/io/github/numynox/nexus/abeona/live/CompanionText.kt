@@ -23,7 +23,7 @@ import kotlin.math.roundToInt
 
 /**
  * What the ongoing notification says. [title] is the one thing to know now
- * ("Change at Würzburg Hbf in 23 min"), to the minute; [text] the line under
+ * ("ICE 728 arrives in 1 h 25 min · Pl. 7 · 10:19"), to the minute; [text] the line under
  * it, which is all a collapsed notification shows, so it carries the time and
  * the delay of that next thing; [lines] everything, for the expanded one,
  * most urgent first. [chip] is the few characters
@@ -52,32 +52,36 @@ data class CompanionAlert(val key: String, val title: String, val text: String)
 private fun withDelay(text: String, delay: Int) = if (delay > 0) "$text (+$delay)" else text
 
 /**
- * "Next: Aschaffenburg Hbf 10:35 · 3 stops left", "Now at Aschaffenburg Hbf ·
- * then Würzburg Hbf", "Next stop: Würzburg Hbf": the ride's next stop and
- * what is left of it, from the timetable and the live times
- * (domain/RideProgress.kt).
+ * "Next: Aschaffenburg Hbf 10:35", "Now at Aschaffenburg Hbf · then Würzburg
+ * Hbf", "Next stop: Würzburg Hbf": the ride's next stop, from the timetable
+ * and the live times (domain/RideProgress.kt). How many are left is
+ * [stopsLeft], on the notification's last line.
  */
 fun nextStopLine(progress: RideProgress): String? {
     val last = progress.stops.lastIndex
     val current = progress.current
     val next = progress.next ?: return null
-    val left = if (progress.stopsLeft == 1) "last stop" else "${progress.stopsLeft} stops left"
     return when {
         current != null && current in 1 until last ->
-            "Now at ${progress.stops[current].name} · " + if (next == last) "then ${progress.stops[next].name}" else left
+            "Now at ${progress.stops[current].name}" + if (next == last) " · then ${progress.stops[next].name}" else ""
         next == last -> "Next stop: ${progress.stops[next].name}"
-        else -> "Next: ${progress.stops[next].name} ${TripFormat.time(progress.stops[next].arrival)} · $left"
+        else -> "Next: ${progress.stops[next].name} ${TripFormat.time(progress.stops[next].arrival)}"
     }
 }
+
+/** "3 stops left", "last stop". */
+fun stopsLeft(progress: RideProgress): String = if (progress.stopsLeft == 1) "last stop" else "${progress.stopsLeft} stops left"
 
 /**
  * The notification for the travel day (domain/TravelDay.kt).
  * Before leaving: when to leave, then the first ride. At the station or
  * changing: the platform and the train, with the change's margin. On board:
- * where to get off and when; first the arrival there with its delay, then the
- * next train (platform, time, delay, minutes to change), then the next stop
- * and how many are left, and the train's speed when its Wi-Fi says. A
- * missed change leads with "Looks like".
+ * the title is the train, when it arrives where the next thing happens, the
+ * platform there and the time ("ICE 728 arrives in 1 h 25 min · Pl. 7 ·
+ * 10:19"); then the next train (platform, time, delay, minutes to change,
+ * and how the change looks unless it is safe), the next stop, and last how
+ * many stops are left and the train's speed when its Wi-Fi says. A missed
+ * change leads with "Looks like".
  * Finished once the last ride has arrived.
  */
 fun companionStatus(
@@ -151,35 +155,43 @@ fun companionStatus(
         else -> {
             val change = transfers(trip.legs).firstOrNull { it.arriving == index }
             val progress = rideProgress(leg, now)
-            val inMinutes = TripFormat.relative((day.minutesToArrival ?: 0).toLong())
-            val title = when {
-                day.missedChange -> "Looks like you missed your change"
-                change != null -> "Change at ${leg.to.name} $inMinutes"
-                else -> "${leg.to.name} $inMinutes"
+            // The train, when it arrives where the next thing happens, the platform there and the time.
+            val title = if (day.missedChange) {
+                "Looks like you missed your change"
+            } else {
+                listOfNotNull(
+                    "${leg.label} arrives ${TripFormat.relative((day.minutesToArrival ?: 0).toLong())}",
+                    TripFormat.platform(leg.to.shownPlatform),
+                    withDelay(TripFormat.time(leg.to.expectedAt), arrivalDelay(leg)),
+                ).joinToString(" · ")
             }
-            // The arrival where the next thing happens, with its delay, first.
-            val lines = mutableListOf(
-                withDelay("Arrives ${TripFormat.time(leg.to.expectedAt)}", arrivalDelay(leg)) +
-                    (TripFormat.platform(leg.to.shownPlatform)?.let { " · $it" } ?: ""),
-            )
+            val lines = mutableListOf<String>()
+            // The last ride: the title names no place, so the destination leads the lines.
+            if (change == null && !day.missedChange) lines += leg.to.name
             if (change != null) {
                 val next = trip.legs[change.departing]
                 lines += listOfNotNull(
                     "Then ${next.label}",
                     TripFormat.platform(next.from.shownPlatform),
                     withDelay(TripFormat.time(next.from.expectedAt), departureDelay(next)),
-                    "${change.availableMinutes} min to change (${change.confidence.label})",
+                    // Safe goes without saying; tight, at risk or impossible does not.
+                    "${change.availableMinutes} min change" + if (change.confidence == Confidence.SAFE) "" else " (${change.confidence.label})",
                 ).joinToString(" · ")
             }
-            // The stops on the way; not "Next stop: <where the title says>".
-            progress?.takeIf { it.next != it.stops.lastIndex || (it.current ?: -1) in 1 until it.stops.lastIndex }?.let(::nextStopLine)?.let { lines += it }
-            onboard?.speedKmh?.takeIf { it >= 1 }?.let { lines += "${leg.label} · ${it.roundToInt()} km/h" }
+            // The stop coming up; not "Next stop: <where the title arrives>".
+            val upcoming = progress?.takeIf { it.next != it.stops.lastIndex || (it.current ?: -1) in 1 until it.stops.lastIndex }
+            upcoming?.let(::nextStopLine)?.let { lines += it }
+            // Last, small: how many stops are left and the train's speed (the freshness follows on this line).
+            listOfNotNull(
+                progress?.let(::stopsLeft),
+                onboard?.speedKmh?.takeIf { it >= 1 }?.let { "${it.roundToInt()} km/h" },
+            ).takeIf { it.isNotEmpty() }?.let { lines += it.joinToString(" · ") }
             CompanionStatus(
                 title,
-                lines.first(),
+                lines.firstOrNull() ?: leg.to.name,
                 finished = false,
                 chip = if (day.missedChange) "Missed" else chipMinutes(day.minutesToArrival),
-                lines = lines,
+                lines = lines.ifEmpty { listOf(leg.to.name) },
                 progress = progress,
             )
         }

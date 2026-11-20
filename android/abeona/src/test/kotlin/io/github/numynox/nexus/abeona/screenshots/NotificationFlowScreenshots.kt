@@ -61,6 +61,7 @@ class NotificationFlowScreenshots {
     }
 
     private fun shot(notification: Notification, name: String) {
-        shotWidget(notificationViews(context, notification), 380, 190, name)
+        // Tall enough for every line of an expanded notification.
+        shotWidget(notificationViews(context, notification), 380, 230, name)
     }
 }

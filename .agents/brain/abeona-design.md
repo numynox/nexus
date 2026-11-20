@@ -322,4 +322,4 @@ Bottom navigation: Trips, Plan, Year, Settings (icons with labels).
 | **Settings** | Groups in the order of the moments: Before the trip (time to the station, reminder), On the day (companion, location, alerts), Afterwards (claims reminder), Household (members, BahnCards), App (theme, update, account). One line per setting: name, value or switch; the explanation behind an info tap only where it is not obvious. |
 | **Status page** (web, shared link) | Scene header, who and where, arrival `time`, the rail. No navigation. |
 | **Widget** | Day or countdown, departure `time` + platform, title, ⚑ arrival ⇄ n. |
-| **Notification** | Unchanged in order (`decisions/2026-11-13-abeona-notification-leads-with-the-next-thing.md`); the accent colour is burgundy. |
+| **Notification** | On board: the train, when it arrives, the platform and the time as the title; then the next train and the change (its state only when not safe), the next stop, and last the stops left, the speed and how fresh (`decisions/2026-11-20-abeona-notification-names-the-train.md`); the accent colour is burgundy. |
