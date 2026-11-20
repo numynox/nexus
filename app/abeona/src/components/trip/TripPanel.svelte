@@ -139,15 +139,22 @@
   const origin = $derived(day ? alternativesOrigin(legs, day, now) : null);
   /** The travel day is on: the live card holds everything live, the header only what does not change. */
   const liveCard = $derived(!!day && !arrived);
+  /** The live card shows the journey as its line, so the timeline waits until arrival. */
+  const journeyLive = $derived(!!cardDay && cardDay.kind !== "arrived");
   /** How fresh the live values are: an icon and a time, the last and smallest line of the card or the page. */
   const status = $derived.by((): { text: string; label: string; kind: "live" | "timetable" | "offline" | "done" } | null => {
     if (!trip || !s) return null;
     if (arrived) return trip.finalized_at ? { text: "Final times", label: "Arrived, final times recorded", kind: "done" } : null;
-    if (liveCard && refreshError) return { text: "Live data unavailable", label: "Offline", kind: "offline" };
+    // On the live card: "Live 12:37", "Offline 12:37" (the last time it got through).
+    if (liveCard && refreshError) {
+      return { text: trip.refreshed_at ? formatTime(trip.refreshed_at) : "", label: `Offline: ${refreshError}`, kind: "offline" };
+    }
     if (s.hasRealtime && trip.refreshed_at) return { text: formatTime(trip.refreshed_at), label: "Live, updated", kind: "live" };
     if (trip.refreshed_at) {
       return {
-        text: `${formatTime(trip.refreshed_at)}, ${new Date(trip.refreshed_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`,
+        text: liveCard
+          ? formatTime(trip.refreshed_at)
+          : `${formatTime(trip.refreshed_at)}, ${new Date(trip.refreshed_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`,
         label: "Timetable as of",
         kind: "timetable",
       };
@@ -461,8 +468,13 @@
         settingsHref={`${base}/settings#device`}
         onAlternatives={() => alternativesSection?.reveal()}
         {status}
-        notices={anyNotice || refreshError ? tripNotices : undefined}
+        {bindingLifted}
+        onBackToPlan={following && !adjusted && !arrived && trip.replacement_legs ? followPlan : undefined}
+        busy={busyTaking}
       />
+      {#if cardDay.kind === "arrived" && refreshError}
+        {@render tripNotices()}
+      {/if}
     {:else}
       <!-- Before the travel day: when it leaves and arrives, and how the trip is made up. -->
       <header class="space-y-2 px-1">
@@ -518,7 +530,10 @@
     {/if}
 
     <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
-      <Timeline {legs} />
+      {#if !journeyLive}
+        <!-- While the card is live it is the journey; the timeline returns once arrived. -->
+        <Timeline {legs} />
+      {/if}
 
       <aside class="space-y-3 lg:sticky lg:top-6">
         {#if !day || arrived}
