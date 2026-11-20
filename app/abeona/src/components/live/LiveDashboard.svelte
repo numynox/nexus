@@ -747,8 +747,14 @@
     <div class="px-4 pb-1 pt-1.5">
       {#if summary}
         <!-- The Trips card: the band, the active step, then one row. -->
-        {#if !arrived}{@render band(rideSeg, true)}{/if}
-        {#if active}{@render stepRow(active, arrived ? "none" : rideSeg, "none", false)}{/if}
+        <!-- In time order, as on the full card: before boarding the step comes first, on board the band. -->
+        {#if active && !arrived && !onBoard}
+          {@render stepRow(active, "none", day.kind === "before_leaving" && !focusBroken ? "walk" : rideSeg, false)}
+          {@render band(rideSeg, false)}
+        {:else}
+          {#if !arrived}{@render band(rideSeg, true)}{/if}
+          {#if active}{@render stepRow(active, arrived ? "none" : rideSeg, "none", false)}{/if}
+        {/if}
         {#if !arrived && (compactChange || compactNext || !destinationActive)}
           <div class="{GRID} min-h-10 items-center pb-1.5 {focusBroken ? 'opacity-50' : ''}">
             <span class="col-start-3 flex min-w-0 flex-wrap items-center gap-2">
