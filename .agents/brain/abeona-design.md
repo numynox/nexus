@@ -158,7 +158,7 @@ A new concept gets a row here first.
 | :--- | :--- | :--- | :--- |
 | leave home | `MeetingRoom` | `DoorOpen` | — |
 | at a station, stop | `Place` | `MapPin` | "at" |
-| on board, train | `Train` | `TrainFront` | — |
+| on board, train, board (the verb) | `Train` | `TrainFront` | — |
 | bus | `DirectionsBus` | `Bus` | — |
 | walk | `DirectionsWalk` | `Footprints` | "walk" |
 | change, number of changes | `SwapHoriz` + n | `ArrowRightLeft` + n | "2 changes", "direct" (n = 0) |
@@ -312,7 +312,7 @@ Rows, top to bottom; a row with nothing to say is left out:
 | Next train | after the change | time, line chip, "to" direction, platform |
 | Later | rides beyond the next train | their line chips, "n changes", the worst change's chip unless all are safe; expands to their rows |
 | Destination | unless it is the active step | time with delay, name, platform |
-| Footer | always | "Live 12:37" (or "Offline 12:37" in `watch`), the source as an icon button that opens How Abeona knows |
+| Footer | always | where the times come from and when: "Live 12:37", "Timetable 12:37" (no live data for the trip), "Offline 12:37" (`watch`); the source as an icon button that opens How Abeona knows |
 
 - **Sizes grow as the step comes close:** the active step is the large row;
   at a change the change row and the next train move up as soon as you get
@@ -321,7 +321,9 @@ Rows, top to bottom; a row with nothing to say is left out:
 - **Something broke:** the broken step's row turns `bad` (red node, the verb
   "Missed", "Cancelled" or "Not running", the train, the time struck), a
   filled "Alternatives" button opens the alternatives sheet, and "Any train"
-  (`watch`) says the binding is lifted. The rows after it are dimmed. A
+  (`watch`) says the binding is lifted. "Any train" stands once: with what
+  broke, else the change at risk, else the destination (on the last ride, the
+  Arrive step). The rows after it are dimmed. A
   change at risk is a red change row with an outlined "Alternatives".
 - **Notices are rows, not banners:** a re-planned trip says "re-planned" in
   the done row; a connection followed instead adds "Back to the plan" under
@@ -332,8 +334,13 @@ Rows, top to bottom; a row with nothing to say is left out:
   with the time, the delay and the platform. Compensation stays in its own
   card below.
 - **Compact form** (the Trips card on the travel day): the band without its
-  second line, the active step, and one row: the change chip, the next line
-  chip, "⚑ 13:32". Nothing else.
+  second line and the active step, in time order (before boarding the step
+  comes first), and one row: the change chip, the next line chip, "⚑ 13:32",
+  "Any train" when the binding is lifted. Nothing else, and no banner under
+  it.
+- **Words only where an icon or a number cannot say it.** No instructions
+  the traveller knows already (walking to the platform, waiting for the
+  train); the platform box, the countdown and the chips carry the step.
 - **The notification** follows the same order: your train and the active step
   as the title, then the change, the next train, the next stop, and the band's
   line (`decisions/2026-11-20-abeona-notification-names-the-train.md`).
