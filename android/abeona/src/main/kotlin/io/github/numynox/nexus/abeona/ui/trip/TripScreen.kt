@@ -602,8 +602,8 @@ private fun TripContent(
                         arrivalDelay,
                         because = when {
                             arrivalDelay >= 20 -> null
-                            live?.missedShort == true -> "You missed a change that had less than 5 minutes"
-                            else -> "A change on your trip cannot be made"
+                            live?.missedShort == true -> "Missed a change under 5 min"
+                            else -> "A change cannot be made"
                         },
                     )
                 }
@@ -686,7 +686,7 @@ private fun LocationPrompt(onAllow: () -> Unit, onDismiss: () -> Unit) {
         StatusTone.Quiet,
         Icons.Rounded.MyLocation,
         "Know where you are on the trip",
-        text = "To tell whether you are at the station, on board or have missed a change: only while the live companion runs, and it never leaves this phone.",
+        text = "Only while live. It never leaves this phone.",
     ) {
         OutlinedButton(onClick = onAllow) { Text("Use location") }
         TextButton(onClick = onDismiss) { Text("Not now") }

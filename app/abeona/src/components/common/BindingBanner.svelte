@@ -13,5 +13,5 @@
 </script>
 
 <Banner tone="watch" icon={ArrowRightLeft} title="You may take another train">
-  {because ?? `Expected ${delay} min late at your destination`}, so the train binding of your ticket is lifted.
+  {because ?? `Expected +${delay} min at your destination`}: train binding lifted.
 </Banner>

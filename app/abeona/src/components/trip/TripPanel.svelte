@@ -368,7 +368,7 @@
     {#if bindingLifted && !arrived && !dropped}
       <BindingBanner
         delay={planDelay}
-        because={planDelay >= 20 ? null : missedShort ? "You missed a change that had less than 5 minutes" : "A change on your trip cannot be made"}
+        because={planDelay >= 20 ? null : missedShort ? "Missed a change under 5 min" : "A change cannot be made"}
       />
     {/if}
 

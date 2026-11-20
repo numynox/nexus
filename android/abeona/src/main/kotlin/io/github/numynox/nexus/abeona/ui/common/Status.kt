@@ -172,9 +172,9 @@ fun BindingBanner(delay: Int, modifier: Modifier = Modifier, because: String? = 
     Banner(
         StatusTone.Watch,
         Icons.Rounded.SwapHoriz,
-        "Train binding lifted",
+        "You may take another train",
         modifier,
-        text = (because ?: "Expected +$delay min at your destination") + ": your saver ticket is valid on other trains for this route.",
+        text = (because ?: "Expected +$delay min at your destination") + ": train binding lifted.",
     )
 }
 
