@@ -60,8 +60,8 @@ class CompanionTextTest {
         val onboard = OnboardStatus("ICE Portal", "ICE", "25", 247.4, null, null, "Würzburg Hbf", null, "5", t0)
         val signals = TravelSignals(onboardLegIndex = 1)
         val status = companionStatus(trip, t0.plusSeconds(60 * 60), signals = signals, onboard = onboard)
-        assertEquals("Würzburg Hbf in 1 h", status.title)
-        assertEquals(listOf("Arrives 10:00 · Pl. 5", "ICE 25 · 247 km/h"), status.lines)
+        assertEquals("ICE 25 arrives in 1 h · Pl. 5 · 10:00", status.title)
+        assertEquals(listOf("Würzburg Hbf", "last stop · 247 km/h"), status.lines)
     }
 
     @Test
@@ -79,15 +79,16 @@ class CompanionTextTest {
     @Test
     fun onBoardShowsTheChangeAhead() {
         val status = companionStatus(trip, t0.plusSeconds(28 * 60))
-        assertEquals("Change at Frankfurt Hbf in 12 min", status.title)
-        assertEquals(listOf("Arrives 08:40 · Pl. 11", "Then ICE 25 · Pl. 7 · 08:48 · 8 min to change (Safe)"), status.lines)
+        assertEquals("RE 4 arrives in 12 min · Pl. 11 · 08:40", status.title)
+        // A safe change goes without saying.
+        assertEquals(listOf("Then ICE 25 · Pl. 7 · 08:48 · 8 min change", "last stop"), status.lines)
         assertEquals(0.7, status.progress!!.fraction, 1e-9)
     }
 
     @Test
     fun aTightChangeSaysSo() {
         val tight = trip.copy(legs = listOf(trip.legs[0], trip.legs[1].copy(from = trip.legs[1].from.copy(planned = at(46)))))
-        assertEquals("Then ICE 25 · Pl. 7 · 08:46 · 6 min to change (Tight)", companionStatus(tight, t0.plusSeconds(28 * 60)).lines[1])
+        assertEquals("Then ICE 25 · Pl. 7 · 08:46 · 6 min change (Tight)", companionStatus(tight, t0.plusSeconds(28 * 60)).lines[0])
     }
 
     @Test
@@ -99,9 +100,8 @@ class CompanionTextTest {
             ),
         )
         val status = companionStatus(late, t0.plusSeconds(28 * 60))
-        assertEquals("Change at Frankfurt Hbf in 18 min", status.title)
-        assertEquals("Arrives 08:46 (+6) · Pl. 11", status.text)
-        assertTrue(status.lines[1], status.lines[1].startsWith("Then ICE 25 · Pl. 7 · 08:55 (+7) · 9 min to change"))
+        assertEquals("RE 4 arrives in 18 min · Pl. 11 · 08:46 (+6)", status.title)
+        assertTrue(status.text, status.text.startsWith("Then ICE 25 · Pl. 7 · 08:55 (+7) · 9 min change"))
     }
 
     @Test
@@ -112,17 +112,20 @@ class CompanionTextTest {
                 trip.legs[1].copy(stopovers = listOf(Stopover("a", "Aschaffenburg Hbf", plannedArrival = at(75), plannedDeparture = at(77)))),
             ),
         )
-        assertEquals("Next: Aschaffenburg Hbf 09:15 · 2 stops left", companionStatus(withStop, t0.plusSeconds(60 * 60)).lines[1])
+        assertEquals(
+            listOf("Würzburg Hbf", "Next: Aschaffenburg Hbf 09:15", "2 stops left"),
+            companionStatus(withStop, t0.plusSeconds(60 * 60)).lines,
+        )
         assertEquals("Now at Aschaffenburg Hbf · then Würzburg Hbf", companionStatus(withStop, t0.plusSeconds(76 * 60)).lines[1])
-        // Only the last stop left: the title already names it.
-        assertEquals(listOf("Arrives 10:00 · Pl. 5"), companionStatus(withStop, t0.plusSeconds(90 * 60)).lines)
+        // Only the last stop left: no "Next stop" line for the place the lines already name.
+        assertEquals(listOf("Würzburg Hbf", "last stop"), companionStatus(withStop, t0.plusSeconds(90 * 60)).lines)
     }
 
     @Test
     fun lastRideShowsArrival() {
         val status = companionStatus(trip, t0.plusSeconds(60 * 60))
-        assertEquals("Würzburg Hbf in 1 h", status.title)
-        assertEquals("Arrives 10:00 · Pl. 5", status.text)
+        assertEquals("ICE 25 arrives in 1 h · Pl. 5 · 10:00", status.title)
+        assertEquals("Würzburg Hbf", status.text)
         assertTrue(companionStatus(trip, t0.plusSeconds(121 * 60)).finished)
         assertEquals("Arrived at Würzburg Hbf", companionStatus(trip, t0.plusSeconds(121 * 60)).title)
     }

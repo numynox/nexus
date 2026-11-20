@@ -1,7 +1,7 @@
 # ADR: Abeona's ongoing notification leads with the next thing
 
 **Date:** 2026-11-13
-**Status:** Accepted
+**Status:** Accepted; the order on board is superseded by `2026-11-20-abeona-notification-names-the-train.md`
 
 ## Context
 On a real ride the live notification read "Hanau Hauptbahnhof in 2 h 15 min ·
