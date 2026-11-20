@@ -65,9 +65,9 @@
       <h2 class="t-title mt-0.5 text-ink">{trip.title ?? route}</h2>
     </a>
     <a {href} class="block rounded-3xl focus-visible:outline-2 focus-visible:outline-primary">
-      <LiveDashboard summary {trip} {day} {now} {stationMinutes} {reason} />
+      <!-- The binding lifted is the card's "Any train", not a banner. -->
+      <LiveDashboard summary {trip} {day} {now} {stationMinutes} {reason} {bindingLifted} />
     </a>
-    {#if bindingLifted}<BindingBanner delay={s.arrivalDelay} />{/if}
   </section>
 {:else}
   <a {href} class="block overflow-hidden rounded-3xl bg-card shadow-card transition hover:brightness-[0.99] focus-visible:outline-2 focus-visible:outline-primary">

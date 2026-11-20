@@ -1,17 +1,19 @@
 <script lang="ts">
   /**
-   * The live dashboard of a travel day — the web's copy of Android's
-   * ui/live/LiveDashboard.kt: one live card, then the map with the traveller
-   * on it. The card (abeona-design.md §8) holds everything live, most urgent
-   * first: the scene strip, which is the ride's rail; what happens now with
-   * its time, delay and countdown; under the hairline the steps ahead as
-   * rows in the row grid; then how fresh it all is. How Abeona knows sits
-   * behind the card's source pill.
+   * The live card of a travel day (abeona-design.md §8) — the web's copy of
+   * Android's ui/live/LiveDashboard.kt: the journey drawn as one vertical
+   * line in the row grid, then the map with the traveller on it. Done rides
+   * fold into one row; the ride in focus is the band (the scene strip on its
+   * stretch of line, its train, where it is); the next thing to do is the one
+   * large row with a verb; the rest runs down to the destination, which is
+   * always last. Words only where nothing shorter works
+   * (decisions/2026-11-20-abeona-live-journey-line.md). How Abeona knows sits
+   * behind the footer's source button.
    */
   import {
-    ArrowRight,
     ArrowRightLeft,
     Ban,
+    Check,
     ChevronDown,
     CircleAlert,
     CircleCheck,
@@ -21,27 +23,26 @@
     Flag,
     Footprints,
     Gauge,
-    LogOut,
-    GitCommitHorizontal,
     LocateFixed,
-    MapPin,
+    LogOut,
     RefreshCw,
     Shuffle,
     TrainFront,
     Wifi,
   } from "lucide-svelte";
-  import { type Snippet, untrack } from "svelte";
-  import type { Approach, Leg, StopTime } from "../../lib/transit";
+  import { untrack } from "svelte";
+  import type { Approach, StopTime } from "../../lib/transit";
   import { fetchApproach, type Trip } from "../../lib/data";
-  import { displayPlatform, formatTime, legLabel } from "../../lib/format";
+  import { formatDuration, formatTime, legLabel } from "../../lib/format";
   import { distanceMetres, distanceToLineMetres, NEAR_STOP_METRES, ON_LINE_METRES, type Position } from "../../lib/travelday";
   import type { LocationState } from "../../lib/position";
   import { type MapMarker, rideProgress } from "../../lib/progress";
   import { trainKind } from "../../lib/scene";
-  import { effectiveTime, finalArrivalDelay, overallConfidence, trainBindingLifted, transfers } from "../../lib/transfer";
+  import { finalArrivalDelay, normalisePlatform, trainBindingLifted, transfers, type Transfer } from "../../lib/transfer";
   import type { AlternativesReason, TravelDay } from "../../lib/travelday";
   import ConfidenceChip from "../common/ConfidenceChip.svelte";
   import Fact from "../common/Fact.svelte";
+  import type { IconComponent } from "../common/icon";
   import LegChip from "../common/LegChip.svelte";
   import PlatformBox from "../common/PlatformBox.svelte";
   import Scene from "../common/Scene.svelte";
@@ -61,45 +62,101 @@
     onLocation?: (on: boolean) => void;
     onAlternatives?: () => void;
     settingsHref?: string;
-    /** How fresh the live values are, for the card's last line. */
+    /** How fresh the live values are, for the footer: "Live 12:37", "Offline 12:37". */
     status?: { text: string; label: string; kind: "live" | "timetable" | "offline" | "done" } | null;
-    /** What else is live about the trip (the binding lifted, another connection followed), inside the card. */
-    notices?: Snippet;
+    /** The ticket's train binding is lifted (the caller works it out as the server does): "Any train". */
+    bindingLifted?: boolean;
+    /** A connection followed instead of the plan: "Back to the plan" under the destination. */
+    onBackToPlan?: () => void;
+    busy?: boolean;
     /**
-     * The Trips screen's next-trip card: the same strip, state line, headline
-     * and train line, then one row to the destination instead of the steps
-     * ahead; no source, map, notices or status. Android's
-     * LiveCard(summary = true).
+     * The Trips screen's compact form: the band without its second line, the
+     * active step and one row (the next change, the next train, the arrival);
+     * no done row, footer or map. Android's LiveCard(summary = true).
      */
     summary?: boolean;
   }
 
-  let { trip, day, now, stationMinutes, reason = null, position = null, location = "off", onLocation = () => {}, onAlternatives, settingsHref, status = null, notices, summary = false }: Props = $props();
+  let {
+    trip,
+    day,
+    now,
+    stationMinutes,
+    reason = null,
+    position = null,
+    location = "off",
+    onLocation = () => {},
+    onAlternatives,
+    settingsHref,
+    status = null,
+    bindingLifted = false,
+    onBackToPlan,
+    busy = false,
+    summary = false,
+  }: Props = $props();
+
+  // ------------------------------------------------------------ the journey
 
   const legs = $derived(trip.legs);
-  const leg = $derived(day.legIndex !== null ? legs[day.legIndex] : null);
-  const progress = $derived(leg ? rideProgress(leg, now) : null);
-  const change = $derived(
-    day.legIndex === null
-      ? null
-      : (transfers(legs).find((t) => (day.kind === "on_board" ? t.fromIndex === day.legIndex : t.toIndex === day.legIndex)) ?? null),
-  );
-  const warn = $derived(day.missedChange || day.cancelled);
   const rides = $derived(legs.map((l, i) => ({ l, i })).filter(({ l }) => l.mode !== "walk"));
-  const lastRide = $derived(rides[rides.length - 1]?.l ?? null);
-  const arrived = $derived(day.kind === "arrived");
+  const lastRideIdx = $derived(rides.length > 0 ? rides[rides.length - 1].i : null);
+  const lastRide = $derived(lastRideIdx === null ? null : legs[lastRideIdx]);
+  const allTransfers = $derived(transfers(legs));
+  const changeInto = (i: number): Transfer | null => allTransfers.find((t) => t.toIndex === i) ?? null;
+
+  const arrived = $derived(day.kind === "arrived" || day.legIndex === null);
+  const onBoard = $derived(day.kind === "on_board");
+  /** The ride the card is about: the one to catch, or the one on board. */
+  const focusIdx = $derived(arrived ? null : day.legIndex);
+  const leg = $derived(focusIdx === null ? null : legs[focusIdx]);
+  const progress = $derived(leg ? rideProgress(leg, now) : null);
+  const doneRides = $derived(
+    arrived ? rides : focusIdx !== null && (onBoard || day.kind === "changing") ? rides.filter((r) => r.i < focusIdx) : [],
+  );
+  const aheadRides = $derived(focusIdx === null ? [] : rides.filter((r) => r.i > focusIdx));
+  const replanned = $derived(trip.missed_leg_idx !== null && (trip.replacement_legs?.length ?? 0) > 0);
+
+  type Broken = "Missed" | "Cancelled" | "Not running";
+  /** What broke about ride i, in a word: missed (by the device's signals), cancelled, or no longer in the timetable. */
+  function brokenOf(i: number): Broken | null {
+    if (day.missedChange) {
+      if (!onBoard && i === focusIdx) return "Missed";
+      // Still on board after the connection left: the next train is the one missed.
+      if (onBoard && i === aheadRides[0]?.i) return "Missed";
+    }
+    const l = legs[i];
+    if (l.cancelled) return l.dropped_at ? "Not running" : "Cancelled";
+    return null;
+  }
+  const focusBroken = $derived(focusIdx === null ? null : brokenOf(focusIdx));
+  const brokenAhead = $derived(aheadRides.find((r) => brokenOf(r.i) !== null)?.i ?? null);
+  /** The first change still ahead that is at risk or impossible, when nothing broke outright. */
+  const riskyChange = $derived.by((): Transfer | null => {
+    if (focusIdx === null || focusBroken || brokenAhead !== null) return null;
+    return (
+      allTransfers.find(
+        (t) => (onBoard ? t.fromIndex >= focusIdx : t.toIndex >= focusIdx) && (t.confidence === "at_risk" || t.confidence === "impossible"),
+      ) ?? null
+    );
+  });
+  /** "Any train": the binding is lifted, by the caller's reckoning or because a train does not run. */
+  const lifted = $derived(
+    bindingLifted ||
+      ([focusIdx, brokenAhead].some((i) => i !== null && legs[i].cancelled) &&
+        trainBindingLifted(trip.fare_type, trip.train_binding, finalArrivalDelay(legs), true)),
+  );
+
+  // ------------------------------------------------------------ the band
 
   const marker = $derived.by((): MapMarker | null => {
     if (position) return { lat: position.lat, lon: position.lon, kind: "location" };
-    if (day.kind === "on_board" && progress?.estimate) return { ...progress.estimate, kind: "timetable" };
+    if (onBoard && progress?.estimate) return { ...progress.estimate, kind: "timetable" };
     return null;
   });
 
-  // ------------------------------------------------------------ the train coming in
-
   /** While waiting for the train: where it is on its way here, asked every minute. */
   const waitingFor = $derived(
-    !warn && leg && !leg.cancelled && leg.trip_ref && (day.kind === "at_station" || day.kind === "changing") ? leg : null,
+    !focusBroken && leg && !leg.cancelled && leg.trip_ref && (day.kind === "at_station" || day.kind === "changing") ? leg : null,
   );
   const waitingKey = $derived(waitingFor ? `${waitingFor.trip_ref}|${waitingFor.from.id ?? waitingFor.from.name}` : null);
   let approach: Approach | null = $state(null);
@@ -107,7 +164,7 @@
     const key = waitingKey;
     approach = null;
     const target = untrack(() => waitingFor);
-    if (!key || !target) return;
+    if (!key || !target || summary) return;
     let stopped = false;
     const load = () =>
       fetchApproach(target)
@@ -123,124 +180,285 @@
     };
   });
 
-  /** "Train left Aschaffenburg Hbf, 3 stops away": read out; on the card the stops are an icon and a number. */
+  /** "Train left Aschaffenburg Hbf · 3 stops away", as Android says it. */
   function approachText(a: Approach): string {
-    return `${a.state === "at" ? "Train is at" : "Train left"} ${a.stop}, ${a.stops_away} ${a.stops_away === 1 ? "stop" : "stops"} away`;
+    return `${a.state === "at" ? "Train is at" : "Train left"} ${a.stop} · ${a.stops_away} ${a.stops_away === 1 ? "stop" : "stops"} away`;
   }
 
-  // ------------------------------------------------------------ now
-
-  const eyebrow = $derived.by(() => {
-    if (day.missedChange) return "Looks like you missed it";
-    if (day.cancelled) return "Change of plan";
-    switch (day.kind) {
-      case "before_leaving":
-        return "Time to leave";
-      case "at_station":
-        return day.source === "location" ? "You're at the station" : "Head to the platform";
-      case "on_board":
-        // "to" and the train's own destination, as the departure board says it.
-        return `On board${leg ? ` · ${legLabel(leg)}${leg.headsign ? ` to ${leg.headsign}` : ""}` : ""}`;
-      case "changing":
-        return `Change trains${leg ? ` · ${leg.from.name}` : ""}`;
-      case "arrived":
-        return "Arrived";
-    }
-  });
-
-  /** How Abeona knows, behind the source pill. */
-  let sourceDialog: HTMLDialogElement | undefined = $state();
-
-  const sourceLabel = $derived(day.source === "onboard" ? "Train Wi-Fi" : day.source === "location" ? "Location" : "Timetable");
-
-
-  /** What the card leads with: a name, the time that goes with it, what to do there, and the countdown. */
-  const lead = $derived.by(() => {
-    const base = {
-      stop: null as StopTime | null,
-      icon: null as "flag" | "change" | null,
-      /** The platform beside the time (on board: where I get off), or as the headline itself (waiting for the train). */
-      platformAt: null as StopTime | null,
-      platformHead: null as StopTime | null,
-      line: null as Leg | null,
-      note: null as string | null,
-      minutes: null as number | null,
-      /** What broke, in a word: the headline and its time are struck through. */
-      broken: null as "Missed" | "Cancelled" | "Not in the timetable" | null,
-      lifted: false,
-    };
-    if (arrived || !leg) return { ...base, headline: trip.destination_name, stop: lastRide?.to ?? null, icon: "flag" as const };
-    if (day.missedChange && day.kind !== "on_board") return { ...base, headline: legLabel(leg), stop: leg.from, note: "Your ticket may allow another train.", broken: "Missed" as const };
-    if (leg.cancelled) {
-      // The broken step struck through, with the train it was; whether the ticket now allows others.
-      const lifted = trainBindingLifted(trip.fare_type, trip.train_binding, finalArrivalDelay(legs), true);
-      return { ...base, headline: `${legLabel(leg)}${leg.headsign ? ` to ${leg.headsign}` : ""}`, stop: leg.from, lifted, broken: leg.dropped_at ? ("Not in the timetable" as const) : ("Cancelled" as const) };
-    }
-    const platform = displayPlatform(leg.from);
-    switch (day.kind) {
-      case "before_leaving":
-        // The time to go is the headline; the train to catch is the first row under the hairline.
-        return { ...base, headline: `Leave ${formatTime(day.leaveAt)}`, note: `${stationMinutes} min to ${leg.from.name}`, minutes: day.minutesToLeave };
-      case "at_station":
-      case "changing":
-        return { ...base, headline: platform ? "Platform" : legLabel(leg), platformHead: platform ? leg.from : null, stop: leg.from, line: leg, minutes: day.minutesToDeparture };
-      default:
-        return { ...base, headline: leg.to.name, stop: leg.to, icon: change ? ("change" as const) : ("flag" as const), platformAt: leg.to, minutes: day.minutesToArrival };
-    }
-  });
-
-  function countdown(minutes: number | null): { number: string; label: string } | null {
-    if (minutes === null) return null;
-    if (minutes <= 0) return { number: "now", label: "" };
-    if (minutes < 60) return { number: String(minutes), label: "min" };
-    // "16 h" over "54 min", never "16:54", which reads as a clock time.
-    const hours = Math.floor(minutes / 60);
-    return { number: `${hours} h`, label: minutes % 60 === 0 ? "" : `${minutes % 60} min` };
-  }
-
-  // ------------------------------------------------------------ the ride
-
-  const showRide = $derived(
-    !!leg && !!progress && !leg.cancelled && !(day.missedChange && day.kind !== "on_board") && (day.kind === "on_board" || day.kind === "at_station" || day.kind === "changing"),
-  );
-  const onBoard = $derived(day.kind === "on_board");
-  /** How far along the rail the train is: 0 until on board. */
-  const rail = $derived(onBoard && progress ? progress.fraction : 0);
+  const showRail = $derived(!!progress && !focusBroken && (onBoard || day.kind === "at_station" || day.kind === "changing"));
   /** The scene: the land passes on board, the signal is red when the step broke, the flag is out on arrival. */
-  const sceneState = $derived(arrived ? "arrived" : warn ? "stopped" : onBoard ? "riding" : "waiting");
-  /** The train drawn: the ride the card is about, the last one once arrived. */
+  const sceneState = $derived(arrived ? "arrived" : focusBroken ? "stopped" : onBoard ? "riding" : "waiting");
   const sceneRide = $derived(leg ?? lastRide);
   const sceneTrain = $derived(sceneRide ? trainKind(sceneRide.product, legLabel(sceneRide), sceneRide.mode === "bus") : undefined);
   /** Where the sky is reckoned: the device, else the stop the step is about. */
   const skyAt = $derived(position ?? (onBoard ? leg?.to : leg?.from) ?? lastRide?.to ?? null);
-  const speed = $derived(position && position.speedKmh !== null && position.speedKmh >= 1 ? Math.round(position.speedKmh) : null);
-  const standing = $derived(
-    !!progress && progress.current !== null && progress.current > 0 && progress.current < progress.stops.length - 1,
-  );
-  /** The stop coming up on board (or the one standing at); none when only the stop the card leads with is left. */
-  const nextStop = $derived.by(() => {
-    if (!onBoard || !progress || progress.next === null) return null;
-    const last = progress.stops.length - 1;
-    if (!standing && progress.next === last) return null;
-    const stop = standing ? progress.stops[progress.current ?? 0] : progress.stops[progress.next];
-    const over = leg?.stopovers.find((o) => o.name === stop.name && (!o.id || o.id === stop.id));
-    const planned = standing ? (over?.planned_departure ?? over?.planned_arrival) : (over?.planned_arrival ?? over?.planned_departure);
-    const current = new Date(standing ? stop.departure : stop.arrival).toISOString();
-    return { name: stop.name, planned: planned ?? current, current };
+  const speed = $derived(onBoard && position && position.speedKmh !== null && position.speedKmh >= 1 ? Math.round(position.speedKmh) : null);
+
+  /**
+   * On board, under the train: the stop it last reached (stands at, else last
+   * left) and the next one, as Android's PassingStops. Not the ride's first
+   * stop (the row above has it), and no next when that is the step below.
+   */
+  const passing = $derived.by(() => {
+    if (!onBoard || !progress) return null;
+    const stops = progress.stops;
+    const last = stops.length - 1;
+    const inside = (i: number | null | undefined) => (i !== null && i !== undefined && i >= 1 && i < last ? i : null);
+    const current = inside(progress.current);
+    const reached = current ?? inside(stops.findLastIndex((s) => s.passed));
+    const next = progress.next !== null && progress.next < last ? progress.next : null;
+    if (reached === null && next === null) return null;
+    return {
+      reached: reached === null ? null : { name: stops[reached].name, time: formatTime(new Date(reached === current ? stops[reached].arrival : stops[reached].departure).toISOString()) },
+      next: next === null ? null : { name: stops[next].name, time: formatTime(new Date(stops[next].arrival).toISOString()) },
+    };
   });
 
-  // ------------------------------------------------------------ the change
+  // ------------------------------------------------------------ the rows
 
-  /** After this ride: the next change, its train, and where the trip ends. */
-  const then = $derived(warn || arrived || day.legIndex === null ? null : (transfers(legs).find((t) => t.fromIndex === day.legIndex) ?? null));
-  const thenLeg = $derived(then ? legs[then.toIndex] : null);
-  const arriving = $derived(change ? legs[change.fromIndex] : null);
-  /** Something still lies ahead to show below the headline. */
-  const ahead = $derived(!!leg && !warn && !arrived);
-  const changeCount = $derived(Math.max(0, rides.length - 1));
-  const worst = $derived(overallConfidence(transfers(legs)));
+  /** The line below a row (above it, the one of the row before): this ride, a ride ahead, done, on foot between trains. */
+  type Seg = "cur" | "plain" | "past" | "walk" | "bad" | "none";
+  type NodeKind = "plain" | "done" | "active" | "bad" | "flag";
 
-  // ------------------------------------------------------------ how Abeona knows
+  interface Step {
+    verb: string;
+    icon: IconComponent;
+    bad: boolean;
+    /** The one large row; a broken ride further ahead is a small one. */
+    large: boolean;
+    time: { planned: string | null; current: string | null; cancelled: boolean } | null;
+    node: NodeKind;
+    /** Leave: none; broken: the train ("IC 535 to Ostende"). */
+    title: string | null;
+    /** "in 12 min", on the active step only. */
+    countdown: string | null;
+    platform: StopTime | null;
+    leave: boolean;
+    /** A broken step: where it leaves from. */
+    station: string | null;
+    /** The Alternatives button and "Any train" go here (when the anchor says so). */
+    actions: boolean;
+  }
+
+  type Row =
+    | { kind: "done"; seg: Seg }
+    | { kind: "doneRide"; index: number; first: boolean; seg: Seg }
+    | { kind: "stop"; stop: StopTime; name: string; node: NodeKind; muted: boolean; platform: boolean; seg: Seg }
+    | { kind: "band"; seg: Seg }
+    | { kind: "step"; step: Step; seg: Seg }
+    | { kind: "change"; t: Transfer; seg: Seg }
+    | { kind: "train"; index: number; seg: Seg }
+    | { kind: "later"; indices: number[]; seg: Seg }
+    | { kind: "destination"; seg: Seg };
+
+  /** The stretch of the ride in focus: burgundy, red when it does not run, plain when it left without you. */
+  const rideSeg = $derived<Seg>(focusBroken === "Missed" ? "plain" : focusBroken ? "bad" : "cur");
+
+  let doneOpen = $state(false);
+  let laterOpen = $state(false);
+
+  /** A station name that may wrap after its brackets and slashes: "Frankfurt(Main)Hbf" has no space to break at. */
+  function breakable(name: string | null): string | null {
+    return name?.replace(/([)/])(?=\S)/g, "$1\u200b") ?? null;
+  }
+
+  /** "in 12 min", "in 1 h 25 min", "now" (Android's TripFormat.relative). */
+  function relative(minutes: number | null): string | null {
+    if (minutes === null) return null;
+    return minutes <= 0 ? "now" : `in ${formatDuration(minutes)}`;
+  }
+
+  const brokenIcon: Record<Broken, IconComponent> = { Missed: CircleAlert, Cancelled: Ban, "Not running": Ban };
+
+  function brokenStep(i: number, why: Broken, large: boolean): Step {
+    const l = legs[i];
+    // The step that broke is the train's departure, except under someone already on it.
+    const at = onBoard && i === focusIdx ? l.to : l.from;
+    return {
+      verb: why,
+      icon: brokenIcon[why],
+      bad: true,
+      large,
+      time: { planned: at.planned, current: at.current, cancelled: true },
+      node: "bad",
+      title: `${legLabel(l)}${l.headsign ? ` to ${l.headsign}` : ""}`,
+      countdown: null,
+      platform: null,
+      leave: false,
+      station: large ? at.name : null,
+      // The alternatives and "Any train" go with the first thing that broke.
+      actions: i === (focusBroken ? focusIdx : brokenAhead),
+    };
+  }
+
+  function activeStep(verb: "Board" | "Get off" | "Arrive" | "Arrived", stop: StopTime, name: string, minutes: number | null): Step {
+    const icon = verb === "Board" ? TrainFront : verb === "Get off" ? LogOut : Flag;
+    return {
+      verb,
+      icon,
+      bad: false,
+      large: true,
+      time: { planned: stop.planned, current: stop.current, cancelled: false },
+      node: verb === "Arrived" ? "flag" : "active",
+      title: name,
+      countdown: relative(minutes),
+      platform: stop,
+      leave: false,
+      station: null,
+      // On the last ride the destination is this step: "Any train" goes here.
+      actions: verb === "Arrive",
+    };
+  }
+
+  const leaveStep = $derived<Step>({
+    verb: "Leave",
+    icon: DoorOpen,
+    bad: false,
+    large: true,
+    time: { planned: day.leaveAt, current: null, cancelled: false },
+    node: "active",
+    title: null,
+    countdown: relative(day.minutesToLeave),
+    platform: null,
+    leave: true,
+    station: null,
+    actions: false,
+  });
+
+  /** The step to show large: the verb and its stop, or what broke there. */
+  const active = $derived.by((): Step | null => {
+    if (arrived) return lastRide ? activeStep("Arrived", lastRide.to, trip.destination_name, null) : null;
+    if (!leg || focusIdx === null) return null;
+    if (focusBroken) return brokenStep(focusIdx, focusBroken, true);
+    switch (day.kind) {
+      case "before_leaving":
+        return leaveStep;
+      case "at_station":
+      case "changing":
+        return activeStep("Board", leg.from, leg.from.name, day.minutesToDeparture);
+      default:
+        return focusIdx === lastRideIdx
+          ? activeStep("Arrive", leg.to, trip.destination_name, day.minutesToArrival)
+          : activeStep("Get off", leg.to, leg.to.name, day.minutesToArrival);
+    }
+  });
+
+  /** Rides beyond the next train fold into "Later", unless something there broke or is at risk. */
+  const laterFolds = $derived(
+    aheadRides.length > 1 &&
+      !(brokenAhead !== null && brokenAhead !== aheadRides[0].i) &&
+      !(riskyChange !== null && riskyChange.toIndex > aheadRides[0].i),
+  );
+
+  const rows = $derived.by((): Row[] => {
+    const out: Row[] = [];
+    if (doneRides.length > 0) {
+      const tail: Seg = day.kind === "changing" ? "walk" : "past";
+      out.push({ kind: "done", seg: doneOpen ? "past" : tail });
+      if (doneOpen) {
+        doneRides.forEach((r, k) => {
+          const last = k === doneRides.length - 1;
+          out.push({ kind: "doneRide", index: r.i, first: k === 0, seg: "past" });
+          if (!(arrived && last)) {
+            out.push({ kind: "stop", stop: r.l.to, name: r.l.to.name, node: "done", muted: true, platform: true, seg: last ? tail : "past" });
+          }
+        });
+      }
+    }
+    if (arrived) {
+      if (active) out.push({ kind: "step", step: active, seg: "none" });
+      return out;
+    }
+    if (!leg || focusIdx === null || !active) return out;
+    const ride = rideSeg;
+    /** A change to or from a train that does not run says nothing: the broken row does. */
+    const changeTo = (i: number) => {
+      const t = changeInto(i);
+      return t && !legs[t.fromIndex].cancelled && !legs[t.toIndex].cancelled ? t : null;
+    };
+
+    switch (day.kind) {
+      case "before_leaving":
+        if (focusBroken) out.push({ kind: "step", step: active, seg: ride });
+        else {
+          out.push({ kind: "step", step: active, seg: "walk" });
+          out.push({ kind: "stop", stop: leg.from, name: leg.from.name, node: "plain", muted: false, platform: true, seg: ride });
+        }
+        break;
+      case "at_station":
+        out.push({ kind: "step", step: active, seg: ride });
+        break;
+      case "changing": {
+        const t = changeTo(focusIdx);
+        if (t) out.push({ kind: "change", t, seg: "walk" });
+        out.push({ kind: "step", step: active, seg: ride });
+        break;
+      }
+      default:
+        out.push({ kind: "stop", stop: leg.from, name: leg.from.name, node: "done", muted: true, platform: false, seg: ride });
+    }
+    out.push({ kind: "band", seg: ride });
+
+    const more = aheadRides.length > 0;
+    if (onBoard) out.push({ kind: "step", step: active, seg: more ? "walk" : "none" });
+    else if (!more) out.push({ kind: "destination", seg: "none" });
+    else out.push({ kind: "stop", stop: leg.to, name: leg.to.name, node: "plain", muted: false, platform: true, seg: "walk" });
+
+    for (let k = 0; k < aheadRides.length; k++) {
+      const r = aheadRides[k];
+      const t = changeTo(r.i);
+      if (t) out.push({ kind: "change", t, seg: "walk" });
+      const why = brokenOf(r.i);
+      if (why) out.push({ kind: "step", step: brokenStep(r.i, why, false), seg: "plain" });
+      else out.push({ kind: "train", index: r.i, seg: "plain" });
+      if (k === 0 && laterFolds) {
+        out.push({ kind: "later", indices: aheadRides.slice(1).map((x) => x.i), seg: "plain" });
+        if (!laterOpen) break;
+      }
+      if (r.i !== lastRideIdx) out.push({ kind: "stop", stop: r.l.to, name: r.l.to.name, node: "plain", muted: false, platform: true, seg: "walk" });
+    }
+    if (more) out.push({ kind: "destination", seg: "none" });
+    return out;
+  });
+
+  /** Rows after what broke (or the change at risk) are dimmed; the active step and the band never are. */
+  const dimFrom = $derived(rows.findIndex((r) => (r.kind === "step" && r.step.bad) || (r.kind === "change" && r.t === riskyChange)));
+  const dimmed = (k: number, r: Row) =>
+    dimFrom >= 0 && k > dimFrom && r.kind !== "band" && !(r.kind === "step" && r.step.large && !r.step.bad);
+
+  /** Where the Alternatives button and "Any train" go: what broke first, else the change at risk, else the destination. */
+  const anchor = $derived<"broken" | "risky" | "destination">(focusBroken || brokenAhead !== null ? "broken" : riskyChange ? "risky" : "destination");
+
+  const laterChanges = $derived.by(() => {
+    if (aheadRides.length < 2) return { count: 0, worst: null as Transfer | null };
+    const list = aheadRides
+      .slice(1)
+      .map((r) => changeInto(r.i))
+      .filter((t): t is Transfer => t !== null && !legs[t.fromIndex].cancelled && !legs[t.toIndex].cancelled);
+    const order = { safe: 0, tight: 1, at_risk: 2, impossible: 3 } as const;
+    const worst = list.reduce<Transfer | null>((w, t) => (!w || order[t.confidence] > order[w.confidence] || (order[t.confidence] === order[w.confidence] && t.availableMinutes < w.availableMinutes) ? t : w), null);
+    return { count: aheadRides.length - 1, worst: worst && worst.confidence !== "safe" ? worst : null };
+  });
+
+  // ------------------------------------------------------------ the compact form's one row
+
+  const compactChange = $derived.by(() => {
+    const t = aheadRides.length > 0 ? changeInto(aheadRides[0].i) : null;
+    return t && !legs[t.fromIndex].cancelled && !legs[t.toIndex].cancelled ? t : null;
+  });
+  const compactNext = $derived(aheadRides.length > 0 ? aheadRides[0].l : null);
+  /** The destination is the active step itself on the last ride. */
+  const destinationActive = $derived(arrived || (onBoard && focusIdx === lastRideIdx));
+
+  // ------------------------------------------------------------ the footer: how fresh, how Abeona knows
+
+  let sourceDialog: HTMLDialogElement | undefined = $state();
+  const sourceLabel = $derived(day.source === "onboard" ? "Train Wi-Fi" : day.source === "location" ? "Location" : "Timetable");
+  const freshness = $derived.by(() => {
+    if (!status) return null;
+    const word = { live: "Live", offline: "Offline", timetable: "Timetable", done: "" }[status.kind];
+    return `${word} ${status.text}`.trim();
+  });
 
   type State = "decides" | "agrees" | "silent" | "off";
 
@@ -287,229 +505,384 @@
     silent: "bg-well text-muted",
     off: "bg-well text-muted",
   };
+
+  const segClass: Record<Exclude<Seg, "none">, string> = {
+    cur: "w-1 bg-brand",
+    plain: "w-0.5 bg-ink/30",
+    past: "w-0.5 bg-ink/15",
+    walk: "w-0 border-l-2 border-dashed border-ink/40",
+    bad: "w-0.5 bg-bad",
+  };
+  const GRID = "grid grid-cols-[3.25rem_1.5rem_minmax(0,1fr)_auto] gap-x-2";
 </script>
 
-{#snippet way(from: StopTime, to: StopTime, walk: number)}
-  <!-- Between two trains: the walk, else the platform left behind (where it changed is said where the train arrives; the next one is the row's own). -->
-  {#if walk > 0}
-    <Fact icon={Footprints} label="Walk" value={`${walk} min`} />
-  {:else if displayPlatform(from) && displayPlatform(to)}
-    <PlatformBox current={displayPlatform(from)} />
-    <ArrowRight class="h-4 w-4 text-muted" aria-label="to" />
+<!-- The line through a row's mark column: above its node, below it, or through a row without one. -->
+{#snippet seg(style: Seg, part: "above" | "below" | "through")}
+  {#if style !== "none"}
+    <span
+      class="absolute left-1/2 -translate-x-1/2 {part === 'above' ? 'top-0 bottom-1/2' : part === 'below' ? 'top-1/2 bottom-0' : 'inset-y-0'} {segClass[style]}"
+      aria-hidden="true"
+    ></span>
   {/if}
 {/snippet}
 
-{#snippet trainToCatch(train: Leg)}
-  <!-- Before leaving: the train to catch, with all four facts. -->
-  <StopRow planned={train.from.planned} current={train.from.current} name={train.headsign ? `to ${train.headsign}` : ""} platformPlanned={train.from.planned_platform} platformCurrent={train.from.platform}>
-    {#snippet mark()}<TrainFront class="h-5 w-5" aria-label="Train" />{/snippet}
-    {#snippet line()}<LegChip leg={train} />{/snippet}
-  </StopRow>
+{#snippet node(kind: NodeKind)}
+  {#if kind === "flag"}
+    <span class="relative flex h-5 w-5 items-center justify-center rounded-full bg-brand-soft {arrived ? 'text-brand' : 'text-ink'}">
+      <Flag class="h-4 w-4" aria-label="Destination" />
+    </span>
+  {:else if kind === "active"}
+    <span class="relative h-3.5 w-3.5 rounded-full border-[3px] border-brand bg-brand-soft ring-4 ring-brand/25" aria-hidden="true"></span>
+  {:else if kind === "bad"}
+    <span class="relative h-3.5 w-3.5 rounded-full border-[3px] border-bad bg-brand-soft ring-4 ring-bad/30" aria-hidden="true"></span>
+  {:else if kind === "done"}
+    <span class="relative h-2.5 w-2.5 rounded-full bg-muted/60" aria-hidden="true"></span>
+  {:else}
+    <span class="relative h-2.5 w-2.5 rounded-full border-2 border-ink bg-brand-soft" aria-hidden="true"></span>
+  {/if}
 {/snippet}
 
-<section class="space-y-3" aria-label="Live">
-  <div class="overflow-hidden rounded-3xl shadow-card {warn ? 'bg-bad-soft' : 'bg-brand-soft'}" aria-live="polite">
-    <!-- The strip is the ride's rail: a dot per stop, the train where the ride is. -->
-    <Scene
-      state={sceneState}
-      size={arrived ? "header" : "strip"}
-      train={sceneTrain}
-      stops={showRide && progress ? progress.stops.map((stop) => ({ fraction: stop.fraction, name: stop.name })) : null}
-      fraction={rail}
-      speedKmh={onBoard ? speed : null}
-      at={now}
-      lat={skyAt?.lat}
-      lon={skyAt?.lon}
-    />
-
-    <div class="space-y-2 px-4 pb-4">
-      <!-- What state, and how Abeona knows. -->
-      <div class="flex min-h-7 items-center gap-2">
-        <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full {warn ? 'bg-bad text-bad-content' : 'bg-primary text-primary-content'}" aria-hidden="true">
-          {#if warn}<CircleAlert class="h-3.5 w-3.5" />
-          {:else if day.kind === "before_leaving"}<DoorOpen class="h-3.5 w-3.5" />
-          {:else if day.kind === "at_station"}<MapPin class="h-3.5 w-3.5" />
-          {:else if day.kind === "on_board"}<TrainFront class="h-3.5 w-3.5" />
-          {:else if day.kind === "changing"}<ArrowRightLeft class="h-3.5 w-3.5" />
-          {:else}<Flag class="h-3.5 w-3.5" />{/if}
-        </span>
-        <p class="t-label min-w-0 flex-1 truncate {warn ? 'text-bad-ink' : 'text-brand'}">{eyebrow}</p>
-        {#if !arrived && !summary}
-          <button
-            type="button"
-            class="inline-flex h-7 shrink-0 items-center gap-0.5 rounded-full bg-card/70 pl-2 pr-1 text-ink transition hover:bg-card focus-visible:outline-2 focus-visible:outline-primary"
-            aria-haspopup="dialog"
-            aria-label={`How Abeona knows: ${sourceLabel}`}
-            title={sourceLabel}
-            onclick={() => sourceDialog?.showModal()}
-          >
-            {#if day.source === "onboard"}<Wifi class="h-4 w-4" />{:else if day.source === "location"}<LocateFixed class="h-4 w-4" />{:else}<Clock class="h-4 w-4" />{/if}
-            <ChevronDown class="h-3.5 w-3.5 text-muted" />
-          </button>
-        {/if}
-      </div>
-
-      <!-- The one thing to know now. -->
-      <div class="flex items-center gap-4">
-        <div class="min-w-0 flex-1">
-          <p class="t-headline flex items-center gap-2 text-ink">
-            <span class="min-w-0 {lead.broken ? 'text-muted line-through' : ''}">{lead.headline}</span>
-            {#if lead.platformHead}
-              <PlatformBox planned={lead.platformHead.planned_platform} current={lead.platformHead.platform} size="lead" />
-            {/if}
-          </p>
-          {#if lead.stop || lead.line || lead.broken}
-            <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-              {#if lead.stop}
-                <ShiftedTime planned={lead.stop.planned} current={lead.stop.current} cancelled={!!lead.broken} class="t-time text-ink" />
-              {/if}
-              {#if lead.icon === "flag"}<Flag class="h-5 w-5 text-muted" aria-label="Get off" />{:else if lead.icon === "change"}<ArrowRightLeft class="h-5 w-5 text-muted" aria-label="Change" />{/if}
-              {#if lead.platformAt}
-                <PlatformBox planned={lead.platformAt.planned_platform} current={lead.platformAt.platform} size="lead" />
-              {/if}
-              {#if lead.line}
-                <span class="t-meta inline-flex min-w-0 items-center gap-2">
-                  {#if lead.platformHead}<LegChip leg={lead.line} />{/if}
-                  {#if lead.line.headsign}<span class="truncate">to {lead.line.headsign}</span>{/if}
-                </span>
-              {/if}
-              {#if lead.broken}
-                <StatusChip tone="bad" icon={lead.broken === "Missed" ? CircleAlert : Ban} label={lead.broken} />
-              {/if}
-              {#if lead.lifted}
-                <StatusChip tone="watch" icon={ArrowRightLeft} label="Train binding lifted" />
-              {/if}
-            </div>
-          {/if}
-          {#if lead.note}
-            <p class="t-meta mt-1 flex flex-wrap items-center gap-x-1">
-              {#if day.kind === "before_leaving" && !lead.broken}<Footprints class="h-4 w-4" aria-hidden="true" />{/if}
-              {lead.note}{#if day.kind === "before_leaving" && settingsHref && !summary}&nbsp;·
-                <a href={settingsHref} class="text-brand underline-offset-2 hover:underline">change</a>{/if}
-            </p>
-          {/if}
-          {#if approach && waitingFor}
-            <!-- Where the train to board is on its way here. -->
-            <p class="t-meta mt-1 flex flex-wrap items-center gap-x-1.5" aria-label={approachText(approach)}>
-              <TrainFront class="h-4 w-4" aria-hidden="true" />
-              <span aria-hidden="true">{approach.state === "at" ? "at" : "left"} {approach.stop}</span>
-              <GitCommitHorizontal class="h-4 w-4" aria-hidden="true" />
-              <span aria-hidden="true">{approach.stops_away}</span>
-            </p>
-          {/if}
-        </div>
-        {#if countdown(lead.minutes)}
-          {@const c = countdown(lead.minutes)!}
-          <div class="shrink-0 text-right" aria-label={`${c.number} ${c.label}`}>
-            <p class="t-numeral text-brand">{c.number}</p>
-            {#if c.label}<p class="t-meta">{c.label}</p>{/if}
-          </div>
-        {/if}
-      </div>
-
-      {#if summary}
-        {#if ahead && !(onBoard && leg === lastRide) && lastRide}
-          <!-- The Trips card's one row below the train: the arrival, the changes, how they look. -->
-          <div class="border-t border-line pt-1">
-            {#if day.kind === "before_leaving" && leg}{@render trainToCatch(leg)}{/if}
-            <StopRow planned={lastRide.to.planned} current={lastRide.to.current} name={trip.title ? trip.destination_name : ""} muted>
-              {#snippet mark()}<Flag class="h-5 w-5" aria-label="Destination" />{/snippet}
-              {#snippet trailing()}
-                <Fact icon={ArrowRightLeft} label={changeCount === 0 ? "Direct, changes" : "Changes"} value={changeCount} />
-                {#if worst}<ConfidenceChip confidence={worst} />{/if}
-              {/snippet}
-            </StopRow>
-          </div>
-        {/if}
-      {:else if ahead && leg}
-        <!-- The steps still ahead, in travel order, each with its time and platform. -->
-        {@const arrivingThere = then ? legs[then.fromIndex] : null}
-        <div class="border-t border-line pt-1">
-          {#if day.kind === "before_leaving"}
-            {@render trainToCatch(leg)}
-          {/if}
-          {#if day.kind === "changing" && change && arriving}
-            <!-- The change being made: its margin and the way between platforms. -->
-            <StopRow platformPlanned={change.walkMinutes > 0 ? null : leg.from.planned_platform} platformCurrent={change.walkMinutes > 0 ? null : leg.from.platform}>
-              {#snippet mark()}<ArrowRightLeft class="h-5 w-5" aria-label="Change" />{/snippet}
-              {#snippet line()}<ConfidenceChip confidence={change.confidence} minutes={change.availableMinutes} />{/snippet}
-              {#snippet trailing()}{@render way(arriving.to, leg.from, change.walkMinutes)}{/snippet}
-            </StopRow>
-          {/if}
-          {#if nextStop && progress}
-            <!-- The stop coming up, or the one the train stands at (then: when it leaves). -->
-            <StopRow planned={nextStop.planned} current={nextStop.current} name={nextStop.name}>
-              {#snippet mark()}
-                {#if standing}<MapPin class="h-5 w-5" aria-label="Now at, leaves" />{:else}<ArrowRight class="h-5 w-5" aria-label="Next stop" />{/if}
-              {/snippet}
-              {#snippet trailing()}<Fact icon={GitCommitHorizontal} label="Stops left" value={progress.stopsLeft} />{/snippet}
-            </StopRow>
-          {/if}
-          {#if then && thenLeg && arrivingThere}
-            {#if !onBoard}
-              <StopRow planned={arrivingThere.to.planned} current={arrivingThere.to.current} name={arrivingThere.to.name} platformPlanned={arrivingThere.to.planned_platform} platformCurrent={arrivingThere.to.platform}>
-                {#snippet mark()}<LogOut class="h-5 w-5" aria-label="Get off" />{/snippet}
-                {#snippet trailing()}
-                  {#if showRide && progress && arrivingThere === leg}<Fact icon={GitCommitHorizontal} label="Stops" value={progress.stops.length - 1} />{/if}
-                {/snippet}
-              </StopRow>
-            {/if}
-            <StopRow platformPlanned={then.walkMinutes > 0 ? null : thenLeg.from.planned_platform} platformCurrent={then.walkMinutes > 0 ? null : thenLeg.from.platform}>
-              {#snippet mark()}<ArrowRightLeft class="h-5 w-5" aria-label="Change" />{/snippet}
-              {#snippet line()}<ConfidenceChip confidence={then.confidence} minutes={then.availableMinutes} />{/snippet}
-              {#snippet trailing()}{@render way(arrivingThere.to, thenLeg.from, then.walkMinutes)}{/snippet}
-            </StopRow>
-            <StopRow planned={thenLeg.from.planned} current={thenLeg.from.current} name={thenLeg.headsign ? `to ${thenLeg.headsign}` : ""} platformPlanned={thenLeg.from.planned_platform} platformCurrent={thenLeg.from.platform}>
-              {#snippet mark()}<TrainFront class="h-5 w-5" aria-label="Train" />{/snippet}
-              {#snippet line()}<LegChip leg={thenLeg} />{/snippet}
-            </StopRow>
-          {/if}
-          {#if lastRide && !(onBoard && leg === lastRide)}
-            <!-- Where the trip ends (the headline, on the last ride). -->
-            <StopRow planned={lastRide.to.planned} current={lastRide.to.current} name={trip.destination_name} muted={!!then}>
-              {#snippet mark()}<Flag class="h-5 w-5" aria-label="Destination" />{/snippet}
-              {#snippet trailing()}
-                {#if !then && !onBoard && showRide && progress}<Fact icon={GitCommitHorizontal} label="Stops" value={progress.stops.length - 1} />{/if}
-              {/snippet}
-            </StopRow>
-          {/if}
-        </div>
-      {/if}
-
-      {#if day.missedChange && day.kind === "on_board"}
-        <p class="t-meta flex items-center gap-1.5 text-bad-ink"><CircleAlert class="h-4 w-4 shrink-0" aria-hidden="true" /> You are still on this train after your connection left.</p>
-      {/if}
-      <!-- Filled only when something broke; a change merely at risk gets a quiet button (none on the Trips card). -->
-      {#if reason && reason !== "at_risk"}
-        {#if summary}
-          <!-- Inside the Trips card's link: it opens the trip, whose card has the button. -->
-          <span class="btn btn-sm rounded-full border-none bg-bad text-bad-content"><Shuffle class="h-4 w-4" aria-hidden="true" /> See alternatives</span>
-        {:else if onAlternatives}
-          <button class="btn btn-sm rounded-full border-none bg-bad text-bad-content hover:brightness-95" onclick={onAlternatives}>
-            <Shuffle class="h-4 w-4" aria-hidden="true" /> See alternatives
-          </button>
-        {/if}
+<!-- Under what broke or the change at risk: the alternatives sheet, and whether any train will do. -->
+{#snippet actions(filled: boolean, inline: boolean)}
+  {#if (reason && (onAlternatives || summary)) || lifted}
+    <div class="flex flex-wrap items-center gap-2 {inline ? '' : 'pt-1.5'}">
+      {#if reason && summary && filled}
+        <!-- Inside the Trips card's link: it opens the trip, whose card has the button. -->
+        <span class="btn btn-sm rounded-full border-none bg-bad text-bad-content"><Shuffle class="h-4 w-4" aria-hidden="true" /> Alternatives</span>
       {:else if reason && onAlternatives && !summary}
-        <button class="btn btn-ghost btn-sm rounded-full border border-line text-ink" onclick={onAlternatives}>
+        <button
+          type="button"
+          class="btn btn-sm rounded-full {filled ? 'border-none bg-bad text-bad-content hover:brightness-95' : 'border-bad-ink/60 bg-transparent text-bad-ink hover:bg-bad-soft'}"
+          onclick={onAlternatives}
+        >
           <Shuffle class="h-4 w-4" aria-hidden="true" /> Alternatives
         </button>
       {/if}
+      {#if lifted}
+        <StatusChip tone="watch" icon={ArrowRightLeft} label="Any train" title="Any train: the train binding is lifted" />
+      {/if}
+    </div>
+  {/if}
+{/snippet}
 
-      {#if !summary}
-        {@render notices?.()}
+<!-- A step with its verb: the active one (large), or a broken ride further ahead. -->
+{#snippet stepRow(s: Step, above: Seg, below: Seg, dim: boolean)}
+  {@const Icon = s.icon}
+  <div class="{GRID} {dim ? 'opacity-50' : ''}" aria-live={s.large ? "polite" : undefined}>
+    <span class="relative col-start-2 row-start-1 self-stretch">{@render seg(above, "through")}</span>
+    <p class="t-label col-start-3 row-start-1 flex items-center gap-1.5 pt-2.5 {s.bad ? 'text-bad-ink' : 'text-brand'}">
+      <Icon class="h-3.5 w-3.5" aria-hidden="true" />{s.verb}
+    </p>
 
-        {#if status || speed !== null}
-          <!-- How fresh it all is: small, last. -->
-          <div class="flex items-center justify-between gap-3">
-            {#if status}
-              <Fact
-                icon={status.kind === "offline" ? CloudOff : status.kind === "timetable" ? Clock : status.kind === "done" ? CircleCheck : RefreshCw}
-                label={status.label}
-                value={status.text}
-              />
+    <span class="col-start-1 row-span-2 row-start-2 self-start pt-0.5 font-semibold text-ink {s.large ? 't-title' : 't-body'}">
+      {#if s.time}
+        <ShiftedTime planned={s.time.planned} current={s.time.current} cancelled={s.time.cancelled} block={false} class="flex-wrap gap-y-0" />
+      {/if}
+    </span>
+    <span class="relative col-start-2 row-start-2 flex items-center justify-center self-stretch">
+      {@render seg(above, "above")}
+      {@render seg(below, "below")}
+      {@render node(s.node)}
+    </span>
+    {#if s.leave}
+      <p class="col-start-3 row-start-2 text-[1.375rem] leading-tight font-semibold text-brand tabular">{s.countdown}</p>
+    {:else}
+      <p class="col-start-3 row-start-2 min-w-0 font-semibold text-ink [overflow-wrap:anywhere] {s.large ? 'text-[1.375rem] leading-tight' : 't-title'}">{breakable(s.title)}</p>
+    {/if}
+
+    <span class="relative col-start-2 row-start-3 self-stretch">{@render seg(below, "through")}</span>
+    <div class="col-start-3 row-start-3 min-w-0 pb-2.5">
+      {#if s.leave}
+        {#if settingsHref && !summary}
+          <a href={settingsHref} class="t-meta inline-flex min-h-8 items-center gap-1 hover:text-brand" title="Time to the station, in Settings">
+            <Footprints class="h-4 w-4" aria-hidden="true" /><span class="sr-only">To the station</span>{stationMinutes} min
+          </a>
+        {:else}
+          <Fact icon={Footprints} label="To the station" value={`${stationMinutes} min`} />
+        {/if}
+      {:else if s.countdown}
+        <p class="t-body font-bold text-brand tabular">{s.countdown}</p>
+      {:else if s.station}
+        <p class="t-meta truncate">{s.station}</p>
+      {/if}
+      {#if s.actions && anchor === (s.bad ? "broken" : "destination")}{@render actions(!!reason && reason !== "at_risk", false)}{/if}
+    </div>
+    {#if s.platform}
+      <span class="col-start-4 row-span-3 row-start-1 self-center">
+        <PlatformBox planned={s.platform.planned_platform} current={s.platform.platform} size={s.large ? "step" : "row"} />
+      </span>
+    {/if}
+  </div>
+{/snippet}
+
+<!-- The ride in focus on its stretch of line: the scene, the train, where it is. -->
+{#snippet band(through: Seg, first: boolean)}
+  {@const caption = !!leg && !focusBroken}
+  <div class="grid grid-cols-[3.25rem_1.5rem_minmax(0,1fr)] gap-x-2">
+    <span class="relative col-start-2 self-stretch">
+      <!-- First in the card (the Trips card): the line starts with the scene. -->
+      <span class="absolute inset-x-0 bottom-0 {first ? 'top-3' : 'top-0'}">{@render seg(through, "through")}</span>
+    </span>
+    <div class="min-w-0 py-1.5">
+      <div class="overflow-hidden rounded-xl">
+        <Scene
+          state={sceneState}
+          size="strip"
+          train={sceneTrain}
+          stops={showRail && progress ? progress.stops.map((stop) => ({ fraction: stop.fraction, name: stop.name })) : null}
+          fraction={onBoard && progress ? progress.fraction : 0}
+          speedKmh={speed}
+          at={now}
+          lat={skyAt?.lat}
+          lon={skyAt?.lon}
+        />
+      </div>
+      {#if caption && leg}
+        <div class="mt-2 flex min-w-0 items-center gap-2">
+          <LegChip {leg} size="md" />
+          {#if leg.headsign}<span class="t-body min-w-0 truncate font-semibold text-ink">to {leg.headsign}</span>{/if}
+          {#if speed !== null}<Fact icon={Gauge} label="Speed" value={`${speed} km/h`} class="ml-auto font-semibold text-ink" />{/if}
+        </div>
+      {/if}
+      {#if caption && !summary}
+        {#if passing}
+          <div class="t-meta mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5">
+            {#if passing.reached}
+              <span class="inline-flex min-w-0 max-w-full items-center gap-1">
+                <Check class="h-3.5 w-3.5 shrink-0" aria-hidden="true" /><span class="sr-only">Passed</span>
+                <span class="truncate">{passing.reached.name}</span>
+                <span class="tabular shrink-0">{passing.reached.time}</span>
+              </span>
+            {:else}
+              <span></span>
             {/if}
-            {#if speed !== null}<Fact icon={Gauge} label="Speed" value={`${speed} km/h`} class="ml-auto" />{/if}
+            {#if passing.next}
+              <span class="ml-auto inline-flex min-w-0 max-w-full items-center gap-1">
+                <span class="shrink-0">Next</span>
+                <span class="truncate">{passing.next.name}</span>
+                <span class="tabular shrink-0">{passing.next.time}</span>
+              </span>
+            {/if}
           </div>
+        {:else if approach && waitingFor}
+          <p class="t-meta mt-1">{approachText(approach)}</p>
+        {/if}
+      {/if}
+    </div>
+  </div>
+{/snippet}
+
+{#snippet platforms(t: Transfer)}
+  <!-- Between two trains: on foot with its minutes, else the platform arrived at → the one to leave from. -->
+  {@const from = legs[t.fromIndex].to}
+  {@const to = legs[t.toIndex].from}
+  {#if t.walkMinutes > 0}
+    <Fact icon={Footprints} label="Walk" value={`${t.walkMinutes} min`} />
+  {:else if (from.platform ?? from.planned_platform) && (to.platform ?? to.planned_platform)}
+    {@const a = from.platform ?? from.planned_platform}
+    {@const b = to.platform ?? to.planned_platform}
+    {@const moved = (s: StopTime) => !!s.platform && !!s.planned_platform && normalisePlatform(s.platform) !== normalisePlatform(s.planned_platform)}
+    <span class="tabular inline-flex items-center gap-1 text-sm font-semibold text-ink" role="img" aria-label={`Platform ${a} to platform ${b}`}>
+      <span class={moved(from) ? "rounded bg-watch-soft px-1 text-watch-ink" : ""} aria-hidden="true">{a}</span>
+      <span class="text-muted" aria-hidden="true">→</span>
+      <span class={moved(to) ? "rounded bg-watch-soft px-1 text-watch-ink" : ""} aria-hidden="true">{b}</span>
+    </span>
+  {/if}
+{/snippet}
+
+{#snippet changeRow(t: Transfer, above: Seg, dim: boolean)}
+  {#if t === riskyChange}
+    <!-- At risk or impossible: the change turns red, with the alternatives right there. -->
+    <div class="{GRID} {dim ? 'opacity-50' : ''}">
+      <span class="relative col-start-2 self-stretch">{@render seg(above, "through")}</span>
+      <div class="col-span-2 col-start-3 my-1 rounded-2xl bg-bad-soft px-3 py-2 text-bad-ink ring-1 ring-bad/40 ring-inset">
+        <div class="flex flex-wrap items-center gap-2">
+          <ConfidenceChip confidence={t.confidence} minutes={t.availableMinutes} word />
+          {@render platforms(t)}
+        </div>
+        {#if anchor === "risky"}{@render actions(t.confidence === "impossible", false)}{/if}
+      </div>
+    </div>
+  {:else}
+    <StopRow class={dim ? "opacity-50" : ""}>
+      {#snippet mark()}{@render seg(above, "through")}{/snippet}
+      {#snippet line()}
+        <ConfidenceChip confidence={t.confidence} minutes={t.availableMinutes} word />
+        {@render platforms(t)}
+      {/snippet}
+    </StopRow>
+  {/if}
+{/snippet}
+
+{#snippet destinationRow(above: Seg, dim: boolean)}
+  {#if lastRide}
+    <StopRow
+      planned={lastRide.to.planned}
+      current={lastRide.to.current}
+      name={trip.destination_name}
+      platformPlanned={lastRide.to.planned_platform}
+      platformCurrent={lastRide.to.platform}
+      class={dim ? "opacity-50" : ""}
+    >
+      {#snippet mark()}{@render seg(above, "above")}{@render node("flag")}{/snippet}
+      {#if anchor === "destination"}{@render actions(!!reason && reason !== "at_risk", false)}{/if}
+    </StopRow>
+    {#if onBackToPlan && !summary}
+      <div class={GRID}>
+        <span class="col-start-3">
+          <button type="button" class="btn btn-ghost btn-sm -ml-3 rounded-full text-brand" onclick={onBackToPlan} disabled={busy}>Back to the plan</button>
+        </span>
+      </div>
+    {/if}
+  {/if}
+{/snippet}
+
+<section class="space-y-3" aria-label="Live">
+  <div class="overflow-hidden rounded-3xl bg-brand-soft shadow-card">
+    {#if arrived && !summary}
+      <!-- Arrived: the train at the platform with its flag, header size. -->
+      <Scene state="arrived" size="header" train={sceneTrain} at={now} lat={skyAt?.lat} lon={skyAt?.lon} />
+    {/if}
+
+    <div class="px-4 pb-1 pt-1.5">
+      {#if summary}
+        <!-- The Trips card: the band, the active step, then one row. -->
+        <!-- In time order, as on the full card: before boarding the step comes first, on board the band. -->
+        {#if active && !arrived && !onBoard}
+          {@render stepRow(active, "none", day.kind === "before_leaving" && !focusBroken ? "walk" : rideSeg, false)}
+          {@render band(rideSeg, false)}
+        {:else}
+          {#if !arrived}{@render band(rideSeg, true)}{/if}
+          {#if active}{@render stepRow(active, arrived ? "none" : rideSeg, "none", false)}{/if}
+        {/if}
+        {#if !arrived && (compactChange || compactNext || !destinationActive)}
+          <div class="{GRID} min-h-10 items-center pb-1.5 {focusBroken ? 'opacity-50' : ''}">
+            <span class="col-start-3 flex min-w-0 flex-wrap items-center gap-2">
+              {#if compactChange}<ConfidenceChip confidence={compactChange.confidence} minutes={compactChange.availableMinutes} word />{/if}
+              {#if compactNext}<LegChip leg={compactNext} />{/if}
+              {#if lastRide && !destinationActive}
+                <span class="t-meta inline-flex items-center gap-1 text-ink">
+                  <Flag class="h-4 w-4" aria-label="Destination" />
+                  <ShiftedTime planned={lastRide.to.planned} current={lastRide.to.current} block={false} />
+                </span>
+              {/if}
+              <!-- What broke further ahead, or the binding lifted: the step itself is not on this card. -->
+              {#if !focusBroken}{@render actions(!!reason && reason !== "at_risk", true)}{/if}
+            </span>
+          </div>
+        {/if}
+      {:else}
+        {#each rows as r, k (k)}
+          {@const above = rows[k - 1]?.seg ?? "none"}
+          {@const dim = dimmed(k, r)}
+          {#if r.kind === "done"}
+            {@const first = doneRides[0].l}
+            <button type="button" class="block w-full text-left" aria-expanded={doneOpen} onclick={() => (doneOpen = !doneOpen)}>
+              <StopRow planned={first.from.planned} current={first.from.current} name={first.from.name} muted class="min-h-12">
+                {#snippet mark()}{@render seg(r.seg, "below")}{@render node("done")}{/snippet}
+                <span class="t-meta">{doneRides.length} {doneRides.length === 1 ? "ride" : "rides"} done{replanned ? " · re-planned" : ""}</span>
+                {#snippet trailing()}
+                  <ChevronDown class="h-5 w-5 text-muted transition-transform {doneOpen ? 'rotate-180' : ''}" aria-label={doneOpen ? "Hide what is done" : "Show what is done"} />
+                {/snippet}
+              </StopRow>
+            </button>
+          {:else if r.kind === "doneRide"}
+            {@const ride = legs[r.index]}
+            <StopRow
+              planned={r.first ? null : ride.from.planned}
+              current={r.first ? null : ride.from.current}
+              name={ride.headsign ? `to ${ride.headsign}` : ""}
+              muted
+              platformPlanned={ride.from.planned_platform}
+              platformCurrent={ride.from.platform}
+            >
+              {#snippet mark()}{@render seg(r.seg, "through")}{/snippet}
+              {#snippet line()}<LegChip leg={ride} />{/snippet}
+            </StopRow>
+          {:else if r.kind === "stop"}
+            <StopRow
+              planned={r.stop.planned}
+              current={r.stop.current}
+              name={r.name}
+              muted={r.muted}
+              platformPlanned={r.platform ? r.stop.planned_platform : null}
+              platformCurrent={r.platform ? r.stop.platform : null}
+              class={dim ? "opacity-50" : ""}
+            >
+              {#snippet mark()}{@render seg(above, "above")}{@render seg(r.seg, "below")}{@render node(r.node)}{/snippet}
+            </StopRow>
+          {:else if r.kind === "band"}
+            {@render band(r.seg, k === 0)}
+          {:else if r.kind === "step"}
+            {@render stepRow(r.step, above, r.seg, dim)}
+          {:else if r.kind === "change"}
+            {@render changeRow(r.t, above, dim)}
+          {:else if r.kind === "train"}
+            {@const train = legs[r.index]}
+            {@const into = changeInto(r.index)}
+            <StopRow
+              planned={train.from.planned}
+              current={train.from.current}
+              name={train.headsign ? `to ${train.headsign}` : train.from.name}
+              platformPlanned={train.from.planned_platform}
+              platformCurrent={train.from.platform}
+              class={dim ? "opacity-50" : ""}
+            >
+              {#snippet mark()}{@render seg(above, "above")}{@render seg(r.seg, "below")}{@render node("plain")}{/snippet}
+              {#snippet line()}<LegChip leg={train} />{/snippet}
+              {#if into?.changesStation && train.headsign}<span class="t-meta truncate">{train.from.name}</span>{/if}
+            </StopRow>
+          {:else if r.kind === "later"}
+            <button type="button" class="block w-full text-left {dim ? 'opacity-50' : ''}" aria-expanded={laterOpen} onclick={() => (laterOpen = !laterOpen)}>
+              <StopRow class="min-h-12">
+                {#snippet mark()}{@render seg(r.seg, "through")}{/snippet}
+                {#snippet line()}
+                  <span class="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+                    <span class="t-body mr-0.5 text-muted">Later</span>
+                    {#each r.indices as i (i)}<LegChip leg={legs[i]} />{/each}
+                    <span class="t-meta ml-0.5">{laterChanges.count} {laterChanges.count === 1 ? "change" : "changes"}</span>
+                    {#if laterChanges.worst}
+                      <ConfidenceChip confidence={laterChanges.worst.confidence} minutes={laterChanges.worst.availableMinutes} word />
+                    {/if}
+                  </span>
+                {/snippet}
+                {#snippet trailing()}
+                  <ChevronDown class="h-5 w-5 text-muted transition-transform {laterOpen ? 'rotate-180' : ''}" aria-label={laterOpen ? "Hide the later rides" : "Show the later rides"} />
+                {/snippet}
+              </StopRow>
+            </button>
+          {:else if r.kind === "destination"}
+            {@render destinationRow(above, dim)}
+          {/if}
+        {/each}
+
+        <!-- How fresh it all is, and how Abeona knows: the last, smallest line. -->
+        {#if freshness || !arrived}
+        <div class="mt-1 flex min-h-11 items-center justify-between gap-3 border-t border-line">
+          {#if status && freshness}
+            <span class="t-meta inline-flex items-center gap-1.5 {status.kind === 'offline' ? 'text-watch-ink' : ''}" title={status.label}>
+              {#if status.kind === "offline"}<CloudOff class="h-4 w-4" aria-hidden="true" />
+              {:else if status.kind === "timetable"}<Clock class="h-4 w-4" aria-hidden="true" />
+              {:else if status.kind === "done"}<CircleCheck class="h-4 w-4" aria-hidden="true" />
+              {:else}<RefreshCw class="h-4 w-4" aria-hidden="true" />{/if}
+              {freshness}
+            </span>
+          {:else}
+            <span></span>
+          {/if}
+          {#if !arrived}
+            <button
+              type="button"
+              class="btn btn-ghost btn-circle btn-sm -mr-2 h-10 w-10 text-muted"
+              aria-haspopup="dialog"
+              aria-label={`How Abeona knows: ${sourceLabel}`}
+              title={`How Abeona knows: ${sourceLabel}`}
+              onclick={() => sourceDialog?.showModal()}
+            >
+              {#if day.source === "onboard"}<Wifi class="h-5 w-5" aria-hidden="true" />{:else if day.source === "location"}<LocateFixed class="h-5 w-5" aria-hidden="true" />{:else}<Clock class="h-5 w-5" aria-hidden="true" />{/if}
+            </button>
+          {/if}
+        </div>
         {/if}
       {/if}
     </div>
@@ -521,7 +894,7 @@
 </section>
 
 {#if !summary}
-<!-- What the source pill opens: each signal, the deciding one lit. -->
+<!-- What the footer's source button opens: each signal, the deciding one lit. -->
 <dialog bind:this={sourceDialog} class="modal modal-bottom sm:modal-middle" aria-labelledby="how-abeona-knows">
   <div class="modal-box rounded-t-3xl bg-card sm:rounded-3xl">
     <h3 id="how-abeona-knows" class="t-title text-ink">

@@ -1,7 +1,7 @@
 # ADR: Abeona — what, where and when, the same on both cards
 
 **Date:** 2026-11-15
-**Status:** Accepted
+**Status:** Accepted; the layout is superseded by `2026-11-20-abeona-live-journey-line.md`, what each situation says still holds
 
 ## Context
 The Trips screen's next-trip card and the trip screen's live card were built

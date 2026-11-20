@@ -158,7 +158,7 @@ A new concept gets a row here first.
 | :--- | :--- | :--- | :--- |
 | leave home | `MeetingRoom` | `DoorOpen` | — |
 | at a station, stop | `Place` | `MapPin` | "at" |
-| on board, train | `Train` | `TrainFront` | — |
+| on board, train, board (the verb) | `Train` | `TrainFront` | — |
 | bus | `DirectionsBus` | `Bus` | — |
 | walk | `DirectionsWalk` | `Footprints` | "walk" |
 | change, number of changes | `SwapHoriz` + n | `ArrowRightLeft` + n | "2 changes", "direct" (n = 0) |
@@ -274,30 +274,76 @@ The model (`lib/scene.ts`, `ui/scene/SceneModel.kt`) is tested from
 
 ## 8. The live card
 
-One card, two forms (`decisions/2026-11-15-abeona-what-where-when.md`): full
-on the trip screen, compact as the next-trip card on the travel day.
+The live card is the journey drawn as one vertical line, in the row grid
+(§4): time left, the line with its nodes, the content, the platform boxed
+right. Every fact has one row and is shown once on the screen
+(`decisions/2026-11-20-abeona-live-journey-line.md`; the design canvas
+"Abeona live companion redesign" has every situation drawn). Text is the
+minimum needed to understand: no sentence where a word, a number or an
+icon does.
 
 ```
-┌──────────────────────────────────────────────┐
-│ ~~~~ scene strip: the rail, the train ~~~~~~ │  64
-├──────────────────────────────────────────────┤
-│ ● ON BOARD · ICE 528 to München      [wifi]▾ │  label, source pill (icon only)
-│ Würzburg Hbf                             23  │  headline          numeral
-│ 19:47 +6 19:41   ⚑  [6]                 min  │  time, what happens there, platform
-│──────────────────────────────────────────────│
-│ 18:52  →  Aschaffenburg Hbf            ⋯ 3   │  next stop row, stops left
-│ 19:47  ⇄  ✓ 12 min              [6] → [8]    │  the change
-│ 19:59 [RE 54] to Bamberg               [8]   │  next train
-│ 21:04  ⚑  Bamberg                            │  destination
-│ ⟳ 17:44                          ◔ 127 km/h  │  freshness, speed
-└──────────────────────────────────────────────┘
+┌────────────────────────────────────────────┐
+│ 06:29 ○  Erlangen               ⌄          │  done (muted): "2 rides done"
+│ 10:52 ○  Frankfurt Flughafen               │  where you boarded (muted)
+│      ┃  [scene strip: the rail, the train] │  band: your train
+│      ┃  [ICE 16] to Bruxelles-Midi 197 km/h│
+│      ┃  ✓ Köln Hbf 11:46   Next Aachen 12:21│
+│ 12:47 ◉  GET OFF                    ┌──┐   │  the active step: verb,
+│  +4      Liège-Guillemins           │ 3│   │  station, countdown,
+│          in 49 min                  └──┘   │  platform
+│      ┆  (✓ 15 min)  3 → 3                 │  the change
+│ 13:02 ●  [IC 535] to Ostende          [3]  │  the next train
+│      │  Later: [ICE 26] [RE 1] · 2 changes │  folded beyond it
+│ 13:32 ⚑  Louvain                      [1]  │  destination, always last
+│ ⟳ Live 12:37                         (wifi)│  freshness; source button
+└────────────────────────────────────────────┘
 ```
 
-- The rows under the hairline are `StopRow`s in the row grid, in travel order.
-- Compact form: strip, label, headline, time line, then one row: ⚑ arrival,
-  ⇄ n, the worst change's chip. No source pill, steps, notices or freshness.
-- A broken step: the card turns `bad` soft, the headline is struck through,
-  the button is filled.
+Rows, top to bottom; a row with nothing to say is left out:
+
+| Row | When | Shows |
+| :--- | :--- | :--- |
+| Done | a ride is done | first departure time and station, muted; "n rides done"; expands to the done rows |
+| Boarded | on board | the current ride's departure (time, station), muted |
+| Band | always, except arrived | the scene strip (§7) on the current ride's stretch of line: the ride on board, else the one to board; under it the line chip, "to" its direction and, from the train's Wi-Fi, the speed; on board a second line: "✓ last stop time" left, "Next stop time" right (left out when the next stop is the active step); waiting for the train, where it is ("Left Aschaffenburg Hbf · 3 stops") |
+| Active step | always, exactly one | the verb (Leave · Board · Get off · Arrive · Arrived), the time with its delay, the station (Leave: none), "in 12 min", the platform big |
+| Change | after a Get off, or before a Board at a change | the status chip with the minutes (word only when not safe: "6 min · tight"), "3 → 5" or the walk with its minutes |
+| Next train | after the change | time, line chip, "to" direction, platform |
+| Later | rides beyond the next train | their line chips, "n changes", the worst change's chip unless all are safe; expands to their rows |
+| Destination | unless it is the active step | time with delay, name, platform |
+| Footer | always | where the times come from and when: "Live 12:37", "Timetable 12:37" (no live data for the trip), "Offline 12:37" (`watch`); the source as an icon button that opens How Abeona knows |
+
+- **Sizes grow as the step comes close:** the active step is the large row;
+  at a change the change row and the next train move up as soon as you get
+  off. No new element appears anywhere else.
+- **One countdown** ("in 12 min"), on the active step.
+- **Something broke:** the broken step's row turns `bad` (red node, the verb
+  "Missed", "Cancelled" or "Not running", the train, the time struck), a
+  filled "Alternatives" button opens the alternatives sheet, and "Any train"
+  (`watch`) says the binding is lifted. "Any train" stands once: with what
+  broke, else the change at risk, else the destination (on the last ride, the
+  Arrive step). The rows after it are dimmed. A
+  change at risk is a red change row with an outlined "Alternatives".
+- **Notices are rows, not banners:** a re-planned trip says "re-planned" in
+  the done row; a connection followed instead adds "Back to the plan" under
+  the destination.
+- **While the card is live, the trip's own timeline is not shown** below the
+  map: the card is the journey. It returns once arrived.
+- **Arrived:** the arrival scene (header size), the done row and "Arrived"
+  with the time, the delay and the platform. Compensation stays in its own
+  card below.
+- **Compact form** (the Trips card on the travel day): the band without its
+  second line and the active step, in time order (before boarding the step
+  comes first), and one row: the change chip, the next line chip, "⚑ 13:32",
+  "Any train" when the binding is lifted. Nothing else, and no banner under
+  it.
+- **Words only where an icon or a number cannot say it.** No instructions
+  the traveller knows already (walking to the platform, waiting for the
+  train); the platform box, the countdown and the chips carry the step.
+- **The notification** follows the same order: your train and the active step
+  as the title, then the change, the next train, the next stop, and the band's
+  line (`decisions/2026-11-20-abeona-notification-names-the-train.md`).
 
 ---
 
@@ -309,7 +355,7 @@ Bottom navigation: Trips, Plan, Year, Settings (icons with labels).
 | Screen | Order, top to bottom |
 | :--- | :--- |
 | **Trips** | `Banner`s (BahnCard deadline, update). Next trip: on the travel day its day and title as plain text, then the live card compact; otherwise the next-trip card (scene header; day and title; departure `time` + `PlatformBox`; one line of `Fact`s: ⚑ arrival, 🕓 duration, ⇄ n, chips, ticket). "Upcoming" as dense rows (day + time left, title and line chips, ticket icon right). The year so far as four figures in one row. "Past trips" as a quiet row. Empty: `EmptyState`. |
-| **Trip, live** | Top bar: title = "A → B", ticket, refresh, ⋮. `LiveCard`. Map. Then as off-live below, without what the card said. |
+| **Trip, live** | Top bar: title = "A → B", ticket, refresh, ⋮. `LiveCard` (§8). Map. Then the ticket and the rest, without the timeline (the card is the journey). |
 | **Trip, not live** | Header: day, departure → arrival as `time`, facts line. `Banner`s. Timeline as `StopRow`s on one continuous rail: a ride is its first and last stop with the line chip between, stops folded behind "n stops"; a change is one row (chip, platforms). Ticket card (fare, class, price, travellers as `Fact`s; "Show ticket"). After the ride: compensation, what happened. |
 | **Alternatives** | Sheet. Each connection: departure → arrival, 🕓, ⇄ n, line chips, validity chip (`ok` / `watch` / `bad`). The hint once, under the list. |
 | **Ticket** | White, full brightness. The ticket. Cards the ticket needs as tabs. DB Navigator in the top bar. |

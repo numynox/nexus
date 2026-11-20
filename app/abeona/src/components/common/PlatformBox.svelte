@@ -7,7 +7,8 @@
   interface Props {
     planned?: string | null;
     current?: string | null;
-    size?: "row" | "lead";
+    /** row: in a row; lead: beside a headline; step: the live card's active step. */
+    size?: "row" | "lead" | "step";
     class?: string;
   }
 
@@ -24,11 +25,11 @@
     aria-label={changed ? `Platform ${shown}, changed from ${planned}` : `Platform ${shown}`}
   >
     {#if changed}
-      <span class="tabular text-muted line-through {size === 'lead' ? 't-body' : 'text-xs'}" aria-hidden="true">{planned}</span>
+      <span class="tabular text-muted line-through {size === 'row' ? 'text-xs' : 't-body'}" aria-hidden="true">{planned}</span>
     {/if}
     <span
-      class="tabular inline-flex items-center justify-center rounded-lg font-semibold
-        {size === 'lead' ? 'h-9 min-w-9 px-2 text-xl' : 'h-6 min-w-6 px-1.5 text-[0.8125rem]'}
+      class="tabular inline-flex items-center justify-center font-semibold
+        {size === 'step' ? 'h-12 min-w-12 rounded-xl px-2 text-2xl' : size === 'lead' ? 'h-9 min-w-9 rounded-lg px-2 text-xl' : 'h-6 min-w-6 rounded-lg px-1.5 text-[0.8125rem]'}
         {changed ? 'bg-watch text-watch-content' : 'bg-well text-ink'}"
       aria-hidden="true">{shown}</span>
   </span>

@@ -88,10 +88,18 @@ fun StatusChip(
 /**
  * How a change looks: its icon and the minutes ("✓ 12 min"). The word (Safe,
  * Tight, At risk, Impossible) shows only when there are no minutes to show,
- * and is always what a screen reader hears.
+ * and is always what a screen reader hears. With [word], as on the live
+ * card's line, a change that is not safe says so after its minutes ("6 min ·
+ * tight", "2 min · at risk"), and an impossible one only "impossible".
  */
 @Composable
-fun ConfidenceChip(confidence: Confidence, modifier: Modifier = Modifier, minutes: Int? = null) {
+fun ConfidenceChip(confidence: Confidence, modifier: Modifier = Modifier, minutes: Int? = null, word: Boolean = false) {
+    val label = when {
+        minutes == null -> confidence.label
+        !word || confidence == Confidence.SAFE -> "$minutes min"
+        confidence == Confidence.IMPOSSIBLE -> confidence.label.lowercase()
+        else -> "$minutes min · ${confidence.label.lowercase()}"
+    }
     StatusChip(
         tone = when (confidence) {
             Confidence.SAFE -> StatusTone.Ok
@@ -105,7 +113,7 @@ fun ConfidenceChip(confidence: Confidence, modifier: Modifier = Modifier, minute
             Confidence.IMPOSSIBLE -> Icons.Rounded.Block
         },
         modifier = modifier,
-        label = minutes?.let { "$it min" } ?: confidence.label,
+        label = label,
         description = "${confidence.label} change" + (minutes?.let { ", $it min" } ?: ""),
     )
 }
@@ -164,9 +172,9 @@ fun BindingBanner(delay: Int, modifier: Modifier = Modifier, because: String? = 
     Banner(
         StatusTone.Watch,
         Icons.Rounded.SwapHoriz,
-        "Train binding lifted",
+        "You may take another train",
         modifier,
-        text = (because ?: "Expected +$delay min at your destination") + ": your saver ticket is valid on other trains for this route.",
+        text = (because ?: "Expected +$delay min at your destination") + ": train binding lifted.",
     )
 }
 

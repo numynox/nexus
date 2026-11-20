@@ -2,6 +2,9 @@ package io.github.numynox.nexus.abeona.screenshots
 
 import android.Manifest
 import android.app.Application
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
@@ -68,9 +71,15 @@ class AppScreenshots {
         waitForText("I understand, take it")
         shot("03d-trip-take-anyway")
         tap("I understand, take it")
-        waitForText("You follow another connection")
-        scrollTo("You follow another connection")
+        // The card follows the new connection; the way back to the plan is under its destination.
+        waitForText("Back to the plan")
+        scrollTo("Back to the plan")
         shot("03e-trip-following")
+    }
+
+    /** The live card's last line, "Live 12:37": the trip's live values are in. */
+    private val liveFooter = SemanticsMatcher("the live card's last line") { node ->
+        node.config.getOrNull(SemanticsProperties.Text)?.any { Regex("Live \\d\\d:\\d\\d").matches(it.text) } == true
     }
 
     private fun type(text: String) {
@@ -81,7 +90,7 @@ class AppScreenshots {
     @Test
     fun walkThroughTheApp() = with(robot) {
         waitForText("Visit grandma in Bamberg")
-        waitForText("Train binding lifted")
+        waitForText("Any train")
         shot("01-trips")
         scrollTo("${LocalDate.now().year} on rails")
         shot("02-trips-upcoming-history")
@@ -94,9 +103,9 @@ class AppScreenshots {
 
         tap("Visit grandma in Bamberg")
         waitFor(hasContentDescription("More"))
-        waitFor(hasContentDescription("Live · updated", substring = true))
+        waitFor(liveFooter)
         shot("03-trip-detail")
-        // The source pill opens how Abeona knows; no signals here, so the timetable.
+        // The source button at the end of the card's last line opens how Abeona knows; no signals here, so the timetable.
         tapIcon("How Abeona knows: Timetable")
         waitForText("How Abeona knows", substring = true)
         shot("03a-trip-how-abeona-knows")
@@ -111,14 +120,22 @@ class AppScreenshots {
         shot("03c-trip-alternatives")
         dismiss()
         scrollTo("Visit grandma in Bamberg")
-        // While the trip is live, the map is in the dashboard, above the timeline.
-        scrollTo("Your journey")
+        // While the trip is live the card is the journey: under it the map and the ticket, no timeline.
+        scrollTo("Show ticket")
         shot("04-trip-journey")
-        // The timeline's own button: the dashboard shows "RE 10" too.
-        scrollTo("2 stops")
+        // The timeline, off the travel day: the conference in two days, its stops folded.
+        back()
+        scrollTo("Hamburg conference")
+        tap("Hamburg conference")
+        waitFor(hasContentDescription("More"))
+        scrollTo("3 stops")
         shot("05-trip-timeline")
-        tap("2 stops")
+        tap("3 stops")
         shot("06-trip-stopovers")
+        back()
+        scrollTo("Visit grandma in Bamberg")
+        tap("Visit grandma in Bamberg")
+        waitFor(hasContentDescription("More"))
         // Title, ticket, travellers and BahnCards: one sheet under ⋮.
         tapIcon("More")
         tap("Edit trip")
@@ -224,7 +241,8 @@ class AppScreenshots {
         tap("Visit grandma in Bamberg")
         waitFor(hasContentDescription("More"))
         shot("25-trip-detail-dark")
-        scrollTo("RE 10")
+        // Under the card: the map and the ticket (the card is the journey while live).
+        scrollTo("Show ticket")
         shot("26-trip-timeline-dark")
     }
 
@@ -279,6 +297,10 @@ class OfflineScreenshots {
         shot("31-trips-offline")
         tap("Visit grandma in Bamberg")
         waitFor(hasContentDescription("More"))
+        // The live card from the offline pack, its last line saying how old the values are.
+        waitFor(SemanticsMatcher("the live card's offline line") { node ->
+            node.config.getOrNull(SemanticsProperties.Text)?.any { Regex("Offline \\d\\d:\\d\\d").matches(it.text) } == true
+        })
         shot("32-trip-offline")
         // The ticket is one tap away in the top bar.
         tapIcon("Ticket")

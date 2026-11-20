@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -42,6 +43,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.numynox.nexus.abeona.domain.delayMinutes
 import io.github.numynox.nexus.abeona.ui.AbeonaType
+import io.github.numynox.nexus.abeona.ui.bad
+import io.github.numynox.nexus.abeona.ui.brand
 import io.github.numynox.nexus.abeona.ui.card
 import io.github.numynox.nexus.abeona.ui.muted
 import io.github.numynox.nexus.abeona.ui.burgundy
@@ -76,14 +79,31 @@ fun SurfaceCard(
     }
 }
 
-/** How the rail passes through a row's mark column, for rows that follow each other on one continuous rail. */
-enum class RailLine { None, Solid, Faint, Dashed }
+/**
+ * How the rail passes through a row's mark column, for rows that follow each
+ * other on one continuous rail. The live card's journey line adds [Brand]
+ * (the ride on board, or the one to board) and [Done] (rides behind).
+ */
+enum class RailLine { None, Solid, Faint, Dashed, Brand, Done }
 
-/** What sits on the rail in a row: a stop where the traveller gets on or off, or one passed through. */
-enum class RailDot { None, Stop, Through }
+/**
+ * What sits on the rail in a row: a stop where the traveller gets on or off,
+ * or one passed through. On the live card's line also a stop behind ([Done]),
+ * the step to do next ([Active]) and a step that broke ([Broken]).
+ */
+enum class RailDot { None, Stop, Through, Done, Active, Broken }
 
-/** The rail through one row: the line above the dot and below it. */
-data class Rail(val above: RailLine = RailLine.None, val below: RailLine = RailLine.None, val dot: RailDot = RailDot.Stop)
+/**
+ * The rail through one row: the line above the dot and below it. [hole] is
+ * the colour a ring is cut out of: the surface the rows sit on (the screen's
+ * when unspecified).
+ */
+data class Rail(
+    val above: RailLine = RailLine.None,
+    val below: RailLine = RailLine.None,
+    val dot: RailDot = RailDot.Stop,
+    val hole: Color = Color.Unspecified,
+)
 
 /**
  * The row grid: time 52, mark 24, the name taking the room, the platform
@@ -95,6 +115,8 @@ data class Rail(val above: RailLine = RailLine.None, val below: RailLine = RailL
  * ([rail]) drawn through the whole height of the row, so rows stacked without
  * a gap make one continuous line. [name] is plain text; [content] replaces it
  * with a line chip and its direction. [trailing] sits before the platform.
+ * [timeStyle] replaces the time's own style, for the row that is the step to
+ * do next.
  */
 @Composable
 fun StopRow(
@@ -109,6 +131,7 @@ fun StopRow(
     quiet: Boolean = false,
     rail: Rail? = null,
     minHeight: Dp = 40.dp,
+    timeStyle: TextStyle? = null,
     onClick: (() -> Unit)? = null,
     mark: (@Composable () -> Unit)? = null,
     trailing: (@Composable RowScope.() -> Unit)? = null,
@@ -117,7 +140,9 @@ fun StopRow(
     val scheme = MaterialTheme.colorScheme
     val ink = if (quiet || cancelled) muted else scheme.onSurface
     val railColor = scheme.onSurface
-    val hole = scheme.surface
+    val hole = rail?.hole?.takeIf { it != Color.Unspecified } ?: scheme.surface
+    val accent = brand
+    val broken = bad.fill.container
     Row(
         modifier
             .fillMaxWidth()
@@ -136,6 +161,8 @@ fun StopRow(
                             railColor.copy(alpha = 0.45f), Offset(x, from), Offset(x, to), strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round,
                             pathEffect = PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx(), 5.dp.toPx())),
                         )
+                        RailLine.Brand -> drawLine(accent, Offset(x, from), Offset(x, to), strokeWidth = 4.dp.toPx())
+                        RailLine.Done -> drawLine(railColor.copy(alpha = 0.16f), Offset(x, from), Offset(x, to), strokeWidth = 3.dp.toPx())
                     }
                 }
                 line(rail.above, 0f, y)
@@ -150,6 +177,16 @@ fun StopRow(
                         drawCircle(hole, radius = 4.dp.toPx(), center = Offset(x, y))
                         drawCircle(railColor, radius = 3.dp.toPx(), center = Offset(x, y), style = Stroke(2.dp.toPx()))
                     }
+                    RailDot.Done -> {
+                        drawCircle(hole, radius = 5.dp.toPx(), center = Offset(x, y))
+                        drawCircle(railColor.copy(alpha = 0.35f), radius = 4.dp.toPx(), center = Offset(x, y))
+                    }
+                    RailDot.Active, RailDot.Broken -> {
+                        val ring = if (rail.dot == RailDot.Active) accent else broken
+                        drawCircle(ring.copy(alpha = 0.22f), radius = 11.dp.toPx(), center = Offset(x, y))
+                        drawCircle(hole, radius = 7.dp.toPx(), center = Offset(x, y))
+                        drawCircle(ring, radius = 6.dp.toPx(), center = Offset(x, y), style = Stroke(3.dp.toPx()))
+                    }
                 }
             },
         verticalAlignment = Alignment.CenterVertically,
@@ -159,7 +196,7 @@ fun StopRow(
         Column(Modifier.width(RowGrid.Time)) {
             if (planned != null || expected != null) {
                 val delay = if (cancelled) 0 else delayMinutes(planned, expected)
-                val style = (if (strong) AbeonaType.body.copy(fontWeight = FontWeight.SemiBold) else AbeonaType.body)
+                val style = timeStyle ?: (if (strong) AbeonaType.body.copy(fontWeight = FontWeight.SemiBold) else AbeonaType.body)
                 val shown = if (cancelled || delay <= 0) planned ?: expected else expected
                 Text(
                     TripFormat.time(shown),
