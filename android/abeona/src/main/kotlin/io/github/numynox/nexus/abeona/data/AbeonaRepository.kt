@@ -13,6 +13,7 @@ import io.github.numynox.nexus.abeona.domain.applyRefresh
 import io.github.numynox.nexus.abeona.domain.followsReplacement
 import io.github.numynox.nexus.abeona.domain.refreshLegs
 import io.github.numynox.nexus.abeona.domain.intake.TransitPort
+import io.github.numynox.nexus.abeona.domain.intake.adoptRefound
 import io.github.numynox.nexus.abeona.domain.intake.checkSavedLeg
 import io.github.numynox.nexus.abeona.domain.intake.clearReplacement
 import io.github.numynox.nexus.abeona.domain.intake.isCheckable
@@ -208,6 +209,9 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
         return NexusJson.decodeFromString<ApproachResponse>(transit(body)).approach
     }
 
+    /** When each trip's replacement rides were last looked up again, in this process. */
+    private val replacementRefound = java.util.concurrent.ConcurrentHashMap<String, Instant>()
+
     /** When each trip was last checked against the timetable, in this process. */
     private val timetableChecked = java.util.concurrent.ConcurrentHashMap<String, Instant>()
 
@@ -294,9 +298,13 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
     /**
      * The connection taken instead (replacement_legs, a JSON column, not
      * abeona_legs rows): refreshed leg by leg through each ride's trip ref
-     * (no refresh token belongs to it), and written back as a whole.
+     * (no refresh token belongs to it), and written back as a whole. A ride
+     * still to come that the refresh did not find has a stale trip ref (the
+     * timetable renumbers its trips on a new import): it is looked up again
+     * (checkSavedLeg) and takes the ride found (adoptRefound), at most every
+     * [CheckUnsettled] per trip. The web does the same (data.ts refreshReplacement).
      */
-    private suspend fun refreshReplacement(trip: Trip): Trip {
+    private suspend fun refreshReplacement(trip: Trip, now: Instant = Instant.now()): Trip {
         val replacement = trip.replacementLegs ?: return trip
         val body = buildJsonObject {
             put("action", "refresh")
@@ -307,7 +315,19 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
             )
         }
         val response = runCatching { NexusJson.decodeFromString<RefreshResponse>(transit(body)) }.getOrNull() ?: return trip
-        val fresh = refreshLegs(replacement, replacement.indices.map { response.legs.getOrNull(it) })
+        var fresh = refreshLegs(replacement, replacement.indices.map { response.legs.getOrNull(it) })
+        val stale = replacement.indices.filter { i ->
+            val leg = replacement[i]
+            response.legs.getOrNull(i) == null && isCheckable(leg) && leg.to.plannedAt?.isAfter(now) == true
+        }
+        val last = replacementRefound[trip.id]
+        if (stale.isNotEmpty() && (last == null || !last.plus(CheckUnsettled).isAfter(now))) {
+            replacementRefound[trip.id] = now
+            for (i in stale) {
+                val found = runCatching { checkSavedLeg(fresh[i], intakePort) }.getOrNull()?.found ?: continue
+                fresh = fresh.toMutableList().also { it[i] = adoptRefound(it[i], found) }
+            }
+        }
         if (fresh == replacement) return trip
         supabase.from("abeona_trips").update(
             buildJsonObject { put("replacement_legs", NexusJson.encodeToJsonElement(fresh)) },

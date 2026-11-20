@@ -267,6 +267,33 @@ suspend fun checkSavedLeg(leg: Leg, port: TransitPort): SavedLegCheck {
 private fun trainsOf(legs: List<Leg>): List<String?> = legs.filter { it.mode != LegMode.Walk }.map { it.lineName }
 
 /** The same trains in the same order ([sameTrain]). */
+/**
+ * A saved ride whose trip ref went stale (the timetable renumbers its trips
+ * on a new import, and asking by the old ref finds nothing), found again by
+ * [checkSavedLeg]: it takes the found ride's ref and stop ids, so the next
+ * refresh asks for the right train, and its live values now. The saved
+ * names, planned times and route stay; a platform the timetable does not
+ * have keeps the saved one (from the ticket, say). The web's adoptRefound.
+ */
+fun adoptRefound(saved: Leg, found: Leg): Leg {
+    fun stop(s: StopTime, f: StopTime) = s.copy(
+        id = f.id ?: s.id,
+        current = f.current,
+        plannedPlatform = s.plannedPlatform ?: f.plannedPlatform,
+        platform = f.platform ?: s.platform,
+        cancelled = f.cancelled,
+    )
+    return saved.copy(
+        tripRef = found.tripRef,
+        from = stop(saved.from, found.from),
+        to = stop(saved.to, found.to),
+        cancelled = found.cancelled,
+        realtime = found.realtime,
+        stopovers = found.stopovers.ifEmpty { saved.stopovers },
+        polyline = saved.polyline ?: found.polyline,
+    )
+}
+
 private fun sameTrains(a: List<String?>, b: List<String?>): Boolean = a.size == b.size && a.indices.all { sameTrain(a[it], b[it]) }
 
 /**

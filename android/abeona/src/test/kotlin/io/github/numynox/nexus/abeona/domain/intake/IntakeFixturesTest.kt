@@ -73,6 +73,23 @@ class IntakeFixturesTest {
     private data class RefindCase(val name: String, val leg: Leg, val journeys: Map<String, List<Journey>>, val expect: RefindExpect)
 
     @Serializable
+    private data class AdoptStop(val id: String?, val planned: String?, val current: String?, val platform: String?)
+
+    @Serializable
+    private data class AdoptExpect(
+        @SerialName("trip_ref") val tripRef: String,
+        val from: AdoptStop,
+        val to: AdoptStop,
+        val realtime: Boolean,
+        val stopovers: Int,
+        val polyline: Boolean,
+    )
+
+    /** A ride with a stale trip ref takes the one found again. */
+    @Serializable
+    private data class AdoptCase(val name: String, val saved: Leg, val found: Leg, val expect: AdoptExpect)
+
+    @Serializable
     private data class ReplaceExpect(@SerialName("missed_idx") val missedIdx: Int, @SerialName("trip_refs") val tripRefs: List<String?>)
 
     /** A dropped ride's clear replacement, or null when the traveller chooses. */
@@ -101,6 +118,7 @@ class IntakeFixturesTest {
         @SerialName("ticket_cards") val ticketCards: List<CardsCase>,
         val refinding: List<RefindCase>,
         val replacing: List<ReplaceCase>,
+        val adopting: List<AdoptCase>,
     )
 
     @Serializable
@@ -251,5 +269,16 @@ class IntakeFixturesTest {
         val result = runBlocking { clearReplacement(c.legs, c.droppedIdx, portOf(c.journeys)) }
         assertEquals(c.name, c.expect?.missedIdx, result?.first)
         assertEquals(c.name, c.expect?.tripRefs, result?.second?.filter { it.mode != LegMode.Walk }?.map { it.tripRef })
+    }
+
+    @Test
+    fun adopting() = fixtures.adopting.forEach { c ->
+        val leg = adoptRefound(c.saved, c.found)
+        fun pick(s: io.github.numynox.nexus.abeona.data.StopTime) = AdoptStop(s.id, s.planned, s.current, s.platform)
+        assertEquals(
+            c.name,
+            c.expect,
+            AdoptExpect(leg.tripRef ?: "", pick(leg.from), pick(leg.to), leg.realtime, leg.stopovers.size, leg.polyline != null),
+        )
     }
 }

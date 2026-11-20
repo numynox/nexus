@@ -8,7 +8,7 @@ import { lineKey, platformOf } from "./common.ts";
 import { isDbTicket, parseDbTicket, parseDbTickets } from "./dbTicket.ts";
 import { fareOf } from "./fare.ts";
 import { parseText, parseTicketTrips } from "./intake.ts";
-import { checkSavedLeg, clearReplacement, localToInstant, matchConnection, type TransitPort } from "./match.ts";
+import { adoptRefound, checkSavedLeg, clearReplacement, localToInstant, matchConnection, type TransitPort } from "./match.ts";
 import type { ParsedShare, ParsedTicket } from "./parsed.ts";
 import { pdfText, type PdfJsLike } from "./pdfText.ts";
 import { isShareText, parseShareText } from "./shareText.ts";
@@ -60,6 +60,20 @@ interface Fixtures {
   /** A saved ride the timetable did not have, looked up again; the trip ref found, or null. */
   refinding: { name: string; leg: Leg; journeys: Record<string, Journey[]>; expect: { trip_ref: string | null; dropped: boolean } }[];
   /** A dropped ride's clear replacement: the same trains, every change workable; null when the traveller chooses. */
+  /** A ride with a stale trip ref takes the one found again. */
+  adopting: {
+    name: string;
+    saved: Leg;
+    found: Leg;
+    expect: {
+      trip_ref: string;
+      from: { id: string; planned: string; current: string | null; platform: string | null };
+      to: { id: string; planned: string; current: string | null; platform: string | null };
+      realtime: boolean;
+      stopovers: number;
+      polyline: boolean;
+    };
+  }[];
   replacing: {
     name: string;
     legs: Leg[];
@@ -226,5 +240,16 @@ for (const c of fixtures.replacing) {
     assert.ok(result);
     assert.equal(result.missedIdx, c.expect.missed_idx);
     assert.deepEqual(result.replacement.filter((l) => l.mode !== "walk").map((l) => l.trip_ref), c.expect.trip_refs);
+  });
+}
+
+for (const c of fixtures.adopting) {
+  test(`adopting: ${c.name}`, () => {
+    const leg = adoptRefound(c.saved, c.found);
+    const pick = (s: Leg["from"]) => ({ id: s.id, planned: s.planned, current: s.current, platform: s.platform });
+    assert.deepEqual(
+      { trip_ref: leg.trip_ref, from: pick(leg.from), to: pick(leg.to), realtime: leg.realtime, stopovers: leg.stopovers.length, polyline: leg.polyline !== null },
+      c.expect,
+    );
   });
 }

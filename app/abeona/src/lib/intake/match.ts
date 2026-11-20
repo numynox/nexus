@@ -352,6 +352,35 @@ export async function checkSavedLeg(leg: Leg, port: TransitPort): Promise<SavedL
   return none;
 }
 
+/**
+ * A saved ride whose trip ref went stale (the timetable renumbers its trips
+ * on a new import, and asking by the old ref finds nothing), found again by
+ * checkSavedLeg: it takes the found ride's ref and stop ids, so the next
+ * refresh asks for the right train, and its live values now. The saved
+ * names, planned times and route stay; a platform the timetable does not
+ * have keeps the saved one (from the ticket, say).
+ */
+export function adoptRefound(saved: Leg, found: Leg): Leg {
+  const stop = (s: StopTime, f: StopTime): StopTime => ({
+    ...s,
+    id: f.id ?? s.id,
+    current: f.current,
+    planned_platform: s.planned_platform ?? f.planned_platform,
+    platform: f.platform ?? s.platform,
+    cancelled: f.cancelled,
+  });
+  return {
+    ...saved,
+    trip_ref: found.trip_ref,
+    from: stop(saved.from, found.from),
+    to: stop(saved.to, found.to),
+    cancelled: found.cancelled,
+    realtime: found.realtime,
+    stopovers: found.stopovers.length > 0 ? found.stopovers : saved.stopovers,
+    polyline: saved.polyline ?? found.polyline,
+  };
+}
+
 /** The rides' line names, in order. */
 function trainsOf(legs: Leg[]): (string | null)[] {
   return legs.filter((l) => l.mode !== "walk").map((l) => l.line_name);

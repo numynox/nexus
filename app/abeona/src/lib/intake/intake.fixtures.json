@@ -1,5 +1,5 @@
 {
-  "$comment": "Intake's shared cases: the web (intake.test.ts) and Android (IntakeFixturesTest) both run every one. The files in fixtures/ are real DB Navigator shares and real tickets' `pdftotext -layout` text (DB, Trenitalia), anonymised (names, order and ticket numbers, ticket code replaced); the synthetic-*.pdf files are generated from those texts by fixtures/make-synthetic-pdf.mjs. Add a case here, not to either test.",
+  "$comment": "Intake's shared cases: the web (intake.test.ts) and Android (IntakeFixturesTest) both run every one. The files in fixtures/ are real DB Navigator shares and real tickets' `pdftotext -layout` text (DB, Trenitalia), anonymised (names, order and ticket numbers, ticket code replaced); the synthetic-*.pdf files are generated from those texts by fixtures/make-synthetic-pdf.mjs. Add a case here, not to either test. adopting: a saved ride with a stale trip ref takes the ride found again (adoptRefound): its ref, stop ids and live values; the saved planned times, names and route stay, and a platform the timetable lacks stays the saved one.",
   "share": [
     {
       "name": "outward, 4 rides, bracketed train number, headsigns, platforms with sectors, last ride without headsign",
@@ -14,9 +14,9 @@
             "line": "RE19",
             "product": "RE",
             "number": "4901",
-            "headsign": "N\u00fcrnberg Hbf",
+            "headsign": "Nürnberg Hbf",
             "from": "Erlangen",
-            "to": "N\u00fcrnberg Hbf",
+            "to": "Nürnberg Hbf",
             "date": "2025-11-14",
             "departure": "06:29",
             "arrival_date": "2025-11-14",
@@ -30,7 +30,7 @@
             "product": "ICE",
             "number": null,
             "headsign": "Essen Hbf",
-            "from": "N\u00fcrnberg Hbf",
+            "from": "Nürnberg Hbf",
             "to": "Frankfurt(Main)Hbf",
             "date": "2025-11-14",
             "departure": "07:13",
@@ -46,7 +46,7 @@
             "number": null,
             "headsign": "Bruxelles Midi",
             "from": "Frankfurt(Main)Hbf",
-            "to": "Li\u00e8ge-Guillemins",
+            "to": "Liège-Guillemins",
             "date": "2025-11-14",
             "departure": "10:34",
             "arrival_date": "2025-11-14",
@@ -60,7 +60,7 @@
             "product": "IC",
             "number": null,
             "headsign": null,
-            "from": "Li\u00e8ge-Guillemins",
+            "from": "Liège-Guillemins",
             "to": "Leuven",
             "date": "2025-11-14",
             "departure": "13:02",
@@ -90,7 +90,7 @@
             "number": null,
             "headsign": null,
             "from": "Leuven",
-            "to": "Li\u00e8ge-Guillemins",
+            "to": "Liège-Guillemins",
             "date": "2025-11-16",
             "departure": "14:27",
             "arrival_date": "2025-11-16",
@@ -104,7 +104,7 @@
             "product": "ICE",
             "number": null,
             "headsign": null,
-            "from": "Li\u00e8ge-Guillemins",
+            "from": "Liège-Guillemins",
             "to": "Frankfurt(Main)Hbf",
             "date": "2025-11-16",
             "departure": "15:14",
@@ -120,7 +120,7 @@
             "number": null,
             "headsign": null,
             "from": "Frankfurt(Main)Hbf",
-            "to": "N\u00fcrnberg Hbf",
+            "to": "Nürnberg Hbf",
             "date": "2025-11-16",
             "departure": "17:57",
             "arrival_date": "2025-11-16",
@@ -134,7 +134,7 @@
             "product": "ICE",
             "number": null,
             "headsign": null,
-            "from": "N\u00fcrnberg Hbf",
+            "from": "Nürnberg Hbf",
             "to": "Erlangen",
             "date": "2025-11-16",
             "departure": "21:05",
@@ -182,7 +182,7 @@
             "number": null,
             "headsign": null,
             "from": "Leuven",
-            "to": "Li\u00e8ge-Guillemins",
+            "to": "Liège-Guillemins",
             "date": "2025-11-16",
             "departure": "14:27",
             "arrival_date": "2025-11-16",
@@ -196,7 +196,7 @@
             "product": "ICE",
             "number": null,
             "headsign": null,
-            "from": "Li\u00e8ge-Guillemins",
+            "from": "Liège-Guillemins",
             "to": "Frankfurt(Main)Hbf",
             "date": "2025-11-16",
             "departure": "15:14",
@@ -212,7 +212,7 @@
             "number": null,
             "headsign": null,
             "from": "Frankfurt(Main)Hbf",
-            "to": "N\u00fcrnberg Hbf",
+            "to": "Nürnberg Hbf",
             "date": "2025-11-16",
             "departure": "17:57",
             "arrival_date": "2025-11-16",
@@ -226,7 +226,7 @@
             "product": "ICE",
             "number": null,
             "headsign": null,
-            "from": "N\u00fcrnberg Hbf",
+            "from": "Nürnberg Hbf",
             "to": "Erlangen",
             "date": "2025-11-16",
             "departure": "21:05",
@@ -273,7 +273,7 @@
             "number": null,
             "headsign": null,
             "from": "Leuven",
-            "to": "Li\u00e8ge-Guillemins",
+            "to": "Liège-Guillemins",
             "date": "2025-11-16",
             "departure": "14:27",
             "arrival_date": "2025-11-16",
@@ -287,7 +287,7 @@
             "product": "ICE",
             "number": null,
             "headsign": null,
-            "from": "Li\u00e8ge-Guillemins",
+            "from": "Liège-Guillemins",
             "to": "Frankfurt(Main)Hbf",
             "date": "2025-11-16",
             "departure": "15:14",
@@ -303,7 +303,7 @@
             "number": null,
             "headsign": null,
             "from": "Frankfurt(Main)Hbf",
-            "to": "N\u00fcrnberg Hbf",
+            "to": "Nürnberg Hbf",
             "date": "2025-11-16",
             "departure": "17:57",
             "arrival_date": "2025-11-16",
@@ -317,7 +317,7 @@
             "product": "ICE",
             "number": null,
             "headsign": null,
-            "from": "N\u00fcrnberg Hbf",
+            "from": "Nürnberg Hbf",
             "to": "Erlangen",
             "date": "2025-11-16",
             "departure": "21:05",
@@ -399,7 +399,7 @@
           "booked_lines": [
             "ICE 528"
           ],
-          "origin": "Erlangen Paul-Gossen-Stra\u00dfe",
+          "origin": "Erlangen Paul-Gossen-Straße",
           "destination": "Hanau Hbf",
           "date": "2026-11-13",
           "legs": [
@@ -408,22 +408,22 @@
               "product": "S",
               "number": null,
               "headsign": null,
-              "from": "Erlangen Paul-Gossen-Stra\u00dfe",
-              "to": "N\u00fcrnberg Hbf",
+              "from": "Erlangen Paul-Gossen-Straße",
+              "to": "Nürnberg Hbf",
               "date": "2026-11-13",
               "departure": "16:30",
               "arrival_date": "2026-11-13",
               "arrival": "16:58",
               "from_platform": "3",
               "to_platform": "3",
-              "reservation": "Die Fahrkarte ist f\u00fcr diesen Abschnitt nicht g\u00fcltig. Hier ist"
+              "reservation": "Die Fahrkarte ist für diesen Abschnitt nicht gültig. Hier ist"
             },
             {
               "line": "ICE 528",
               "product": "ICE",
               "number": null,
               "headsign": null,
-              "from": "N\u00fcrnberg Hbf",
+              "from": "Nürnberg Hbf",
               "to": "Hanau Hbf",
               "date": "2026-11-13",
               "departure": "17:13",
@@ -435,7 +435,7 @@
             }
           ],
           "price_cents": 4573,
-          "reservation": "S1: Die Fahrkarte ist f\u00fcr diesen Abschnitt nicht g\u00fcltig. Hier ist"
+          "reservation": "S1: Die Fahrkarte ist für diesen Abschnitt nicht gültig. Hier ist"
         },
         {
           "kind": "ticket",
@@ -454,7 +454,7 @@
             "ICE 625"
           ],
           "origin": "Hanau Hbf",
-          "destination": "Erlangen Paul-Gossen-Stra\u00dfe",
+          "destination": "Erlangen Paul-Gossen-Straße",
           "date": "2026-11-15",
           "legs": [
             {
@@ -463,7 +463,7 @@
               "number": null,
               "headsign": null,
               "from": "Hanau Hbf",
-              "to": "N\u00fcrnberg Hbf",
+              "to": "Nürnberg Hbf",
               "date": "2026-11-15",
               "departure": "13:15",
               "arrival_date": "2026-11-15",
@@ -477,19 +477,19 @@
               "product": "S",
               "number": null,
               "headsign": null,
-              "from": "N\u00fcrnberg Hbf",
-              "to": "Erlangen Paul-Gossen-Stra\u00dfe",
+              "from": "Nürnberg Hbf",
+              "to": "Erlangen Paul-Gossen-Straße",
               "date": "2026-11-15",
               "departure": "15:41",
               "arrival_date": "2026-11-15",
               "arrival": "16:05",
               "from_platform": "1",
               "to_platform": "2",
-              "reservation": "Die Fahrkarte ist f\u00fcr diesen Abschnitt nicht g\u00fcltig. Hier ist"
+              "reservation": "Die Fahrkarte ist für diesen Abschnitt nicht gültig. Hier ist"
             }
           ],
           "price_cents": 4573,
-          "reservation": "S1: Die Fahrkarte ist f\u00fcr diesen Abschnitt nicht g\u00fcltig. Hier ist"
+          "reservation": "S1: Die Fahrkarte ist für diesen Abschnitt nicht gültig. Hier ist"
         }
       ]
     }
@@ -558,7 +558,7 @@
       "binding": false
     },
     {
-      "name": "Sch\u00f6nes-Wochenende-Ticket",
+      "name": "Schönes-Wochenende-Ticket",
       "fare_type": "regional",
       "binding": false
     },
@@ -652,9 +652,9 @@
       "share": "db-navigator-share-4-legs.txt",
       "stations": {
         "Erlangen": "de:erlangen",
-        "N\u00fcrnberg Hbf": "de:nuernberg",
+        "Nürnberg Hbf": "de:nuernberg",
         "Frankfurt(Main)Hbf": "de:frankfurt",
-        "Li\u00e8ge-Guillemins": "be:liege",
+        "Liège-Guillemins": "be:liege",
         "Leuven": "be:leuven"
       },
       "journeys": {
@@ -677,7 +677,7 @@
                 },
                 "to": {
                   "id": null,
-                  "name": "N\u00fcrnberg Hbf",
+                  "name": "Nürnberg Hbf",
                   "planned": "2025-11-14T05:48:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -700,14 +700,14 @@
                 "trip_ref": null,
                 "from": {
                   "id": null,
-                  "name": "N\u00fcrnberg Hbf",
+                  "name": "Nürnberg Hbf",
                   "planned": "2025-11-14T05:48:00Z",
                   "planned_platform": null,
                   "platform": null
                 },
                 "to": {
                   "id": null,
-                  "name": "N\u00fcrnberg Hbf",
+                  "name": "Nürnberg Hbf",
                   "planned": "2025-11-14T05:53:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -721,7 +721,7 @@
                 "trip_ref": "ice728",
                 "from": {
                   "id": null,
-                  "name": "N\u00fcrnberg Hbf",
+                  "name": "Nürnberg Hbf",
                   "planned": "2025-11-14T06:13:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -758,7 +758,7 @@
                 },
                 "to": {
                   "id": null,
-                  "name": "Li\u00e8ge, Guillemins Bf",
+                  "name": "Liège, Guillemins Bf",
                   "planned": "2025-11-14T11:43:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -781,7 +781,7 @@
                 "trip_ref": "ic535",
                 "from": {
                   "id": null,
-                  "name": "Li\u00e8ge-Guillemins",
+                  "name": "Liège-Guillemins",
                   "planned": "2025-11-14T12:02:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -819,7 +819,7 @@
                 "trip_ref": "ice728",
                 "from": {
                   "id": null,
-                  "name": "N\u00fcrnberg Hbf",
+                  "name": "Nürnberg Hbf",
                   "planned": "2025-11-14T06:13:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -864,7 +864,7 @@
                 },
                 "to": {
                   "id": null,
-                  "name": "Li\u00e8ge, Guillemins Bf",
+                  "name": "Liège, Guillemins Bf",
                   "planned": "2025-11-14T11:43:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -896,9 +896,9 @@
         ],
         "from_names": [
           "Erlangen",
-          "N\u00fcrnberg Hbf",
+          "Nürnberg Hbf",
           "Frankfurt (Main) Hauptbahnhof",
-          "Li\u00e8ge-Guillemins"
+          "Liège-Guillemins"
         ],
         "from_platforms": [
           "4",
@@ -915,9 +915,9 @@
       "share": "db-navigator-share-return-no-platforms.txt",
       "stations": {
         "Erlangen": "de:erlangen",
-        "N\u00fcrnberg Hbf": "de:nuernberg",
+        "Nürnberg Hbf": "de:nuernberg",
         "Frankfurt(Main)Hbf": "de:frankfurt",
-        "Li\u00e8ge-Guillemins": "be:liege",
+        "Liège-Guillemins": "be:liege",
         "Leuven": "be:leuven"
       },
       "journeys": {
@@ -940,7 +940,7 @@
                 },
                 "to": {
                   "id": null,
-                  "name": "Li\u00e8ge-Guillemins",
+                  "name": "Liège-Guillemins",
                   "planned": "2025-11-16T13:33:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -976,7 +976,7 @@
                 },
                 "to": {
                   "id": null,
-                  "name": "Li\u00e8ge-Guillemins",
+                  "name": "Liège-Guillemins",
                   "planned": "2025-11-16T13:59:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -999,14 +999,14 @@
                 "trip_ref": null,
                 "from": {
                   "id": null,
-                  "name": "Li\u00e8ge-Guillemins",
+                  "name": "Liège-Guillemins",
                   "planned": "2025-11-16T13:59:00Z",
                   "planned_platform": null,
                   "platform": null
                 },
                 "to": {
                   "id": null,
-                  "name": "Li\u00e8ge-Guillemins",
+                  "name": "Liège-Guillemins",
                   "planned": "2025-11-16T14:04:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -1020,7 +1020,7 @@
                 "trip_ref": "ice17",
                 "from": {
                   "id": null,
-                  "name": "Li\u00e8ge, Guillemins Bf",
+                  "name": "Liège, Guillemins Bf",
                   "planned": "2025-11-16T14:14:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -1057,7 +1057,7 @@
                 },
                 "to": {
                   "id": null,
-                  "name": "N\u00fcrnberg Hbf",
+                  "name": "Nürnberg Hbf",
                   "planned": "2025-11-16T19:40:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -1080,7 +1080,7 @@
                 "trip_ref": "ice700",
                 "from": {
                   "id": null,
-                  "name": "N\u00fcrnberg Hbf",
+                  "name": "Nürnberg Hbf",
                   "planned": "2025-11-16T20:05:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -1119,9 +1119,9 @@
         ],
         "from_names": [
           "Louvain",
-          "Li\u00e8ge, Guillemins Bf",
+          "Liège, Guillemins Bf",
           "Frankfurt (Main) Hauptbahnhof",
-          "N\u00fcrnberg Hbf"
+          "Nürnberg Hbf"
         ],
         "from_platforms": [
           null,
@@ -1139,9 +1139,9 @@
       "share": "db-navigator-share-return-no-platforms.txt",
       "stations": {
         "Erlangen": "de:erlangen",
-        "N\u00fcrnberg Hbf": "de:nuernberg",
+        "Nürnberg Hbf": "de:nuernberg",
         "Frankfurt(Main)Hbf": "de:frankfurt",
-        "Li\u00e8ge-Guillemins": "be:liege",
+        "Liège-Guillemins": "be:liege",
         "Leuven": "be:leuven"
       },
       "journeys": {
@@ -1157,7 +1157,7 @@
                 "trip_ref": "ice700",
                 "from": {
                   "id": "de:nuernberg",
-                  "name": "N\u00fcrnberg Hbf",
+                  "name": "Nürnberg Hbf",
                   "planned": "2025-11-16T20:05:00Z",
                   "planned_platform": null,
                   "platform": null,
@@ -1200,9 +1200,9 @@
         ],
         "from_names": [
           "Leuven",
-          "Li\u00e8ge-Guillemins",
+          "Liège-Guillemins",
           "Frankfurt(Main)Hbf",
-          "N\u00fcrnberg Hbf"
+          "Nürnberg Hbf"
         ],
         "from_platforms": [
           null,
@@ -1236,7 +1236,7 @@
           50.8811,
           4.7156
         ],
-        "Li\u00e8ge-Guillemins": [
+        "Liège-Guillemins": [
           50.6245,
           5.5666
         ],
@@ -1267,9 +1267,9 @@
         ],
         "from_names": [
           "Erlangen",
-          "N\u00fcrnberg Hbf",
+          "Nürnberg Hbf",
           "Frankfurt(Main)Hbf",
-          "Li\u00e8ge-Guillemins"
+          "Liège-Guillemins"
         ],
         "from_platforms": [
           "4",
@@ -1556,7 +1556,7 @@
         },
         "to": {
           "id": "de:muc",
-          "name": "M\u00fcnchen Hbf Gl.5-10",
+          "name": "München Hbf Gl.5-10",
           "planned": "2027-01-10T15:26:00+00:00",
           "planned_platform": null,
           "platform": null
@@ -1583,7 +1583,7 @@
                 },
                 "to": {
                   "id": "de:muc",
-                  "name": "M\u00fcnchen Hbf",
+                  "name": "München Hbf",
                   "planned": "2027-01-10T15:26:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -1619,7 +1619,7 @@
                 },
                 "to": {
                   "id": "de:muc",
-                  "name": "M\u00fcnchen Hbf",
+                  "name": "München Hbf",
                   "planned": "2027-01-10T15:40:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -1676,7 +1676,7 @@
                 },
                 "to": {
                   "id": "de:muc",
-                  "name": "M\u00fcnchen Hbf",
+                  "name": "München Hbf",
                   "planned": "2027-01-10T15:26:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -1717,7 +1717,7 @@
         },
         "to": {
           "id": "de:muc",
-          "name": "M\u00fcnchen Hbf Gl.5-10",
+          "name": "München Hbf Gl.5-10",
           "planned": "2027-01-10T15:26:00+00:00",
           "planned_platform": null,
           "platform": null
@@ -1744,7 +1744,7 @@
                 },
                 "to": {
                   "id": "de:muc",
-                  "name": "M\u00fcnchen Hbf",
+                  "name": "München Hbf",
                   "planned": "2027-01-10T15:26:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -1780,7 +1780,7 @@
                 },
                 "to": {
                   "id": "de:muc",
-                  "name": "M\u00fcnchen Hbf",
+                  "name": "München Hbf",
                   "planned": "2027-01-10T15:40:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -1821,7 +1821,7 @@
         },
         "to": {
           "id": "de:muc",
-          "name": "M\u00fcnchen Hbf Gl.5-10",
+          "name": "München Hbf Gl.5-10",
           "planned": "2027-01-10T15:26:00+00:00",
           "planned_platform": null,
           "platform": null
@@ -1878,7 +1878,7 @@
                 },
                 "to": {
                   "id": "de:muc",
-                  "name": "M\u00fcnchen Hbf",
+                  "name": "München Hbf",
                   "planned": "2027-01-10T15:26:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -1919,7 +1919,7 @@
         },
         "to": {
           "id": "de:muc",
-          "name": "M\u00fcnchen Hbf Gl.5-10",
+          "name": "München Hbf Gl.5-10",
           "planned": "2027-01-10T15:26:00+00:00",
           "planned_platform": null,
           "platform": null
@@ -1967,7 +1967,7 @@
                 },
                 "to": {
                   "id": "de:muc",
-                  "name": "M\u00fcnchen Hbf",
+                  "name": "München Hbf",
                   "planned": "2027-01-10T15:26:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -2008,7 +2008,7 @@
         },
         "to": {
           "id": "de:muc",
-          "name": "M\u00fcnchen Hbf",
+          "name": "München Hbf",
           "planned": "2027-01-10T15:26:00+00:00",
           "planned_platform": null,
           "platform": null
@@ -2036,7 +2036,7 @@
                 },
                 "to": {
                   "id": "de:muc",
-                  "name": "M\u00fcnchen Hbf",
+                  "name": "München Hbf",
                   "planned": "2027-01-10T16:26:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -2064,7 +2064,7 @@
                 },
                 "to": {
                   "id": "de:muc",
-                  "name": "M\u00fcnchen Hbf",
+                  "name": "München Hbf",
                   "planned": "2027-01-10T17:26:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -2097,7 +2097,7 @@
         },
         "to": {
           "id": "de:muc",
-          "name": "M\u00fcnchen Hbf",
+          "name": "München Hbf",
           "planned": "2027-01-10T15:26:00+00:00",
           "planned_platform": null,
           "platform": null
@@ -2125,7 +2125,7 @@
                 },
                 "to": {
                   "id": "de:muc",
-                  "name": "M\u00fcnchen Hbf",
+                  "name": "München Hbf",
                   "planned": "2027-01-10T16:26:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -2158,7 +2158,7 @@
         },
         "to": {
           "id": "de:muc",
-          "name": "M\u00fcnchen Hbf",
+          "name": "München Hbf",
           "planned": "2027-01-10T15:26:00+00:00",
           "planned_platform": null,
           "platform": null
@@ -2186,7 +2186,7 @@
                 },
                 "to": {
                   "id": "de:muc",
-                  "name": "M\u00fcnchen Hbf",
+                  "name": "München Hbf",
                   "planned": "2027-01-13T17:26:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -2219,7 +2219,7 @@
         },
         "to": {
           "id": "de:muc",
-          "name": "M\u00fcnchen Hbf",
+          "name": "München Hbf",
           "planned": "2027-01-10T15:26:00+00:00",
           "planned_platform": null,
           "platform": null
@@ -2247,7 +2247,7 @@
                 },
                 "to": {
                   "id": "de:muc",
-                  "name": "M\u00fcnchen Hbf",
+                  "name": "München Hbf",
                   "planned": "2027-01-10T15:26:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -2280,7 +2280,7 @@
         },
         "to": {
           "id": "de:muc",
-          "name": "M\u00fcnchen Hbf",
+          "name": "München Hbf",
           "planned": "2027-01-10T15:26:00+00:00",
           "planned_platform": null,
           "platform": null
@@ -2308,7 +2308,7 @@
                 },
                 "to": {
                   "id": "de:muc",
-                  "name": "M\u00fcnchen Hbf",
+                  "name": "München Hbf",
                   "planned": "2027-01-10T17:26:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -2341,7 +2341,7 @@
         },
         "to": {
           "id": "de:nue",
-          "name": "N\u00fcrnberg Hbf",
+          "name": "Nürnberg Hbf",
           "planned": "2026-11-30T01:28:00+00:00",
           "planned_platform": null,
           "platform": null
@@ -2369,7 +2369,7 @@
                 },
                 "to": {
                   "id": "de:nue",
-                  "name": "N\u00fcrnberg Hbf",
+                  "name": "Nürnberg Hbf",
                   "planned": "2026-11-30T09:00:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -2399,7 +2399,7 @@
                 },
                 "to": {
                   "id": "de:nue",
-                  "name": "N\u00fcrnberg Hbf",
+                  "name": "Nürnberg Hbf",
                   "planned": "2026-12-01T01:28:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -2432,7 +2432,7 @@
         },
         "to": {
           "id": "de:nue",
-          "name": "N\u00fcrnberg Hbf",
+          "name": "Nürnberg Hbf",
           "planned": "2026-11-30T01:28:00+00:00",
           "planned_platform": null,
           "platform": null
@@ -2461,7 +2461,7 @@
                 },
                 "to": {
                   "id": "de:nue",
-                  "name": "N\u00fcrnberg Hbf",
+                  "name": "Nürnberg Hbf",
                   "planned": "2026-12-07T01:28:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -2494,7 +2494,7 @@
         },
         "to": {
           "id": "de:nue",
-          "name": "N\u00fcrnberg Hbf",
+          "name": "Nürnberg Hbf",
           "planned": "2026-11-30T01:28:00+00:00",
           "planned_platform": null,
           "platform": null
@@ -2522,7 +2522,7 @@
                 },
                 "to": {
                   "id": "de:nue",
-                  "name": "N\u00fcrnberg Hbf",
+                  "name": "Nürnberg Hbf",
                   "planned": "2026-11-30T09:00:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -2555,7 +2555,7 @@
         },
         "to": {
           "id": "de:nue",
-          "name": "N\u00fcrnberg Hbf",
+          "name": "Nürnberg Hbf",
           "planned": "2026-11-20T05:48:00+00:00",
           "planned_platform": null,
           "platform": null
@@ -2583,7 +2583,7 @@
                 },
                 "to": {
                   "id": "de:nue",
-                  "name": "N\u00fcrnberg Hbf",
+                  "name": "Nürnberg Hbf",
                   "planned": "2026-11-20T05:48:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -2611,7 +2611,7 @@
                 },
                 "to": {
                   "id": "de:nue",
-                  "name": "N\u00fcrnberg Hbf",
+                  "name": "Nürnberg Hbf",
                   "planned": "2026-11-20T06:20:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -2644,7 +2644,7 @@
         },
         "to": {
           "id": "de:nue",
-          "name": "N\u00fcrnberg Hbf",
+          "name": "Nürnberg Hbf",
           "planned": "2026-11-20T05:48:00+00:00",
           "planned_platform": null,
           "platform": null
@@ -2672,7 +2672,7 @@
                 },
                 "to": {
                   "id": "de:nue",
-                  "name": "N\u00fcrnberg Hbf",
+                  "name": "Nürnberg Hbf",
                   "planned": "2026-11-20T05:48:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -2701,7 +2701,7 @@
           "trip_ref": "ice17",
           "from": {
             "id": "be:liege",
-            "name": "Li\u00e8ge-Guillemins",
+            "name": "Liège-Guillemins",
             "planned": "2026-11-22T14:14:00Z",
             "planned_platform": null,
             "platform": null
@@ -2730,7 +2730,7 @@
           },
           "to": {
             "id": "de:nue",
-            "name": "N\u00fcrnberg Hbf",
+            "name": "Nürnberg Hbf",
             "planned": "2026-11-22T19:40:00Z",
             "planned_platform": null,
             "platform": null
@@ -2745,7 +2745,7 @@
           "trip_ref": "ice700",
           "from": {
             "id": "de:nue",
-            "name": "N\u00fcrnberg Hbf",
+            "name": "Nürnberg Hbf",
             "planned": "2026-11-22T20:05:00Z",
             "planned_platform": null,
             "platform": null
@@ -2775,7 +2775,7 @@
                 "trip_ref": "ice17",
                 "from": {
                   "id": "be:liege",
-                  "name": "Li\u00e8ge-Guillemins",
+                  "name": "Liège-Guillemins",
                   "planned": "2026-11-22T14:14:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -2804,7 +2804,7 @@
                 },
                 "to": {
                   "id": "de:nue",
-                  "name": "N\u00fcrnberg Hbf",
+                  "name": "Nürnberg Hbf",
                   "planned": "2026-11-22T20:38:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -2825,7 +2825,7 @@
                 "trip_ref": "ice17",
                 "from": {
                   "id": "be:liege",
-                  "name": "Li\u00e8ge-Guillemins",
+                  "name": "Liège-Guillemins",
                   "planned": "2026-11-22T14:14:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -2854,7 +2854,7 @@
                 },
                 "to": {
                   "id": "de:nue",
-                  "name": "N\u00fcrnberg Hbf",
+                  "name": "Nürnberg Hbf",
                   "planned": "2026-11-22T20:04:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -2875,7 +2875,7 @@
                 "trip_ref": "ice17",
                 "from": {
                   "id": "be:liege",
-                  "name": "Li\u00e8ge-Guillemins",
+                  "name": "Liège-Guillemins",
                   "planned": "2026-11-22T14:14:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -2904,7 +2904,7 @@
                 },
                 "to": {
                   "id": "de:nue",
-                  "name": "N\u00fcrnberg Hbf",
+                  "name": "Nürnberg Hbf",
                   "planned": "2026-11-22T19:36:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -2935,7 +2935,7 @@
           "trip_ref": "ice17",
           "from": {
             "id": "be:liege",
-            "name": "Li\u00e8ge-Guillemins",
+            "name": "Liège-Guillemins",
             "planned": "2026-11-22T14:14:00Z",
             "planned_platform": null,
             "platform": null
@@ -2964,7 +2964,7 @@
           },
           "to": {
             "id": "de:nue",
-            "name": "N\u00fcrnberg Hbf",
+            "name": "Nürnberg Hbf",
             "planned": "2026-11-22T19:40:00Z",
             "planned_platform": null,
             "platform": null
@@ -2979,7 +2979,7 @@
           "trip_ref": "ice700",
           "from": {
             "id": "de:nue",
-            "name": "N\u00fcrnberg Hbf",
+            "name": "Nürnberg Hbf",
             "planned": "2026-11-22T20:05:00Z",
             "planned_platform": null,
             "platform": null
@@ -3009,7 +3009,7 @@
                 "trip_ref": "ice17",
                 "from": {
                   "id": "be:liege",
-                  "name": "Li\u00e8ge-Guillemins",
+                  "name": "Liège-Guillemins",
                   "planned": "2026-11-22T14:14:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -3038,7 +3038,7 @@
                 },
                 "to": {
                   "id": "de:nue",
-                  "name": "N\u00fcrnberg Hbf",
+                  "name": "Nürnberg Hbf",
                   "planned": "2026-11-22T20:04:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -3062,7 +3062,7 @@
           "trip_ref": "ice17",
           "from": {
             "id": "be:liege",
-            "name": "Li\u00e8ge-Guillemins",
+            "name": "Liège-Guillemins",
             "planned": "2026-11-22T14:14:00Z",
             "planned_platform": null,
             "platform": null
@@ -3091,7 +3091,7 @@
           },
           "to": {
             "id": "de:nue",
-            "name": "N\u00fcrnberg Hbf",
+            "name": "Nürnberg Hbf",
             "planned": "2026-11-22T19:40:00Z",
             "planned_platform": null,
             "platform": null
@@ -3106,7 +3106,7 @@
           "trip_ref": "ice700",
           "from": {
             "id": "de:nue",
-            "name": "N\u00fcrnberg Hbf",
+            "name": "Nürnberg Hbf",
             "planned": "2026-11-22T20:05:00Z",
             "planned_platform": null,
             "platform": null
@@ -3136,7 +3136,7 @@
                 "trip_ref": "ice17",
                 "from": {
                   "id": "be:liege",
-                  "name": "Li\u00e8ge-Guillemins",
+                  "name": "Liège-Guillemins",
                   "planned": "2026-11-22T14:14:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -3165,7 +3165,7 @@
                 },
                 "to": {
                   "id": "de:nue",
-                  "name": "N\u00fcrnberg Hbf",
+                  "name": "Nürnberg Hbf",
                   "planned": "2026-11-22T20:38:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -3196,7 +3196,7 @@
           },
           "to": {
             "id": "de:nue",
-            "name": "N\u00fcrnberg Hbf",
+            "name": "Nürnberg Hbf",
             "planned": "2026-11-22T19:40:00Z",
             "planned_platform": null,
             "platform": null
@@ -3211,7 +3211,7 @@
           "trip_ref": "ice700",
           "from": {
             "id": "de:nue",
-            "name": "N\u00fcrnberg Hbf",
+            "name": "Nürnberg Hbf",
             "planned": "2026-11-22T20:05:00Z",
             "planned_platform": null,
             "platform": null
@@ -3248,7 +3248,7 @@
                 },
                 "to": {
                   "id": "de:nue",
-                  "name": "N\u00fcrnberg Hbf",
+                  "name": "Nürnberg Hbf",
                   "planned": "2026-11-22T19:35:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -3278,7 +3278,7 @@
           "trip_ref": "ice17",
           "from": {
             "id": "be:liege",
-            "name": "Li\u00e8ge-Guillemins",
+            "name": "Liège-Guillemins",
             "planned": "2026-11-22T14:14:00Z",
             "planned_platform": null,
             "platform": null
@@ -3307,7 +3307,7 @@
           },
           "to": {
             "id": "de:nue",
-            "name": "N\u00fcrnberg Hbf",
+            "name": "Nürnberg Hbf",
             "planned": "2026-11-22T19:40:00Z",
             "planned_platform": null,
             "platform": null
@@ -3322,7 +3322,7 @@
           "trip_ref": null,
           "from": {
             "id": "de:nue",
-            "name": "N\u00fcrnberg Hbf",
+            "name": "Nürnberg Hbf",
             "planned": "2026-11-22T20:05:00Z",
             "planned_platform": null,
             "platform": null
@@ -3352,7 +3352,7 @@
                 "trip_ref": "ice17",
                 "from": {
                   "id": "be:liege",
-                  "name": "Li\u00e8ge-Guillemins",
+                  "name": "Liège-Guillemins",
                   "planned": "2026-11-22T14:14:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -3381,7 +3381,7 @@
                 },
                 "to": {
                   "id": "de:nue",
-                  "name": "N\u00fcrnberg Hbf",
+                  "name": "Nürnberg Hbf",
                   "planned": "2026-11-22T19:36:00Z",
                   "planned_platform": null,
                   "platform": null
@@ -3394,6 +3394,104 @@
         ]
       },
       "expect": null
+    }
+  ],
+  "adopting": [
+    {
+      "name": "RE19 renumbered: the new ref, live times, the live platform where there is one and the ticket's where not",
+      "saved": {
+        "mode": "train",
+        "line_name": "RE19 (4901)",
+        "product": "RE",
+        "trip_ref": "20261120_05:11_de-DELFI_3478404941",
+        "from": {
+          "id": "de:erl",
+          "name": "Erlangen",
+          "planned": "2026-11-20T05:29:00Z",
+          "current": null,
+          "planned_platform": "4",
+          "platform": "4",
+          "cancelled": false
+        },
+        "to": {
+          "id": "de:nbg",
+          "name": "Nürnberg Hbf",
+          "planned": "2026-11-20T05:48:00Z",
+          "current": null,
+          "planned_platform": null,
+          "platform": null,
+          "cancelled": false
+        },
+        "stopovers": [],
+        "polyline": [
+          [
+            11.0,
+            49.6
+          ],
+          [
+            11.08,
+            49.45
+          ]
+        ],
+        "cancelled": false,
+        "realtime": false
+      },
+      "found": {
+        "mode": "train",
+        "line_name": "RE19 (4901)",
+        "product": "RE",
+        "trip_ref": "20261120_05:11_de-DELFI_9999",
+        "from": {
+          "id": "de:erl:2",
+          "name": "Erlangen",
+          "planned": "2026-11-20T05:29:00Z",
+          "current": "2026-11-20T05:31:00Z",
+          "planned_platform": null,
+          "platform": null,
+          "cancelled": false
+        },
+        "to": {
+          "id": "de:nbg",
+          "name": "Nürnberg Hbf",
+          "planned": "2026-11-20T05:48:00Z",
+          "current": "2026-11-20T05:50:00Z",
+          "planned_platform": null,
+          "platform": "5",
+          "cancelled": false
+        },
+        "stopovers": [
+          {
+            "id": "de:fue",
+            "name": "Fürth Hbf",
+            "planned_arrival": "2026-11-20T05:40:00Z",
+            "arrival": "2026-11-20T05:42:00Z",
+            "planned_departure": "2026-11-20T05:41:00Z",
+            "departure": "2026-11-20T05:43:00Z",
+            "cancelled": false
+          }
+        ],
+        "polyline": null,
+        "cancelled": false,
+        "realtime": true
+      },
+      "expect": {
+        "trip_ref": "20261120_05:11_de-DELFI_9999",
+        "from": {
+          "id": "de:erl:2",
+          "planned": "2026-11-20T05:29:00Z",
+          "current": "2026-11-20T05:31:00Z",
+          "platform": "4"
+        },
+        "to": {
+          "id": "de:nbg",
+          "planned": "2026-11-20T05:48:00Z",
+          "current": "2026-11-20T05:50:00Z",
+          "platform": "5"
+        },
+        "realtime": true,
+        "stopovers": 1,
+        "polyline": true
+      }
     }
   ]
 }

@@ -14,7 +14,7 @@ import type {
   Station,
   Stopover,
 } from "./transit";
-import { checkSavedLeg, clearReplacement, isCheckable, type TransitPort } from "./intake/match";
+import { adoptRefound, checkSavedLeg, clearReplacement, isCheckable, type TransitPort } from "./intake/match";
 
 /**
  * The only module that talks to Supabase. Re-exported so call sites keep
@@ -847,10 +847,17 @@ export async function checkTimetable(trip: Trip, now = Date.now()): Promise<bool
   return changed;
 }
 
+/** When each trip's replacement rides were last looked up again, on this page. */
+const replacementRefound = new Map<string, number>();
+
 /**
  * The connection taken instead (replacement_legs, a JSON column, not legs
  * rows): refreshed leg by leg through each ride's trip ref, and written back
- * as a whole. Android does the same (AbeonaRepository.refreshReplacement).
+ * as a whole. A ride still to come that the refresh did not find has a stale
+ * trip ref (the timetable renumbers its trips on a new import): it is looked
+ * up again (checkSavedLeg) and takes the ride found (adoptRefound), at most
+ * every 15 minutes per trip. Android does the same
+ * (AbeonaRepository.refreshReplacement).
  */
 async function refreshReplacement(trip: Trip): Promise<boolean> {
   const replacement = trip.replacement_legs;
@@ -867,7 +874,7 @@ async function refreshReplacement(trip: Trip): Promise<boolean> {
     })),
   });
   let changed = false;
-  const fresh = replacement.map((leg, i) => {
+  let fresh = replacement.map((leg, i) => {
     const live = result.legs?.[i];
     if (!live) return leg;
     changed = true;
@@ -880,6 +887,19 @@ async function refreshReplacement(trip: Trip): Promise<boolean> {
       stopovers: live.stopovers,
     };
   });
+  const now = Date.now();
+  const stale = replacement
+    .map((leg, i) => (!result.legs?.[i] && isCheckable(leg) && !!leg.to.planned && Date.parse(leg.to.planned) > now ? i : -1))
+    .filter((i) => i >= 0);
+  if (stale.length > 0 && (replacementRefound.get(trip.id) ?? 0) + CHECK_UNSETTLED_MS <= now) {
+    replacementRefound.set(trip.id, now);
+    for (const i of stale) {
+      const check = await checkSavedLeg(fresh[i], transitPort).catch(() => null);
+      if (!check?.found) continue;
+      fresh = fresh.map((leg, j) => (j === i ? adoptRefound(leg, check.found as Leg) : leg));
+      changed = true;
+    }
+  }
   if (!changed) return false;
   const { error } = await getSupabaseClient().from("abeona_trips").update({ replacement_legs: fresh }).eq("id", trip.id);
   if (error) throw error;
