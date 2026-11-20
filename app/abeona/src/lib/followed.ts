@@ -7,6 +7,7 @@
  * android/abeona/.../domain/Followed.kt; the cases both suites run are in
  * followed.fixtures.json.
  */
+import { sameTrain } from "./intake/match.ts";
 import type { Leg, StopTime } from "./transit";
 import type { TravelDay } from "./travelday";
 
@@ -51,13 +52,48 @@ function stopoverAt(leg: Leg | undefined, start: { id: string | null; name: stri
   return leg.stopovers.findIndex((s) => sameStop(s, start));
 }
 
+function sameMinute(a: string | null, b: string | null): boolean {
+  return !!a && !!b && Math.floor(Date.parse(a) / 60_000) === Math.floor(Date.parse(b) / 60_000);
+}
+
+/** The platform a booked ride has at [at]: the same train, the same stop, the same planned minute. */
+function bookedPlatform(booked: Leg[], line: string | null, at: StopTime, end: "from" | "to"): StopTime | null {
+  const ride = booked.find(
+    (b) => b.mode !== "walk" && sameTrain(b.line_name, line) && sameStop(b[end], at) && sameMinute(b[end].planned, at.planned),
+  );
+  const stop = ride?.[end];
+  return stop && (stop.platform || stop.planned_platform) ? stop : null;
+}
+
+/**
+ * A replacement ride that is a booked train (a timetable change re-routed
+ * the trip around another ride) keeps the booked ride's platforms where the
+ * timetable has none: the ticket's platform is better than nothing, and a
+ * live one from the timetable still wins once it comes.
+ */
+export function withBookedPlatforms(booked: Leg[], replacement: Leg[]): Leg[] {
+  return replacement.map((ride) => {
+    if (ride.mode === "walk") return ride;
+    const fill = (stop: StopTime, end: "from" | "to"): StopTime => {
+      if (stop.platform || stop.planned_platform) return stop;
+      const known = bookedPlatform(booked, ride.line_name, stop, end);
+      return known ? { ...stop, planned_platform: known.planned_platform ?? known.platform, platform: known.platform ?? known.planned_platform } : stop;
+    };
+    const from = fill(ride.from, "from");
+    const to = fill(ride.to, "to");
+    return from === ride.from && to === ride.to ? ride : { ...ride, from, to };
+  });
+}
+
 /**
  * The legs as travelled: [legs] unchanged without a replacement, else the
  * rides before [missedIdx] and the [replacement], with the ride the
- * replacement leaves from cut at that stop.
+ * replacement leaves from cut at that stop. The replacement's rides that are
+ * booked trains keep the booked platforms (withBookedPlatforms).
  */
 export function followedLegs(legs: Leg[], missedIdx: number | null, replacement: Leg[] | null): Leg[] {
   if (missedIdx === null || !replacement || replacement.length === 0 || missedIdx < 0 || missedIdx > legs.length) return legs;
+  replacement = withBookedPlatforms(legs, replacement);
   const start = replacement[0].from;
   const prefix = legs.slice(0, missedIdx);
   // On the replaced ride itself (on board when the alternative was taken).

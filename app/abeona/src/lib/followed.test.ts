@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { followedLegs, replacedRide, takeConnection } from "./followed.ts";
+import { followedLegs, replacedRide, takeConnection, withBookedPlatforms } from "./followed.ts";
 import type { Leg, StopTime } from "./transit.ts";
 import type { TravelDay } from "./travelday.ts";
 
@@ -19,8 +19,8 @@ function stop(s: Raw): StopTime {
     lon: (s.lon as number) ?? null,
     planned: (s.planned as string) ?? null,
     current: (s.current as string) ?? null,
-    planned_platform: null,
-    platform: null,
+    planned_platform: (s.planned_platform as string) ?? null,
+    platform: (s.platform as string) ?? null,
     cancelled: false,
   };
 }
@@ -87,5 +87,12 @@ for (const c of fixtures.takeConnection) {
     assert.equal(taken.missedIdx, c.expect.missedIdx);
     assert.deepEqual(taken.replacement.map(id), c.expect.replacement);
     assert.deepEqual(followedLegs(legs, taken.missedIdx, taken.replacement).map(id), c.expect.followed);
+  });
+}
+
+for (const c of fixtures.bookedPlatforms) {
+  test(`withBookedPlatforms: ${c.name}`, () => {
+    const result = withBookedPlatforms(c.booked.map(leg), c.replacement.map(leg));
+    assert.deepEqual(result.map((l) => [l.from.platform, l.to.platform]), c.expect);
   });
 }

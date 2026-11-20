@@ -4,6 +4,7 @@ import io.github.numynox.nexus.abeona.data.Leg
 import io.github.numynox.nexus.abeona.data.LegMode
 import io.github.numynox.nexus.abeona.data.StopTime
 import io.github.numynox.nexus.abeona.data.Trip
+import io.github.numynox.nexus.abeona.domain.intake.sameTrain
 
 // The journey as it is actually travelled once a connection from the
 // alternatives was taken, mirrored from the web's
@@ -40,13 +41,47 @@ private fun stopoverAt(leg: Leg?, start: StopTime): Int {
     return leg.stopovers.indexOfFirst { sameStop(it.id, it.name, start.id, start.name) }
 }
 
+private fun sameMinute(a: StopTime, b: StopTime): Boolean {
+    val x = a.plannedAt ?: return false
+    val y = b.plannedAt ?: return false
+    return x.epochSecond / 60 == y.epochSecond / 60
+}
+
+private val StopTime.hasPlatform get() = platform != null || plannedPlatform != null
+
+/**
+ * A replacement ride that is a booked train (a timetable change re-routed
+ * the trip around another ride) keeps the booked ride's platforms where the
+ * timetable has none: the ticket's platform is better than nothing, and a
+ * live one from the timetable still wins once it comes. The web's
+ * withBookedPlatforms.
+ */
+fun withBookedPlatforms(booked: List<Leg>, replacement: List<Leg>): List<Leg> = replacement.map { ride ->
+    if (ride.mode == LegMode.Walk) return@map ride
+    fun fill(stop: StopTime, end: (Leg) -> StopTime): StopTime {
+        if (stop.hasPlatform) return stop
+        val known = booked.firstOrNull { b ->
+            val at = end(b)
+            b.mode != LegMode.Walk && sameTrain(b.lineName, ride.lineName) &&
+                sameStop(at.id, at.name, stop.id, stop.name) && sameMinute(at, stop)
+        }?.let(end)?.takeIf { it.hasPlatform } ?: return stop
+        return stop.copy(plannedPlatform = known.plannedPlatform ?: known.platform, platform = known.platform ?: known.plannedPlatform)
+    }
+    val from = fill(ride.from) { it.from }
+    val to = fill(ride.to) { it.to }
+    if (from === ride.from && to === ride.to) ride else ride.copy(from = from, to = to)
+}
+
 /**
  * The legs as travelled: [legs] unchanged without a replacement, else the
  * rides before [missedIdx] and the [replacement], with the ride the
- * replacement leaves from cut at that stop.
+ * replacement leaves from cut at that stop. The replacement's rides that are
+ * booked trains keep the booked platforms (withBookedPlatforms).
  */
 fun followedLegs(legs: List<Leg>, missedIdx: Int?, replacement: List<Leg>?): List<Leg> {
     if (missedIdx == null || replacement.isNullOrEmpty() || missedIdx < 0 || missedIdx > legs.size) return legs
+    @Suppress("NAME_SHADOWING")
+    val replacement = withBookedPlatforms(legs, replacement)
     val start = replacement.first().from
     val prefix = legs.subList(0, missedIdx)
     // On the replaced ride itself (on board when the alternative was taken).
