@@ -418,6 +418,7 @@ private fun JourneyLine(rows: List<LineRow>, hole: Color, modifier: Modifier = M
  * is done, the step to do next and the band, the rest of the way, the
  * destination. Exactly one large row, one countdown.
  */
+@OptIn(ExperimentalLayoutApi::class)
 private fun journeyRows(
     view: LiveView,
     compact: Boolean,
@@ -634,7 +635,7 @@ private fun journeyRows(
                 trailing = { PlatformBox(end.plannedPlatform ?: track, end.platform ?: track, lead = true) },
             )
         }
-        val anyTrain = arrive && lifted && !compact
+        val anyTrain = arrive && lifted
         if (anyTrain) anyTrainShown = true
         val text = countdown(day.minutesToArrival)
         if (text != null || anyTrain) {
@@ -654,12 +655,24 @@ private fun journeyRows(
             val next = after.firstOrNull()
             // After a ride that broke, how the change would have looked says nothing.
             val change = changeAfter(index)?.takeIf { !brokenHere }
+            // The binding lifted is this row's "Any train", as on the web: no banner under the card.
+            val anyTrain = lifted && !anyTrainShown
+            if (anyTrain) anyTrainShown = true
             add("summary", above = if (change != null) RailLine.Dashed else null, below = RailLine.None) { rail ->
                 StopRow(name = "", rail = rail, content = {
-                    change?.let { ConfidenceChip(it.confidence, minutes = it.availableMinutes, word = true) }
-                    next?.let { LineChip(legs[it]) }
-                    Fact(Icons.Rounded.Flag, "Destination") {
-                        ShiftedTime(legs[last].to.plannedAt, legs[last].to.expectedAt, AbeonaType.meta, block = false, color = muted)
+                    // Wraps as on the web: "Any train" goes to a second line rather than off the card.
+                    FlowRow(
+                        Modifier.weight(1f).padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        itemVerticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        change?.let { ConfidenceChip(it.confidence, minutes = it.availableMinutes, word = true) }
+                        next?.let { LineChip(legs[it]) }
+                        Fact(Icons.Rounded.Flag, "Destination") {
+                            ShiftedTime(legs[last].to.plannedAt, legs[last].to.expectedAt, AbeonaType.meta, block = false, color = muted)
+                        }
+                        if (anyTrain) AnyTrainChip()
                     }
                 })
             }

@@ -90,7 +90,7 @@ class AppScreenshots {
     @Test
     fun walkThroughTheApp() = with(robot) {
         waitForText("Visit grandma in Bamberg")
-        waitForText("Train binding lifted")
+        waitForText("Any train")
         shot("01-trips")
         scrollTo("${LocalDate.now().year} on rails")
         shot("02-trips-upcoming-history")

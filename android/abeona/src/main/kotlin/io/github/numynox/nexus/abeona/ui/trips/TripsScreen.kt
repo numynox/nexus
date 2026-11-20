@@ -232,9 +232,9 @@ fun NextTripCard(
                 liveView(trip, day, now, stationMinutes, emptyList(), onboard, null, reason),
                 onAlternatives = onClick,
                 summary = true,
+                lifted = lifted,
                 onClick = onClick,
             )
-            if (lifted) BindingBanner(arrivalDelay)
         }
         return
     }
