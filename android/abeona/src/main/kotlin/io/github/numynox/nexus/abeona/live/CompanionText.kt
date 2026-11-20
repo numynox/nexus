@@ -78,7 +78,8 @@ fun stopsLeft(progress: RideProgress): String = if (progress.stopsLeft == 1) "la
  * changing: the platform and the train, with the change's margin. On board:
  * the title is the train, when it arrives where the next thing happens, the
  * platform there and the time ("ICE 728 arrives in 1 h 25 min · Pl. 7 ·
- * 10:19"); then the next train (platform, time, delay, minutes to change,
+ * 10:19"); then where to change ("Change at Würzburg Hbf") and the next
+ * train (platform, time, delay, minutes to change,
  * and how the change looks unless it is safe), the next stop, and last how
  * many stops are left and the train's speed when its Wi-Fi says. A missed
  * change leads with "Looks like".
@@ -170,6 +171,8 @@ fun companionStatus(
             if (change == null && !day.missedChange) lines += leg.to.name
             if (change != null) {
                 val next = trip.legs[change.departing]
+                // Where to change: first under the title, which has no room for a long station name.
+                lines += "Change at ${leg.to.name}"
                 lines += listOfNotNull(
                     "Then ${next.label}",
                     TripFormat.platform(next.from.shownPlatform),

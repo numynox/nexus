@@ -81,14 +81,14 @@ class CompanionTextTest {
         val status = companionStatus(trip, t0.plusSeconds(28 * 60))
         assertEquals("RE 4 arrives in 12 min · Pl. 11 · 08:40", status.title)
         // A safe change goes without saying.
-        assertEquals(listOf("Then ICE 25 · Pl. 7 · 08:48 · 8 min change", "last stop"), status.lines)
+        assertEquals(listOf("Change at Frankfurt Hbf", "Then ICE 25 · Pl. 7 · 08:48 · 8 min change", "last stop"), status.lines)
         assertEquals(0.7, status.progress!!.fraction, 1e-9)
     }
 
     @Test
     fun aTightChangeSaysSo() {
         val tight = trip.copy(legs = listOf(trip.legs[0], trip.legs[1].copy(from = trip.legs[1].from.copy(planned = at(46)))))
-        assertEquals("Then ICE 25 · Pl. 7 · 08:46 · 6 min change (Tight)", companionStatus(tight, t0.plusSeconds(28 * 60)).lines[0])
+        assertEquals("Then ICE 25 · Pl. 7 · 08:46 · 6 min change (Tight)", companionStatus(tight, t0.plusSeconds(28 * 60)).lines[1])
     }
 
     @Test
@@ -101,7 +101,8 @@ class CompanionTextTest {
         )
         val status = companionStatus(late, t0.plusSeconds(28 * 60))
         assertEquals("RE 4 arrives in 18 min · Pl. 11 · 08:46 (+6)", status.title)
-        assertTrue(status.text, status.text.startsWith("Then ICE 25 · Pl. 7 · 08:55 (+7) · 9 min change"))
+        assertEquals("Change at Frankfurt Hbf", status.text)
+        assertTrue(status.lines[1], status.lines[1].startsWith("Then ICE 25 · Pl. 7 · 08:55 (+7) · 9 min change"))
     }
 
     @Test

@@ -17,7 +17,8 @@ On board, `CompanionText.kt`:
 1. Title: the train, when it arrives where the next thing happens, the
    platform there and the time: "ICE 728 arrives in 1 h 25 min · Pl. Fern 7 ·
    10:19", with "(+6)" after the time when late.
-2. "Then ICE 16 · Pl. Fern 7 · 10:48 · 29 min change", with "(Tight)",
+2. Where to change, "Change at Frankfurt (Main) Flughafen Fernbahnhof",
+   then "Then ICE 16 · Pl. Fern 7 · 10:48 · 29 min change", with "(Tight)",
    "(At risk)" or "(Impossible)" after it; a safe change goes without saying.
 3. The next stop: "Next: Hanau Hauptbahnhof 09:41" ("Now at …" while standing
    at one), without the count.
@@ -30,7 +31,10 @@ On board, `CompanionText.kt`:
 - Supersedes the "Most urgent first" bullet of
   `2026-11-13-abeona-notification-leads-with-the-next-thing.md`; its other
   decisions (no chronometer, freshness at the end) hold.
-- The title no longer names the station of the change: the "Then" line and
-  the trip screen do. A collapsed notification shows the title and the
-  "Then" line (or, on the last ride, the destination).
+- The title no longer names the station of the change; the first line under
+  it does, where a long name has room in the expanded notification. The
+  first version left the station out altogether, which the owner caught on
+  the next ride: where to change is the one fact a change needs. A collapsed
+  notification shows the title and "Change at …" (or, on the last ride, the
+  destination).
 - The title is redrawn every 15 s and is at most that far behind.
