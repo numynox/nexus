@@ -556,7 +556,7 @@ private fun TripContent(
     askLocation: Boolean,
     onAllowLocation: () -> Unit,
     onDismissLocation: () -> Unit,
-    /** "Use" on the Location row behind the source pill: the setting, the permission, the companion. */
+    /** "Use" on the Location row behind the live card's source button: the setting, the permission, the companion. */
     onUseLocation: () -> Unit,
     onAlternatives: () -> Unit,
     afterRide: AfterRideActions?,
@@ -591,7 +591,9 @@ private fun TripContent(
         val over = trip.expectedArrival.plus(Duration.ofHours(1)).isBefore(java.time.Instant.now())
         val binding = !over && trainBindingLifted(trip.fareType, trip.trainBinding, arrivalDelay, connectionBroken)
         val following = !over && trip.followsReplacement
-        // The binding and a connection taken instead: in the live card while live.
+        // The same trains at other times, taken by Abeona for the dropped ride: there is no plan to go back to.
+        val adjusted = following && dropped != null && (trip.missedLegIdx ?: Int.MAX_VALUE) <= droppedIdx
+        // The binding, a ride no longer in the timetable and a connection taken instead, off the travel day.
         val notices: @Composable () -> Unit = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 // A dropped ride, or a cancelled one in the live card, says the binding is lifted itself.
@@ -606,8 +608,7 @@ private fun TripContent(
                     )
                 }
                 if (dropped != null && !following) DroppedBanner(dropped, bindingLifted = binding, onDroppedAlternatives)
-                // The same trains at other times, taken by Abeona for the dropped ride: there is no plan to go back to.
-                if (following && dropped != null && (trip.missedLegIdx ?: Int.MAX_VALUE) <= droppedIdx) {
+                if (adjusted && dropped != null) {
                     AdjustedBanner(trip, dropped)
                 } else if (following) {
                     FollowingBanner(trip, onFollowPlan)
@@ -615,7 +616,8 @@ private fun TripContent(
             }
         }
         val anyNotice = binding || following || (!over && dropped != null)
-        // While the trip is live, everything live is in the one card; above it only what does not change.
+        // While the trip is live, everything live is in the one card, the notices as its rows ("Any train",
+        // the ride that does not run, "re-planned", "Back to the plan"); above it only what does not change.
         item(key = "header") { TripHeader(trip, live = live != null) }
         if (live != null) {
             item(key = "travel-day") {
@@ -625,7 +627,9 @@ private fun TripContent(
                     status = liveStatus(detail),
                     onAlternatives = onAlternatives,
                     onUseLocation = onUseLocation,
-                    notices = if (anyNotice) notices else null,
+                    lifted = binding,
+                    onBackToPlan = if (following && !adjusted) onFollowPlan else null,
+                    onDroppedAlternatives = if (dropped != null && !following) onDroppedAlternatives else null,
                 )
             }
         } else if (anyNotice) {
@@ -652,13 +656,16 @@ private fun TripContent(
             item(key = "compensation") { CompensationCard(trip, a.state, a.onStatus, a.onPrice, a.onForceMajeure) }
             item(key = "what-happened") { WhatHappenedCard(trip, a.state.busy, a.onRecord, a.onClear) }
         }
-        // The header has the duration and the changes when it shows the times; while live the timeline's head does.
-        item(key = "timeline-head") {
-            SectionHeader("Your journey") { if (live != null) JourneyFacts(trip) }
-        }
-        item(key = "timeline") {
-            // "Timetable only" on a ride only when others are live; otherwise the freshness line says it once.
-            Timeline(journey.legs, changes, freshness = if (live == null) freshness(detail) else null)
+        // While the card is live it is the journey: the timeline returns once arrived (abeona-design.md §8).
+        if (live == null || live.day.kind == TravelDayKind.Arrived) {
+            // The header has the duration and the changes when it shows the times; once arrived the timeline's head does.
+            item(key = "timeline-head") {
+                SectionHeader("Your journey") { if (live != null) JourneyFacts(trip) }
+            }
+            item(key = "timeline") {
+                // "Timetable only" on a ride only when others are live; otherwise the freshness line says it once.
+                Timeline(journey.legs, changes, freshness = if (live == null) freshness(detail) else null)
+            }
         }
         item(key = "ticket") { TicketCard(trip, onTicket) }
         // While the trip is live the dashboard has the map, with the traveller on it.
@@ -700,12 +707,12 @@ private fun liveStatus(detail: TripDetail): LiveStatus? {
     val timetableOnly = trip.legs.none { it.realtime } && trip.legs.any { !it.isWalk }
     val refreshed = trip.refreshedAt.toInstantOrNull()
     return when {
-        detail.offlineSince != null -> LiveStatus(LiveStatusKind.Offline, "Offline · updated", TripFormat.time(detail.offlineSince))
+        detail.offlineSince != null -> LiveStatus(LiveStatusKind.Offline, "Offline", TripFormat.time(detail.offlineSince))
         detail.refreshError != null -> LiveStatus(LiveStatusKind.Unavailable, "Live data", "unavailable")
         // Not "Live · … · timetable only": one word for where the times come from.
-        timetableOnly && refreshed != null -> LiveStatus(LiveStatusKind.Timetable, "Timetable · updated", TripFormat.time(refreshed))
-        timetableOnly -> LiveStatus(LiveStatusKind.Timetable, "Times", "Timetable only")
-        refreshed != null -> LiveStatus(LiveStatusKind.Live, "Live · updated", TripFormat.time(refreshed))
+        timetableOnly && refreshed != null -> LiveStatus(LiveStatusKind.Timetable, "Timetable", TripFormat.time(refreshed))
+        timetableOnly -> LiveStatus(LiveStatusKind.Timetable, "", "Timetable only")
+        refreshed != null -> LiveStatus(LiveStatusKind.Live, "Live", TripFormat.time(refreshed))
         else -> null
     }
 }
@@ -713,7 +720,7 @@ private fun liveStatus(detail: TripDetail): LiveStatus? {
 /** Off the travel day, the timeline's last line: how fresh its times are, or that they are final. */
 private fun freshness(detail: TripDetail): LiveStatus? =
     if (detail.offlineSince == null && detail.refreshError == null && detail.trip.finalizedAt != null) {
-        LiveStatus(LiveStatusKind.Final, "Times", "Final times recorded")
+        LiveStatus(LiveStatusKind.Final, "", "Final times recorded")
     } else {
         liveStatus(detail)
     }
@@ -789,7 +796,7 @@ private fun Timeline(legs: List<Leg>, changes: List<Transfer>, freshness: LiveSt
         freshness?.let {
             Fact(
                 liveStatusIcon(it.kind),
-                it.label,
+                it.label.ifEmpty { "Times" },
                 it.text,
                 Modifier.padding(top = 8.dp, bottom = 4.dp),
             )

@@ -8,9 +8,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
+import io.github.numynox.nexus.abeona.data.Approach
 import io.github.numynox.nexus.abeona.data.FareType
 import io.github.numynox.nexus.abeona.data.Leg
 import io.github.numynox.nexus.abeona.data.LegMode
@@ -20,13 +23,22 @@ import io.github.numynox.nexus.abeona.data.Trip
 import io.github.numynox.nexus.abeona.domain.Position
 import io.github.numynox.nexus.abeona.domain.TravelSignals
 import io.github.numynox.nexus.abeona.domain.alternativesReason
+import io.github.numynox.nexus.abeona.domain.finalArrivalDelay
+import io.github.numynox.nexus.abeona.domain.followed
+import io.github.numynox.nexus.abeona.domain.followsReplacement
+import io.github.numynox.nexus.abeona.domain.hasImpossibleChange
+import io.github.numynox.nexus.abeona.domain.missedShortConnection
+import io.github.numynox.nexus.abeona.domain.trainBindingLifted
 import io.github.numynox.nexus.abeona.domain.travelDay
 import io.github.numynox.nexus.abeona.live.Fix
 import io.github.numynox.nexus.abeona.live.OnboardStatus
 import io.github.numynox.nexus.abeona.live.evidence
 import io.github.numynox.nexus.abeona.ui.AbeonaPalette
 import io.github.numynox.nexus.abeona.ui.live.HowAbeonaKnows
+import io.github.numynox.nexus.abeona.ui.common.TripFormat
 import io.github.numynox.nexus.abeona.ui.live.LiveDashboard
+import io.github.numynox.nexus.abeona.ui.live.LiveStatus
+import io.github.numynox.nexus.abeona.ui.live.LiveStatusKind
 import io.github.numynox.nexus.abeona.ui.live.liveView
 import io.github.numynox.nexus.core.ui.theme.NexusTheme
 import io.github.numynox.nexus.core.ui.theme.ThemeMode
@@ -70,8 +82,14 @@ class LiveDashboardScreenshots {
         companion: Boolean = true,
         mode: ThemeMode = ThemeMode.Light,
         of: Trip? = null,
+        /** A content description to tap before the picture: a fold on the line. */
+        tap: String? = null,
+        /** While waiting for the train: where it is on its way here. */
+        approach: Approach? = null,
     ) {
-        val trip = of ?: trip()
+        // As the trip screen does it: the binding on the booked trip, the card on the trip as travelled.
+        val booked = of ?: trip()
+        val trip = booked.followed
         val now = at(nowMinutes)
         val day = travelDay(trip.legs, now, 15, signals)
         val view = liveView(
@@ -79,18 +97,28 @@ class LiveDashboardScreenshots {
             evidence(trip, day, now, onboard, fix, locationOn, companion),
             onboard, signals.position, alternativesReason(trip.legs, day),
         )
+        val dropped = booked.legs.any { !it.isWalk && it.dropped }
+        val lifted = trainBindingLifted(
+            booked.fareType, booked.trainBinding, finalArrivalDelay(booked.legs),
+            hasImpossibleChange(booked.legs) || missedShortConnection(trip.legs, day) || dropped,
+        )
+        val status = LiveStatus(LiveStatusKind.Live, "Live", TripFormat.time(now.minus(2, ChronoUnit.MINUTES)))
         compose.setContent {
             NexusTheme(AbeonaPalette, themeMode = mode) {
                 Column(Modifier.background(MaterialTheme.colorScheme.surface).padding(16.dp)) {
                     Text(caption, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
-                    LiveDashboard(view, Modifier.fillMaxWidth(), onAlternatives = {}, onUseLocation = {})
+                    LiveDashboard(
+                        view, Modifier.fillMaxWidth(), onAlternatives = {}, onUseLocation = {}, status = status, approach = approach, lifted = lifted,
+                        onBackToPlan = if (booked.followsReplacement) ({}) else null,
+                    )
                 }
             }
         }
+        tap?.let { compose.onNodeWithContentDescription(it).performClick() }
         compose.onRoot().captureRoboImage("build/outputs/roborazzi/app/$name.png")
     }
 
-    /** What the source pill opens, drawn as the sheet shows it. */
+    /** What the source button opens, drawn as the sheet shows it. */
     private fun sheet(name: String, nowMinutes: Long, signals: TravelSignals = TravelSignals(), onboard: OnboardStatus? = null, fix: Fix? = null, locationOn: Boolean = false) {
         val trip = trip()
         val now = at(nowMinutes)
@@ -120,6 +148,7 @@ class LiveDashboardScreenshots {
         "59b-live-at-the-station", "At the station · by the position", 2,
         signals = TravelSignals(position = Position(50.1068, 8.6630, 0.0, 10.0)),
         fix = Fix(Position(50.1068, 8.6630, 0.0, 10.0), at(2)), locationOn = true,
+        approach = Approach("Hanau Hbf", "left", 1),
     )
 
     @Test fun onBoardByTheTimetable() = shot("59c-live-on-board", "On board · by the timetable, location off", 20)
@@ -136,7 +165,7 @@ class LiveDashboardScreenshots {
         onboard = OnboardStatus("ICE Portal", "ICE", "25", 247.0, 49.94, 9.50, "Würzburg Hbf", at(75), "4", at(46)),
     )
 
-    @Test fun changing() = shot("59f-live-changing", "Changing at Würzburg", 77)
+    @Test fun changing() = shot("59f-live-changing", "Changing at Würzburg", 77, approach = Approach("Karlstadt(Main)", "at", 2))
 
     @Test fun lastRide() = shot("59g-live-last-ride", "The last ride, standing at Schweinfurt", 128)
 
@@ -160,6 +189,129 @@ class LiveDashboardScreenshots {
     @Test fun arrived() = shot("59i-live-arrived", "Arrived, 22 min late", 180)
 
     @Test fun onBoardDark() = shot("59j-live-on-board-dark", "On board · dark", 46, mode = ThemeMode.Dark)
+
+    /** The ICE is cancelled while waiting for it: the step to board turns red, the rest is dimmed. */
+    @Test fun cancelled() {
+        val base = grandmaTrip(t0)
+        val trip = base.copy(legs = listOf(base.legs[0].copy(cancelled = true), base.legs[1]))
+        shot("59o-live-cancelled", "At the station · the ICE is cancelled", -5, of = trip)
+    }
+
+    /** The RE 10 fell out of the timetable while on the ICE: its row says so, in its place on the line. */
+    @Test fun notRunning() {
+        val base = grandmaTrip(t0)
+        val trip = base.copy(legs = listOf(base.legs[0], base.legs[1].copy(cancelled = true, droppedAt = iso(-600))))
+        shot("59p-live-not-running", "On board · the RE 10 is no longer in the timetable", 46, of = trip)
+    }
+
+    /** The RE 10 leaves three minutes after the late ICE is in, from another platform: at risk. */
+    @Test fun changeAtRisk() {
+        val base = grandmaTrip(t0)
+        val re = base.legs[1]
+        val trip = base.copy(legs = listOf(base.legs[0], re.copy(from = re.from.copy(current = iso(78)))))
+        shot("59q-live-change-at-risk", "On board · the change is at risk", 46, of = trip)
+    }
+
+    @Test fun changingDark() = shot("59r-live-changing-dark", "Changing at Würzburg · dark", 77, mode = ThemeMode.Dark)
+
+    @Test fun missedDark() = shot(
+        "59s-live-missed-dark", "Still at Würzburg after the RE 10 left · dark", 86,
+        signals = TravelSignals(position = Position(49.8018, 9.9355, 0.0, 10.0)),
+        fix = Fix(Position(49.8018, 9.9355, 0.0, 10.0), at(86)), locationOn = true, mode = ThemeMode.Dark,
+    )
+
+    /** Four rides: the third and fourth fold into "Later". */
+    @Test fun longBeforeLeaving() = shot("59u-live-long-before-leaving", "Before leaving · four rides", -20, of = louvainTrip(t0))
+
+    @Test fun longBeforeLeavingDark() = shot("59y-live-long-before-leaving-dark", "Before leaving · four rides · dark", -20, of = louvainTrip(t0), mode = ThemeMode.Dark)
+
+    @Test fun longLaterOpen() = shot("59x-live-later-open", "Before leaving · the later rides unfolded", -20, of = louvainTrip(t0), tap = "Show the later rides")
+
+    private fun portal(now: Long) = OnboardStatus("ICE Portal", "ICE", "16", 197.0, 50.80, 6.40, "Aachen Hbf", at(356), "2", at(now))
+
+    /** On the third ride, from its Wi-Fi: two rides done, the stop passed and the next under the train. */
+    @Test fun longOnBoard() = shot(
+        "59v-live-long-on-board", "On board the ICE 16 · from the ICE Portal", 330, of = louvainTrip(t0),
+        signals = TravelSignals(onboardLegIndex = 2), onboard = portal(330),
+    )
+
+    @Test fun longDoneOpen() = shot(
+        "59w-live-done-open", "On board the ICE 16 · what is done, unfolded", 330, of = louvainTrip(t0),
+        signals = TravelSignals(onboardLegIndex = 2), onboard = portal(330), tap = "Show what is done",
+    )
+
+    /** The IC 535 replaced by an IC 3 from the alternatives: "re-planned", and the way back to the plan. */
+    @Test fun rePlanned() {
+        val base = louvainTrip(t0)
+        val liege = base.legs[3].from
+        val leuven = base.legs[3].to
+        val ic3 = Leg(
+            mode = LegMode.Train, product = "IC", lineName = "IC 3", headsign = "Knokke",
+            from = liege.copy(planned = iso(392), current = iso(392), plannedPlatform = "6"),
+            to = leuven.copy(planned = iso(423), current = iso(423), plannedPlatform = "2"),
+            polyline = listOf(listOf(5.5667, 50.6245), listOf(4.7155, 50.8810)),
+            realtime = true,
+        )
+        shot(
+            "59t-live-re-planned", "On board · another connection followed from Liège", 330,
+            of = base.copy(missedLegIdx = 3, replacementLegs = listOf(ic3)),
+            signals = TravelSignals(onboardLegIndex = 2), onboard = portal(330),
+        )
+    }
+}
+
+/**
+ * Erlangen to Leuven in four rides, starting at [t0]: an RE, two ICEs (the
+ * second 4 min late into Liège) and an IC. Long enough for the done row and
+ * the later rides to fold.
+ */
+internal fun louvainTrip(t0: Instant): Trip {
+    fun iso(m: Long) = t0.plus(m, ChronoUnit.MINUTES).toString()
+    val erlangen = StopTime("erl", "Erlangen", 49.5958, 11.0019)
+    val nuernberg = StopTime("nbg", "Nürnberg Hbf", 49.4456, 11.0827)
+    val airport = StopTime("fra", "Frankfurt(M) Flughafen Fernbf", 50.0532, 8.5703)
+    val liege = StopTime("lg", "Liège-Guillemins", 50.6245, 5.5667)
+    val leuven = StopTime("lv", "Leuven", 50.8810, 4.7155)
+    return Trip(
+        "l", "h", null, "planned", erlangen.name, leuven.name, iso(0), iso(427), FareType.Saver, true,
+        refreshedAt = iso(-2),
+        legs = listOf(
+            Leg(
+                mode = LegMode.Train, product = "RE", lineName = "RE 19", headsign = "Nürnberg Hbf",
+                from = erlangen.copy(planned = iso(0), current = iso(0), plannedPlatform = "4"),
+                to = nuernberg.copy(planned = iso(19), current = iso(21), plannedPlatform = "4"),
+                stopovers = listOf(Stopover("fue", "Fürth(Bay)Hbf", 49.4699, 10.9908, iso(12), iso(13), iso(13), iso(14))),
+                polyline = listOf(listOf(11.0019, 49.5958), listOf(10.9908, 49.4699), listOf(11.0827, 49.4456)),
+                realtime = true,
+            ),
+            Leg(
+                mode = LegMode.Train, product = "ICE", lineName = "ICE 728", headsign = "Frankfurt(M) Flughafen",
+                from = nuernberg.copy(planned = iso(44), current = iso(44), plannedPlatform = "7"),
+                to = airport.copy(planned = iso(186), current = iso(186), plannedPlatform = "5"),
+                stopovers = listOf(Stopover("wue", "Würzburg Hbf", 49.8018, 9.9355, iso(100), iso(100), iso(102), iso(102))),
+                polyline = listOf(listOf(11.0827, 49.4456), listOf(9.9355, 49.8018), listOf(8.5703, 50.0532)),
+                realtime = true,
+            ),
+            Leg(
+                mode = LegMode.Train, product = "ICE", lineName = "ICE 16", headsign = "Bruxelles-Midi",
+                from = airport.copy(planned = iso(263), current = iso(263), plannedPlatform = "6"),
+                to = liege.copy(planned = iso(378), current = iso(382), plannedPlatform = "3"),
+                stopovers = listOf(
+                    Stopover("koe", "Köln Hbf", 50.9430, 6.9589, iso(316), iso(320), iso(319), iso(323)),
+                    Stopover("ac", "Aachen Hbf", 50.7678, 6.0911, iso(352), iso(356), iso(355), iso(359)),
+                ),
+                polyline = listOf(listOf(8.5703, 50.0532), listOf(6.9589, 50.9430), listOf(6.0911, 50.7678), listOf(5.5667, 50.6245)),
+                realtime = true,
+            ),
+            Leg(
+                mode = LegMode.Train, product = "IC", lineName = "IC 535", headsign = "Oostende",
+                from = liege.copy(planned = iso(397), current = iso(397), plannedPlatform = "3"),
+                to = leuven.copy(planned = iso(427), current = iso(427), plannedPlatform = "1"),
+                polyline = listOf(listOf(5.5667, 50.6245), listOf(4.7155, 50.8810)),
+                realtime = true,
+            ),
+        ),
+    )
 }
 
 /**

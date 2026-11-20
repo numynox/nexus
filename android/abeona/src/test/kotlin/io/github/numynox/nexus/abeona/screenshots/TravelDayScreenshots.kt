@@ -96,7 +96,7 @@ class TravelDayScreenshots {
                 Column(Modifier.background(MaterialTheme.colorScheme.surface).padding(16.dp)) {
                     Text(caption, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
                     // The Trips card's compact live card: what the next-trip card shows on the travel day.
-                    LiveCard(liveView(trip, day, now, 15, emptyList(), onboard, null, reason), Modifier.fillMaxWidth(), onAlternatives = {}, summary = true, approach = approach)
+                    LiveCard(liveView(trip, day, now, 15, emptyList(), onboard, null, reason), Modifier.fillMaxWidth(), onAlternatives = {}, summary = true, approach = approach, onClick = {})
                 }
             }
         }
@@ -131,4 +131,13 @@ class TravelDayScreenshots {
     )
 
     @Test fun onBoardDark() = shot("58-hero-on-board-dark", "On board · dark", 40, mode = ThemeMode.Dark)
+
+    /** The RE 10 leaves three minutes after the late ICE is in: the change chip says so. */
+    @Test fun changeAtRisk() {
+        val base = trip()
+        val re = base.legs[1]
+        shot("58b-hero-change-at-risk", "On board · the change is at risk", 40, trip = base.copy(legs = listOf(base.legs[0], re.copy(from = re.from.copy(current = iso(78))))))
+    }
+
+    @Test fun longBeforeLeavingDark() = shot("58c-hero-long-before-leaving-dark", "Before leaving · four rides · dark", -20, trip = louvainTrip(t0), mode = ThemeMode.Dark)
 }

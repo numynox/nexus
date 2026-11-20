@@ -86,6 +86,9 @@ object FakeBackend {
     private val nuernberg = Place("nbg", "Nürnberg Hbf", 49.4456, 11.0827)
     private val muenchen = Place("muc", "München Hbf", 48.1402, 11.5600)
     private val berlin = Place("ber", "Berlin Hbf", 52.5251, 13.3694)
+    private val spandau = Place("spa", "Berlin-Spandau", 52.5345, 13.1976)
+    private val wittenberge = Place("wit", "Wittenberge", 53.0035, 11.7546)
+    private val ludwigslust = Place("lwl", "Ludwigslust", 53.3253, 11.4973)
     private val hamburg = Place("ham", "Hamburg Hbf", 53.5530, 10.0069)
     private val koeln = Place("koe", "Köln Hbf", 50.9430, 6.9589)
     private val amsterdam = Place("ams", "Amsterdam Centraal", 52.3791, 4.9003)
@@ -136,7 +139,12 @@ object FakeBackend {
         Trip(
             "33333333-3333-4333-8333-000000000002", HOUSEHOLD, "Hamburg conference", "planned", berlin.name, hamburg.name, at(2 * 1440 + 120), at(2 * 1440 + 233),
             io.github.numynox.nexus.abeona.data.FareType.Flex, false, 1, 8990, null, "tok-2", null,
-            listOf(ride("ICE", "ICE 1009", "Hamburg-Altona", stop(berlin, 2 * 1440 + 120, platform = "14"), stop(hamburg, 2 * 1440 + 233, platform = "7"), realtime = false)),
+            listOf(
+                ride(
+                    "ICE", "ICE 1009", "Hamburg-Altona", stop(berlin, 2 * 1440 + 120, platform = "14"), stop(hamburg, 2 * 1440 + 233, platform = "7"),
+                    via = listOf(spandau to 2 * 1440 + 131L, wittenberge to 2 * 1440 + 177L, ludwigslust to 2 * 1440 + 193L), realtime = false,
+                ),
+            ),
         ),
         Trip(
             "33333333-3333-4333-8333-000000000003", HOUSEHOLD, null, "planned", koeln.name, amsterdam.name, at(9 * 1440), at(9 * 1440 + 160),

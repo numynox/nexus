@@ -1,16 +1,18 @@
 package io.github.numynox.nexus.abeona.ui.live
 
+import io.github.numynox.nexus.abeona.ui.common.TripFormat
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 
+/** The live card's one countdown, on the step to do next (abeona-design.md §8). */
 class CountdownTest {
     @Test
     fun hoursNeverReadAsAClockTime() {
-        assertEquals("16 h" to "54 min", countdown(16 * 60 + 54))
-        assertEquals("2 h" to "", countdown(120))
-        assertEquals("23" to "min", countdown(23))
-        assertEquals("now" to "", countdown(0))
-        assertNull(countdown(null))
+        assertEquals("in 12 min", TripFormat.relative(12))
+        assertEquals("in 1 h 25 min", TripFormat.relative(85))
+        assertEquals("in 16 h 54 min", TripFormat.relative(16 * 60 + 54))
+        assertEquals("in 2 h", TripFormat.relative(120))
+        assertEquals("now", TripFormat.relative(0))
+        assertEquals("now", TripFormat.relative(-3))
     }
 }
