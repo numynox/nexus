@@ -491,7 +491,8 @@ fun LiveCard(
                                 lead.platformAt?.let { PlatformBox(it.plannedPlatform, it.platform, lead = true) }
                                 lead.line?.let { line ->
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        LineChip(line)
+                                        // Without a platform the headline is the train itself: the chip would only say it again (as on the web).
+                                        if (lead.platformHead != null) LineChip(line)
                                         line.headsign?.let { Text("to $it", style = AbeonaType.meta, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                                     }
                                 }

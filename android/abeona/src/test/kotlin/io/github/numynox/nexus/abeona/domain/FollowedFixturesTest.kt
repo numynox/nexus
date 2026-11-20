@@ -25,8 +25,10 @@ class FollowedFixturesTest {
         val lon: Double? = null,
         val planned: String? = null,
         val current: String? = null,
+        @SerialName("planned_platform") val plannedPlatform: String? = null,
+        val platform: String? = null,
     ) {
-        fun toStopTime() = StopTime(id, name, lat, lon, planned, current)
+        fun toStopTime() = StopTime(id, name, lat, lon, planned, current, plannedPlatform = plannedPlatform, platform = platform)
     }
 
     @Serializable
@@ -86,8 +88,12 @@ class FollowedFixturesTest {
     )
 
     @Serializable
+    private data class PlatformCase(val name: String, val booked: List<FixtureLeg>, val replacement: List<FixtureLeg>, val expect: List<List<String?>>)
+
+    @Serializable
     private data class Fixtures(
         val legs: List<FixtureLeg>,
+        val bookedPlatforms: List<PlatformCase>,
         val followedLegs: List<FollowedCase>,
         val replacedRide: List<ReplacedCase>,
         val takeConnection: List<TakeCase>,
@@ -117,6 +123,12 @@ class FollowedFixturesTest {
             e.toPlanned?.let { assertEquals(c.name, it, result[i].to.planned) }
             e.toCurrent?.let { assertEquals(c.name, it, result[i].to.current) }
         }
+    }
+
+    @Test
+    fun withBookedPlatforms() = fixtures.bookedPlatforms.forEach { c ->
+        val result = withBookedPlatforms(c.booked.map { it.toLeg() }, c.replacement.map { it.toLeg() })
+        assertEquals(c.name, c.expect, result.map { listOf(it.from.platform, it.to.platform) })
     }
 
     @Test
