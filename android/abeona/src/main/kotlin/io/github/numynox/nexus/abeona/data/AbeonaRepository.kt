@@ -152,6 +152,34 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
                 put("bahncard_discounts", discountsJson(edit.bahncardDiscounts))
             },
         ) { filter { eq("id", tripId) } }
+        // A ride's coach and seats go to its own row (the legs' RLS lets members write them).
+        edit.seats.forEach { seat ->
+            supabase.from("abeona_legs").update(
+                buildJsonObject {
+                    put("coach", seat.coach.clean(8))
+                    put("seats", seat.seats.clean(40))
+                },
+            ) {
+                filter {
+                    eq("trip_id", tripId)
+                    eq("idx", seat.idx)
+                }
+            }
+        }
+    }
+
+    /**
+     * The highest speed seen on board a ride ([idx] in the trip's legs), as
+     * the live companion records it: written to the leg directly, a whole
+     * km/h between 1 and 450 (the column's check).
+     */
+    suspend fun setTopSpeed(tripId: String, idx: Int, kmh: Int) {
+        supabase.from("abeona_legs").update(buildJsonObject { put("top_speed_kmh", kmh.coerceIn(1, 450)) }) {
+            filter {
+                eq("trip_id", tripId)
+                eq("idx", idx)
+            }
+        }
     }
 
     private fun discountsJson(discounts: List<Int>) = JsonArray(discounts.sorted().map { JsonPrimitive(it) })
@@ -340,6 +368,12 @@ class AbeonaRepository(private val supabase: SupabaseClient) {
     /** What the trip's delay is worth, by the rules in abeona_compensation_rules; null for a trip not visible. */
     suspend fun compensation(tripId: String): Compensation? {
         val data = supabase.postgrest.rpc("abeona_compensation", buildJsonObject { put("p_trip_id", tripId) }).data
+        return if (data.isBlank() || data == "null") null else NexusJson.decodeFromString(data)
+    }
+
+    /** What a finished trip adds up to, for its postcard; null for a trip not visible. */
+    suspend fun tripSummary(tripId: String): TripSummary? {
+        val data = supabase.postgrest.rpc("abeona_trip_summary", buildJsonObject { put("p_trip_id", tripId) }).data
         return if (data.isBlank() || data == "null") null else NexusJson.decodeFromString(data)
     }
 

@@ -50,11 +50,16 @@ data class AbeonaSettings(
  * five minutes.
  */
 data class AlertSettings(
-    /** A ride's delay reaches this many minutes, and again each time it grows by as much; 0 = never. */
+    /**
+     * A ride's delay reaches this many minutes (once; after that only the
+     * delay at the destination, at 60 and 120 minutes); 0 = never.
+     */
     val delayMinutes: Int = 5,
     val connectionAtRisk: Boolean = true,
     val platformChange: Boolean = true,
     val cancellation: Boolean = true,
+    /** Five minutes before getting off a ride: where, the platform, and the next train at a change. */
+    val getOffReminder: Boolean = true,
 ) {
     companion object {
         /** The choices offered in Settings; 0 is "off". */
@@ -83,6 +88,7 @@ class AbeonaPreferences(private val context: Context) {
         val AlertConnection = booleanPreferencesKey("alert_connection")
         val AlertPlatform = booleanPreferencesKey("alert_platform")
         val AlertCancellation = booleanPreferencesKey("alert_cancellation")
+        val AlertGetOff = booleanPreferencesKey("alert_get_off")
         val TripLocation = booleanPreferencesKey("trip_location")
         val LocationAsked = booleanPreferencesKey("location_asked")
         val Widget = stringPreferencesKey("widget_next_trip")
@@ -103,6 +109,7 @@ class AbeonaPreferences(private val context: Context) {
             connectionAtRisk = this[Keys.AlertConnection] ?: true,
             platformChange = this[Keys.AlertPlatform] ?: true,
             cancellation = this[Keys.AlertCancellation] ?: true,
+            getOffReminder = this[Keys.AlertGetOff] ?: true,
         ),
         tripLocation = this[Keys.TripLocation] ?: false,
         locationAsked = this[Keys.LocationAsked] ?: false,
@@ -122,6 +129,7 @@ class AbeonaPreferences(private val context: Context) {
         it[Keys.AlertConnection] = value.connectionAtRisk
         it[Keys.AlertPlatform] = value.platformChange
         it[Keys.AlertCancellation] = value.cancellation
+        it[Keys.AlertGetOff] = value.getOffReminder
     }
     suspend fun setTripLocation(value: Boolean) = edit {
         it[Keys.TripLocation] = value

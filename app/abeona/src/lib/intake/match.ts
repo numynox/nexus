@@ -21,12 +21,15 @@
  *    (a date after the next timetable change) is the usual reason, so the
  *    saved ride is looked up again later (findSavedLeg) and, once found,
  *    attached through abeona_attach_leg.
+ * 5. Every ride, found or not, takes its reservation's coach and seats
+ *    (seat.ts), which abeona_save_trip stores with the leg.
  *
  * Times printed on DB's tickets and shares are local; they are read in
  * Europe/Berlin, which is also right for the Benelux, France, Austria,
  * Switzerland and Italy, but not for the UK or Portugal.
  */
 import { lineKey } from "./common.ts";
+import { seatOf } from "./seat.ts";
 import { overallConfidence, transfers } from "../transfer.ts";
 import type { ParsedLeg } from "./parsed.ts";
 import type { Journey, Leg, Station, StopTime } from "../transit.ts";
@@ -134,14 +137,19 @@ export function parsedToLeg(parsed: ParsedLeg): Leg {
     polyline: null,
     cancelled: false,
     realtime: false,
+    ...seatOf(parsed.reservation),
   };
 }
 
-/** The timetable's leg, with the printed platforms where the timetable has none (future days often do not). */
+/**
+ * The timetable's leg, with what only the ticket knows: the printed
+ * platforms where the timetable has none (future days often do not), and
+ * the coach and seats of the reservation.
+ */
 function withPrinted(leg: Leg, parsed: ParsedLeg): Leg {
   const fill = (s: StopTime, platform: string | null): StopTime =>
     s.planned_platform || !platform ? s : { ...s, planned_platform: platform, platform: s.platform ?? platform };
-  return { ...leg, from: fill(leg.from, parsed.from_platform), to: fill(leg.to, parsed.to_platform) };
+  return { ...leg, from: fill(leg.from, parsed.from_platform), to: fill(leg.to, parsed.to_platform), ...seatOf(parsed.reservation) };
 }
 
 /** A real position; the lookups' (0, 0) means none. */

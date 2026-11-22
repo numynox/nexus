@@ -98,6 +98,11 @@ interface LegRow {
   polyline: [number, number][] | null;
   distance_km: number | null;
   dropped_at?: string | null;
+  /** The seat reservation: from the ticket at intake, or typed in the edit sheet. Null on older rows. */
+  coach?: string | null;
+  seats?: string | null;
+  /** The highest speed the train's Wi-Fi reported on the ride (Android's companion). */
+  top_speed_kmh?: number | null;
 }
 
 type TripRow = Omit<Trip, "legs"> & { abeona_legs?: LegRow[] };
@@ -134,6 +139,24 @@ export interface Statistics {
   /** ISO codes of the countries ridden from or to, most often first. */
   countries: string[];
   longest_trip: { trip_id: string; from: string; to: string; km: number; date: string } | null;
+  /** The highest speed seen on board in the period (Android's companion, from the train's Wi-Fi); null when none was. */
+  top_speed_kmh: number | null;
+  /** The ride it was seen on; `date` is yyyy-mm-dd. */
+  top_speed_trip: { trip_id: string; from: string; to: string; line: string | null; kmh: number; date: string } | null;
+}
+
+/** abeona_trip_summary: what a finished trip adds up to, for its postcard. */
+export interface TripSummary {
+  rides: number;
+  km: number;
+  minutes_on_train: number;
+  /** At the destination (abeona_trip_arrival); 0 when on time. */
+  delay_minutes: number;
+  /** Null unless Android's companion saw the train's speed. */
+  top_speed_kmh: number | null;
+  co2_train_kg: number;
+  co2_car_kg: number;
+  co2_saved_kg: number;
 }
 
 /** One line of the map of everything travelled (abeona_travel_map). */
@@ -428,6 +451,10 @@ function legFromRow(row: LegRow): Leg {
     cancelled: row.cancelled,
     realtime: row.realtime,
     dropped_at: row.dropped_at ?? null,
+    coach: row.coach ?? null,
+    seats: row.seats ?? null,
+    top_speed_kmh: row.top_speed_kmh ?? null,
+    id: row.id,
   };
 }
 
@@ -559,6 +586,21 @@ export async function updateTrip(tripId: string, edit: TripEdit): Promise<void> 
   if (error) throw error;
 }
 
+/**
+ * A ride's coach and seats, typed in the edit sheet: written straight to
+ * the leg under its RLS, as the Android companion writes the top speed.
+ * Trimmed; blank clears it. A re-save of the trip keeps them
+ * (abeona_save_trip).
+ */
+export async function setLegSeat(legId: string, coach: string | null, seats: string | null): Promise<void> {
+  const sb = getSupabaseClient();
+  const { error } = await sb
+    .from("abeona_legs")
+    .update({ coach: coach?.trim().slice(0, 8) || null, seats: seats?.trim().replace(/\s+/g, " ").slice(0, 40) || null })
+    .eq("id", legId);
+  if (error) throw error;
+}
+
 // ── BahnCards ──────────────────────────────────────────────────────
 
 /** Every card of the household, the one running longest first. */
@@ -653,6 +695,26 @@ export async function fetchCompensation(tripId: string): Promise<Compensation | 
   if (!data) return null;
   const c = data as Compensation;
   return { ...c, reasons: c.reasons ?? [], hints: c.hints ?? [] };
+}
+
+/** What the trip adds up to, for its postcard; null when the caller cannot see it. */
+export async function fetchTripSummary(tripId: string): Promise<TripSummary | null> {
+  const sb = getSupabaseClient();
+  const { data, error } = await sb.rpc("abeona_trip_summary", { p_trip_id: tripId });
+  if (error) throw error;
+  if (!data) return null;
+  const s = data as Partial<Record<keyof TripSummary, number | string | null>>;
+  const num = (v: number | string | null | undefined) => Number(v ?? 0);
+  return {
+    rides: num(s.rides),
+    km: num(s.km),
+    minutes_on_train: num(s.minutes_on_train),
+    delay_minutes: num(s.delay_minutes),
+    top_speed_kmh: s.top_speed_kmh === null || s.top_speed_kmh === undefined ? null : Number(s.top_speed_kmh),
+    co2_train_kg: num(s.co2_train_kg),
+    co2_car_kg: num(s.co2_car_kg),
+    co2_saved_kg: num(s.co2_saved_kg),
+  };
 }
 
 /** The trip's claim, if one was started. */
@@ -1030,6 +1092,8 @@ export async function fetchStatistics(from: Date, to: Date): Promise<Statistics>
     co2_source: ((s as { co2_factors?: { source?: string } }).co2_factors?.source) ?? null,
     countries: Array.isArray(s.countries) ? s.countries.filter((c) => typeof c === "string") : [],
     longest_trip: s.longest_trip ? { ...s.longest_trip, km: Number(s.longest_trip.km) } : null,
+    top_speed_kmh: s.top_speed_kmh === null || s.top_speed_kmh === undefined ? null : Number(s.top_speed_kmh),
+    top_speed_trip: s.top_speed_trip ? { ...s.top_speed_trip, kmh: Number(s.top_speed_trip.kmh) } : null,
   };
 }
 

@@ -71,6 +71,18 @@ export interface Leg {
    * a ride is also `cancelled`.
    */
   dropped_at?: string | null;
+  /**
+   * The seat reservation, as the ticket prints it ("24"; "66", "71 73",
+   * "45-48"): read from the ticket at intake (intake/seat.ts) or typed in.
+   * Sent to abeona_save_trip with a saved trip's legs; the timetable never
+   * has it.
+   */
+  coach?: string | null;
+  seats?: string | null;
+  /** Saved legs only: the highest speed the train's Wi-Fi reported on this ride (Android's companion). */
+  top_speed_kmh?: number | null;
+  /** Saved legs only: the abeona_legs row, for what is written to one ride directly (its coach and seats). */
+  id?: string;
 }
 
 export interface Journey {

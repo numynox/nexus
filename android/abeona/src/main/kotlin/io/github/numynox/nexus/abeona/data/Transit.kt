@@ -93,6 +93,16 @@ data class Leg(
      * Such a ride is also [cancelled].
      */
     @SerialName("dropped_at") val droppedAt: String? = null,
+    /**
+     * Saved legs only: the reserved coach and seats, as the ticket prints
+     * them ("24", "71 73", "45-48"), from the ticket or typed in; shown with
+     * seatText (domain/intake/Seat.kt). Intake sends them with the legs it
+     * saves; abeona_save_trip keeps them on a re-save without them.
+     */
+    val coach: String? = null,
+    val seats: String? = null,
+    /** Saved legs only: the highest speed the train's Wi-Fi reported on this ride (the live companion records it). */
+    @SerialName("top_speed_kmh") val topSpeedKmh: Int? = null,
 ) {
     val isWalk: Boolean get() = mode == LegMode.Walk
 
