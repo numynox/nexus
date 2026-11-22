@@ -174,7 +174,12 @@ A new concept gets a row here first.
 | alternatives | `Shuffle` | `Shuffle` | — |
 | updated / live | `Sync` | `RefreshCw` | "Live" |
 | offline | `CloudOff` | `CloudOff` | — |
-| speed | `Speed` | `Gauge` | — |
+| speed, top speed | `Speed` | `Gauge` | "top speed" on the postcard |
+| coach and seat | `EventSeat` | `Armchair` | "Coach 24 · Seat 66" |
+| exit side (Android, from the train's Wi-Fi) | `DoorSliding` | — | "Exit left" |
+| delay reason (Android, ICE Portal) | `Info` | — | DB's words, one line |
+| distance travelled | `Route` | `Route` | "travelled" |
+| CO₂ saved | `Eco` | `Leaf` | "CO₂ saved" |
 | source: Wi-Fi / location / timetable | `Wifi` / `MyLocation` / `Schedule` | `Wifi` / `LocateFixed` / `Clock` | the source's name on the pill |
 | safe / tight / at risk / impossible | `CheckCircle` / `Timelapse` / `ErrorOutline` / `Block` | `CircleCheck` / `Timer` / `CircleAlert` / `Ban` | — (the chip keeps the minutes) |
 | share, edit, delete, more | `Share`, `Edit`, `Delete`, `MoreVert` | `Share2`, `Pencil`, `Trash2`, `EllipsisVertical` | — |
