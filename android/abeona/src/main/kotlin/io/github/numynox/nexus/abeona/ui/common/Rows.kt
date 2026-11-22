@@ -267,7 +267,7 @@ fun SeatFact(coach: String?, seats: String?, modifier: Modifier = Modifier, colo
     val text = seatText(coach, seats) ?: return
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Icon(Icons.Rounded.EventSeat, contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
-        Text(text, style = style, color = color, maxLines = RowGrid.lines, overflow = TextOverflow.Ellipsis)
+        Text(text, style = style, color = color, maxLines = if (RowGrid.large) 3 else 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

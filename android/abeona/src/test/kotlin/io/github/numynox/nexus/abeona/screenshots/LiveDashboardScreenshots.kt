@@ -236,10 +236,18 @@ class LiveDashboardScreenshots {
         return base.copy(legs = listOf(base.legs[0].copy(coach = "24", seats = "66"), base.legs[1].copy(coach = "7", seats = "45-48")))
     }
 
-    @Test fun boardWithSeat() = shot(
-        "59z1-live-board-seat", "At the station · coach and seat reserved", 2, of = seated(),
-        approach = Approach("Hanau Hbf", "left", 1),
-    )
+    @Test fun boardWithSeat() {
+        shot(
+            "59z1-live-board-seat", "At the station · coach and seat reserved", 2, of = seated(),
+            approach = Approach("Hanau Hbf", "left", 1),
+        )
+        // The step, its countdown and its seat are one sentence to a screen reader.
+        val time = TripFormat.time(at(7))
+        compose.onNodeWithContentDescription(
+            "Board ICE 25 to Wien Hbf at Frankfurt(Main)Hbf, platform 8, $time, 7 minutes late, in 5 minutes. Coach 24, seat 66.",
+        ).assertExists()
+        compose.onNodeWithContentDescription("RE 10 to Bamberg, ${TripFormat.time(at(81))}, platform 5. Coach 7, seats 45–48.").assertExists()
+    }
 
     /** From the ICE Portal: why it is late, under the train; from Railnet-style data, the side to get out on. */
     @Test fun getOffWithExitSide() = shot(

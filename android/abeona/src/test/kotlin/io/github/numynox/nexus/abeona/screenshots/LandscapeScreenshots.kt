@@ -40,7 +40,7 @@ class LandscapeScreenshots {
         waitForText("Visit grandma in Bamberg")
         tap("Visit grandma in Bamberg")
         waitFor(hasContentDescription("More"))
-        waitForText("Show ticket")
+        waitForText("to Wien Hbf")
         shot("71a-trip-landscape-live")
         tapIcon("Ticket")
         waitFor(hasContentDescription("Ticket page"))

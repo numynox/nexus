@@ -1000,25 +1000,32 @@ private fun BandRow(
                 lon = skyAt?.second,
             )
             if (caption) {
-                Row(Modifier.semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    LineChip(ride)
-                    Text(
-                        ride.headsign?.let { "to $it" }.orEmpty(),
-                        style = AbeonaType.body.copy(fontWeight = FontWeight.SemiBold),
-                        maxLines = RowGrid.lines, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-                    speed?.let {
-                        val kmh = "${it.roundToInt()} km/h"
+                val kmh = speed?.let { "${it.roundToInt()} km/h" }
+                val speedFact: @Composable () -> Unit = {
+                    kmh?.let {
                         Row(
-                            Modifier.clearAndSetSemantics { contentDescription = "Speed $kmh" },
+                            Modifier.clearAndSetSemantics { contentDescription = "Speed $it" },
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
                             Icon(Icons.Rounded.Speed, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Text(kmh, style = AbeonaType.body.copy(fontWeight = FontWeight.Bold), maxLines = 1)
+                            Text(it, style = AbeonaType.body.copy(fontWeight = FontWeight.Bold), maxLines = 1)
                         }
                     }
+                }
+                Column(Modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        LineChip(ride)
+                        Text(
+                            ride.headsign?.let { "to $it" }.orEmpty(),
+                            style = AbeonaType.body.copy(fontWeight = FontWeight.SemiBold),
+                            maxLines = RowGrid.lines, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                        // Large text: the speed takes a line of its own rather than pushing the train off.
+                        if (!RowGrid.large) speedFact()
+                    }
+                    if (RowGrid.large) speedFact()
                 }
                 // Why it is late, from the train's Wi-Fi: only while it is late enough to matter.
                 view.onboard?.delayReason?.takeIf { onBoard && arrivalDelay(ride) >= 5 }?.let { reason ->
@@ -1079,17 +1086,24 @@ private fun PassingStops(progress: RideProgress) {
 @Composable
 private fun TrainRow(leg: Leg, rail: Rail) {
     val seated = seatText(leg.coach, leg.seats) != null
+    val large = RowGrid.large
     StopRow(
         name = "",
         planned = leg.from.plannedAt, expected = leg.from.expectedAt,
         platformPlanned = leg.from.plannedPlatform, platformCurrent = leg.from.platform,
         rail = rail,
         content = {
-            if (seated) {
+            if (seated || large) {
                 Column(Modifier.weight(1f).padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (large) {
+                        // Large text: the train, where it goes and the seat each on a line.
                         LineChip(leg)
                         leg.headsign?.let { Text("to $it", style = AbeonaType.body, maxLines = RowGrid.lines, overflow = TextOverflow.Ellipsis) }
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            LineChip(leg)
+                            leg.headsign?.let { Text("to $it", style = AbeonaType.body, maxLines = RowGrid.lines, overflow = TextOverflow.Ellipsis) }
+                        }
                     }
                     SeatFact(leg.coach, leg.seats)
                 }
@@ -1131,13 +1145,19 @@ private fun spokenChange(change: Transfer, legs: List<Leg>): String {
  * When it will not work, [onAlternatives] under it, filled when it is
  * [impossible], outlined when it is only at risk.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ChangeRow(change: Transfer, legs: List<Leg>, rail: Rail, onAlternatives: (() -> Unit)?, impossible: Boolean, anyTrain: Boolean) {
     val from = legs[change.arriving].to
     val to = legs[change.departing].from
     StopRow(name = "", rail = rail, minHeight = 36.dp, content = {
         Column(Modifier.weight(1f).padding(vertical = 4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Wraps at large text: the platforms go under the chip rather than off the card.
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                itemVerticalAlignment = Alignment.CenterVertically,
+            ) {
                 ConfidenceChip(change.confidence, minutes = change.availableMinutes, word = true)
                 val a = from.shownPlatform
                 val b = to.shownPlatform

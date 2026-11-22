@@ -9,8 +9,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -114,26 +112,27 @@ private fun route(trip: Trip) = "${trip.originName} → ${trip.destinationName}"
 
 /**
  * The figures in a grid: three to a row, two when the text is large, so
- * nothing is cut off; a value that still does not fit wraps.
+ * nothing is cut off; a value that still does not fit wraps. A short last
+ * row keeps the columns.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun PostcardFigures(figures: List<PostcardFigure>, modifier: Modifier = Modifier) {
+internal fun PostcardFigures(figures: List<PostcardFigure>, modifier: Modifier = Modifier, narrow: Boolean = false) {
     val columns = if (LocalDensity.current.fontScale >= 1.5f) 2 else 3
-    FlowRow(
-        modifier.fillMaxWidth(),
-        maxItemsInEachRow = columns,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        figures.forEach { figure -> Figure(figure, Modifier.weight(1f)) }
-        // A short last row keeps the columns: the empty places hold their width.
-        repeat((columns - figures.size % columns) % columns) { Spacer(Modifier.weight(1f)) }
+    // The picture to share is narrower than a phone: a little less room between and a little smaller.
+    val gap = if (narrow) 8.dp else 12.dp
+    val style = if (narrow) AbeonaType.title.copy(fontSize = 16.sp) else AbeonaType.title
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        figures.chunked(columns).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                row.forEach { figure -> Figure(figure, Modifier.weight(1f), style) }
+                repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
     }
 }
 
 @Composable
-private fun Figure(figure: PostcardFigure, modifier: Modifier = Modifier) {
+private fun Figure(figure: PostcardFigure, modifier: Modifier = Modifier, style: androidx.compose.ui.text.TextStyle = AbeonaType.title) {
     val colour = when (figure.tone) {
         StatusTone.Ok -> ok.soft.content
         StatusTone.Watch -> watch.soft.content
@@ -143,7 +142,7 @@ private fun Figure(figure: PostcardFigure, modifier: Modifier = Modifier) {
     Column(modifier.semantics(mergeDescendants = true) {}) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Icon(figure.icon, contentDescription = null, tint = if (figure.tone != null) colour else muted, modifier = Modifier.size(18.dp))
-            Text(figure.value, style = AbeonaType.title, color = colour)
+            Text(figure.value, style = style, color = colour)
         }
         Text(figure.label, style = AbeonaType.meta, color = muted)
     }
@@ -195,11 +194,11 @@ fun PostcardImage(trip: Trip, summary: TripSummary, modifier: Modifier = Modifie
             lon = last?.to?.lon,
             still = true,
         )
-        Column(Modifier.fillMaxWidth().weight(1f).padding(horizontal = 24.dp, vertical = 16.dp)) {
+        Column(Modifier.fillMaxWidth().weight(1f).padding(horizontal = 20.dp, vertical = 16.dp)) {
             // Two lines of route and two rows of figures under the full scene: 450 high is just enough.
             Text(route(trip), style = AbeonaType.headline.copy(fontSize = 20.sp, lineHeight = 26.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(postcardDate(trip), style = AbeonaType.meta, color = muted, modifier = Modifier.padding(top = 2.dp))
-            PostcardFigures(postcardFigures(summary), Modifier.padding(top = 12.dp))
+            PostcardFigures(postcardFigures(summary), Modifier.padding(top = 12.dp), narrow = true)
             Spacer(Modifier.weight(1f))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(painterResource(R.drawable.ic_notification), contentDescription = null, tint = brand, modifier = Modifier.size(16.dp))

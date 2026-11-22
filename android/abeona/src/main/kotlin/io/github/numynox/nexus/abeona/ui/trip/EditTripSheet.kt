@@ -111,21 +111,28 @@ fun EditTripSheet(trip: Trip, onSave: (TripEdit) -> Unit, onDismiss: () -> Unit)
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
+                    // Labelled above as well: a filled field no longer shows its placeholder.
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        WellField(
-                            value = coaches[n],
-                            onValueChange = { coaches[n] = it.take(8) },
-                            placeholder = "Coach",
-                            description = "Coach on the ${leg.label}",
-                            modifier = Modifier.width(112.dp),
-                        )
-                        WellField(
-                            value = seats[n],
-                            onValueChange = { seats[n] = it.take(40) },
-                            placeholder = "Seat",
-                            description = "Seat on the ${leg.label}",
-                            modifier = Modifier.weight(1f),
-                        )
+                        Column(Modifier.width(112.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("Coach", style = AbeonaType.meta, color = muted)
+                            WellField(
+                                value = coaches[n],
+                                onValueChange = { coaches[n] = it.take(8) },
+                                placeholder = "Coach",
+                                description = "Coach on the ${leg.label}",
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("Seat", style = AbeonaType.meta, color = muted)
+                            WellField(
+                                value = seats[n],
+                                onValueChange = { seats[n] = it.take(40) },
+                                placeholder = "Seat",
+                                description = "Seat on the ${leg.label}",
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
                     }
                 }
             }
