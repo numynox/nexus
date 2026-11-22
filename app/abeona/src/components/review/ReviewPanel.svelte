@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ChevronLeft, ChevronRight, CircleAlert, MapPin, TrainFront } from "lucide-svelte";
+  import { ChevronLeft, ChevronRight, CircleAlert, Gauge, MapPin, TrainFront } from "lucide-svelte";
   import { onMount } from "svelte";
   import { getBaseUrl } from "../../lib/config";
   import { countryFlag, countryName } from "../../lib/basemap";
@@ -11,7 +11,7 @@
     type Statistics,
     type TravelMapLine,
   } from "../../lib/data";
-  import { formatNumber, formatShortDate } from "../../lib/format";
+  import { formatNumber, formatShortDate, parseDay } from "../../lib/format";
   import Banner from "../common/Banner.svelte";
   import EmptyState from "../common/EmptyState.svelte";
   import Fact from "../common/Fact.svelte";
@@ -53,6 +53,14 @@
     const name =
       top.length === 1 ? new Date(`${top[0].month}-01T12:00:00`).toLocaleDateString("en-GB", { month: "long" }) : null;
     return { trips: most, name };
+  });
+
+  /** "ICE 25 · Frankfurt(Main)Hbf → Würzburg Hbf · 10 Oct": the ride the top speed was seen on. */
+  const topSpeedRide = $derived.by(() => {
+    const t = stats?.top_speed_trip;
+    if (!t) return null;
+    const day = parseDay(t.date).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+    return [t.line, `${t.from} → ${t.to}`, day].filter(Boolean).join(" · ");
   });
 
   /** Today at an hour of the day: each card's scene gets the sky that suits it. */
@@ -234,6 +242,22 @@
             </p>
           </div>
         </article>
+
+        <!-- 3b. Top speed: only rides the Android companion followed on the train's Wi-Fi know it. -->
+        {#if stats.top_speed_kmh !== null && stats.top_speed_kmh > 0}
+          <article class="story">
+            <Scene state="riding" size="full" at={todayAt(14)} speedKmh={stats.top_speed_kmh} />
+            <div class="body">
+              <p class="t-numeral text-ink">{formatNumber(stats.top_speed_kmh)}<span class="unit">km/h</span></p>
+              {#if topSpeedRide && stats.top_speed_trip}
+                <a class="t-body text-ink hover:text-brand" href={`${base}/trip?id=${stats.top_speed_trip.trip_id}`}>{topSpeedRide}</a>
+              {/if}
+              <p class="foot t-meta">
+                <span class="inline-flex items-center gap-1"><Gauge class="h-4 w-4 shrink-0" aria-hidden="true" />Top speed, from the train's Wi-Fi</span>
+              </p>
+            </div>
+          </article>
+        {/if}
 
         <!-- 4. Punctuality -->
         <article class="story">

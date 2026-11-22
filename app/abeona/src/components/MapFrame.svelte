@@ -55,6 +55,7 @@
   onMount(() => {
     let disposed = false;
     let themes: MutationObserver | null = null;
+    let sizes: ResizeObserver | null = null;
     void (async () => {
       const L = await import("leaflet");
       if (disposed || !container || map) return;
@@ -76,10 +77,21 @@
       themes.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "class"] });
       setInteractive(false);
       onready(L, map);
+      // The frame changes size without the page asking: a phone turned
+      // sideways puts the map in its own pane, as tall as the window.
+      let last = { w: container.clientWidth, h: container.clientHeight };
+      sizes = new ResizeObserver(() => {
+        if (!container || (container.clientWidth === last.w && container.clientHeight === last.h)) return;
+        last = { w: container.clientWidth, h: container.clientHeight };
+        map?.invalidateSize();
+        fit();
+      });
+      sizes.observe(container);
     })();
     return () => {
       disposed = true;
       themes?.disconnect();
+      sizes?.disconnect();
       map?.remove();
       map = null;
       zoom = null;
@@ -107,7 +119,8 @@
   });
 </script>
 
-<div class={full ? "fixed inset-0 z-[1000] bg-well" : `relative overflow-hidden bg-well ${frameClass}`}>
+<!-- Isolated: Leaflet's panes stack at z-index 400 and up, which would otherwise rise above the ticket and the sheets. -->
+<div class={full ? "fixed inset-0 z-[1000] bg-well" : `relative isolate overflow-hidden bg-well ${frameClass}`}>
   <div class="map-frame h-full w-full" bind:this={container}></div>
   {#if full}
     <button

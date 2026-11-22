@@ -135,7 +135,8 @@
     <div class="flex items-start gap-3 rounded-2xl px-4 py-3 {tone.box}">
       <tone.icon class="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
       <div class="min-w-0">
-        <p class="t-title">{verdictHeadline(comp.verdict, amount)}</p>
+        <!-- Hyphenated rather than cut at large text sizes. -->
+        <p class="t-title hyphens-auto">{verdictHeadline(comp.verdict, amount)}</p>
         {#if comp.delay_minutes !== null}
           <p class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
             <Fact icon={Clock} label="Delay" value={comp.delay_minutes === 0 ? "On time" : `+${comp.delay_minutes} min`} class="text-current" />

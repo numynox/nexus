@@ -1,8 +1,19 @@
 <script lang="ts">
-  import { ExternalLink, FileText, QrCode, X } from "lucide-svelte";
+  /**
+   * The ticket at the gate (abeona-design.md §9, Ticket): white, the screen
+   * kept on, the code first and the PDF on request, the BahnCards it needs
+   * one tap apart. Under the code, or beside it with the phone sideways,
+   * the rides it is for with their seats.
+   */
+  import { ExternalLink, FileText, LogOut, QrCode, X } from "lucide-svelte";
   import { onMount, untrack } from "svelte";
   import { describeError, downloadTicket } from "../../lib/data";
   import { extractTicketCode } from "../../lib/ticketCode";
+  import type { Leg } from "../../lib/transit";
+  import { keepScreenOn } from "../../lib/wakeLock";
+  import LegChip from "../common/LegChip.svelte";
+  import Seat from "../common/Seat.svelte";
+  import StopRow from "../common/StopRow.svelte";
 
   interface Props {
     path: string;
@@ -15,10 +26,12 @@
     note?: string;
     /** More to show at the gate with it, one tap apart: the BahnCards the ticket was booked with. */
     extras?: { key: string; label: string; path: string }[];
+    /** The rides the ticket is for: shown with their seats beside the ticket itself, not with a BahnCard. */
+    rides?: Leg[];
     onClose: () => void;
   }
 
-  let { path, title, navigatorUrl, label = "Ticket", note, extras = [], onClose }: Props = $props();
+  let { path, title, navigatorUrl, label = "Ticket", note, extras = [], rides = [], onClose }: Props = $props();
 
   /** Which file is shown: the main one (`path`), or one of `extras`. */
   let current = $state("main");
@@ -32,6 +45,10 @@
   /** The PDF's barcode on its own, shown first; the whole PDF on request. */
   let codeUrl = $state("");
   let showPdf = $state(false);
+  /** The rides go with the ticket itself; a BahnCard tab shows the card alone. */
+  const showRides = $derived(rides.length > 0 && current === "main");
+  /** What is above the code (top bar, tabs, the note), so that sideways the code fits the height. */
+  const chromeRem = $derived(5.5 + (documents.length > 1 ? 3.25 : 0) + (note ? 2.25 : 0));
 
   async function renderPdf(blob: Blob, target: HTMLDivElement, current: () => boolean) {
     // pdf.js is heavy: loaded only when a ticket is opened.
@@ -66,9 +83,8 @@
   }
 
   onMount(() => {
-    let wakeLock: { release: () => Promise<void> } | null = null;
-    const nav = navigator as Navigator & { wakeLock?: { request: (type: "screen") => Promise<{ release: () => Promise<void> }> } };
-    nav.wakeLock?.request("screen").then((lock) => (wakeLock = lock)).catch(() => {});
+    // The screen stays on at the gate, also after a look at another app.
+    const release = keepScreenOn();
 
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -77,7 +93,7 @@
     return () => {
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = "";
-      wakeLock?.release().catch(() => {});
+      release();
       if (imageUrl) URL.revokeObjectURL(imageUrl);
     };
   });
@@ -116,7 +132,31 @@
   }
 </script>
 
-<div data-theme="abeona" class="fixed inset-0 z-[100] flex flex-col bg-white text-ink" role="dialog" aria-modal="true" aria-label={label}>
+{#snippet rideList()}
+  <!-- Which train, from where and when, and where to sit: what the traveller looks for with the ticket open. -->
+  <ul class="divide-y divide-line" aria-label="Rides">
+    {#each rides as ride, i (i)}
+      <li class="py-1.5">
+        <StopRow planned={ride.from.planned} current={ride.from.current} name={ride.from.name} platformPlanned={ride.from.planned_platform} platformCurrent={ride.from.platform}>
+          {#snippet line()}<LegChip leg={ride} />{/snippet}
+          <Seat coach={ride.coach} seats={ride.seats} class="text-ink" />
+        </StopRow>
+        <StopRow planned={ride.to.planned} current={ride.to.current} name={ride.to.name} platformPlanned={ride.to.planned_platform} platformCurrent={ride.to.platform} muted>
+          {#snippet mark()}<LogOut class="h-4 w-4" aria-label="Get off at" />{/snippet}
+        </StopRow>
+      </li>
+    {/each}
+  </ul>
+{/snippet}
+
+<div
+  data-theme="abeona"
+  class="fixed inset-0 z-[100] flex flex-col bg-white text-ink"
+  style="padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); padding-bottom: env(safe-area-inset-bottom)"
+  role="dialog"
+  aria-modal="true"
+  aria-label={label}
+>
   <header class="flex items-center gap-3 border-b border-line px-4 py-3" style="padding-top: max(0.75rem, env(safe-area-inset-top))">
     <button class="btn btn-circle btn-ghost btn-sm text-ink" aria-label="Close {label.toLowerCase()}" onclick={onClose}>
       <X class="h-5 w-5" />
@@ -154,15 +194,30 @@
       <img src={imageUrl} alt={label} class="mx-auto block h-auto max-w-full bg-white" />
     {/if}
     {#if codeUrl && !showPdf}
-      <div class="flex min-h-full flex-col items-center justify-center gap-6">
+      <!-- Upright: the code, the PDF button, the rides. Sideways: the code as tall as it fits on the left, the rides and the button on the right. -->
+      <div
+        class="flex min-h-full flex-col items-center justify-center gap-6 {showRides ? 'landscape:grid landscape:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] landscape:grid-rows-[1fr_auto] landscape:items-center landscape:gap-x-6 landscape:gap-y-3' : ''}"
+        style="--code-max: calc(100dvh - {chromeRem}rem)"
+      >
         <!-- Pixelated: every module of the code stays sharp when scaled up. -->
-        <img src={codeUrl} alt="Ticket barcode" class="block aspect-square w-full max-w-[min(32rem,70vh)] bg-white p-4 [image-rendering:pixelated]" />
-        <button type="button" class="btn rounded-full border-line bg-white text-ink" onclick={() => (showPdf = true)}>
+        <img
+          src={codeUrl}
+          alt="Ticket barcode"
+          class="block aspect-square w-full max-w-[min(32rem,70vh)] bg-white p-4 [image-rendering:pixelated] {showRides ? 'landscape:row-span-2 landscape:max-w-[min(32rem,var(--code-max))] landscape:justify-self-center' : ''}"
+        />
+        <button type="button" class="btn rounded-full border-line bg-white text-ink {showRides ? 'landscape:col-start-2 landscape:row-start-2 landscape:justify-self-start' : ''}" onclick={() => (showPdf = true)}>
           <FileText class="h-4 w-4" /> Show PDF
         </button>
+        {#if showRides}
+          <div class="w-full max-w-md landscape:col-start-2 landscape:row-start-1 landscape:self-end">{@render rideList()}</div>
+        {/if}
       </div>
     {/if}
     <div bind:this={pages} class="space-y-4" class:hidden={codeUrl && !showPdf}></div>
+    {#if showRides && !loading && !error && !(codeUrl && !showPdf)}
+      <!-- No code on its own (an image, or the whole PDF): the rides after the ticket. -->
+      <div class="mx-auto mt-4 w-full max-w-md">{@render rideList()}</div>
+    {/if}
     {#if codeUrl && showPdf}
       <div class="sticky bottom-2 mt-4 flex justify-center">
         <button type="button" class="btn rounded-full border-none bg-brand-soft text-brand shadow-card" onclick={() => (showPdf = false)}>

@@ -54,6 +54,14 @@ export function formatDuration(minutes: number): string {
   return rest === 0 ? `${h} h` : `${h} h ${String(rest).padStart(2, "0")} min`;
 }
 
+/** "2 h 05", "45 min": a duration as a figure, where "min" after the hours would be one word too many. */
+export function formatDurationShort(minutes: number): string {
+  const m = Math.max(0, Math.round(minutes));
+  if (m < 60) return `${m} min`;
+  const rest = m % 60;
+  return rest === 0 ? `${Math.floor(m / 60)} h` : `${Math.floor(m / 60)} h ${String(rest).padStart(2, "0")}`;
+}
+
 export function minutesBetween(a: string | null | undefined, b: string | null | undefined): number {
   if (!a || !b) return 0;
   return Math.round((Date.parse(b) - Date.parse(a)) / 60_000);

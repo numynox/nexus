@@ -11,9 +11,11 @@
     marker?: MapMarker | null;
     /** The ride to frame (the one on board) instead of the whole trip. */
     focus?: Leg | null;
+    /** Added to the frame's own: the trip page makes it the full height of its pane in tray-table mode. */
+    class?: string;
   }
 
-  let { legs, marker = null, focus = null }: Props = $props();
+  let { legs, marker = null, focus = null, class: klass = "" }: Props = $props();
   let markerLayer: import("leaflet").LayerGroup | null = null;
 
   let leaflet: typeof import("leaflet") | null = null;
@@ -175,4 +177,4 @@
   });
 </script>
 
-<MapFrame class="h-72 rounded-3xl shadow-card sm:h-80" label="the trip's map" onready={ready} {fit} />
+<MapFrame class="h-72 rounded-3xl shadow-card sm:h-80 {klass}" label="the trip's map" onready={ready} {fit} />
