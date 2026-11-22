@@ -54,7 +54,8 @@
     <Nav {activeId} {baseUrl} {siteTitle} />
   {/snippet}
 
-  <div class="pb-28 lg:pb-4">
+  <!-- Sideways, a phone's cutout and rounded corners are at the sides: the content keeps clear of them. -->
+  <div class="pb-28 lg:pb-4" style="padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right)">
     {@render children?.()}
   </div>
 </SharedAppShell>

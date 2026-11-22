@@ -3,4 +3,12 @@
     <!-- Abeona's burgundy (abeona-design.md §3): the notifications' accent and the splash icon's disc. -->
     <color name="abeona_burgundy">#8C1D40</color>
     <color name="splash_background">#FBF7F2</color>
+    <!-- The Live Update's journey bar (Android 16+): a ride in the brand, a change
+         in its status colour, the train and the flag in the brand; values-night
+         has the dark theme's, for a dark shade. -->
+    <color name="abeona_bar_ride">#8C1D40</color>
+    <color name="abeona_bar_ok">#1B5A40</color>
+    <color name="abeona_bar_watch">#F2C230</color>
+    <color name="abeona_bar_bad">#C4372B</color>
+    <color name="abeona_progress_icon">#8C1D40</color>
 </resources>

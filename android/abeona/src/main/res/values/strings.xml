@@ -2,7 +2,8 @@
 <resources>
     <string name="app_name">Abeona</string>
     <string name="companion_channel">Live companion</string>
-    <string name="alerts_channel">Trip alerts</string>
+    <string name="alerts_channel">Act now</string>
+    <string name="updates_channel">Updates</string>
     <string name="bahncard_channel">BahnCard reminders</string>
     <string name="claims_channel">Compensation reminders</string>
     <string name="leave_channel">Time to leave</string>

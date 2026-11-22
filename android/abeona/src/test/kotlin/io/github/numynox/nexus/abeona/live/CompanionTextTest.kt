@@ -141,9 +141,23 @@ class CompanionTextTest {
             ),
             at(1),
         )
-        val keys = companionAlerts(trip, late, t0).map { it.key }
-        assertEquals(listOf("platform-1-9", "risk-1", "binding", "delay-0-1"), keys)
+        val alerts = companionAlerts(trip, late, t0)
+        assertEquals(listOf("platform-1-9", "risk-1", "binding", "delay-0"), alerts.map { it.key })
+        // A newer alert about the same thing replaces the older one: one notification per subject.
+        assertEquals(listOf("ride-1-platform", "change-1", "binding", "ride-0-delay"), alerts.map { it.subject })
+        // What to act on comes with a heads-up; a delay is an update.
+        assertEquals(listOf(AlertChannel.Act, AlertChannel.Act, AlertChannel.Act, AlertChannel.Updates), alerts.map { it.channel })
         assertEquals(emptyList<String>(), companionAlerts(late, late, t0).map { it.key })
+    }
+
+    @Test
+    fun theBindingAlertSaysWhatTheBannerSays() {
+        val late = applyRefresh(trip, listOf(null, trip.legs[1].copy(to = trip.legs[1].to.copy(current = at(142)))), at(1))
+        val binding = companionAlerts(trip, late, t0).single { it.key == "binding" }
+        assertEquals("You may take another train", binding.title)
+        assertEquals("Expected +22 min at Würzburg Hbf: train binding lifted.", binding.text)
+        val impossible = applyRefresh(trip, listOf(trip.legs[0].copy(to = trip.legs[0].to.copy(current = at(50))), null), at(1))
+        assertEquals("A change cannot be made: train binding lifted.", companionAlerts(trip, impossible, t0).single { it.key == "binding" }.text)
     }
 
     @Test
@@ -162,14 +176,174 @@ class CompanionTextTest {
         assertEquals(listOf("cancel-1", "platform-1-9", "risk-1"), companionAlerts(trip, late, t0, AlertSettings(delayMinutes = 10)).map { it.key })
     }
 
+    private fun lateBy(m: Int) = applyRefresh(trip, listOf(trip.legs[0].copy(from = trip.legs[0].from.copy(current = at(m))), null), at(1))
+
     @Test
-    fun aDelayAlertsAtTheThresholdAndAgainAsItGrows() {
-        fun lateBy(m: Int) = applyRefresh(trip, listOf(trip.legs[0].copy(from = trip.legs[0].from.copy(current = at(m))), null), at(1))
+    fun aDelayAlertsOnceAtTheThreshold() {
         val before = t0.minusSeconds(30 * 60)
         assertEquals(emptyList<String>(), companionAlerts(trip, lateBy(4), before).map { it.key })
-        assertEquals(listOf("delay-0-1"), companionAlerts(lateBy(4), lateBy(6), before).map { it.key })
-        assertEquals(emptyList<String>(), companionAlerts(lateBy(6), lateBy(9), before).map { it.key })
-        assertEquals(listOf("delay-0-2"), companionAlerts(lateBy(9), lateBy(11), before).map { it.key })
+        assertEquals(listOf("delay-0"), companionAlerts(lateBy(4), lateBy(6), before).map { it.key })
+        // Not again for each further step: what matters next is the destination.
+        assertEquals(emptyList<String>(), companionAlerts(lateBy(6), lateBy(9), before, alerted = setOf("delay-0")).map { it.key })
+        assertEquals(emptyList<String>(), companionAlerts(lateBy(9), lateBy(16), before, alerted = setOf("delay-0")).map { it.key })
+    }
+
+    @Test
+    fun aDelayedTrainOnTimeAgainReplacesTheAlertQuietly() {
+        val before = t0.minusSeconds(30 * 60)
+        val back = companionAlerts(lateBy(6), lateBy(1), before, alerted = setOf("delay-0")).single()
+        assertEquals("ontime-0", back.key)
+        assertEquals("ride-0-delay", back.subject)
+        assertEquals("RE 4 is on time again", back.title)
+        assertEquals("Leaves Mainz Hbf at 08:00", back.text)
+        assertEquals(AlertChannel.Updates, back.channel)
+        assertTrue(back.silent)
+        // Only after an alert that it was late.
+        assertEquals(emptyList<String>(), companionAlerts(lateBy(6), lateBy(1), before).map { it.key })
+    }
+
+    @Test
+    fun theDestinationDelayAlertsAtTheCompensationThresholds() {
+        fun arriving(m: Int) = applyRefresh(trip, listOf(null, trip.legs[1].copy(to = trip.legs[1].to.copy(current = at(120 + m)))), at(1))
+        fun destination(a: Trip, b: Trip) = companionAlerts(a, b, t0.plusSeconds(60 * 60)).filter { it.key.startsWith("destination") }
+        val sixty = destination(arriving(50), arriving(62)).single()
+        assertEquals("destination-60", sixty.key)
+        assertEquals("Expected +62 min at Würzburg Hbf", sixty.title)
+        assertEquals("Compensation: 25 % of the fare", sixty.text)
+        assertEquals("destination-delay", sixty.subject)
+        assertEquals(AlertChannel.Updates, sixty.channel)
+        assertEquals(emptyList<CompanionAlert>(), destination(arriving(62), arriving(80)))
+        // Past both at once: the higher one only.
+        assertEquals(listOf("Compensation: 50 % of the fare"), destination(arriving(50), arriving(125)).map { it.text })
+        // Delays off: none of it.
+        assertEquals(emptyList<String>(), companionAlerts(arriving(50), arriving(62), t0, AlertSettings(delayMinutes = 0)).map { it.key }.filter { it.startsWith("destination") })
+    }
+
+    @Test
+    fun aChangeBackOnTrackReplacesTheWarning() {
+        fun arrivingAt(m: Int) = applyRefresh(trip, listOf(trip.legs[0].copy(to = trip.legs[0].to.copy(current = at(m))), null), at(1))
+        val risky = arrivingAt(47)
+        assertEquals("risk-1", companionAlerts(trip, risky, t0).first { it.subject == "change-1" }.key)
+        val works = companionAlerts(risky, arrivingAt(41), t0, alerted = setOf("risk-1")).single { it.subject == "change-1" }
+        assertEquals("works-1", works.key)
+        assertEquals("Change at Frankfurt Hbf works again", works.title)
+        assertEquals("7 min · ICE 25 from Pl. 7", works.text)
+        assertTrue(works.silent)
+        assertEquals(AlertChannel.Updates, works.channel)
+        // Nothing was said about it: nothing to take back.
+        assertEquals(emptyList<CompanionAlert>(), companionAlerts(risky, arrivingAt(41), t0).filter { it.subject == "change-1" })
+    }
+
+    @Test
+    fun getOffFiveMinutesBefore() {
+        val settings = AlertSettings()
+        // On the RE 4, ten minutes out: not yet.
+        assertEquals(null, getOffAlert(trip, t0.plusSeconds(30 * 60), 15, TravelSignals(), settings))
+        val alert = getOffAlert(trip, t0.plusSeconds(35 * 60), 15, TravelSignals(), settings)!!
+        assertEquals("getoff-0", alert.key)
+        assertEquals("Get off at Frankfurt Hbf in 5 min", alert.title)
+        assertEquals("Pl. 11 · then ICE 25 from Pl. 7", alert.text)
+        assertEquals(AlertChannel.Act, alert.channel)
+        // The same news on the next tick: the companion posts a key once.
+        assertEquals("getoff-0", getOffAlert(trip, t0.plusSeconds(37 * 60), 15, TravelSignals(), settings)?.key)
+        // At the destination, with the side the doors open on from the train's Wi-Fi.
+        val onboard = OnboardStatus("ÖBB Railnet", "ICE", "25", 120.0, null, null, "Würzburg Hbf", null, null, t0, exitSides = mapOf("Würzburg Hbf" to ExitSide.Right))
+        val last = getOffAlert(trip, t0.plusSeconds(116 * 60), 15, TravelSignals(onboardLegIndex = 1), settings, onboard)!!
+        assertEquals("Get off at Würzburg Hbf in 4 min", last.title)
+        assertEquals("Pl. 5 · exit right", last.text)
+        assertEquals(null, getOffAlert(trip, t0.plusSeconds(116 * 60), 15, TravelSignals(), settings.copy(getOffReminder = false)))
+        // An unknown platform is left out.
+        val noPlatform = trip.copy(legs = listOf(trip.legs[0], trip.legs[1].copy(to = trip.legs[1].to.copy(plannedPlatform = null))))
+        assertEquals("", getOffAlert(noPlatform, t0.plusSeconds(116 * 60), 15, TravelSignals(), settings)?.text)
+    }
+
+    @Test
+    fun theLiveUpdateSaysLess() {
+        // Before leaving: the train to catch.
+        assertEquals(listOf("RE 4 · Pl. 3 · 08:00 from Mainz Hbf"), companionStatus(trip, t0.minusSeconds(25 * 60)).info)
+        // At the station: where to sit, before boarding.
+        val seated = trip.copy(legs = listOf(trip.legs[0].copy(coach = "24", seats = "66"), trip.legs[1]))
+        val atStation = companionStatus(seated, t0.minusSeconds(10 * 60))
+        assertEquals(listOf("to Frankfurt Hbf · departs 08:00", "Coach 24 · Seat 66"), atStation.info)
+        assertEquals(CompactText("to Frankfurt Hbf · departs 08:00", "Coach 24 · Seat 66"), atStation.compact(null))
+        // On board with a change ahead: the change in one line; no stops left (the bar has them).
+        val onBoard = companionStatus(trip, t0.plusSeconds(28 * 60))
+        assertEquals(listOf("Change at Frankfurt Hbf → ICE 25 · Pl. 7 · 08:48 · 8 min"), onBoard.info)
+        assertEquals(CompactText("Change at Frankfurt Hbf → ICE 25 · Pl. 7 · 08:48 · 8 min", "Offline 08:20"), onBoard.compact("Offline 08:20"))
+        val tight = trip.copy(legs = listOf(trip.legs[0], trip.legs[1].copy(from = trip.legs[1].from.copy(planned = at(46)))))
+        assertEquals("Change at Frankfurt Hbf → ICE 25 · Pl. 7 · 08:46 · 6 min · tight", companionStatus(tight, t0.plusSeconds(28 * 60)).info[0])
+        // On the last ride, from its Wi-Fi: the destination, the speed.
+        val portal = OnboardStatus("ICE Portal", "ICE", "25", 247.4, null, null, "Würzburg Hbf", null, "5", t0)
+        val last = companionStatus(trip, t0.plusSeconds(60 * 60), signals = TravelSignals(onboardLegIndex = 1), onboard = portal)
+        assertEquals(listOf("Würzburg Hbf", "247 km/h"), last.info)
+        assertEquals(CompactText("Würzburg Hbf", "247 km/h"), last.compact(null))
+        // Changing: the margin, the seat.
+        val changing = companionStatus(seated.copy(legs = listOf(trip.legs[0], trip.legs[1].copy(coach = "7", seats = "45-48"))), t0.plusSeconds(44 * 60))
+        assertEquals(listOf("to Würzburg Hbf · departs 08:48", "8 min to change · from Pl. 11", "Coach 7 · Seats 45–48"), changing.info)
+        // Missed: what happened, and the way to the alternatives.
+        val signals = TravelSignals(position = Position(50.1071, 8.6636, 0.0, 10.0))
+        val placed = trip.copy(legs = trip.legs.map { it.copy(from = it.from.copy(lat = 50.1071, lon = 8.6636)) })
+        val missed = companionStatus(placed, t0.plusSeconds(52 * 60), signals = signals)
+        assertEquals(listOf("It left Frankfurt Hbf at 08:48 · see alternatives in Abeona"), missed.info)
+        assertTrue(missed.broken)
+        assertEquals(false, onBoard.broken)
+    }
+
+    @Test
+    fun theBarIsTheWholeJourney() {
+        val before = journeyBar(trip.legs, t0.minusSeconds(25 * 60))!!
+        assertEquals(listOf(BarSegment(40, BarTone.Ride), BarSegment(8, BarTone.Ok), BarSegment(72, BarTone.Ride)), before.segments)
+        assertEquals(120, before.max)
+        assertEquals(0, before.progress)
+        assertEquals(listOf(BarPoint(40, BarTone.Ok)), before.points)
+        assertEquals(28, journeyBar(trip.legs, t0.plusSeconds(28 * 60))!!.progress)
+        // On the last ride: the change is behind, no point left.
+        val last = journeyBar(trip.legs, t0.plusSeconds(60 * 60))!!
+        assertEquals(60, last.progress)
+        assertEquals(emptyList<BarPoint>(), last.points)
+        // A change at risk is red, on the bar and as its point.
+        val risky = trip.copy(legs = listOf(trip.legs[0].copy(to = trip.legs[0].to.copy(current = at(47))), trip.legs[1]))
+        assertEquals(BarTone.Bad, journeyBar(risky.legs, t0)!!.segments[1].tone)
+        assertEquals(listOf(BarPoint(47, BarTone.Bad)), journeyBar(risky.legs, t0)!!.points)
+        assertEquals(before, companionStatus(trip, t0.minusSeconds(25 * 60)).bar)
+    }
+
+    @Test
+    fun aLongJourneyKeepsItsRidesOnTheBar() {
+        // Six rides of 20 minutes with 10-minute changes: eleven segments, one too many.
+        val legs = (0 until 6).map { n ->
+            Leg(
+                lineName = "RB $n", product = "RB",
+                from = StopTime("s$n", "Stop $n", planned = at(n * 30), plannedPlatform = "1"),
+                to = StopTime("s${n + 1}", "Stop ${n + 1}", planned = at(n * 30 + 20), plannedPlatform = "2"),
+            )
+        }
+        val bar = journeyBar(legs, t0.plusSeconds(55 * 60))!!
+        // The changes become boundaries; the rides keep their lengths.
+        assertEquals(List(6) { BarSegment(20, BarTone.Ride) }, bar.segments)
+        // 55 minutes in: two rides and five minutes of the second change: the bar stands at the end of the second ride.
+        assertEquals(40, bar.progress)
+        // The changes ahead, at most four, at the ride boundaries.
+        assertEquals(listOf(40, 60, 80, 100), bar.points.map { it.position })
+        // Still too many rides: one segment.
+        assertEquals(listOf(BarSegment(120, BarTone.Ride)), journeyBar(legs, t0, maxSegments = 5)!!.segments)
+    }
+
+    @Test
+    fun theTopSpeedIsWrittenWhenItIsNews() {
+        val speeds = TopSpeedRecorder()
+        assertEquals(247, speeds.observe(0, 247.4, null, t0))
+        // Not 3 km/h more: not worth a write.
+        assertEquals(null, speeds.observe(0, 249.0, null, t0.plusSeconds(90)))
+        // More, but within the minute: later.
+        val again = speeds.observe(0, 251.0, null, t0.plusSeconds(30))
+        assertEquals(null, again)
+        assertEquals(251, speeds.observe(0, 250.0, null, t0.plusSeconds(61)))
+        // Glitches, and what the leg already holds.
+        assertEquals(null, speeds.observe(1, 460.0, null, t0))
+        assertEquals(null, speeds.observe(1, 0.4, null, t0))
+        assertEquals(null, speeds.observe(2, 280.0, 300, t0))
+        assertEquals(303, speeds.observe(2, 303.0, 300, t0))
     }
 
     @Test
@@ -183,5 +357,9 @@ class CompanionTextTest {
             LiveCompanion.expandedText(listOf("Arrives 19:47 (+6) · Pl. 6", "ICE 528 · 127 km/h"), "Live 08:00"),
         )
         assertEquals("Arrives 19:47", LiveCompanion.expandedText(listOf("Arrives 19:47"), null))
+        // The Live Update says it only when it is not live.
+        assertEquals(null, LiveCompanion.compactFreshness(updated, t0.plusSeconds(170), timetableOnly = false))
+        assertEquals("Timetable 08:00", LiveCompanion.compactFreshness(updated, t0.plusSeconds(170), timetableOnly = true))
+        assertEquals("Offline 08:00", LiveCompanion.compactFreshness(updated, t0.plusSeconds(24 * 60), timetableOnly = false))
     }
 }

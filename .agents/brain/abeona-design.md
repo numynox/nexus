@@ -48,12 +48,12 @@ what lies before and after. "First" is the headline; "then" follows in order;
 | 3 | Days before | know it is still on, and when | day, departure time and platform | arrival, changes, trains, ticket attached | the trip | header, parked |
 | 4 | Timetable changed | know my plan broke before the day | what broke, struck through | "Find another connection" | alternatives | header, stopped |
 | 5 | Time to leave | know when to walk out | "Leave 12:55" and the countdown | the train to catch: time, line, direction, platform | ticket | strip, waiting |
-| 6 | At the station | find my train | the platform, countdown to departure | the train line; where it is now; steps ahead | ticket, alternatives | strip, waiting |
+| 6 | At the station | find my train | the platform, countdown to departure | my coach and seat; the train line; where it is now; steps ahead | ticket, alternatives | strip, waiting |
 | 7 | On board | know when and where to get off | the stop I get off at, arrival, platform there, countdown | next stop; the change after; destination | all stops, map, ticket | strip, riding (the rail) |
 | 8 | Changing | make the connection | next platform, countdown | margin and way between platforms; the train | alternatives | strip, waiting |
 | 9 | Something broke | know my options at once | what broke, struck through; "See alternatives" | whether the binding is lifted | the rules | strip, stopped |
 | 10 | Inspection | show the ticket in two taps | the ticket, full brightness | BahnCards the ticket needs | DB Navigator | none |
-| 11 | Arrived | know I am done, and how late | where, when, the delay | compensation if any | what happened | header, arrived |
+| 11 | Arrived | know I am done, and how late | where, when, the delay | compensation if any; the postcard | what happened; share the postcard | header, arrived |
 | 12 | Afterwards | get my money back with little typing | the verdict and amount | deadline, text for the form | the rule | none |
 | 13 | Looking back | enjoy the year | one figure per story card | its comparison | — | full, per card |
 | 14 | Setting up | change one thing and leave | groups by moment: before, on the day, after, household | — | each sheet | none |
@@ -174,7 +174,12 @@ A new concept gets a row here first.
 | alternatives | `Shuffle` | `Shuffle` | — |
 | updated / live | `Sync` | `RefreshCw` | "Live" |
 | offline | `CloudOff` | `CloudOff` | — |
-| speed | `Speed` | `Gauge` | — |
+| speed, top speed | `Speed` | `Gauge` | "top speed" on the postcard |
+| coach and seat | `EventSeat` | `Armchair` | "Coach 24 · Seat 66" |
+| exit side (Android, from the train's Wi-Fi) | `DoorSliding` | — | "Exit left" |
+| delay reason (Android, ICE Portal) | `Info` | — | DB's words, one line |
+| distance travelled | `Route` | `Route` | "travelled" |
+| CO₂ saved | `Eco` | `Leaf` | "CO₂ saved" |
 | source: Wi-Fi / location / timetable | `Wifi` / `MyLocation` / `Schedule` | `Wifi` / `LocateFixed` / `Clock` | the source's name on the pill |
 | safe / tight / at risk / impossible | `CheckCircle` / `Timelapse` / `ErrorOutline` / `Block` | `CircleCheck` / `Timer` / `CircleAlert` / `Ban` | — (the chip keeps the minutes) |
 | share, edit, delete, more | `Share`, `Edit`, `Delete`, `MoreVert` | `Share2`, `Pencil`, `Trash2`, `EllipsisVertical` | — |
@@ -306,10 +311,10 @@ Rows, top to bottom; a row with nothing to say is left out:
 | :--- | :--- | :--- |
 | Done | a ride is done | first departure time and station, muted; "n rides done"; expands to the done rows |
 | Boarded | on board | the current ride's departure (time, station), muted |
-| Band | always, except arrived | the scene strip (§7) on the current ride's stretch of line: the ride on board, else the one to board; under it the line chip, "to" its direction and, from the train's Wi-Fi, the speed; on board a second line: "✓ last stop time" left, "Next stop time" right (left out when the next stop is the active step); waiting for the train, where it is ("Left Aschaffenburg Hbf · 3 stops") |
-| Active step | always, exactly one | the verb (Leave · Board · Get off · Arrive · Arrived), the time with its delay, the station (Leave: none), "in 12 min", the platform big |
+| Band | always, except arrived | the scene strip (§7) on the current ride's stretch of line: the ride on board, else the one to board; under it the line chip, "to" its direction and, from the train's Wi-Fi, the speed; on board a second line: "✓ last stop time" left, "Next stop time" right (left out when the next stop is the active step); waiting for the train, where it is ("Left Aschaffenburg Hbf · 3 stops"); on board an ICE at least 5 min late, DB's delay reason from the train's Wi-Fi as one muted line with an info icon |
+| Active step | always, exactly one | the verb (Leave · Board · Get off · Arrive · Arrived), the time with its delay, the station (Leave: none), "in 12 min", the platform big; Board adds the seat ("Coach 24 · Seat 66"), Get off and Arrive the exit side when the train's Wi-Fi gives it ("Exit left") |
 | Change | after a Get off, or before a Board at a change | the status chip with the minutes (word only when not safe: "6 min · tight"), "3 → 5" or the walk with its minutes |
-| Next train | after the change | time, line chip, "to" direction, platform |
+| Next train | after the change | time, line chip, "to" direction, platform; the seat under it when known |
 | Later | rides beyond the next train | their line chips, "n changes", the worst change's chip unless all are safe; expands to their rows |
 | Destination | unless it is the active step | time with delay, name, platform |
 | Footer | always | where the times come from and when: "Live 12:37", "Timetable 12:37" (no live data for the trip), "Offline 12:37" (`watch`); the source as an icon button that opens How Abeona knows |
@@ -332,7 +337,13 @@ Rows, top to bottom; a row with nothing to say is left out:
   map: the card is the journey. It returns once arrived.
 - **Arrived:** the arrival scene (header size), the done row and "Arrived"
   with the time, the delay and the platform. Compensation stays in its own
-  card below.
+  card below, and below that the **postcard**: the route and the day, then
+  figures as icon + value + label (⇢ "220 km travelled", 🚆 "2 h 29 on
+  board", 🍃 "33 kg CO₂ saved", ⏲ "287 km/h top speed", ⚑ "+22 min at the
+  end" in `watch` or "On time" in `ok`), a figure left out when it is 0 or
+  unknown, and a Share icon button that makes a 1080×1350 image of the
+  arrival scene, the route and the figures. Never while something is broken
+  (`decisions/2026-11-22-abeona-arrival-postcard.md`).
 - **Compact form** (the Trips card on the travel day): the band without its
   second line and the active step, in time order (before boarding the step
   comes first), and one row: the change chip, the next line chip, "⚑ 13:32",
@@ -343,7 +354,23 @@ Rows, top to bottom; a row with nothing to say is left out:
   train); the platform box, the countdown and the chips carry the step.
 - **The notification** follows the same order: your train and the active step
   as the title, then the change, the next train, the next stop, and the band's
-  line (`decisions/2026-11-20-abeona-notification-names-the-train.md`).
+  line (`decisions/2026-11-20-abeona-notification-names-the-train.md`). On
+  Android 16 and newer it is a Live Update that draws the journey: a bar from
+  the first departure to the arrival, rides in burgundy, changes in their
+  confidence colour, the change stations ahead as points, a train moving along
+  it, a flag at the end. Under the title one line and the header carry, in
+  this order, the change, the seat before boarding, the next stop, the speed
+  and, only when not live, how fresh. "n stops left" and "Live 12:37" are
+  left out. Actions: Ticket, Alternatives (only when broken), Stop
+  (`decisions/2026-11-22-abeona-lock-screen-journey-line.md`).
+- **Alerts wake the traveller only to act** ("Act now": platform change,
+  change at risk or impossible, cancelled, missed, get off in 5 min, you may
+  take another train). Delays, "back on track" and the compensation thresholds
+  are quiet "Updates". One notification per subject: the newer replaces the
+  older (`decisions/2026-11-22-abeona-alerts-wake-only-to-act.md`).
+- **For everyone:** each row reads as one sentence to a screen reader; the
+  scene stands still when the system asks for less motion; nothing clips at
+  200 % font.
 
 ---
 
@@ -355,17 +382,18 @@ Bottom navigation: Trips, Plan, Year, Settings (icons with labels).
 | Screen | Order, top to bottom |
 | :--- | :--- |
 | **Trips** | `Banner`s (BahnCard deadline, update). Next trip: on the travel day its day and title as plain text, then the live card compact; otherwise the next-trip card (scene header; day and title; departure `time` + `PlatformBox`; one line of `Fact`s: ⚑ arrival, 🕓 duration, ⇄ n, chips, ticket). "Upcoming" as dense rows (day + time left, title and line chips, ticket icon right). The year so far as four figures in one row. "Past trips" as a quiet row. Empty: `EmptyState`. |
-| **Trip, live** | Top bar: title = "A → B", ticket, refresh, ⋮. `LiveCard` (§8). Map. Then the ticket and the rest, without the timeline (the card is the journey). |
-| **Trip, not live** | Header: day, departure → arrival as `time`, facts line. `Banner`s. Timeline as `StopRow`s on one continuous rail: a ride is its first and last stop with the line chip between, stops folded behind "n stops"; a change is one row (chip, platforms). Ticket card (fare, class, price, travellers as `Fact`s; "Show ticket"). After the ride: compensation, what happened. |
+| **Trip, live** | Top bar: title = "A → B", ticket, refresh, ⋮. `LiveCard` (§8). Map. Then the ticket and the rest, without the timeline (the card is the journey). The screen stays on at the station and while changing. |
+| **Trip, not live** | Header: day, departure → arrival as `time`, facts line. `Banner`s. Timeline as `StopRow`s on one continuous rail: a ride is its first and last stop with the line chip between, stops folded behind "n stops"; a change is one row (chip, platforms). Ticket card (fare, class, price, travellers as `Fact`s; "Show ticket"). After the ride: compensation, the postcard (§8), what happened. Ride rows show the seat when known. |
+| **Trip, tray-table mode** | When the window is at least 600 dp wide (tablets, foldables) or a phone lies in landscape (height under 480): two panes. Left the header, the live card or the timeline and everything else; right the map, the full height, standing still while the left scrolls. For a phone on the tray table or mounted on a wheelchair. |
 | **Alternatives** | Sheet. Each connection: departure → arrival, 🕓, ⇄ n, line chips, validity chip (`ok` / `watch` / `bad`). The hint once, under the list. |
-| **Ticket** | White, full brightness. The ticket. Cards the ticket needs as tabs. DB Navigator in the top bar. |
+| **Ticket** | White, full brightness. The ticket. Cards the ticket needs as tabs. DB Navigator in the top bar. The rides' seats. In landscape the code large on the left, the details on the right. |
 | **Plan (Search)** | From, to (with swap), when, one primary button. "Add from a ticket or share" as a quiet row. Results: one card per connection in the row grid: departure → arrival `title`, facts line, chips; earlier / later at the ends. |
 | **Save sheet** | Route and times, ticket fields as compact rows, travellers and BahnCards, attach ticket, Save. |
-| **Year** | A pager of story cards: scene or chart on top, one `numeral`, one line under it. Claims bar under the pager. |
+| **Year** | A pager of story cards: scene or chart on top, one `numeral`, one line under it (among them "Top speed": "287 km/h", the train and the day). Claims bar under the pager. |
 | **Past trips** | Dense rows by month: day, title, delay as `StatusChip`. |
 | **Claims** | Rows: trip, amount, status chip, deadline `Fact`. |
 | **BahnCards** | Cards as rows: name, class, valid-to, deadline chip. Sheet to edit. |
-| **Settings** | Groups in the order of the moments: Before the trip (time to the station, reminder), On the day (companion, location, alerts), Afterwards (claims reminder), Household (members, BahnCards), App (theme, update, account). One line per setting: name, value or switch; the explanation behind an info tap only where it is not obvious. |
+| **Settings** | Groups in the order of the moments: Before the trip (time to the station, reminder), On the day (companion, location, alerts, get off reminder), Afterwards (claims reminder), Household (members, BahnCards), App (theme, update, account). One line per setting: name, value or switch; the explanation behind an info tap only where it is not obvious. |
 | **Status page** (web, shared link) | Scene header, who and where, arrival `time`, the rail. No navigation. |
-| **Widget** | Day or countdown, departure `time` + platform, title, ⚑ arrival ⇄ n. |
-| **Notification** | On board: the train, when it arrives, the platform and the time as the title; then where to change, the next train and the change (its state only when not safe), the next stop, and last the stops left, the speed and how fresh (`decisions/2026-11-20-abeona-notification-names-the-train.md`); the accent colour is burgundy. |
+| **Widget** | The day ("Today", "Tomorrow", "Sun 22 Nov"), or the countdown while the companion runs and refreshes it; departure `time` + platform, title, ⚑ arrival ⇄ n. |
+| **Notification** | On board: the train, when it arrives, the platform and the time as the title; then where to change, the next train and the change (its state only when not safe), the next stop, and last the stops left, the speed and how fresh (`decisions/2026-11-20-abeona-notification-names-the-train.md`); on Android 16+ the journey as a bar with the title, one line and the header (§8). Actions Ticket, Alternatives when broken, Stop. The accent colour is burgundy. |

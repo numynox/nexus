@@ -44,8 +44,45 @@ data class OnboardStatus(
     val nextTrack: String?,
     /** When this was read. */
     val at: Instant,
+    /**
+     * Why the train is late, as the portal prints it (DB's German text): the
+     * first reason given for the next stop not yet passed. ICE Portal only.
+     */
+    val delayReason: String? = null,
+    /** The side the doors open on, by station name as the portal names it. ÖBB Railnet only. */
+    val exitSides: Map<String, ExitSide> = emptyMap(),
 ) {
     val trainLabel: String? get() = listOfNotNull(trainType, trainNumber).joinToString(" ").ifEmpty { null }
+}
+
+/** Which side of the train to get out on, in the direction of travel. */
+enum class ExitSide(val word: String) {
+    Left("left"),
+    Right("right");
+
+    companion object {
+        /** "left", "links", "L" and the other side alike, any case; anything else is not known. */
+        fun of(value: String?): ExitSide? = when (value?.trim()?.lowercase()) {
+            "left", "links", "l" -> Left
+            "right", "rechts", "r" -> Right
+            else -> null
+        }
+    }
+}
+
+/** "Frankfurt(Main)Hbf" → "frankfurt": a station's town, to match a portal's own name for a stop. */
+private fun town(name: String): String =
+    name.substringBefore('(').substringBefore(" Hbf").substringBefore(" Hauptbahnhof").trim().lowercase()
+
+/**
+ * The side the doors open on at [station], when the train's Wi-Fi says:
+ * its name as the portal writes it, the same or the same town.
+ */
+fun exitSideAt(onboard: OnboardStatus?, station: String): ExitSide? {
+    val sides = onboard?.exitSides?.takeIf { it.isNotEmpty() } ?: return null
+    sides.entries.firstOrNull { it.key.equals(station, ignoreCase = true) }?.let { return it.value }
+    val wanted = town(station).takeIf { it.isNotEmpty() } ?: return null
+    return sides.entries.firstOrNull { town(it.key) == wanted }?.value
 }
 
 /** Where the phone asks; replaced in screenshot tests. */
@@ -82,6 +119,8 @@ fun parseIcePortal(statusJson: String, tripJson: String?, at: Instant): OnboardS
         ?: stops.firstOrNull { it["info"].obj()?.get("passed")?.prim()?.content == "false" }
     val timetable = next?.get("timetable").obj()
     val arrivalMs = timetable?.let { it["actualArrivalTime"].long() ?: it["scheduledArrivalTime"].long() }
+    // Why it is late: the next stop's reasons, the first one, as printed.
+    val reason = (next?.get("delayReasons") as? JsonArray).orEmpty().firstNotNullOfOrNull { it.obj()?.get("text").str() }
     return OnboardStatus(
         portal = "ICE Portal",
         trainType = trip?.get("trainType").str() ?: status["trainType"].str(),
@@ -93,6 +132,7 @@ fun parseIcePortal(statusJson: String, tripJson: String?, at: Instant): OnboardS
         nextStopAt = arrivalMs?.let(Instant::ofEpochMilli),
         nextTrack = next?.get("track").obj()?.let { it["actual"].str() ?: it["scheduled"].str() },
         at = at,
+        delayReason = reason,
     )
 }
 
@@ -130,8 +170,17 @@ fun parseRailnet(combinedJson: String, speedText: String?, at: Instant): Onboard
         nextStopAt = railnetTime(arrival?.get("forecast").str() ?: arrival?.get("scheduled").str(), at.atZone(zone).toLocalDate(), zone),
         nextTrack = next?.get("track").label(),
         at = at,
+        exitSides = exitSides(fis),
     )
 }
+
+/** Railnet's `stations[].exitSide`, by station name: only the sides it names plainly. */
+private fun exitSides(fis: JsonObject): Map<String, ExitSide> =
+    (fis["stations"] as? JsonArray).orEmpty().mapNotNull { it.obj() }.mapNotNull { station ->
+        val name = station["name"].label() ?: return@mapNotNull null
+        val side = ExitSide.of(station["exitSide"].str()) ?: return@mapNotNull null
+        name to side
+    }.toMap()
 
 /**
  * The ride of [legs] the on-board Wi-Fi names: same train number, and the

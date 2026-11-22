@@ -12,6 +12,7 @@ import io.github.numynox.nexus.abeona.data.Journey
 import io.github.numynox.nexus.abeona.data.Leg
 import io.github.numynox.nexus.abeona.data.ShareLink
 import io.github.numynox.nexus.abeona.data.Trip
+import io.github.numynox.nexus.abeona.data.TripSummary
 import io.github.numynox.nexus.abeona.data.TripEdit
 import io.github.numynox.nexus.abeona.data.toInstantOrNull
 import io.github.numynox.nexus.abeona.domain.AlternativesOrigin
@@ -94,6 +95,10 @@ class TripViewModel(
     private val _afterRide = MutableStateFlow<AfterRide?>(null)
     /** Null before arrival, offline, or while loading. */
     val afterRide: StateFlow<AfterRide?> = _afterRide.asStateFlow()
+
+    private val _summary = MutableStateFlow<TripSummary?>(null)
+    /** What the trip added up to (abeona_trip_summary), once arrived: the postcard. Null before, offline, or while loading. */
+    val summary: StateFlow<TripSummary?> = _summary.asStateFlow()
 
     private val _replacements = MutableStateFlow<ReplacementSearch?>(null)
     val replacements: StateFlow<ReplacementSearch?> = _replacements.asStateFlow()
@@ -198,6 +203,7 @@ class TripViewModel(
 
     private suspend fun loadAfterRide() {
         val repository = container.repository
+        _summary.value = runCatching { repository.tripSummary(tripId) }.getOrNull() ?: _summary.value
         _afterRide.value = runCatching {
             coroutineScope {
                 val compensation = async { repository.compensation(tripId) }

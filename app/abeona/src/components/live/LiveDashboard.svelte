@@ -2,13 +2,19 @@
   /**
    * The live card of a travel day (abeona-design.md §8) — the web's copy of
    * Android's ui/live/LiveDashboard.kt: the journey drawn as one vertical
-   * line in the row grid, then the map with the traveller on it. Done rides
-   * fold into one row; the ride in focus is the band (the scene strip on its
-   * stretch of line, its train, where it is); the next thing to do is the one
-   * large row with a verb; the rest runs down to the destination, which is
-   * always last. Words only where nothing shorter works
-   * (decisions/2026-11-20-abeona-live-journey-line.md). How Abeona knows sits
-   * behind the footer's source button.
+   * line in the row grid. Done rides fold into one row; the ride in focus is
+   * the band (the scene strip on its stretch of line, its train, where it
+   * is); the next thing to do is the one large row with a verb; the rest
+   * runs down to the destination, which is always last. Words only where
+   * nothing shorter works (decisions/2026-11-20-abeona-live-journey-line.md).
+   * How Abeona knows sits behind the footer's source button. The map with
+   * the traveller on it is the trip page's (TripPanel), so that it can stand
+   * beside the card in tray-table mode.
+   *
+   * To a screen reader each row of the line is one sentence, made of the
+   * words the row shows ("Board ICE 25 to Wien Hbf at Frankfurt(Main)Hbf,
+   * platform 8, 14:21, 7 minutes late, in 12 minutes. Coach 24, seat 66.");
+   * its drawing is hidden, its buttons are not.
    */
   import {
     ArrowRightLeft,
@@ -31,14 +37,15 @@
     Wifi,
   } from "lucide-svelte";
   import { untrack } from "svelte";
-  import type { Approach, StopTime } from "../../lib/transit";
+  import type { Approach, Leg, StopTime } from "../../lib/transit";
   import { fetchApproach, type Trip } from "../../lib/data";
   import { formatDuration, formatTime, legLabel } from "../../lib/format";
+  import { seatSpoken } from "../../lib/intake/seat";
   import { distanceMetres, distanceToLineMetres, NEAR_STOP_METRES, ON_LINE_METRES, type Position } from "../../lib/travelday";
   import type { LocationState } from "../../lib/position";
-  import { type MapMarker, rideProgress } from "../../lib/progress";
+  import { rideProgress } from "../../lib/progress";
   import { trainKind } from "../../lib/scene";
-  import { finalArrivalDelay, normalisePlatform, trainBindingLifted, transfers, type Transfer } from "../../lib/transfer";
+  import { delayMinutes, finalArrivalDelay, normalisePlatform, trainBindingLifted, transfers, type Transfer } from "../../lib/transfer";
   import type { AlternativesReason, TravelDay } from "../../lib/travelday";
   import ConfidenceChip from "../common/ConfidenceChip.svelte";
   import Fact from "../common/Fact.svelte";
@@ -46,10 +53,10 @@
   import LegChip from "../common/LegChip.svelte";
   import PlatformBox from "../common/PlatformBox.svelte";
   import Scene from "../common/Scene.svelte";
+  import Seat from "../common/Seat.svelte";
   import ShiftedTime from "../common/ShiftedTime.svelte";
   import StatusChip from "../common/StatusChip.svelte";
   import StopRow from "../common/StopRow.svelte";
-  import TripMap from "../trip/TripMap.svelte";
 
   interface Props {
     trip: Trip;
@@ -148,12 +155,6 @@
 
   // ------------------------------------------------------------ the band
 
-  const marker = $derived.by((): MapMarker | null => {
-    if (position) return { lat: position.lat, lon: position.lon, kind: "location" };
-    if (onBoard && progress?.estimate) return { ...progress.estimate, kind: "timetable" };
-    return null;
-  });
-
   /** While waiting for the train: where it is on its way here, asked every minute. */
   const waitingFor = $derived(
     !focusBroken && leg && !leg.cancelled && leg.trip_ref && (day.kind === "at_station" || day.kind === "changing") ? leg : null,
@@ -238,12 +239,16 @@
     station: string | null;
     /** The Alternatives button and "Any train" go here (when the anchor says so). */
     actions: boolean;
+    /** Board: the seat the ticket reserves on that train (not on the Trips card). */
+    seat: { coach: string | null; seats: string | null } | null;
+    /** The row as one sentence, for screen readers. */
+    spoken: string;
   }
 
   type Row =
     | { kind: "done"; seg: Seg }
     | { kind: "doneRide"; index: number; first: boolean; seg: Seg }
-    | { kind: "stop"; stop: StopTime; name: string; node: NodeKind; muted: boolean; platform: boolean; seg: Seg }
+    | { kind: "stop"; stop: StopTime; name: string; node: NodeKind; muted: boolean; platform: boolean; seg: Seg; boarded?: boolean }
     | { kind: "band"; seg: Seg }
     | { kind: "step"; step: Step; seg: Seg }
     | { kind: "change"; t: Transfer; seg: Seg }
@@ -270,6 +275,76 @@
 
   const brokenIcon: Record<Broken, IconComponent> = { Missed: CircleAlert, Cancelled: Ban, "Not running": Ban };
 
+  // ------------------------------------------------------------ what a screen reader hears
+
+  /** "7 minutes", "1 hour 25 minutes". */
+  function spokenMinutes(minutes: number): string {
+    const m = Math.max(0, Math.round(minutes));
+    const unit = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+    const h = Math.floor(m / 60);
+    if (h === 0) return unit(m, "minute");
+    return m % 60 === 0 ? unit(h, "hour") : `${unit(h, "hour")} ${unit(m % 60, "minute")}`;
+  }
+
+  /** "14:21, 7 minutes late"; on time, the time alone. */
+  function spokenTime(stop: { planned: string | null; current: string | null } | null): string | null {
+    if (!stop || !(stop.planned ?? stop.current)) return null;
+    const late = delayMinutes(stop.planned, stop.current);
+    return late > 0 ? `${formatTime(stop.current)}, ${spokenMinutes(late)} late` : formatTime(stop.planned ?? stop.current);
+  }
+
+  /** "platform 8", "platform 6, changed from 5", as the box says it. */
+  function spokenPlatform(stop: Pick<StopTime, "platform" | "planned_platform"> | null): string | null {
+    const shown = stop?.platform || stop?.planned_platform;
+    if (!stop || !shown) return null;
+    return stop.platform && stop.planned_platform && stop.platform !== stop.planned_platform
+      ? `platform ${shown}, changed from ${stop.planned_platform}`
+      : `platform ${shown}`;
+  }
+
+  function spokenCountdown(minutes: number | null): string | null {
+    if (minutes === null) return null;
+    return minutes <= 0 ? "now" : `in ${spokenMinutes(minutes)}`;
+  }
+
+  /** " Coach 24, seat 66." after a sentence, or nothing. */
+  function spokenSeat(ride: Pick<Leg, "coach" | "seats">): string {
+    const seat = seatSpoken(ride.coach, ride.seats);
+    return seat ? ` ${seat}.` : "";
+  }
+
+  /** The parts that have something to say, as one sentence. */
+  function sentence(...parts: (string | null | undefined | false)[]): string {
+    const text = parts.filter(Boolean).join(", ");
+    return text ? `${text}.` : "";
+  }
+
+  const confidenceWord = { safe: "safe", tight: "tight", at_risk: "at risk", impossible: "impossible" } as const;
+
+  function spokenChange(t: Transfer): string {
+    const from = legs[t.fromIndex].to;
+    const to = legs[t.toIndex].from;
+    const a = from.platform ?? from.planned_platform;
+    const b = to.platform ?? to.planned_platform;
+    const way = t.walkMinutes > 0 ? `walk ${spokenMinutes(t.walkMinutes)}` : a && b ? `platform ${a} to platform ${b}` : null;
+    return sentence(t.confidence === "impossible" ? "Change impossible" : `Change, ${spokenMinutes(t.availableMinutes)}, ${confidenceWord[t.confidence]}`, way);
+  }
+
+  function spokenStop(r: Extract<Row, { kind: "stop" }>): string {
+    return sentence(r.boarded ? `Boarded at ${r.name}` : r.name, r.platform && spokenPlatform(r.stop), spokenTime(r.stop));
+  }
+
+  function spokenTrain(i: number): string {
+    const t = legs[i];
+    const from = changeInto(i)?.changesStation || !t.headsign ? `from ${t.from.name}` : null;
+    return sentence(`${legLabel(t)}${t.headsign ? ` to ${t.headsign}` : ""}`, from, spokenPlatform(t.from), spokenTime(t.from)) + spokenSeat(t);
+  }
+
+  function spokenDoneRide(i: number, first: boolean): string {
+    const ride = legs[i];
+    return sentence(`${legLabel(ride)}${ride.headsign ? ` to ${ride.headsign}` : ""}`, spokenPlatform(ride.from), !first && spokenTime(ride.from));
+  }
+
   function brokenStep(i: number, why: Broken, large: boolean): Step {
     const l = legs[i];
     // The step that broke is the train's departure, except under someone already on it.
@@ -288,11 +363,14 @@
       station: large ? at.name : null,
       // The alternatives and "Any train" go with the first thing that broke.
       actions: i === (focusBroken ? focusIdx : brokenAhead),
+      seat: null,
+      spoken: sentence(`${why}: ${legLabel(l)}${l.headsign ? ` to ${l.headsign}` : ""} at ${at.name}`, formatTime(at.planned)),
     };
   }
 
-  function activeStep(verb: "Board" | "Get off" | "Arrive" | "Arrived", stop: StopTime, name: string, minutes: number | null): Step {
+  function activeStep(verb: "Board" | "Get off" | "Arrive" | "Arrived", stop: StopTime, name: string, minutes: number | null, ride: Leg | null = null): Step {
     const icon = verb === "Board" ? TrainFront : verb === "Get off" ? LogOut : Flag;
+    const train = ride ? `${legLabel(ride)}${ride.headsign ? ` to ${ride.headsign}` : ""}` : null;
     return {
       verb,
       icon,
@@ -307,6 +385,10 @@
       station: null,
       // On the last ride the destination is this step: "Any train" goes here.
       actions: verb === "Arrive",
+      seat: ride && !summary ? { coach: ride.coach ?? null, seats: ride.seats ?? null } : null,
+      spoken:
+        sentence(train ? `${verb} ${train} at ${name}` : `${verb} at ${name}`, spokenPlatform(stop), spokenTime(stop), spokenCountdown(minutes)) +
+        (ride ? spokenSeat(ride) : ""),
     };
   }
 
@@ -323,6 +405,8 @@
     leave: true,
     station: null,
     actions: false,
+    seat: null,
+    spoken: sentence(`Leave at ${formatTime(day.leaveAt)}`, spokenCountdown(day.minutesToLeave)),
   });
 
   /** The step to show large: the verb and its stop, or what broke there. */
@@ -335,7 +419,7 @@
         return leaveStep;
       case "at_station":
       case "changing":
-        return activeStep("Board", leg.from, leg.from.name, day.minutesToDeparture);
+        return activeStep("Board", leg.from, leg.from.name, day.minutesToDeparture, leg);
       default:
         return focusIdx === lastRideIdx
           ? activeStep("Arrive", leg.to, trip.destination_name, day.minutesToArrival)
@@ -395,7 +479,7 @@
         break;
       }
       default:
-        out.push({ kind: "stop", stop: leg.from, name: leg.from.name, node: "done", muted: true, platform: false, seg: ride });
+        out.push({ kind: "stop", stop: leg.from, name: leg.from.name, node: "done", muted: true, platform: false, seg: ride, boarded: true });
     }
     out.push({ kind: "band", seg: ride });
 
@@ -438,6 +522,43 @@
     const order = { safe: 0, tight: 1, at_risk: 2, impossible: 3 } as const;
     const worst = list.reduce<Transfer | null>((w, t) => (!w || order[t.confidence] > order[w.confidence] || (order[t.confidence] === order[w.confidence] && t.availableMinutes < w.availableMinutes) ? t : w), null);
     return { count: aheadRides.length - 1, worst: worst && worst.confidence !== "safe" ? worst : null };
+  });
+
+  /** The band in words: the train, how far, the stops passed and next, or where the train to catch is. */
+  const bandSpoken = $derived.by(() => {
+    if (!leg || focusBroken) return "";
+    const parts = [sentence(`${legLabel(leg)}${leg.headsign ? ` to ${leg.headsign}` : ""}`, speed !== null && `${speed} km/h`)];
+    if (showRail && onBoard && progress) parts.push(`${Math.round(progress.fraction * 100)} % of the ride done.`);
+    if (passing?.reached) parts.push(`Passed ${passing.reached.name} ${passing.reached.time}.`);
+    if (passing?.next) parts.push(`Next ${passing.next.name} ${passing.next.time}.`);
+    if (!passing && approach && waitingFor) parts.push(`${approachText(approach).replace(" · ", ", ")}.`);
+    return parts.join(" ");
+  });
+
+  const doneLabel = $derived.by(() => {
+    const first = doneRides[0]?.l;
+    if (!first) return "";
+    const n = doneRides.length;
+    return `${n} ${n === 1 ? "ride" : "rides"} done, from ${first.from.name} at ${formatTime(first.from.current ?? first.from.planned)}${replanned ? ", re-planned" : ""}`;
+  });
+
+  const laterLabel = $derived.by(() => {
+    const lines = aheadRides.slice(1).map((r) => legLabel(r.l));
+    const worst = laterChanges.worst;
+    const n = laterChanges.count;
+    return `Later: ${lines.join(", ")}, ${n} ${n === 1 ? "change" : "changes"}${worst ? `, a ${confidenceWord[worst.confidence]} change of ${spokenMinutes(worst.availableMinutes)}` : ""}`;
+  });
+
+  /**
+   * A new step said once, as it comes (Board → Get off): the rows are not a
+   * live region, or the countdown would be read out every minute.
+   */
+  let news = $state("");
+  let lastStep: string | null = null;
+  $effect(() => {
+    const key = active ? `${active.verb}|${active.title ?? ""}` : "";
+    if (lastStep !== null && key !== lastStep && active) news = untrack(() => active?.spoken ?? "");
+    lastStep = key;
   });
 
   // ------------------------------------------------------------ the compact form's one row
@@ -513,7 +634,8 @@
     walk: "w-0 border-l-2 border-dashed border-ink/40",
     bad: "w-0.5 bg-bad",
   };
-  const GRID = "grid grid-cols-[3.25rem_1.5rem_minmax(0,1fr)_auto] gap-x-2";
+  /** The row grid of the card's own rows; `lc-grid` lets them narrow with the card (the style below). */
+  const GRID = "lc-grid grid grid-cols-[3.25rem_1.5rem_minmax(0,1fr)_auto] gap-x-2";
 </script>
 
 <!-- The line through a row's mark column: above its node, below it, or through a row without one. -->
@@ -568,30 +690,33 @@
 <!-- A step with its verb: the active one (large), or a broken ride further ahead. -->
 {#snippet stepRow(s: Step, above: Seg, below: Seg, dim: boolean)}
   {@const Icon = s.icon}
-  <div class="{GRID} {dim ? 'opacity-50' : ''}" aria-live={s.large ? "polite" : undefined}>
-    <span class="relative col-start-2 row-start-1 self-stretch">{@render seg(above, "through")}</span>
-    <p class="t-label col-start-3 row-start-1 flex items-center gap-1.5 pt-2.5 {s.bad ? 'text-bad-ink' : 'text-brand'}">
-      <Icon class="h-3.5 w-3.5" aria-hidden="true" />{s.verb}
+  <!-- Off the Trips card a row of the list: its words as one sentence, the drawing hidden; the links and buttons stay. -->
+  {@const hide = summary ? undefined : "true"}
+  <div class="step {GRID} {dim ? 'opacity-50' : ''}" role={summary ? undefined : "listitem"}>
+    {#if !summary}<span class="sr-only">{s.spoken}</span>{/if}
+    <span class="s-seg1 relative col-start-2 row-start-1 self-stretch">{@render seg(above, "through")}</span>
+    <p class="s-verb t-label col-start-3 row-start-1 flex items-center gap-1.5 pt-2.5 {s.bad ? 'text-bad-ink' : 'text-brand'}" aria-hidden={hide}>
+      <Icon class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />{s.verb}
     </p>
 
-    <span class="col-start-1 row-span-2 row-start-2 self-start pt-0.5 font-semibold text-ink {s.large ? 't-title' : 't-body'}">
+    <span class="s-time col-start-1 row-span-2 row-start-2 self-start pt-0.5 font-semibold text-ink {s.large ? 't-title' : 't-body'}" aria-hidden={hide}>
       {#if s.time}
         <ShiftedTime planned={s.time.planned} current={s.time.current} cancelled={s.time.cancelled} block={false} class="flex-wrap gap-y-0" />
       {/if}
     </span>
-    <span class="relative col-start-2 row-start-2 flex items-center justify-center self-stretch">
+    <span class="s-node relative col-start-2 row-start-2 flex items-center justify-center self-stretch">
       {@render seg(above, "above")}
       {@render seg(below, "below")}
       {@render node(s.node)}
     </span>
     {#if s.leave}
-      <p class="col-start-3 row-start-2 text-[1.375rem] leading-tight font-semibold text-brand tabular">{s.countdown}</p>
+      <p class="s-title col-start-3 row-start-2 text-[1.375rem] leading-tight font-semibold text-brand tabular" aria-hidden={hide}>{s.countdown}</p>
     {:else}
-      <p class="col-start-3 row-start-2 min-w-0 font-semibold text-ink [overflow-wrap:anywhere] {s.large ? 'text-[1.375rem] leading-tight' : 't-title'}">{breakable(s.title)}</p>
+      <p class="s-title col-start-3 row-start-2 min-w-0 font-semibold text-ink [overflow-wrap:anywhere] {s.large ? 'text-[1.375rem] leading-tight' : 't-title'}" aria-hidden={hide}>{breakable(s.title)}</p>
     {/if}
 
-    <span class="relative col-start-2 row-start-3 self-stretch">{@render seg(below, "through")}</span>
-    <div class="col-start-3 row-start-3 min-w-0 pb-2.5">
+    <span class="s-seg3 relative col-start-2 row-start-3 self-stretch">{@render seg(below, "through")}</span>
+    <div class="s-more col-start-3 row-start-3 min-w-0 pb-2.5">
       {#if s.leave}
         {#if settingsHref && !summary}
           <a href={settingsHref} class="t-meta inline-flex min-h-8 items-center gap-1 hover:text-brand" title="Time to the station, in Settings">
@@ -601,14 +726,18 @@
           <Fact icon={Footprints} label="To the station" value={`${stationMinutes} min`} />
         {/if}
       {:else if s.countdown}
-        <p class="t-body font-bold text-brand tabular">{s.countdown}</p>
+        <p class="t-body font-bold text-brand tabular" aria-hidden={hide}>{s.countdown}</p>
       {:else if s.station}
-        <p class="t-meta truncate">{s.station}</p>
+        <p class="t-meta truncate" aria-hidden={hide}>{s.station}</p>
+      {/if}
+      {#if s.seat}
+        <!-- Where to sit, under the countdown: the coach to look for on the platform. -->
+        <span class="mt-0.5 flex" aria-hidden={hide}><Seat coach={s.seat.coach} seats={s.seat.seats} class="text-ink" /></span>
       {/if}
       {#if s.actions && anchor === (s.bad ? "broken" : "destination")}{@render actions(!!reason && reason !== "at_risk", false)}{/if}
     </div>
     {#if s.platform}
-      <span class="col-start-4 row-span-3 row-start-1 self-center">
+      <span class="s-platform col-start-4 row-span-3 row-start-1 self-center" aria-hidden={hide}>
         <PlatformBox planned={s.platform.planned_platform} current={s.platform.platform} size={s.large ? "step" : "row"} />
       </span>
     {/if}
@@ -618,12 +747,14 @@
 <!-- The ride in focus on its stretch of line: the scene, the train, where it is. -->
 {#snippet band(through: Seg, first: boolean)}
   {@const caption = !!leg && !focusBroken}
-  <div class="grid grid-cols-[3.25rem_1.5rem_minmax(0,1fr)] gap-x-2">
-    <span class="relative col-start-2 self-stretch">
+  {@const spoken = !summary && bandSpoken !== ""}
+  <div class="band grid grid-cols-[3.25rem_1.5rem_minmax(0,1fr)] gap-x-2" role={spoken ? "listitem" : undefined} aria-hidden={summary || spoken ? undefined : "true"}>
+    {#if spoken}<span class="sr-only">{bandSpoken}</span>{/if}
+    <span class="b-seg relative col-start-2 self-stretch">
       <!-- First in the card (the Trips card): the line starts with the scene. -->
       <span class="absolute inset-x-0 bottom-0 {first ? 'top-3' : 'top-0'}">{@render seg(through, "through")}</span>
     </span>
-    <div class="min-w-0 py-1.5">
+    <div class="b-body min-w-0 py-1.5" aria-hidden={spoken ? "true" : undefined}>
       <div class="overflow-hidden rounded-xl">
         <Scene
           state={sceneState}
@@ -638,15 +769,15 @@
         />
       </div>
       {#if caption && leg}
-        <div class="mt-2 flex min-w-0 items-center gap-2">
+        <div class="b-cap mt-2 flex min-w-0 items-center gap-2">
           <LegChip {leg} size="md" />
-          {#if leg.headsign}<span class="t-body min-w-0 truncate font-semibold text-ink">to {leg.headsign}</span>{/if}
+          {#if leg.headsign}<span class="b-head t-body min-w-0 truncate font-semibold text-ink">to {leg.headsign}</span>{/if}
           {#if speed !== null}<Fact icon={Gauge} label="Speed" value={`${speed} km/h`} class="ml-auto font-semibold text-ink" />{/if}
         </div>
       {/if}
       {#if caption && !summary}
         {#if passing}
-          <div class="t-meta mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5">
+          <div class="b-pass t-meta mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5">
             {#if passing.reached}
               <span class="inline-flex min-w-0 max-w-full items-center gap-1">
                 <Check class="h-3.5 w-3.5 shrink-0" aria-hidden="true" /><span class="sr-only">Passed</span>
@@ -693,10 +824,11 @@
 {#snippet changeRow(t: Transfer, above: Seg, dim: boolean)}
   {#if t === riskyChange}
     <!-- At risk or impossible: the change turns red, with the alternatives right there. -->
-    <div class="{GRID} {dim ? 'opacity-50' : ''}">
+    <div class="{GRID} {dim ? 'opacity-50' : ''}" role="listitem">
+      <span class="sr-only">{spokenChange(t)}</span>
       <span class="relative col-start-2 self-stretch">{@render seg(above, "through")}</span>
       <div class="col-span-2 col-start-3 my-1 rounded-2xl bg-bad-soft px-3 py-2 text-bad-ink ring-1 ring-bad/40 ring-inset">
-        <div class="flex flex-wrap items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2" aria-hidden="true">
           <ConfidenceChip confidence={t.confidence} minutes={t.availableMinutes} word />
           {@render platforms(t)}
         </div>
@@ -704,36 +836,51 @@
       </div>
     </div>
   {:else}
-    <StopRow class={dim ? "opacity-50" : ""}>
-      {#snippet mark()}{@render seg(above, "through")}{/snippet}
-      {#snippet line()}
-        <ConfidenceChip confidence={t.confidence} minutes={t.availableMinutes} word />
-        {@render platforms(t)}
-      {/snippet}
-    </StopRow>
+    <div role="listitem">
+      <span class="sr-only">{spokenChange(t)}</span>
+      <div aria-hidden="true">
+        <StopRow class={dim ? "opacity-50" : ""}>
+          {#snippet mark()}{@render seg(above, "through")}{/snippet}
+          {#snippet line()}
+            <ConfidenceChip confidence={t.confidence} minutes={t.availableMinutes} word />
+            {@render platforms(t)}
+          {/snippet}
+        </StopRow>
+      </div>
+    </div>
   {/if}
 {/snippet}
 
 {#snippet destinationRow(above: Seg, dim: boolean)}
   {#if lastRide}
-    <StopRow
-      planned={lastRide.to.planned}
-      current={lastRide.to.current}
-      name={trip.destination_name}
-      platformPlanned={lastRide.to.planned_platform}
-      platformCurrent={lastRide.to.platform}
-      class={dim ? "opacity-50" : ""}
-    >
-      {#snippet mark()}{@render seg(above, "above")}{@render node("flag")}{/snippet}
-      {#if anchor === "destination"}{@render actions(!!reason && reason !== "at_risk", false)}{/if}
-    </StopRow>
-    {#if onBackToPlan && !summary}
-      <div class={GRID}>
-        <span class="col-start-3">
-          <button type="button" class="btn btn-ghost btn-sm -ml-3 rounded-full text-brand" onclick={onBackToPlan} disabled={busy}>Back to the plan</button>
-        </span>
+    <div role="listitem">
+      <span class="sr-only">{sentence(`Destination ${trip.destination_name}`, spokenPlatform(lastRide.to), spokenTime(lastRide.to))}</span>
+      <div aria-hidden="true">
+        <StopRow
+          planned={lastRide.to.planned}
+          current={lastRide.to.current}
+          name={trip.destination_name}
+          platformPlanned={lastRide.to.planned_platform}
+          platformCurrent={lastRide.to.platform}
+          class={dim ? "opacity-50" : ""}
+        >
+          {#snippet mark()}{@render seg(above, "above")}{@render node("flag")}{/snippet}
+        </StopRow>
       </div>
-    {/if}
+      <!-- Under the destination's name, outside the hidden drawing: what to do now that the binding is lifted, and the way back to the plan. -->
+      {#if anchor === "destination" && ((reason && onAlternatives) || lifted)}
+        <div class="{GRID} -mt-1.5 pb-1.5 {dim ? 'opacity-50' : ''}">
+          <span class="col-start-3">{@render actions(!!reason && reason !== "at_risk", true)}</span>
+        </div>
+      {/if}
+      {#if onBackToPlan}
+        <div class={GRID}>
+          <span class="col-start-3">
+            <button type="button" class="btn btn-ghost btn-sm -ml-3 rounded-full text-brand" onclick={onBackToPlan} disabled={busy}>Back to the plan</button>
+          </span>
+        </div>
+      {/if}
+    </div>
   {/if}
 {/snippet}
 
@@ -744,7 +891,7 @@
       <Scene state="arrived" size="header" train={sceneTrain} at={now} lat={skyAt?.lat} lon={skyAt?.lon} />
     {/if}
 
-    <div class="px-4 pb-1 pt-1.5">
+    <div class="@container px-4 pb-1 pt-1.5">
       {#if summary}
         <!-- The Trips card: the band, the active step, then one row. -->
         <!-- In time order, as on the full card: before boarding the step comes first, on board the band. -->
@@ -772,45 +919,60 @@
           </div>
         {/if}
       {:else}
+        <!-- A new step, said once. -->
+        <p class="sr-only" aria-live="polite">{news}</p>
+        <div role="list" aria-label="Journey">
         {#each rows as r, k (k)}
           {@const above = rows[k - 1]?.seg ?? "none"}
           {@const dim = dimmed(k, r)}
           {#if r.kind === "done"}
             {@const first = doneRides[0].l}
-            <button type="button" class="block w-full text-left" aria-expanded={doneOpen} onclick={() => (doneOpen = !doneOpen)}>
-              <StopRow planned={first.from.planned} current={first.from.current} name={first.from.name} muted class="min-h-12">
-                {#snippet mark()}{@render seg(r.seg, "below")}{@render node("done")}{/snippet}
-                <span class="t-meta">{doneRides.length} {doneRides.length === 1 ? "ride" : "rides"} done{replanned ? " · re-planned" : ""}</span>
-                {#snippet trailing()}
-                  <ChevronDown class="h-5 w-5 text-muted transition-transform {doneOpen ? 'rotate-180' : ''}" aria-label={doneOpen ? "Hide what is done" : "Show what is done"} />
-                {/snippet}
-              </StopRow>
-            </button>
+            <div role="listitem">
+              <button type="button" class="block w-full text-left" aria-expanded={doneOpen} aria-label={doneLabel} onclick={() => (doneOpen = !doneOpen)}>
+                <StopRow planned={first.from.planned} current={first.from.current} name={first.from.name} muted class="min-h-12">
+                  {#snippet mark()}{@render seg(r.seg, "below")}{@render node("done")}{/snippet}
+                  <span class="t-meta">{doneRides.length} {doneRides.length === 1 ? "ride" : "rides"} done{replanned ? " · re-planned" : ""}</span>
+                  {#snippet trailing()}
+                    <ChevronDown class="h-5 w-5 text-muted transition-transform motion-reduce:transition-none {doneOpen ? 'rotate-180' : ''}" aria-hidden="true" />
+                  {/snippet}
+                </StopRow>
+              </button>
+            </div>
           {:else if r.kind === "doneRide"}
             {@const ride = legs[r.index]}
-            <StopRow
-              planned={r.first ? null : ride.from.planned}
-              current={r.first ? null : ride.from.current}
-              name={ride.headsign ? `to ${ride.headsign}` : ""}
-              muted
-              platformPlanned={ride.from.planned_platform}
-              platformCurrent={ride.from.platform}
-            >
-              {#snippet mark()}{@render seg(r.seg, "through")}{/snippet}
-              {#snippet line()}<LegChip leg={ride} />{/snippet}
-            </StopRow>
+            <div role="listitem">
+              <span class="sr-only">{spokenDoneRide(r.index, r.first)}</span>
+              <div aria-hidden="true">
+                <StopRow
+                  planned={r.first ? null : ride.from.planned}
+                  current={r.first ? null : ride.from.current}
+                  name={ride.headsign ? `to ${ride.headsign}` : ""}
+                  muted
+                  platformPlanned={ride.from.planned_platform}
+                  platformCurrent={ride.from.platform}
+                >
+                  {#snippet mark()}{@render seg(r.seg, "through")}{/snippet}
+                  {#snippet line()}<LegChip leg={ride} />{/snippet}
+                </StopRow>
+              </div>
+            </div>
           {:else if r.kind === "stop"}
-            <StopRow
-              planned={r.stop.planned}
-              current={r.stop.current}
-              name={r.name}
-              muted={r.muted}
-              platformPlanned={r.platform ? r.stop.planned_platform : null}
-              platformCurrent={r.platform ? r.stop.platform : null}
-              class={dim ? "opacity-50" : ""}
-            >
-              {#snippet mark()}{@render seg(above, "above")}{@render seg(r.seg, "below")}{@render node(r.node)}{/snippet}
-            </StopRow>
+            <div role="listitem">
+              <span class="sr-only">{spokenStop(r)}</span>
+              <div aria-hidden="true">
+                <StopRow
+                  planned={r.stop.planned}
+                  current={r.stop.current}
+                  name={r.name}
+                  muted={r.muted}
+                  platformPlanned={r.platform ? r.stop.planned_platform : null}
+                  platformCurrent={r.platform ? r.stop.platform : null}
+                  class={dim ? "opacity-50" : ""}
+                >
+                  {#snippet mark()}{@render seg(above, "above")}{@render seg(r.seg, "below")}{@render node(r.node)}{/snippet}
+                </StopRow>
+              </div>
+            </div>
           {:else if r.kind === "band"}
             {@render band(r.seg, k === 0)}
           {:else if r.kind === "step"}
@@ -820,20 +982,27 @@
           {:else if r.kind === "train"}
             {@const train = legs[r.index]}
             {@const into = changeInto(r.index)}
-            <StopRow
-              planned={train.from.planned}
-              current={train.from.current}
-              name={train.headsign ? `to ${train.headsign}` : train.from.name}
-              platformPlanned={train.from.planned_platform}
-              platformCurrent={train.from.platform}
-              class={dim ? "opacity-50" : ""}
-            >
-              {#snippet mark()}{@render seg(above, "above")}{@render seg(r.seg, "below")}{@render node("plain")}{/snippet}
-              {#snippet line()}<LegChip leg={train} />{/snippet}
-              {#if into?.changesStation && train.headsign}<span class="t-meta truncate">{train.from.name}</span>{/if}
-            </StopRow>
+            <div role="listitem">
+              <span class="sr-only">{spokenTrain(r.index)}</span>
+              <div aria-hidden="true">
+                <StopRow
+                  planned={train.from.planned}
+                  current={train.from.current}
+                  name={train.headsign ? `to ${train.headsign}` : train.from.name}
+                  platformPlanned={train.from.planned_platform}
+                  platformCurrent={train.from.platform}
+                  class={dim ? "opacity-50" : ""}
+                >
+                  {#snippet mark()}{@render seg(above, "above")}{@render seg(r.seg, "below")}{@render node("plain")}{/snippet}
+                  {#snippet line()}<LegChip leg={train} />{/snippet}
+                  {#if into?.changesStation && train.headsign}<span class="t-meta truncate">{train.from.name}</span>{/if}
+                  <Seat coach={train.coach} seats={train.seats} />
+                </StopRow>
+              </div>
+            </div>
           {:else if r.kind === "later"}
-            <button type="button" class="block w-full text-left {dim ? 'opacity-50' : ''}" aria-expanded={laterOpen} onclick={() => (laterOpen = !laterOpen)}>
+            <div role="listitem">
+            <button type="button" class="block w-full text-left {dim ? 'opacity-50' : ''}" aria-expanded={laterOpen} aria-label={laterLabel} onclick={() => (laterOpen = !laterOpen)}>
               <StopRow class="min-h-12">
                 {#snippet mark()}{@render seg(r.seg, "through")}{/snippet}
                 {#snippet line()}
@@ -847,14 +1016,16 @@
                   </span>
                 {/snippet}
                 {#snippet trailing()}
-                  <ChevronDown class="h-5 w-5 text-muted transition-transform {laterOpen ? 'rotate-180' : ''}" aria-label={laterOpen ? "Hide the later rides" : "Show the later rides"} />
+                  <ChevronDown class="h-5 w-5 text-muted transition-transform motion-reduce:transition-none {laterOpen ? 'rotate-180' : ''}" aria-hidden="true" />
                 {/snippet}
               </StopRow>
             </button>
+            </div>
           {:else if r.kind === "destination"}
             {@render destinationRow(above, dim)}
           {/if}
         {/each}
+        </div>
 
         <!-- How fresh it all is, and how Abeona knows: the last, smallest line. -->
         {#if freshness || !arrived}
@@ -888,9 +1059,6 @@
     </div>
   </div>
 
-  {#if !arrived && !summary}
-    <TripMap {legs} {marker} focus={onBoard ? leg : null} />
-  {/if}
 </section>
 
 {#if !summary}
@@ -944,3 +1112,74 @@
   <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 {/if}
+
+<style>
+  /*
+   * A narrow card (a phone at 150 % text and more): four columns of large
+   * text leave the names no room, so the time moves above the name, the
+   * platform beside the verb, and the name takes the whole width under them.
+   * StopRow does the same for its rows.
+   */
+  @container (width < 16rem) {
+    .lc-grid {
+      grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+    }
+    .lc-grid > :global(.col-start-2) {
+      grid-column: 1;
+    }
+    .lc-grid > :global(.col-start-3) {
+      grid-column: 2 / -1;
+    }
+    .step > .s-seg1 {
+      grid-column: 1;
+      grid-row: 1;
+    }
+    .step > .s-verb {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    .step > .s-time {
+      grid-column: 2;
+      grid-row: 2;
+      align-self: center;
+    }
+    .step > .s-node {
+      grid-column: 1;
+      grid-row: 2 / span 2;
+    }
+    .step > .s-title {
+      grid-column: 2 / -1;
+      grid-row: 3;
+    }
+    .step > .s-seg3 {
+      grid-column: 1;
+      grid-row: 4;
+    }
+    .step > .s-more {
+      grid-column: 2 / -1;
+      grid-row: 4;
+    }
+    .step > .s-platform {
+      grid-column: 3;
+      grid-row: 1 / span 2;
+    }
+    .band {
+      grid-template-columns: 1.5rem minmax(0, 1fr);
+    }
+    .band > .b-seg {
+      grid-column: 1;
+    }
+    .band > .b-body {
+      grid-column: 2;
+    }
+    .b-cap,
+    .b-pass > :global(span) {
+      flex-wrap: wrap;
+    }
+    .b-head,
+    .b-pass :global(.truncate) {
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+  }
+</style>

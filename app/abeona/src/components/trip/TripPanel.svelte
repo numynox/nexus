@@ -37,6 +37,8 @@
   import type { Leg } from "../../lib/transit";
   import { type AlternativesOrigin, alternativesOrigin, alternativesReason, missedShortConnection, type TravelDay, travelDay } from "../../lib/travelday";
   import { cardsForTrip } from "../../lib/ticketNeeds";
+  import { type MapMarker, rideProgress } from "../../lib/progress";
+  import { keepScreenOn } from "../../lib/wakeLock";
   import Banner from "../common/Banner.svelte";
   import BindingBanner from "../common/BindingBanner.svelte";
   import ConfidenceChip from "../common/ConfidenceChip.svelte";
@@ -45,6 +47,7 @@
   import LiveDashboard from "../live/LiveDashboard.svelte";
   import ShiftedTime from "../common/ShiftedTime.svelte";
   import AlternativesSection from "./AlternativesSection.svelte";
+  import ArrivalPostcard from "./ArrivalPostcard.svelte";
   import CompensationCard from "./CompensationCard.svelte";
   import DisruptionCard from "./DisruptionCard.svelte";
   import EditTripSheet from "./EditTripSheet.svelte";
@@ -69,6 +72,7 @@
   let sharing = $state(false);
   let alternativesSection: ReturnType<typeof AlternativesSection> | undefined = $state();
   let compensationCard: ReturnType<typeof CompensationCard> | undefined = $state();
+  let arrivalPostcard: ReturnType<typeof ArrivalPostcard> | undefined = $state();
   /** Ticks every 15 seconds, so the countdowns and the train on its line move. */
   let now = $state(Date.now());
   let stationMinutes = $state(15);
@@ -141,6 +145,31 @@
   const liveCard = $derived(!!day && !arrived);
   /** The live card shows the journey as its line, so the timeline waits until arrival. */
   const journeyLive = $derived(!!cardDay && cardDay.kind !== "arrived");
+  /** The ride the live card is about. */
+  const focusLeg = $derived(liveCard && day && day.legIndex !== null ? legs[day.legIndex] : null);
+  /** You on the map while the trip is live: the browser's position, else where the timetable puts your train. */
+  const marker = $derived.by((): MapMarker | null => {
+    if (!liveCard) return null;
+    if (position) return { lat: position.lat, lon: position.lon, kind: "location" };
+    const progress = day?.kind === "on_board" && focusLeg ? rideProgress(focusLeg, now) : null;
+    return progress?.estimate ? { ...progress.estimate, kind: "timetable" } : null;
+  });
+  /**
+   * The postcard, once the trip has arrived and nothing about it is broken:
+   * not over a ride that did not run or a change that could not be made
+   * (until "What happened" records what was taken instead).
+   */
+  const postcard = $derived(
+    arrived && !!trip && trip.status !== "cancelled" && !legs.some((l) => l.mode !== "walk" && l.cancelled) && !hasImpossibleChange(legs),
+  );
+
+  // The screen stays on while the platform and the countdown are what the
+  // traveller glances at: at the station and changing trains.
+  const keepAwake = $derived(liveCard && (day?.kind === "at_station" || day?.kind === "changing"));
+  $effect(() => {
+    if (!keepAwake) return;
+    return keepScreenOn();
+  });
   /** How fresh the live values are: an icon and a time, the last and smallest line of the card or the page. */
   const status = $derived.by((): { text: string; label: string; kind: "live" | "timetable" | "offline" | "done" } | null => {
     if (!trip || !s) return null;
@@ -416,6 +445,16 @@
   </div>
 {:else}
   {@const route = `${trip.origin_name} → ${trip.destination_name}`}
+  <!--
+    One column on a phone held upright, the map under the live card (or
+    under the timeline off the day). Tray-table mode (wide screens, and a
+    phone lying sideways): two panes, everything on the left, the map on the
+    right filling the height and staying put while the left scrolls. The
+    left pane is `display: contents` in one column, so its parts and the map
+    fall into one order there.
+  -->
+  <div class="panes">
+  <div class="left">
   <div class="space-y-3">
     <!-- The top bar: the trip's name, the ticket one tap away, refresh, the rest under ⋮. -->
     <div class="flex min-h-12 items-center gap-1">
@@ -428,7 +467,7 @@
         <Ticket class="h-6 w-6 {trip.ticket_path ? 'text-brand' : ''}" aria-hidden="true" />
       </button>
       <button class="btn btn-ghost btn-circle btn-sm" onclick={refresh} disabled={refreshing} aria-label="Refresh" title="Refresh">
-        <RefreshCw class="h-6 w-6 {refreshing ? 'animate-spin' : ''}" aria-hidden="true" />
+        <RefreshCw class="h-6 w-6 {refreshing ? 'animate-spin motion-reduce:animate-none' : ''}" aria-hidden="true" />
       </button>
       <details class="dropdown dropdown-end" bind:this={menu}>
         <summary class="btn btn-ghost btn-circle btn-sm" aria-label="More"><EllipsisVertical class="h-6 w-6" aria-hidden="true" /></summary>
@@ -478,7 +517,7 @@
     {:else}
       <!-- Before the travel day: when it leaves and arrives, and how the trip is made up. -->
       <header class="space-y-2 px-1">
-        <p class="flex items-center gap-2">
+        <p class="flex flex-wrap items-center gap-x-2">
           <ShiftedTime planned={s.departure.planned} current={s.departure.current} cancelled={s.cancelled} class="t-time text-ink" />
           <span class="t-time text-muted" aria-label="to">→</span>
           <ShiftedTime planned={s.arrival.planned} current={s.arrival.current} class="t-time text-ink" />
@@ -493,66 +532,73 @@
         {@render tripNotices()}
       {/if}
     {/if}
+  </div>
 
-    {#if droppedOrigin}
-      <AlternativesSection
-        bind:this={alternativesSection}
-        trip={shown ?? trip}
-        origin={droppedOrigin}
-        reason="dropped"
-        refreshKey={trip.updated_at}
-        onTake={takeInstead}
-      />
-    {:else if day && origin}
-      <AlternativesSection
-        bind:this={alternativesSection}
-        trip={shown ?? trip}
-        {origin}
-        {reason}
-        connectionMissed={missedShort}
-        refreshKey={trip.refreshed_at}
-        onTake={take}
-      />
-    {/if}
+  {#if droppedOrigin || (day && origin) || arrived || !journeyLive}
+    <div class="space-y-3 order-2">
+      {#if droppedOrigin}
+        <AlternativesSection
+          bind:this={alternativesSection}
+          trip={shown ?? trip}
+          origin={droppedOrigin}
+          reason="dropped"
+          refreshKey={trip.updated_at}
+          onTake={takeInstead}
+        />
+      {:else if day && origin}
+        <AlternativesSection
+          bind:this={alternativesSection}
+          trip={shown ?? trip}
+          {origin}
+          {reason}
+          connectionMissed={missedShort}
+          refreshKey={trip.refreshed_at}
+          onTake={take}
+        />
+      {/if}
 
-    {#if arrived}
-      <!-- After the ride: what it is worth, and what really happened. -->
-      <div class="grid gap-3 lg:grid-cols-2 lg:items-start">
+      {#if arrived}
+        <!-- After the ride: what it is worth first, then the postcard, then what really happened. -->
         <CompensationCard bind:this={compensationCard} {trip} onTripChanged={(changed) => (trip = changed)} />
+        {#if postcard}
+          {#key trip.id}<ArrivalPostcard bind:this={arrivalPostcard} {trip} {legs} />{/key}
+        {/if}
         <DisruptionCard
           {trip}
           onChanged={(changed) => {
             trip = changed;
             void compensationCard?.reload();
+            void arrivalPostcard?.reload();
           }}
         />
-      </div>
-    {/if}
+      {/if}
 
-    <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
       {#if !journeyLive}
         <!-- While the card is live it is the journey; the timeline returns once arrived. -->
         <Timeline {legs} />
       {/if}
-
-      <aside class="space-y-3 lg:sticky lg:top-6">
-        {#if !day || arrived}
-          <!-- While the trip is live the dashboard has the map, with you on it. -->
-          <TripMap {legs} />
-        {/if}
-        <TicketCard
-          bind:this={ticketCard}
-          {trip}
-          onChanged={(path) => trip && (trip = { ...trip, ticket_path: path })}
-          onShow={() => (showTicket = true)}
-        />
-      </aside>
     </div>
+  {/if}
+
+  <div class="space-y-3 order-4">
+    <TicketCard
+      bind:this={ticketCard}
+      {trip}
+      onChanged={(path) => trip && (trip = { ...trip, ticket_path: path })}
+      onShow={() => (showTicket = true)}
+    />
 
     {#if status && !cardDay}
       <!-- How fresh it all is: the last, smallest line. -->
       <Fact icon={status.kind === "timetable" ? Clock : status.kind === "done" ? CircleCheck : RefreshCw} label={status.label} value={status.text} class="px-1" />
     {/if}
+  </div>
+  </div>
+
+  <!-- The map: under the live card while the trip is live (you on it), else under the timeline; in tray-table mode, the right pane. -->
+  <div class="map {liveCard ? 'order-1' : 'order-3'}">
+    <TripMap {legs} {marker} focus={liveCard && day?.kind === "on_board" ? focusLeg : null} class="trip-map" />
+  </div>
   </div>
 
   {#if showTicket && trip.ticket_path}
@@ -561,6 +607,7 @@
       title={trip.title ?? `${trip.origin_name} → ${trip.destination_name}`}
       {navigatorUrl}
       extras={ticketCards}
+      rides={legs.filter((l) => l.mode !== "walk")}
       onClose={() => (showTicket = false)}
     />
   {/if}
@@ -585,3 +632,49 @@
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
   </dialog>
 {/if}
+
+<style>
+  /*
+   * Tray-table mode (abeona-design.md §9): on a wide screen, and on a phone
+   * lying sideways (landscape, at most 480 px tall), the map is its own pane
+   * on the right, as tall as the window and staying put while the left one
+   * scrolls. Otherwise one column, the left pane's parts and the map in the
+   * order their `order-*` classes give.
+   */
+  .panes {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .left {
+    display: contents;
+  }
+  @media (min-width: 64rem), (orientation: landscape) and (max-height: 480px) {
+    .panes {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+      align-items: start;
+    }
+    .left {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      min-width: 0;
+    }
+    .map {
+      position: sticky;
+      /* Under the top padding; above the tab bar, which a sideways phone still has. */
+      top: max(1rem, env(safe-area-inset-top));
+      height: calc(100dvh - max(1rem, env(safe-area-inset-top)) - 5.5rem - env(safe-area-inset-bottom));
+    }
+    .map :global(.trip-map) {
+      height: 100%;
+    }
+  }
+  @media (min-width: 64rem) {
+    .map {
+      top: 2rem;
+      height: calc(100dvh - 4rem);
+    }
+  }
+</style>

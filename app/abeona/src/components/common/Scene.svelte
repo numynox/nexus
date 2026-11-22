@@ -126,7 +126,10 @@
     themes.observe(root, { attributes: true, attributeFilter: ["data-theme", "class"] });
     const tick = setInterval(() => (clock = Date.now()), 60_000);
 
-    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // Animations off in the system (prefers-reduced-motion): a still
+    // picture, the clouds and the land where they are. Turned back on, it
+    // moves again.
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
     let frame = 0;
     let last = 0;
     let velocity = 0;
@@ -153,10 +156,18 @@
       } else farTrain = -1;
       frame = requestAnimationFrame(step);
     };
-    if (!still) frame = requestAnimationFrame(step);
+    const motion = () => {
+      cancelAnimationFrame(frame);
+      frame = 0;
+      last = 0;
+      if (!reduce.matches) frame = requestAnimationFrame(step);
+    };
+    motion();
+    reduce.addEventListener("change", motion);
     return () => {
       themes.disconnect();
       clearInterval(tick);
+      reduce.removeEventListener("change", motion);
       cancelAnimationFrame(frame);
     };
   });
@@ -239,7 +250,7 @@
     {/if}
     {@render endCar(kind)}
     {#if lit}
-      <circle cx="-1.8" cy="-4.2" r={flash ? 2.4 : 0.9} fill="#ffe3a6" class="transition-all duration-200" />
+      <circle cx="-1.8" cy="-4.2" r={flash ? 2.4 : 0.9} fill="#ffe3a6" class="transition-all duration-200 motion-reduce:transition-none" />
     {/if}
     <!-- The whole train is the thing to tap. -->
     <rect x={-trainLength(kind)} y={-spec.height} width={trainLength(kind)} height={spec.height} fill="transparent" onpointerdown={tapTrain} role="presentation" />
@@ -272,7 +283,7 @@
     {/if}
 
     <!-- The sun by day, the moon in its phase by night. -->
-    <g class="origin-center transition-transform duration-300 {pulse ? 'scale-125' : ''}" style="transform-box: fill-box" onpointerdown={tapLight} role="img" aria-label={lightLabel}>
+    <g class="origin-center transition-transform duration-300 motion-reduce:transition-none {pulse ? 'scale-125' : ''}" style="transform-box: fill-box" onpointerdown={tapLight} role="img" aria-label={lightLabel}>
       {#if sky.night}
         <circle cx={lightAt.x} cy={height - lightAt.up} r={lightR} fill={colours.moon} opacity="0.22" />
         <path d={moonLitPath(moonPhase(moment), lightAt.x, height - lightAt.up, lightR)} fill={colours.moon} />

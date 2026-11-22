@@ -143,6 +143,9 @@ class AppScreenshots {
         shot("06b-trip-edit")
         scrollIntoView("Travellers")
         shot("06c-trip-edit-travellers")
+        // Each ride's coach and seat, at the end of the sheet.
+        scrollIntoView("RE 10 · Würzburg Hbf → Bamberg")
+        shot("06e-trip-edit-seats")
         dismiss()
         // Share links: a sheet under ⋮ too.
         tapIcon("More")
@@ -202,12 +205,15 @@ class AppScreenshots {
         tapIcon("Story 6")
         shot("15-review-time")
         tapIcon("Story 7")
-        shot("16-review-delays")
+        waitForText("top speed on board")
+        shot("15b-review-top-speed")
         tapIcon("Story 8")
-        shot("17-review-favourites")
+        shot("16-review-delays")
         tapIcon("Story 9")
-        shot("18-review-products")
+        shot("17-review-favourites")
         tapIcon("Story 10")
+        shot("18-review-products")
+        tapIcon("Story 11")
         shot("19-review-months")
 
         tap("Settings")

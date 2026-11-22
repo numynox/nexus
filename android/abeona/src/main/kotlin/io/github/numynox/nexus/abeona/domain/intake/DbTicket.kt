@@ -196,7 +196,11 @@ fun parseDbTickets(text: String): List<ParsedTicket> {
     }
 }
 
-/** "ab" and "an" rows → rides; a ride without a product in its row takes the next booked train. */
+/**
+ * "ab" and "an" rows → rides; a ride without a product in its row takes the
+ * next booked train. A ride's note is its "ab" row's and its "an" row's
+ * joined: a reservation wraps onto the arrival row.
+ */
 private fun legsOf(rows: List<Row>, booked: List<String>): List<ParsedLeg> {
     val legs = mutableListOf<ParsedLeg>()
     var open: Row? = null
@@ -219,7 +223,7 @@ private fun legsOf(rows: List<Row>, booked: List<String>): List<ParsedLeg> {
             arrival = row.time,
             fromPlatform = start.platform,
             toPlatform = row.platform,
-            reservation = start.note,
+            reservation = listOfNotNull(start.note, row.note).joinToString(" ").ifEmpty { null },
         )
         open = null
     }

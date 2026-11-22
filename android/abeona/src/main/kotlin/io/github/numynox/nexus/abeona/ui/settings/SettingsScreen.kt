@@ -199,15 +199,23 @@ fun SettingsScreen(app: AppViewModel, navigator: Navigator) {
                     ) { on -> if (on && !location.hasPermission()) locationPermission.launch(TripLocation.PERMISSIONS) else app.setTripLocation(on) }
                     Hairline()
                     val alerts = settings.alerts
+                    // Reads "Delays from 5 min": one alert when a train is that late, then only what it means at the end.
                     SettingLine(
-                        "Delay alert",
+                        "Delays from",
                         Icons.Rounded.Timelapse,
-                        info = "What the live companion tells you at once: when your train is this late, and again each time it is as much later.",
+                        info = "An update when your train is this late. After that only when the delay at your destination reaches 60 or 120 minutes, which DB compensates.",
                     ) {
-                        ValueMenu(AlertSettings.DELAY_CHOICES, alerts.delayMinutes, { app.setAlerts(alerts.copy(delayMinutes = it)) }, "Delay alert") {
+                        ValueMenu(AlertSettings.DELAY_CHOICES, alerts.delayMinutes, { app.setAlerts(alerts.copy(delayMinutes = it)) }, "Delays from") {
                             if (it == 0) "Off" else "$it min"
                         }
                     }
+                    Hairline()
+                    SwitchLine(
+                        "Get off reminder",
+                        Icons.AutoMirrored.Rounded.Logout,
+                        info = "Five minutes before you get off: where, the platform, and your next train. It works without a connection.",
+                        checked = alerts.getOffReminder,
+                    ) { app.setAlerts(alerts.copy(getOffReminder = it)) }
                     Hairline()
                     SwitchLine(
                         "Connection at risk",

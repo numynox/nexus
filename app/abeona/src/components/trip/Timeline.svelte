@@ -3,7 +3,8 @@
    * The journey as rows in the row grid on one continuous rail
    * (abeona-design.md §9, Trip): a ride is its first and last stop with its
    * line between them, the stops folded behind "n stops"; a change is one
-   * row; a walk to the first train or from the last one is one row.
+   * row; a walk to the first train or from the last one is one row. A
+   * ride's seat, when the ticket gave one, goes with its line.
    */
   import { ArrowRightLeft, Ban, ChevronDown, Clock, Footprints, GitCommitHorizontal } from "lucide-svelte";
   import { formatDuration, minutesBetween } from "../../lib/format";
@@ -12,6 +13,7 @@
   import ConfidenceChip from "../common/ConfidenceChip.svelte";
   import Fact from "../common/Fact.svelte";
   import LegChip from "../common/LegChip.svelte";
+  import Seat from "../common/Seat.svelte";
   import StatusChip from "../common/StatusChip.svelte";
   import StopRow from "../common/StopRow.svelte";
 
@@ -126,6 +128,7 @@
           <span class="t-meta">non-stop</span>
         {/if}
         {#if leg.operator}<span class="t-meta truncate">{leg.operator}</span>{/if}
+        <Seat coach={leg.coach} seats={leg.seats} class="text-ink" />
       </StopRow>
 
       {#if open.has(i)}

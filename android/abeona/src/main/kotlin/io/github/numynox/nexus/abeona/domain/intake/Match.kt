@@ -68,11 +68,12 @@ fun legMatches(parsed: ParsedLeg, leg: Leg): Boolean =
         sameMinute(leg.from.planned, localToInstant(parsed.date, parsed.departure)) &&
         sameMinute(leg.to.planned, localToInstant(parsed.arrivalDate, parsed.arrival))
 
-/** A parsed ride as a leg of the contract: no route line, no trip id, nothing live. */
+/** A parsed ride as a leg of the contract: no route line, no trip id, nothing live; the reserved seat as printed. */
 fun parsedToLeg(parsed: ParsedLeg): Leg {
     val bus = parsed.product == "BUS"
     fun stop(name: String, planned: Instant, platform: String?) =
         StopTime(name = name, planned = planned.toString(), plannedPlatform = platform, platform = platform)
+    val seat = seatOf(parsed.reservation)
     return Leg(
         mode = if (bus) LegMode.Bus else LegMode.Train,
         product = if (bus) "Bus" else parsed.product,
@@ -80,14 +81,17 @@ fun parsedToLeg(parsed: ParsedLeg): Leg {
         headsign = parsed.headsign,
         from = stop(parsed.from, localToInstant(parsed.date, parsed.departure), parsed.fromPlatform),
         to = stop(parsed.to, localToInstant(parsed.arrivalDate, parsed.arrival), parsed.toPlatform),
+        coach = seat.coach,
+        seats = seat.seats,
     )
 }
 
-/** The timetable's leg, with the printed platforms where it has none. */
+/** The timetable's leg, with the printed platforms where it has none, and the ticket's coach and seats. */
 private fun withPrinted(leg: Leg, parsed: ParsedLeg): Leg {
     fun fill(s: StopTime, platform: String?) =
         if (s.plannedPlatform != null || platform == null) s else s.copy(plannedPlatform = platform, platform = s.platform ?: platform)
-    return leg.copy(from = fill(leg.from, parsed.fromPlatform), to = fill(leg.to, parsed.toPlatform))
+    val seat = seatOf(parsed.reservation)
+    return leg.copy(from = fill(leg.from, parsed.fromPlatform), to = fill(leg.to, parsed.toPlatform), coach = seat.coach, seats = seat.seats)
 }
 
 /** A real position; the lookups' (0, 0) means none. */

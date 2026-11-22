@@ -115,18 +115,18 @@ object FakeBackend {
         realtime = realtime,
     )
 
-    /** In 50 minutes: +7 out of Frankfurt, a tight change in Würzburg, +22 at Bamberg. */
+    /** In 50 minutes: +7 out of Frankfurt, a tight change in Würzburg, +22 at Bamberg; seats reserved on both. */
     private val nextLegs = listOf(
         ride(
             "ICE", "ICE 25", "Wien Hbf",
             stop(frankfurt, 50, 57, "8"), stop(wuerzburg, 118, 125, "4"),
             via = listOf(aschaffenburg to 78L),
-        ),
+        ).copy(coach = "24", seats = "66"),
         ride(
             "RE", "RE 10", "Bamberg",
             stop(wuerzburg, 131, 131, "6", "5"), stop(bamberg, 203, 225, "3"),
             via = listOf(schweinfurt to 160L, hassfurt to 176L), operator = "DB Regio Bayern",
-        ),
+        ).copy(coach = "3", seats = "41 43"),
     )
 
     private val trips = listOf(
@@ -162,7 +162,7 @@ object FakeBackend {
     private val pastTrips: List<Trip> by lazy {
         val y = -1440L
         val late = listOf(
-            ride("ICE", "ICE 25", "Wien Hbf", stop(frankfurt, y + 50, y + 52, "8"), stop(wuerzburg, y + 118, y + 121, "4")),
+            ride("ICE", "ICE 25", "Wien Hbf", stop(frankfurt, y + 50, y + 52, "8"), stop(wuerzburg, y + 118, y + 121, "4")).copy(topSpeedKmh = 287),
             ride("RE", "RE 10", "Bamberg", stop(wuerzburg, y + 131, y + 133, "6"), stop(bamberg, y + 203, y + 275, "3"), operator = "DB Regio Bayern"),
         )
         val w = -6 * 1440L
@@ -364,6 +364,9 @@ object FakeBackend {
                 addJsonObject { put("user_id", "u2"); put("email", "alex@example.com"); put("full_name", "Alex"); put("role", "member") }
             }
             path.endsWith("/rpc/abeona_statistics") -> statistics()
+            path.endsWith("/rpc/abeona_trip_summary") -> pastTrips.firstOrNull { request.text().contains(it.id) }?.let { summary(it.id) } ?: "null"
+            // A ride's coach and seats, or its top speed, written directly.
+            path.endsWith("/rest/v1/abeona_legs") -> "[]"
             path.endsWith("/rpc/abeona_update_trip_live") -> "null"
             path.endsWith("/rest/v1/abeona_trips") && request.method == HttpMethod.Get -> {
                 val id = params["id"]?.removePrefix("eq.")
@@ -500,6 +503,16 @@ object FakeBackend {
         line(muenchen, Place("sbg", "Salzburg Hbf", 47.8131, 13.0458), 1, "RJX", 0.05)
     }
 
+    /** What each past trip added up to (abeona_trip_summary): yesterday's late one saw 287 km/h. */
+    private fun summary(id: String) = buildJsonObject {
+        when (id) {
+            PAST_LATE -> { put("rides", 2); put("km", 220); put("minutes_on_train", 155); put("delay_minutes", 72); put("top_speed_kmh", 287) }
+            PAST_MISSED -> { put("rides", 2); put("km", 218); put("minutes_on_train", 146); put("delay_minutes", 65); put("top_speed_kmh", null as Int?) }
+            else -> { put("rides", 1); put("km", 62); put("minutes_on_train", 60); put("delay_minutes", 3); put("top_speed_kmh", null as Int?) }
+        }
+        put("co2_train_kg", 7.7); put("co2_car_kg", 40.5); put("co2_saved_kg", 32.8)
+    }
+
     private fun statistics() = buildJsonObject {
         val month = LocalDate.now().monthValue
         put("trips", 38); put("km", 14210); put("minutes_on_train", 9420); put("rides", 61)
@@ -511,6 +524,10 @@ object FakeBackend {
         putJsonObject("co2_factors") { put("car", 166); put("source", "Umweltbundesamt (TREMOD), reference year 2022; approximate") }
         putJsonArray("countries") { add("DE"); add("AT") }
         putJsonObject("longest_trip") { put("trip_id", NEXT); put("from", berlin.name); put("to", muenchen.name); put("km", 812); put("date", "2026-07-18") }
+        put("top_speed_kmh", 287)
+        putJsonObject("top_speed_trip") {
+            put("trip_id", PAST_LATE); put("from", frankfurt.name); put("to", wuerzburg.name); put("line", "ICE 25"); put("kmh", 287); put("date", "2026-10-10")
+        }
         putJsonArray("by_month") {
             val trips = listOf(2, 3, 5, 3, 4, 6, 2, 4, 3, 5, 1, 0)
             (1..month).forEach { m ->
@@ -603,6 +620,7 @@ private fun tripRow(trip: Trip) = buildJsonObject {
                 put("cancelled", leg.cancelled); put("realtime", leg.realtime)
                 put("stopovers", NexusJson.encodeToJsonElement(leg.stopovers))
                 put("polyline", NexusJson.encodeToJsonElement(leg.polyline))
+                put("coach", leg.coach); put("seats", leg.seats); put("top_speed_kmh", leg.topSpeedKmh)
             }
         }
     }

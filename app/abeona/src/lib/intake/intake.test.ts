@@ -11,6 +11,7 @@ import { parseText, parseTicketTrips } from "./intake.ts";
 import { adoptRefound, checkSavedLeg, clearReplacement, localToInstant, matchConnection, type TransitPort } from "./match.ts";
 import type { ParsedShare, ParsedTicket } from "./parsed.ts";
 import { pdfText, type PdfJsLike } from "./pdfText.ts";
+import { seatOf, seatText } from "./seat.ts";
 import { isShareText, parseShareText } from "./shareText.ts";
 import { isTrenitaliaTicket, parseTrenitaliaTicket } from "./trenitaliaTicket.ts";
 import type { Journey, Leg, Station } from "../transit.ts";
@@ -26,6 +27,7 @@ interface Fixtures {
   platforms: { value: string | null; expect: string | null }[];
   lines: { a: string; b: string; same: boolean }[];
   zones: { date: string; time: string; expect: string }[];
+  seats: { cases: { reservation: string | null; coach: string | null; seats: string | null }[] };
   ticket_summary: { name: string; travellers: number | null; discounts: (number | null)[]; expect: { traveller_count: number | null; bahncard_discounts: number[] } }[];
   ticket_cards: {
     name: string;
@@ -164,6 +166,22 @@ test("platforms drop their sectors", () => {
 
 test("line names compare without spaces or case", () => {
   for (const c of fixtures.lines) assert.equal(lineKey(c.a) === lineKey(c.b), c.same, `${c.a} / ${c.b}`);
+});
+
+test("the coach and seats of a ride's reservation", () => {
+  for (const c of fixtures.seats.cases) assert.deepEqual(seatOf(c.reservation), { coach: c.coach, seats: c.seats }, `${c.reservation}`);
+});
+
+// How the seat reads on screen; Android's seatText says the same words.
+test("the seat as shown", () => {
+  assert.equal(seatText("24", "66"), "Coach 24 · Seat 66");
+  assert.equal(seatText("23", "71 73"), "Coach 23 · Seats 71, 73");
+  assert.equal(seatText("7", "45-48"), "Coach 7 · Seats 45–48");
+  assert.equal(seatText("7", "10C 10D"), "Coach 7 · Seats 10C, 10D");
+  assert.equal(seatText("24", null), "Coach 24");
+  assert.equal(seatText(null, "66"), "Seat 66");
+  assert.equal(seatText(" ", null), null);
+  assert.equal(seatText(null, null), null);
 });
 
 test("a ticket's travellers and BahnCards, from what it printed", () => {

@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.EventSeat
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -24,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -33,6 +36,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.TextStyle
@@ -42,6 +46,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.numynox.nexus.abeona.domain.delayMinutes
+import io.github.numynox.nexus.abeona.domain.intake.seatText
 import io.github.numynox.nexus.abeona.ui.AbeonaType
 import io.github.numynox.nexus.abeona.ui.bad
 import io.github.numynox.nexus.abeona.ui.brand
@@ -59,6 +64,21 @@ object RowGrid {
     val Time = 52.dp
     val Mark = 24.dp
     val Gap = 8.dp
+
+    /** From this text size on, rows wrap their words and put what trails a name under it. */
+    const val LARGE_TEXT = 1.5f
+
+    /** The time column at the phone's text size: it grows with the text, so a time is never cut off. */
+    val time: Dp
+        @Composable @ReadOnlyComposable get() = Time * LocalDensity.current.fontScale.coerceAtLeast(1f)
+
+    /** The text is large: a name may take a second line instead of being cut short. */
+    val large: Boolean
+        @Composable @ReadOnlyComposable get() = LocalDensity.current.fontScale >= LARGE_TEXT
+
+    /** Lines a one-line text may take at the phone's text size. */
+    val lines: Int
+        @Composable @ReadOnlyComposable get() = if (large) 2 else 1
 }
 
 /** A raised surface: corner 24, padding 16, no shadow. Holds rows, insets and chips, never another card. */
@@ -140,6 +160,8 @@ fun StopRow(
     val scheme = MaterialTheme.colorScheme
     val ink = if (quiet || cancelled) muted else scheme.onSurface
     val railColor = scheme.onSurface
+    val timeWidth = RowGrid.time
+    val large = RowGrid.large
     val hole = rail?.hole?.takeIf { it != Color.Unspecified } ?: scheme.surface
     val accent = brand
     val broken = bad.fill.container
@@ -150,7 +172,7 @@ fun StopRow(
             .heightIn(min = if (onClick != null) maxOf(minHeight, 48.dp) else minHeight)
             .drawBehind {
                 if (rail == null) return@drawBehind
-                val x = (RowGrid.Time + RowGrid.Gap + RowGrid.Mark / 2).toPx()
+                val x = (timeWidth + RowGrid.Gap + RowGrid.Mark / 2).toPx()
                 val y = size.height / 2
                 fun line(kind: RailLine, from: Float, to: Float) {
                     when (kind) {
@@ -193,7 +215,7 @@ fun StopRow(
         horizontalArrangement = Arrangement.spacedBy(RowGrid.Gap),
     ) {
         // The time, its delay under it: the column stays one width.
-        Column(Modifier.width(RowGrid.Time)) {
+        Column(Modifier.width(timeWidth)) {
             if (planned != null || expected != null) {
                 val delay = if (cancelled) 0 else delayMinutes(planned, expected)
                 val style = timeStyle ?: (if (strong) AbeonaType.body.copy(fontWeight = FontWeight.SemiBold) else AbeonaType.body)
@@ -209,7 +231,7 @@ fun StopRow(
             }
         }
         Box(Modifier.width(RowGrid.Mark), contentAlignment = Alignment.Center) { mark?.invoke() }
-        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(RowGrid.Gap)) {
+        val main: @Composable RowScope.() -> Unit = {
             if (content != null) {
                 content()
             } else {
@@ -217,13 +239,35 @@ fun StopRow(
                     name,
                     style = (if (strong) AbeonaType.title else AbeonaType.body).copy(textDecoration = if (cancelled) TextDecoration.LineThrough else null),
                     color = ink,
-                    maxLines = 1,
+                    maxLines = RowGrid.lines,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
         }
-        trailing?.invoke(this)
+        if (large && trailing != null) {
+            // Large text: what trails the name goes under it, so the name keeps its room.
+            Column(Modifier.weight(1f).padding(vertical = 2.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(RowGrid.Gap), content = main)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(RowGrid.Gap), content = trailing)
+            }
+        } else {
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(RowGrid.Gap), content = main)
+            trailing?.invoke(this)
+        }
         PlatformBox(platformPlanned, platformCurrent)
+    }
+}
+
+/**
+ * A ride's reserved place: "Coach 24 · Seat 66" with the seat icon beside it,
+ * decorative (the words say it). Nothing when neither is known.
+ */
+@Composable
+fun SeatFact(coach: String?, seats: String?, modifier: Modifier = Modifier, color: Color = muted, style: TextStyle = AbeonaType.meta) {
+    val text = seatText(coach, seats) ?: return
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Icon(Icons.Rounded.EventSeat, contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
+        Text(text, style = style, color = color, maxLines = if (RowGrid.large) 3 else 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

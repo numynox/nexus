@@ -43,6 +43,31 @@ class OngoingNotificationTest {
         assertNull("the old silent channel is gone", manager.getNotificationChannel("live"))
     }
 
+    /** What to act on alerts with a heads-up; updates do not, and things getting better make no sound. */
+    @Test
+    fun alertsGoToActNowOrUpdates() {
+        LiveCompanion.createChannels(context)
+        val manager = context.getSystemService(NotificationManager::class.java)
+        assertEquals(NotificationManager.IMPORTANCE_HIGH, manager.getNotificationChannel(LiveCompanion.CHANNEL_ALERTS).importance)
+        assertEquals("Act now", manager.getNotificationChannel(LiveCompanion.CHANNEL_ALERTS).name)
+        assertEquals(NotificationManager.IMPORTANCE_DEFAULT, manager.getNotificationChannel(LiveCompanion.CHANNEL_UPDATES).importance)
+        assertEquals("Updates", manager.getNotificationChannel(LiveCompanion.CHANNEL_UPDATES).name)
+        val act = LiveCompanion.alert(context, "t", CompanionAlert("getoff-0", "Get off at Würzburg Hbf in 5 min", "Pl. 4", subject = "getoff-0"))
+        assertEquals(LiveCompanion.CHANNEL_ALERTS, act.channelId)
+        val quiet = LiveCompanion.alert(context, "t", CompanionAlert("works-1", "Change at Würzburg Hbf works again", "6 min", "change-1", AlertChannel.Updates, silent = true))
+        assertEquals(LiveCompanion.CHANNEL_UPDATES, quiet.channelId)
+    }
+
+    /** The ticket one tap away, the alternatives when something broke, and Stop: on every Android version. */
+    @Test
+    fun theActions() {
+        LiveCompanion.createChannels(context)
+        val now = Instant.now()
+        val broken = CompanionStatus("Looks like you missed the RE 10", "It left …", false, "Missed", broken = true)
+        assertEquals(listOf("Ticket", "Alternatives", "Stop"), LiveCompanion.ongoing(context, "t", broken, now, now, ticket = true).actions.map { it.title.toString() })
+        assertEquals(listOf("Stop"), ongoing().actions.map { it.title.toString() })
+    }
+
     /**
      * What Notification.hasPromotableCharacteristics() asks on Android 17
      * (read from its framework jar): promotion requested, ongoing, a title, a

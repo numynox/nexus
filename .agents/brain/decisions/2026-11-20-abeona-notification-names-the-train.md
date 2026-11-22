@@ -1,7 +1,7 @@
 # ADR: Abeona's on-board notification names the train in its title
 
 **Date:** 2026-11-20
-**Status:** Accepted
+**Status:** Accepted; on Android 16 and newer its lines are superseded by `2026-11-22-abeona-lock-screen-journey-line.md` (Android 15 and older keep them)
 
 ## Context
 On a real ride the on-board notification read "Change at Frankfurt (Main)

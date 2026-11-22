@@ -119,7 +119,14 @@ class IntakeFixturesTest {
         val refinding: List<RefindCase>,
         val replacing: List<ReplaceCase>,
         val adopting: List<AdoptCase>,
+        val seats: SeatCases,
     )
+
+    @Serializable
+    private data class SeatCase(val reservation: String?, val coach: String?, val seats: String?)
+
+    @Serializable
+    private data class SeatCases(val cases: List<SeatCase>)
 
     @Serializable
     private data class SummaryExpect(
@@ -269,6 +276,32 @@ class IntakeFixturesTest {
         val result = runBlocking { clearReplacement(c.legs, c.droppedIdx, portOf(c.journeys)) }
         assertEquals(c.name, c.expect?.missedIdx, result?.first)
         assertEquals(c.name, c.expect?.tripRefs, result?.second?.filter { it.mode != LegMode.Walk }?.map { it.tripRef })
+    }
+
+    @Test
+    fun seats() = fixtures.seats.cases.forEach { c ->
+        assertEquals("${c.reservation}", Seat(c.coach, c.seats), seatOf(c.reservation))
+    }
+
+    /** The words both clients show for a seat (abeona-design.md: seat text). */
+    @Test
+    fun seatTexts() {
+        assertEquals("Coach 24 · Seat 66", seatText("24", "66"))
+        assertEquals("Coach 23 · Seats 71, 73", seatText("23", "71 73"))
+        assertEquals("Coach 7 · Seats 45–48", seatText("7", "45-48"))
+        assertEquals("Coach 7 · Seats 10C, 10D", seatText("7", "10C 10D"))
+        assertEquals("Coach 24", seatText("24", null))
+        assertEquals("Seat 66", seatText(" ", "66"))
+        assertEquals(null, seatText(null, ""))
+    }
+
+    /** A ride read from a ticket keeps its reservation's coach and seats, found in the timetable or not. */
+    @Test
+    fun parsedRidesKeepTheirSeats() {
+        val ticket = parseDbTicket(resourceText("db-ticket-seat-reservations.txt"))!!
+        val legs = ticket.legs.map(::parsedToLeg)
+        assertEquals(listOf(null, "23", "7", null), legs.map { it.coach })
+        assertEquals(listOf(null, "71 73", "45-46", null), legs.map { it.seats })
     }
 
     @Test

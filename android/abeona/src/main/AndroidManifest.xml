@@ -83,6 +83,18 @@
             android:exported="false"
             android:foregroundServiceType="dataSync|location" />
 
+        <!-- Hands a picture Abeona made to the share sheet (the arrival
+             postcard), from the cache only. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/shared_files" />
+        </provider>
+
         <!-- The home screen widget: the next departure. -->
         <receiver
             android:name=".widget.NextTripWidgetReceiver"

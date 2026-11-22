@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What FileProvider may hand to another app: only the pictures Abeona
+     writes to share, such as the arrival postcard (ui/trip/Postcard.kt). -->
+<paths>
+    <cache-path name="shared" path="shared/" />
+</paths>

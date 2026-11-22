@@ -251,7 +251,8 @@ function legsOf(rows: Row[], booked: string[]): ParsedLeg[] {
       arrival: row.time,
       from_platform: open.platform,
       to_platform: row.platform,
-      reservation: open.note,
+      // The note column wraps: a reservation goes on in the "an" row.
+      reservation: [open.note, row.note].filter(Boolean).join(" ") || null,
     });
     open = null;
   }

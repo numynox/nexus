@@ -109,7 +109,7 @@ private val TopLevels = listOf(
 )
 
 @Composable
-fun MainScaffold(app: AppViewModel, openTrip: MutableStateFlow<String?>, incoming: MutableStateFlow<IncomingShare?>) {
+fun MainScaffold(app: AppViewModel, openTrip: MutableStateFlow<io.github.numynox.nexus.abeona.OpenTrip?>, incoming: MutableStateFlow<IncomingShare?>) {
     val backStack = rememberNavBackStack(TripsRoute)
     val top = backStack.lastOrNull()
     val currentTab = backStack.lastOrNull { key -> TopLevels.any { it.route == key } } ?: TripsRoute
@@ -134,10 +134,11 @@ fun MainScaffold(app: AppViewModel, openTrip: MutableStateFlow<String?>, incomin
 
     val pending by openTrip.collectAsStateWithLifecycle()
     LaunchedEffect(pending) {
-        pending?.let { id ->
+        pending?.let { target ->
             openTrip.value = null
             open(TripsRoute)
-            navigator.trip(id)
+            navigator.trip(target.tripId)
+            if (target.ticket) navigator.ticket(target.tripId)
         }
     }
 

@@ -31,6 +31,13 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -80,6 +87,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import io.github.numynox.nexus.abeona.AppContainer
+import io.github.numynox.nexus.abeona.domain.intake.seatText
+import io.github.numynox.nexus.abeona.ui.common.SeatFact
 import io.github.numynox.nexus.abeona.data.FareType
 import io.github.numynox.nexus.abeona.data.Trip
 import io.github.numynox.nexus.abeona.domain.TicketNeeds
@@ -225,74 +234,143 @@ fun TicketScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
     LaunchedEffect(tripId) { viewModel.load() }
     FullBrightness()
 
-    Box(Modifier.fillMaxSize().background(Color.White)) {
-        Column(Modifier.fillMaxSize()) {
-            Row(
-                Modifier.fillMaxWidth().statusBarsPadding().padding(top = 4.dp, start = 4.dp, end = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = navigator.back) { Icon(Icons.Rounded.Close, contentDescription = "Close ticket", tint = AbeonaColors.Ink) }
-                val trip = (ticket as? Loadable.Ready)?.value?.trip
-                Column(Modifier.weight(1f)) {
+    val trip = (ticket as? Loadable.Ready)?.value?.trip
+    val header: @Composable () -> Unit = {
+        Row(
+            Modifier.fillMaxWidth().statusBarsPadding().padding(top = 4.dp, start = 4.dp, end = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = navigator.back) { Icon(Icons.Rounded.Close, contentDescription = "Close ticket", tint = AbeonaColors.Ink) }
+            Column(Modifier.weight(1f)) {
+                Text(
+                    trip?.displayTitle ?: "Ticket",
+                    style = AbeonaType.title,
+                    color = AbeonaColors.Ink,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
+                trip?.let {
                     Text(
-                        trip?.displayTitle ?: "Ticket",
-                        style = AbeonaType.title,
-                        color = AbeonaColors.Ink,
-                        maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        "${TripFormat.day(it.departureAt)} · ${TripFormat.time(it.departureAt)} · ${if (it.travelClass == 1) "1st" else "2nd"} class",
+                        style = AbeonaType.meta,
+                        color = AbeonaColors.Muted,
                     )
-                    trip?.let {
-                        Text(
-                            "${TripFormat.day(it.departureAt)} · ${TripFormat.time(it.departureAt)} · ${if (it.travelClass == 1) "1st" else "2nd"} class",
-                            style = AbeonaType.meta,
-                            color = AbeonaColors.Muted,
-                        )
-                    }
-                    (ticket as? Loadable.Ready)?.value?.offlineSince?.let { OfflinePill(it, Modifier.padding(top = 4.dp)) }
                 }
-                // Some proofs are only valid in DB's app: it is always one tap from the ticket.
-                IconButton(onClick = { DbNavigator.open(context) }) {
-                    Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = "Open DB Navigator", tint = AbeonaColors.Ink)
-                }
-                IconButton(onClick = { replace.launch(PickedFile.TYPES) }) {
-                    Icon(Icons.Rounded.SwapHoriz, contentDescription = "Replace ticket", tint = AbeonaColors.Ink)
+                (ticket as? Loadable.Ready)?.value?.offlineSince?.let { OfflinePill(it, Modifier.padding(top = 4.dp)) }
+            }
+            // Some proofs are only valid in DB's app: it is always one tap from the ticket.
+            IconButton(onClick = { DbNavigator.open(context) }) {
+                Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = "Open DB Navigator", tint = AbeonaColors.Ink)
+            }
+            IconButton(onClick = { replace.launch(PickedFile.TYPES) }) {
+                Icon(Icons.Rounded.SwapHoriz, contentDescription = "Replace ticket", tint = AbeonaColors.Ink)
+            }
+        }
+    }
+    val tabs: @Composable () -> Unit = {
+        if (documents.size > 1) {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                documents.forEach { document ->
+                    FilterChip(
+                        selected = document.key == shown,
+                        onClick = { shown = document.key },
+                        label = { Text(document.label) },
+                        leadingIcon = {
+                            Icon(
+                                if (document.key == TICKET) Icons.Rounded.ConfirmationNumber else Icons.Rounded.Badge,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        },
+                    )
                 }
             }
-            if (documents.size > 1) {
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    documents.forEach { document ->
-                        FilterChip(
-                            selected = document.key == shown,
-                            onClick = { shown = document.key },
-                            label = { Text(document.label) },
-                            leadingIcon = {
-                                Icon(
-                                    if (document.key == TICKET) Icons.Rounded.ConfirmationNumber else Icons.Rounded.Badge,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                            },
-                        )
-                    }
+        }
+    }
+    val document: @Composable (Modifier) -> Unit = { modifier ->
+        Box(modifier) {
+            when (val state = ticket) {
+                Loadable.Loading -> LoadingState(Modifier.fillMaxSize())
+                is Loadable.Failed -> Column(Modifier.align(Alignment.Center).padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(state.message, color = AbeonaColors.Ink)
+                    TextButton(onClick = { viewModel.load() }) { Text("Try again") }
+                }
+                is Loadable.Ready -> {
+                    val shownDocument = documents.firstOrNull { it.key == shown } ?: documents.first()
+                    DocumentView(shownDocument, description = if (shownDocument.key == TICKET) "Ticket page" else "BahnCard")
                 }
             }
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-                when (val state = ticket) {
-                    Loadable.Loading -> LoadingState(Modifier.fillMaxSize())
-                    is Loadable.Failed -> Column(Modifier.align(Alignment.Center).padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(state.message, color = AbeonaColors.Ink)
-                        TextButton(onClick = { viewModel.load() }) { Text("Try again") }
+        }
+    }
+
+    // White in both themes; on its side, clear of the cutout and the bars at the sides.
+    BoxWithConstraints(
+        Modifier
+            .fillMaxSize()
+            .background(Color.White)
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
+    ) {
+        if (maxWidth > maxHeight) {
+            // On its side: the code as large as it goes on the left, the rides and their seats on the right.
+            Row(Modifier.fillMaxSize()) {
+                document(Modifier.weight(1.2f).fillMaxHeight().statusBarsPadding())
+                Column(Modifier.weight(1f).fillMaxHeight()) {
+                    header()
+                    tabs()
+                    Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        trip?.let { TicketRides(it, all = true) }
                     }
-                    is Loadable.Ready -> {
-                        val document = documents.firstOrNull { it.key == shown } ?: documents.first()
-                        DocumentView(document, description = if (document.key == TICKET) "Ticket page" else "BahnCard")
-                    }
+                    TicketFooter(trip?.fareType)
                 }
             }
-            TicketFooter((ticket as? Loadable.Ready)?.value?.trip?.fareType)
+        } else {
+            Column(Modifier.fillMaxSize()) {
+                header()
+                tabs()
+                // Upright, the code needs the room: only the rides with a seat, one line each.
+                trip?.let { TicketRides(it, all = false, Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) }
+                document(Modifier.weight(1f).fillMaxWidth())
+                TicketFooter(trip?.fareType)
+            }
+        }
+    }
+}
+
+/**
+ * The ticket's rides, for the conductor and the seat: with [all], each ride's
+ * train, where from and to and when, and its coach and seats; otherwise only
+ * the rides with a seat, the train and the seat on one line. The screen is
+ * white in both themes, so the light tokens.
+ */
+@Composable
+private fun TicketRides(trip: Trip, all: Boolean, modifier: Modifier = Modifier) {
+    val rides = trip.legs.filter { !it.isWalk && (all || seatText(it.coach, it.seats) != null) }
+    if (rides.isEmpty()) return
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (all) 12.dp else 4.dp)) {
+        rides.forEach { ride ->
+            if (all) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        "${TripFormat.time(ride.from.plannedAt)}  ${ride.label}",
+                        style = AbeonaType.body.copy(fontWeight = FontWeight.SemiBold),
+                        color = AbeonaColors.Ink,
+                    )
+                    Text(
+                        "${ride.from.name} → ${ride.to.name} · ${TripFormat.time(ride.to.plannedAt)}",
+                        style = AbeonaType.meta,
+                        color = AbeonaColors.Muted,
+                    )
+                    SeatFact(ride.coach, ride.seats, color = AbeonaColors.Ink, style = AbeonaType.body)
+                }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(ride.label, style = AbeonaType.meta.copy(fontWeight = FontWeight.SemiBold), color = AbeonaColors.Ink)
+                    SeatFact(ride.coach, ride.seats, color = AbeonaColors.Ink)
+                }
+            }
         }
     }
 }

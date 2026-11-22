@@ -10,17 +10,20 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.IconCompat
 import io.github.numynox.nexus.abeona.AbeonaApplication
 import io.github.numynox.nexus.abeona.MainActivity
 import io.github.numynox.nexus.abeona.R
 import io.github.numynox.nexus.abeona.data.Trip
 import io.github.numynox.nexus.abeona.domain.followed
+import io.github.numynox.nexus.abeona.domain.followsReplacement
 import io.github.numynox.nexus.abeona.ui.common.TripFormat
 import io.github.numynox.nexus.abeona.widget.NextTripWidget
 import java.time.Duration
@@ -63,7 +66,10 @@ object LiveCompanion {
      */
     internal const val CHANNEL_LIVE = "live-companion"
     private const val OLD_CHANNEL_LIVE = "live"
+    /** "Act now": something to do (AlertChannel.Act), heads-up with sound. The id is the old "Trip alerts" one, so a user's choice for it stays. */
     internal const val CHANNEL_ALERTS = "alerts"
+    /** "Updates": worth knowing, not urgent (AlertChannel.Updates): delays, back on track, compensation. */
+    internal const val CHANNEL_UPDATES = "updates"
     internal const val ONGOING_ID = 7
     private const val ACTION_START = "io.github.numynox.nexus.abeona.live.START"
     private const val ACTION_STOP = "io.github.numynox.nexus.abeona.live.STOP"
@@ -148,6 +154,9 @@ object LiveCompanion {
         manager.createNotificationChannel(
             NotificationChannel(CHANNEL_ALERTS, context.getString(R.string.alerts_channel), NotificationManager.IMPORTANCE_HIGH),
         )
+        manager.createNotificationChannel(
+            NotificationChannel(CHANNEL_UPDATES, context.getString(R.string.updates_channel), NotificationManager.IMPORTANCE_DEFAULT),
+        )
     }
 
     private fun openTrip(context: Context, tripId: String?) = PendingIntent.getActivity(
@@ -157,21 +166,56 @@ object LiveCompanion {
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
+    /** Opens the trip's ticket at once: the notification's "Ticket". */
+    private fun openTicket(context: Context, tripId: String) = PendingIntent.getActivity(
+        context,
+        "ticket-$tripId".hashCode(),
+        MainActivity.intentFor(context, tripId, ticket = true),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+
     /**
      * The ongoing notification for [status]; built here so the screenshot
-     * test draws the real one. How fresh the live values are ends the last
-     * line, after the speed, so the header takes no line of its own; what
-     * placed the traveller is the app's to show (the dashboard's source
-     * pill), and the title already counts down, to the minute.
+     * test draws the real one. The title already counts down, to the minute;
+     * what placed the traveller is the app's to show (the dashboard's source
+     * pill).
+     *
+     * Android 16+ ([sdk] 36) draws the journey as a bar (ProgressStyle):
+     * the rides and changes as segments, the changes ahead as points, the
+     * train where the trip is; under the title the most important line of
+     * [CompanionStatus.info], the rest in the header with how fresh it is,
+     * only when it is not live. Android 15 and older keep the expanded lines,
+     * with how fresh at the end of the last one, after the speed.
+     *
+     * Actions: "Ticket" when the trip has one ([ticket]), "Alternatives"
+     * when something broke, and "Stop".
      */
-    fun ongoing(context: Context, tripId: String?, status: CompanionStatus, updated: Instant?, now: Instant = Instant.now()): Notification {
+    fun ongoing(
+        context: Context,
+        tripId: String?,
+        status: CompanionStatus,
+        updated: Instant?,
+        now: Instant = Instant.now(),
+        ticket: Boolean = false,
+        timetableOnly: Boolean = false,
+        sdk: Int = Build.VERSION.SDK_INT,
+    ): Notification {
         val stop = PendingIntent.getService(context, 1, intent(context, ACTION_STOP), PendingIntent.FLAG_IMMUTABLE)
-        return NotificationCompat.Builder(context, CHANNEL_LIVE)
+        val builder = NotificationCompat.Builder(context, CHANNEL_LIVE)
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(ContextCompat.getColor(context, R.color.abeona_burgundy))
             .setContentTitle(status.title)
-            .setContentText(status.text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(expandedText(status.lines, updated?.let { freshness(it, now) })))
+        val bar = status.bar
+        if (sdk >= 36 && bar != null) {
+            val compact = status.compact(compactFreshness(updated, now, timetableOnly))
+            builder.setContentText(compact.text).setSubText(compact.subText).setStyle(progressStyle(context, bar))
+        } else {
+            builder.setContentText(status.text)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(expandedText(status.lines, updated?.let { freshness(it, now) })))
+        }
+        if (ticket && tripId != null) builder.addAction(0, "Ticket", openTicket(context, tripId))
+        if (status.broken) builder.addAction(0, "Alternatives", openTrip(context, tripId))
+        return builder
             .setShowWhen(false)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -191,6 +235,27 @@ object LiveCompanion {
             .build()
     }
 
+    /** A bar's colour: the brand for a ride, a change in its status colour (values-night has the dark theme's). */
+    private fun barColour(context: Context, tone: BarTone): Int = ContextCompat.getColor(
+        context,
+        when (tone) {
+            BarTone.Ride -> R.color.abeona_bar_ride
+            BarTone.Ok -> R.color.abeona_bar_ok
+            BarTone.Watch -> R.color.abeona_bar_watch
+            BarTone.Bad -> R.color.abeona_bar_bad
+        },
+    )
+
+    /** The journey as Android 16's progress bar: the train moves along it, a flag at its end. */
+    internal fun progressStyle(context: Context, bar: JourneyBar): NotificationCompat.ProgressStyle =
+        NotificationCompat.ProgressStyle()
+            .setStyledByProgress(true)
+            .setProgressSegments(bar.segments.map { NotificationCompat.ProgressStyle.Segment(it.length).setColor(barColour(context, it.tone)) })
+            .setProgressPoints(bar.points.map { NotificationCompat.ProgressStyle.Point(it.position).setColor(barColour(context, it.tone)) })
+            .setProgress(bar.progress)
+            .setProgressTrackerIcon(IconCompat.createWithResource(context, R.drawable.ic_progress_train))
+            .setProgressEndIcon(IconCompat.createWithResource(context, R.drawable.ic_progress_flag))
+
     /** The expanded notification's lines, with [freshness] at the end of the last one. */
     internal fun expandedText(lines: List<String>, freshness: String?): String {
         if (freshness == null) return lines.joinToString("\n")
@@ -208,19 +273,34 @@ object LiveCompanion {
     internal fun freshness(updated: Instant, now: Instant): String =
         if (Duration.between(updated, now) > STALE_AFTER) "Not updated since ${TripFormat.time(updated)}" else "Live ${TripFormat.time(updated)}"
 
-    fun alert(context: Context, tripId: String, alert: CompanionAlert): Notification =
-        NotificationCompat.Builder(context, CHANNEL_ALERTS)
+    /**
+     * How fresh, for the Live Update's header: only when it is not live, as
+     * the live card's footer says it ("Offline 11:57", "Timetable 11:57").
+     */
+    internal fun compactFreshness(updated: Instant?, now: Instant, timetableOnly: Boolean): String? = when {
+        updated == null -> null
+        Duration.between(updated, now) > STALE_AFTER -> "Offline ${TripFormat.time(updated)}"
+        timetableOnly -> "Timetable ${TripFormat.time(updated)}"
+        else -> null
+    }
+
+    /** An alert on its channel: Act now with a heads-up, Updates without; [CompanionAlert.silent] without a sound either. */
+    fun alert(context: Context, tripId: String, alert: CompanionAlert): Notification {
+        val act = alert.channel == AlertChannel.Act
+        val text = alert.text.takeIf { it.isNotBlank() }
+        return NotificationCompat.Builder(context, if (act) CHANNEL_ALERTS else CHANNEL_UPDATES)
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(ContextCompat.getColor(context, R.color.abeona_burgundy))
             .setContentTitle(alert.title)
-            .setContentText(alert.text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(alert.text))
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .apply { text?.let { setContentText(it).setStyle(NotificationCompat.BigTextStyle().bigText(it)) } }
+            .setPriority(if (act) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_DEFAULT)
+            .setSilent(alert.silent)
             .setShowWhen(false)
             .setCategory(NotificationCompat.CATEGORY_STATUS)
             .setContentIntent(openTrip(context, tripId))
             .setAutoCancel(true)
             .build()
+    }
 
     internal fun canNotify(context: Context) =
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
@@ -272,7 +352,9 @@ class LiveCompanionService : Service() {
             .apply { setReferenceCounted(false) }
     }
     private var following: Job? = null
+    /** The alerts posted for this trip, by key: each news once, and "back on track" only after one. */
     private val posted = mutableSetOf<String>()
+    private var speeds = TopSpeedRecorder()
     private val location by lazy { TripLocation(this) }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -306,6 +388,7 @@ class LiveCompanionService : Service() {
         NotificationManagerCompat.from(this).cancel(tripId.hashCode())
         wakeLock.acquire(LiveCompanion.MAX_AWAKE.toMillis())
         posted.clear()
+        speeds = TopSpeedRecorder()
         following?.cancel()
         location.stop()
         if (withLocation) location.start()
@@ -333,6 +416,8 @@ class LiveCompanionService : Service() {
         if (!LiveCompanion.canFollow(trip.followed, Instant.now())) return finish()
         var updated: Instant? = null
         var refreshedAt: Instant? = null
+        // The widget counts down only while the companion runs: it is redrawn as the minute turns.
+        var widgetMinute = -1L
         // A refresh made elsewhere (the trip screen, the half-hourly job) is
         // taken at once: the notification and its alerts move with the app
         // instead of a tick or a minute later. Its own refreshes come back
@@ -361,13 +446,17 @@ class LiveCompanionService : Service() {
                     // Alerts compare ride by ride: not across a connection taken in between.
                     val sameJourney = fresh.missedLegIdx == trip.missedLegIdx && fresh.replacementLegs?.size == trip.replacementLegs?.size
                     if (updated != null && sameJourney) {
-                        companionAlerts(trip.followed, fresh.followed, now, settings.alerts).filter { posted.add(it.key) }.forEach { post(tripId, it) }
+                        companionAlerts(trip.followed, fresh.followed, now, settings.alerts, posted.toSet()).filter { posted.add(it.key) }.forEach { post(tripId, it) }
                     }
                     trip = fresh
                     updated = now
                     refreshedAt = now
                     // Its own refresh echoed back through the store: nothing new.
                     elsewhere.update { if (it?.refreshedAt == fresh.refreshedAt) null else it }
+                    widgetMinute = -1L
+                }
+                if (now.epochSecond / 60 != widgetMinute) {
+                    widgetMinute = now.epochSecond / 60
                     NextTripWidget.refresh(this)
                 }
                 val onboard = runCatching { container.onboard.status() }.getOrNull()
@@ -375,12 +464,20 @@ class LiveCompanionService : Service() {
                 // The trains actually taken: a connection from the alternatives replaces the plan's.
                 val journey = trip.followed
                 val signals = LiveSignals.forTrip(journey, now)
+                val portal = LiveSignals.onboardFor(journey, now)
                 missedAlert(journey, now, settings.stationMinutes, signals, settings.alerts)?.takeIf { posted.add(it.key) }?.let { post(tripId, it) }
-                val status = companionStatus(journey, now, settings.stationMinutes, signals, LiveSignals.onboardFor(journey, now))
+                // From the stored times, every tick: it comes without a connection too.
+                getOffAlert(journey, now, settings.stationMinutes, signals, settings.alerts, portal)?.takeIf { posted.add(it.key) }?.let { post(tripId, it) }
+                recordTopSpeed(trip, signals.onboardLegIndex, portal?.speedKmh, now)
+                val status = companionStatus(journey, now, settings.stationMinutes, signals, portal)
                 if (LiveCompanion.canNotify(this)) {
                     NotificationManagerCompat.from(this).notify(
                         LiveCompanion.ONGOING_ID,
-                        LiveCompanion.ongoing(this, tripId, status, updated),
+                        LiveCompanion.ongoing(
+                            this, tripId, status, updated, now,
+                            ticket = trip.ticketPath != null,
+                            timetableOnly = journey.legs.none { it.realtime } && journey.legs.any { !it.isWalk },
+                        ),
                     )
                 }
                 if (!LiveCompanion.canFollow(journey, now)) return finish()
@@ -398,9 +495,28 @@ class LiveCompanionService : Service() {
             fresh.missedLegIdx != current.missedLegIdx ||
             fresh.replacementLegs != current.replacementLegs
 
+    /** By its subject: a newer alert about the same thing replaces the older one. */
     private fun post(tripId: String, alert: CompanionAlert) {
         if (!LiveCompanion.canNotify(this)) return
-        NotificationManagerCompat.from(this).notify(alert.key.hashCode(), LiveCompanion.alert(this, tripId, alert))
+        NotificationManagerCompat.from(this).notify(alert.subject.hashCode(), LiveCompanion.alert(this, tripId, alert))
+    }
+
+    /**
+     * The train's speed from its Wi-Fi onto the ride on board ([ride], an
+     * index into the journey followed), when it beats what the leg holds
+     * (TopSpeedRecorder). Only a booked ride has a leg to write to: not a
+     * connection taken instead.
+     */
+    private fun recordTopSpeed(trip: Trip, ride: Int?, kmh: Double?, now: Instant) {
+        val idx = ride ?: return
+        if (trip.followsReplacement && idx >= (trip.missedLegIdx ?: 0)) return
+        val leg = trip.legs.getOrNull(idx)?.takeIf { !it.isWalk } ?: return
+        val value = speeds.observe(idx, kmh, leg.topSpeedKmh, now) ?: return
+        val container = (application as AbeonaApplication).container
+        scope.launch {
+            runCatching { container.repository.setTopSpeed(trip.id, idx, value) }
+                .onFailure { android.util.Log.w("AbeonaCompanion", "Top speed not saved", it) }
+        }
     }
 
     private fun finish() {
@@ -409,6 +525,9 @@ class LiveCompanionService : Service() {
         LiveSignals.clear()
         LiveCompanion.setRunning(null)
         LiveCompanion.setHasLocation(false)
+        // The widget goes back to the day: it counts down only while the companion runs.
+        val container = (application as AbeonaApplication).container
+        container.core.scope.launch { NextTripWidget.refresh(applicationContext) }
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
     }

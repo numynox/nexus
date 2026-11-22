@@ -159,6 +159,9 @@ internal data class LegRow(
     @SerialName("dropped_at") val droppedAt: String? = null,
     val stopovers: List<Stopover> = emptyList(),
     val polyline: List<List<Double>>? = null,
+    val coach: String? = null,
+    val seats: String? = null,
+    @SerialName("top_speed_kmh") val topSpeedKmh: Int? = null,
 ) {
     fun toLeg() = Leg(
         mode = mode,
@@ -174,6 +177,9 @@ internal data class LegRow(
         cancelled = cancelled,
         realtime = realtime,
         droppedAt = droppedAt,
+        coach = coach,
+        seats = seats,
+        topSpeedKmh = topSpeedKmh,
     )
 }
 
@@ -210,6 +216,8 @@ data class TripEdit(
     val travellerCount: Int?,
     /** One per BahnCard the ticket was booked with. */
     val bahncardDiscounts: List<Int>,
+    /** The rides whose coach or seats changed, written to those legs directly. */
+    val seats: List<SeatEdit> = emptyList(),
 ) {
     /** [trip] with these values, as the database now holds them. */
     fun applyTo(trip: Trip): Trip = trip.copy(
@@ -220,8 +228,14 @@ data class TripEdit(
         priceCents = priceCents,
         travellerCount = travellerCount,
         bahncardDiscounts = bahncardDiscounts.sorted(),
+        legs = trip.legs.mapIndexed { idx, leg ->
+            seats.firstOrNull { it.idx == idx }?.let { leg.copy(coach = it.coach.clean(8), seats = it.seats.clean(40)) } ?: leg
+        },
     )
 }
+
+/** Trimmed, at most [max] characters; empty is null, as the legs' checks want it. */
+internal fun String?.clean(max: Int): String? = this?.trim()?.take(max)?.trim()?.takeIf { it.isNotEmpty() }
 
 /**
  * A BahnCard (glossary: BahnCard). It belongs to the household; a merge on
@@ -329,7 +343,42 @@ data class Statistics(
     /** ISO codes of the countries ridden from or to, most often first. */
     val countries: List<String> = emptyList(),
     @SerialName("longest_trip") val longestTrip: LongestTrip? = null,
+    /** The highest speed seen on board in the year (the companion records it per ride); null when none was seen. */
+    @SerialName("top_speed_kmh") val topSpeedKmh: Int? = null,
+    @SerialName("top_speed_trip") val topSpeedTrip: TopSpeedTrip? = null,
 )
+
+/** The ride the year's top speed was seen on. */
+@Serializable
+data class TopSpeedTrip(
+    @SerialName("trip_id") val tripId: String,
+    val from: String,
+    val to: String,
+    val line: String? = null,
+    val kmh: Int,
+    /** yyyy-mm-dd */
+    val date: String? = null,
+)
+
+/**
+ * What a finished trip adds up to (abeona_trip_summary), for its postcard:
+ * the rides as stored, the delay at the destination, the CO₂ figures the
+ * year in review uses. Null for a trip the caller cannot see.
+ */
+@Serializable
+data class TripSummary(
+    val rides: Int = 0,
+    val km: Double = 0.0,
+    @SerialName("minutes_on_train") val minutesOnTrain: Double = 0.0,
+    @SerialName("delay_minutes") val delayMinutes: Double = 0.0,
+    @SerialName("top_speed_kmh") val topSpeedKmh: Int? = null,
+    @SerialName("co2_train_kg") val co2TrainKg: Double = 0.0,
+    @SerialName("co2_car_kg") val co2CarKg: Double = 0.0,
+    @SerialName("co2_saved_kg") val co2SavedKg: Double = 0.0,
+)
+
+/** A ride's coach and seats as the trip's edit sheet changes them; blank clears. [idx] is the leg's place in the trip. */
+data class SeatEdit(val idx: Int, val coach: String?, val seats: String?)
 
 /** Where the CO₂ figures come from (abeona_co2_factors), g CO₂e per passenger-km. */
 @Serializable
