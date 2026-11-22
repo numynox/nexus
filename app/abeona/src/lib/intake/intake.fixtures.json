@@ -331,6 +331,96 @@
         "price_cents": 11740,
         "reservation": null
       }
+    },
+    {
+      "name": "Seat reservations in the stop table: two seats, a range, the note wrapped onto the arrival row",
+      "file": "db-ticket-seat-reservations.txt",
+      "expect": {
+        "kind": "ticket",
+        "operator": "db",
+        "fare_name": "Super Sparpreis Europa",
+        "fare_type": "saver",
+        "direction": "return",
+        "travel_class": 2,
+        "travellers": 2,
+        "discounts": [
+          25,
+          25
+        ],
+        "train_binding": true,
+        "booked_lines": [
+          "ICE 17",
+          "ICE 725",
+          "ICE 700"
+        ],
+        "origin": "Leuven",
+        "destination": "Erlangen",
+        "date": "2025-11-16",
+        "legs": [
+          {
+            "line": "IC 512",
+            "product": "IC",
+            "number": null,
+            "headsign": null,
+            "from": "Leuven",
+            "to": "Liège-Guillemins",
+            "date": "2025-11-16",
+            "departure": "14:27",
+            "arrival_date": "2025-11-16",
+            "arrival": "14:59",
+            "from_platform": "3",
+            "to_platform": "1",
+            "reservation": null
+          },
+          {
+            "line": "ICE 17",
+            "product": "ICE",
+            "number": null,
+            "headsign": null,
+            "from": "Liège-Guillemins",
+            "to": "Frankfurt(Main)Hbf",
+            "date": "2025-11-16",
+            "departure": "15:14",
+            "arrival_date": "2025-11-16",
+            "arrival": "17:27",
+            "from_platform": null,
+            "to_platform": "2",
+            "reservation": "2 Sitzplätze, Wg. 23, Pl. 71 73, 1 Fenster, Großraum, Nichtraucher, Res.Nr. 1111 2222 3333 44"
+          },
+          {
+            "line": "ICE 725",
+            "product": "ICE",
+            "number": null,
+            "headsign": null,
+            "from": "Frankfurt(Main)Hbf",
+            "to": "Nürnberg Hbf",
+            "date": "2025-11-16",
+            "departure": "17:57",
+            "arrival_date": "2025-11-16",
+            "arrival": "20:40",
+            "from_platform": "8",
+            "to_platform": "9",
+            "reservation": "2 Sitzplätze, Wg. 7, Pl. 45-46, Abteil, Res.Nr. 5555 6666 7777 88"
+          },
+          {
+            "line": "ICE 700",
+            "product": "ICE",
+            "number": null,
+            "headsign": null,
+            "from": "Nürnberg Hbf",
+            "to": "Erlangen",
+            "date": "2025-11-16",
+            "departure": "21:05",
+            "arrival_date": "2025-11-16",
+            "arrival": "21:18",
+            "from_platform": "7",
+            "to_platform": "1",
+            "reservation": null
+          }
+        ],
+        "price_cents": 11740,
+        "reservation": "ICE 17: 2 Sitzplätze, Wg. 23, Pl. 71 73, 1 Fenster, Großraum, Nichtraucher, Res.Nr. 1111 2222 3333 44; ICE 725: 2 Sitzplätze, Wg. 7, Pl. 45-46, Abteil, Res.Nr. 5555 6666 7777 88"
+      }
     }
   ],
   "trenitalia": [
@@ -416,7 +506,7 @@
               "arrival": "16:58",
               "from_platform": "3",
               "to_platform": "3",
-              "reservation": "Die Fahrkarte ist für diesen Abschnitt nicht gültig. Hier ist"
+              "reservation": "Die Fahrkarte ist für diesen Abschnitt nicht gültig. Hier ist eine weitere Fahrkarte erforderlich."
             },
             {
               "line": "ICE 528",
@@ -435,7 +525,7 @@
             }
           ],
           "price_cents": 4573,
-          "reservation": "S1: Die Fahrkarte ist für diesen Abschnitt nicht gültig. Hier ist"
+          "reservation": "S1: Die Fahrkarte ist für diesen Abschnitt nicht gültig. Hier ist eine weitere Fahrkarte erforderlich."
         },
         {
           "kind": "ticket",
@@ -485,11 +575,11 @@
               "arrival": "16:05",
               "from_platform": "1",
               "to_platform": "2",
-              "reservation": "Die Fahrkarte ist für diesen Abschnitt nicht gültig. Hier ist"
+              "reservation": "Die Fahrkarte ist für diesen Abschnitt nicht gültig. Hier ist eine weitere Fahrkarte erforderlich."
             }
           ],
           "price_cents": 4573,
-          "reservation": "S1: Die Fahrkarte ist für diesen Abschnitt nicht gültig. Hier ist"
+          "reservation": "S1: Die Fahrkarte ist für diesen Abschnitt nicht gültig. Hier ist eine weitere Fahrkarte erforderlich."
         }
       ]
     }
@@ -3493,5 +3583,55 @@
         "polyline": true
       }
     }
-  ]
+  ],
+  "seats": {
+    "$comment": "seatOf(reservation) on both clients (lib/intake/seat.ts, domain/intake/Seat.kt): the coach and the seats of a ride's reservation as printed, DB's \"Wg. 24, Pl. 66\" or Trenitalia's \"Coach 7, seats 10C, 10D\". Seats keep the ticket's own numbers, spaces between several, a dash for a range. Never the reservation number.",
+    "cases": [
+      {
+        "reservation": "1 Sitzplatz, Wg. 24, Pl. 66, 1 Fenster, Großraum, Nichtraucher, Res.Nr. 8051 1002 8138 40",
+        "coach": "24",
+        "seats": "66"
+      },
+      {
+        "reservation": "2 Sitzplätze, Wg. 23, Pl. 71 73, 1 Fenster, Großraum, Nichtraucher, Res.Nr. 1111 2222 3333 44",
+        "coach": "23",
+        "seats": "71 73"
+      },
+      {
+        "reservation": "2 Sitzplätze, Wg. 7, Pl. 45-46, Abteil, Res.Nr. 5555 6666 7777 88",
+        "coach": "7",
+        "seats": "45-46"
+      },
+      {
+        "reservation": "2. Klasse, Wg. 7, Pl. 45 - 48,",
+        "coach": "7",
+        "seats": "45-48"
+      },
+      {
+        "reservation": "EC 170, 1 Sitzplatz, Wg. 256, Pl. 62, Abteil",
+        "coach": "256",
+        "seats": "62"
+      },
+      {
+        "reservation": "Coach 7, seats 10C, 10D",
+        "coach": "7",
+        "seats": "10C 10D"
+      },
+      {
+        "reservation": "Coach 3",
+        "coach": "3",
+        "seats": null
+      },
+      {
+        "reservation": "Die Fahrkarte ist für diesen Abschnitt nicht gültig. Hier ist eine weitere Fahrkarte erforderlich.",
+        "coach": null,
+        "seats": null
+      },
+      {
+        "reservation": null,
+        "coach": null,
+        "seats": null
+      }
+    ]
+  }
 }
