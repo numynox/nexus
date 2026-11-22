@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="splash_background">#1A1512</color>
+    <color name="abeona_bar_ride">#F08CA8</color>
+    <color name="abeona_bar_ok">#A6E3C4</color>
+    <color name="abeona_progress_icon">#F08CA8</color>
 </resources>

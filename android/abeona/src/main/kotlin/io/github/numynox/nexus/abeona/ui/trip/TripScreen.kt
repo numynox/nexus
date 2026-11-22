@@ -16,7 +16,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
+import androidx.compose.ui.platform.LocalView
+import androidx.window.core.layout.WindowSizeClass
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -77,6 +86,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.numynox.nexus.abeona.data.Approach
 import io.github.numynox.nexus.abeona.data.Leg
 import io.github.numynox.nexus.abeona.data.Trip
+import io.github.numynox.nexus.abeona.data.TripSummary
 import io.github.numynox.nexus.abeona.data.toInstantOrNull
 import io.github.numynox.nexus.abeona.domain.Transfer
 import io.github.numynox.nexus.abeona.domain.finalArrivalDelay
@@ -138,7 +148,9 @@ import io.github.numynox.nexus.abeona.ui.common.FactLine
 import io.github.numynox.nexus.abeona.ui.common.Rail
 import io.github.numynox.nexus.abeona.ui.common.RailDot
 import io.github.numynox.nexus.abeona.ui.common.RailLine
+import io.github.numynox.nexus.abeona.ui.common.SeatFact
 import io.github.numynox.nexus.abeona.ui.common.SectionHeader
+import io.github.numynox.nexus.abeona.domain.intake.seatText
 import io.github.numynox.nexus.abeona.ui.common.StatusChip
 import io.github.numynox.nexus.abeona.ui.common.StatusTone
 import io.github.numynox.nexus.abeona.ui.common.StopRow
@@ -165,6 +177,7 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
     val replacements by viewModel.replacements.collectAsStateWithLifecycle()
     val shareLinks by viewModel.shareLinks.collectAsStateWithLifecycle()
     val shareBusy by viewModel.shareBusy.collectAsStateWithLifecycle()
+    val summary by viewModel.summary.collectAsStateWithLifecycle()
     var recording by rememberSaveable { mutableStateOf(false) }
     var editing by rememberSaveable { mutableStateOf(false) }
     var sharing by rememberSaveable { mutableStateOf(false) }
@@ -339,7 +352,11 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
         PullToRefreshBox(
             isRefreshing = pull.refreshing,
             onRefresh = pull.onRefresh,
-            modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()),
+            // A phone on its side has its cutout and bars at the sides: the content stays clear of them.
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = padding.calculateTopPadding())
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
         ) {
             when (val state = detail) {
                 Loadable.Loading -> PlaceholderList(count = 3, modifier = Modifier.padding(horizontal = 16.dp), lines = 3)
@@ -389,6 +406,7 @@ fun TripScreen(app: AppViewModel, tripId: String, navigator: Navigator) {
                     onAlternatives = openAlternatives,
                     onTicket = openTicket,
                     fetchApproach = app.container.repository::approach,
+                    summary = summary,
                     afterRide = afterRide?.let { state ->
                         AfterRideActions(
                             state = state,
@@ -572,6 +590,8 @@ private fun TripContent(
     onTicket: () -> Unit,
     /** Where the train to catch is on its way to the boarding stop (AbeonaRepository.approach). */
     fetchApproach: suspend (Leg) -> Approach? = { null },
+    /** What the trip added up to, once arrived: the postcard's figures. */
+    summary: TripSummary? = null,
 ) {
     val trip = detail.trip
     // The journey as travelled: the plan, or the connection taken instead.
@@ -583,10 +603,62 @@ private fun TripContent(
     val droppedIdx = trip.legs.indexOfFirst { !it.isWalk && it.dropped }
     val dropped = trip.legs.getOrNull(droppedIdx)
     val connectionBroken = hasImpossibleChange(trip.legs) || live?.missedShort == true || dropped != null
+    // At the station or changing, the phone is in the hand and the platform on the screen: it stays on.
+    val keepOn = live?.day?.kind == TravelDayKind.AtStation || live?.day?.kind == TravelDayKind.Changing
+    val view = LocalView.current
+    DisposableEffect(view, keepOn) {
+        if (keepOn) view.keepScreenOn = true
+        onDispose { if (keepOn) view.keepScreenOn = false }
+    }
+    // Tray-table mode: on a wide window (a phone on its side, a tablet) the map takes the right half,
+    // the whole height, and stays put while the rest scrolls on the left.
+    val twoPane = currentWindowAdaptiveInfo().windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND)
+    val liveMap = live != null && live.day.kind != TravelDayKind.Arrived
+    if (twoPane) {
+        Row(Modifier.fillMaxSize()) {
+            TripList(detail, live, journey, changes, droppedIdx, dropped, connectionBroken, arrivalDelay, twoPane = true, askLocation, onAllowLocation, onDismissLocation, onUseLocation, onAlternatives, afterRide, companion, liveUpdatesOff, onLiveUpdatesSettings, onFollowPlan, onDroppedAlternatives, onTicket, fetchApproach, summary, Modifier.weight(1f))
+            Box(Modifier.weight(1f).fillMaxHeight().padding(end = 16.dp, bottom = 16.dp)) {
+                if (liveMap && live != null) LiveMap(live.view, fill = true) else TripMap(journey.legs, Modifier.fillMaxSize())
+            }
+        }
+    } else {
+        TripList(detail, live, journey, changes, droppedIdx, dropped, connectionBroken, arrivalDelay, twoPane = false, askLocation, onAllowLocation, onDismissLocation, onUseLocation, onAlternatives, afterRide, companion, liveUpdatesOff, onLiveUpdatesSettings, onFollowPlan, onDroppedAlternatives, onTicket, fetchApproach, summary, Modifier.fillMaxSize())
+    }
+}
+
+/** The trip's list: everything but the map when it has a pane of its own ([twoPane]). */
+@Composable
+private fun TripList(
+    detail: TripDetail,
+    live: LiveDay?,
+    journey: Trip,
+    changes: List<Transfer>,
+    droppedIdx: Int,
+    dropped: Leg?,
+    connectionBroken: Boolean,
+    arrivalDelay: Int,
+    twoPane: Boolean,
+    askLocation: Boolean,
+    onAllowLocation: () -> Unit,
+    onDismissLocation: () -> Unit,
+    onUseLocation: () -> Unit,
+    onAlternatives: () -> Unit,
+    afterRide: AfterRideActions?,
+    companion: CompanionOffer,
+    liveUpdatesOff: Boolean,
+    onLiveUpdatesSettings: () -> Unit,
+    onFollowPlan: () -> Unit,
+    onDroppedAlternatives: () -> Unit,
+    onTicket: () -> Unit,
+    fetchApproach: suspend (Leg) -> Approach?,
+    summary: TripSummary?,
+    modifier: Modifier,
+) {
+    val trip = detail.trip
     LazyColumn(
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier,
     ) {
         val over = trip.expectedArrival.plus(Duration.ofHours(1)).isBefore(java.time.Instant.now())
         val binding = !over && trainBindingLifted(trip.fareType, trip.trainBinding, arrivalDelay, connectionBroken)
@@ -636,7 +708,7 @@ private fun TripContent(
             item(key = "notices") { notices() }
         }
         live?.let { l ->
-            item(key = "live-map") { LiveMap(l.view) }
+            if (!twoPane) item(key = "live-map") { LiveMap(l.view) }
             if (askLocation && l.day.kind != TravelDayKind.Arrived) {
                 item(key = "location") { LocationPrompt(onAllow = onAllowLocation, onDismiss = onDismissLocation) }
             }
@@ -654,6 +726,14 @@ private fun TripContent(
         // After the ride the verdict is the answer (abeona-design.md §2, moment 12): before the journey it is about.
         afterRide?.let { a ->
             item(key = "compensation") { CompensationCard(trip, a.state, a.onStatus, a.onPrice, a.onForceMajeure) }
+        }
+        // Once arrived, what the trip added up to, after the compensation; never while something is broken.
+        val arrived = live?.day?.kind == TravelDayKind.Arrived || (live == null && trip.expectedArrival.isBefore(java.time.Instant.now()))
+        val broken = journey.legs.any { !it.isWalk && it.cancelled } || hasImpossibleChange(journey.legs)
+        if (arrived && !broken && summary != null) {
+            item(key = "postcard") { PostcardCard(journey, summary) }
+        }
+        afterRide?.let { a ->
             item(key = "what-happened") { WhatHappenedCard(trip, a.state.busy, a.onRecord, a.onClear) }
         }
         // While the card is live it is the journey: the timeline returns once arrived (abeona-design.md §8).
@@ -669,7 +749,7 @@ private fun TripContent(
         }
         item(key = "ticket") { TicketCard(trip, onTicket) }
         // While the trip is live the dashboard has the map, with the traveller on it.
-        if (live == null || live.day.kind == TravelDayKind.Arrived) {
+        if (!twoPane && (live == null || live.day.kind == TravelDayKind.Arrived)) {
             item(key = "map") { TripMap(journey.legs, Modifier.fillMaxWidth().height(220.dp)) }
         }
     }
@@ -834,6 +914,10 @@ private fun RideRows(leg: Leg, timetableOnly: Boolean, walkBefore: Boolean, walk
             }
         },
     )
+    // Where to sit, while the ride is still to come.
+    if (seatText(leg.coach, leg.seats) != null && leg.to.expectedAt?.isAfter(java.time.Instant.now()) != false) {
+        StopRow(name = "", rail = Rail(line, line, RailDot.None), minHeight = 28.dp, content = { SeatFact(leg.coach, leg.seats) })
+    }
     if (leg.stopovers.isNotEmpty()) {
         StopRow(
             name = "",

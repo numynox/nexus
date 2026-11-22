@@ -50,6 +50,7 @@ import io.github.numynox.nexus.abeona.domain.changes
 import io.github.numynox.nexus.abeona.domain.departureDelay
 import io.github.numynox.nexus.abeona.domain.platformChanged
 import io.github.numynox.nexus.abeona.domain.worstConfidence
+import io.github.numynox.nexus.abeona.live.LiveCompanion
 import io.github.numynox.nexus.abeona.ui.AbeonaColors
 import io.github.numynox.nexus.abeona.ui.AbeonaPalette
 import io.github.numynox.nexus.abeona.ui.common.TripFormat
@@ -59,7 +60,9 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 
 /**
- * The next departure on the home screen: day or countdown, time, delay,
+ * The next departure on the home screen: the day, or the countdown while the
+ * live companion follows that trip (it redraws the widget as the minute
+ * turns, so the minutes are never stale), time, delay,
  * platform, title, and the arrival with the number of changes. It loads for itself (decisions/2026-10-23-home-screen-widgets.md)
  * and keeps the last good trip, so it still shows the platform in a tunnel.
  * Delays and confidence are worked out when it draws, from the stored trip.
@@ -71,7 +74,8 @@ class NextTripWidget : GlanceAppWidget() {
         val container = (context.applicationContext as AbeonaApplication).container
         val state = NextTripData.load(container)
         val dynamicColor = container.preferences.current().dynamicColor
-        provideContent { NextTripContent(state, dynamicColor = dynamicColor) }
+        val live = (state as? NextTripState.Ready)?.trip?.id?.let { it == LiveCompanion.running.value } == true
+        provideContent { NextTripContent(state, dynamicColor = dynamicColor, live = live) }
     }
 
     companion object {
@@ -119,7 +123,7 @@ private val Changed = ColorProvider(day = AbeonaColors.WatchFill, night = Abeona
 private val OnChanged = ColorProvider(day = AbeonaColors.OnWatchFill, night = AbeonaColors.OnWatchFill)
 
 @Composable
-fun NextTripContent(state: NextTripState, now: Instant = Instant.now(), dynamicColor: Boolean = false) {
+fun NextTripContent(state: NextTripState, now: Instant = Instant.now(), dynamicColor: Boolean = false, live: Boolean = false) {
     val context = LocalContext.current
     val tripId = (state as? NextTripState.Ready)?.trip?.id
     GlanceTheme(colors = if (dynamicColor) GlanceTheme.colors else WidgetColors) {
@@ -136,7 +140,7 @@ fun NextTripContent(state: NextTripState, now: Instant = Instant.now(), dynamicC
                 NextTripState.SignedOut -> Message("Sign in to Abeona to see your next train")
                 NextTripState.NotLoaded -> Message("Waiting for a connection")
                 NextTripState.NoTrips -> Message("No trips planned")
-                is NextTripState.Ready -> NextTrip(state.trip, now)
+                is NextTripState.Ready -> NextTrip(state.trip, now, live)
             }
         }
     }
@@ -164,12 +168,13 @@ private fun Logo() {
 }
 
 /**
- * The day (or, within twelve hours, the countdown), the departure with its
- * delay and the platform boxed, the trip's title, and one line to the
- * destination: its arrival and the number of changes.
+ * The day ("Today", "Tomorrow", "Sun 22 Nov"), or the countdown while the
+ * live companion runs for this trip ([live]); the departure with its delay
+ * and the platform boxed, the trip's title, and one line to the destination:
+ * its arrival and the number of changes.
  */
 @Composable
-private fun NextTrip(trip: Trip, now: Instant) {
+private fun NextTrip(trip: Trip, now: Instant, live: Boolean) {
     val first = trip.legs.firstOrNull { !it.isWalk }
     val last = trip.legs.lastOrNull { !it.isWalk }
     val delay = first?.let(::departureDelay) ?: 0
@@ -181,7 +186,7 @@ private fun NextTrip(trip: Trip, now: Instant) {
         Logo()
         Spacer(GlanceModifier.width(8.dp))
         Text(
-            if (minutesToGo in 0..720) TripFormat.relative(minutesToGo) else TripFormat.day(trip.departureAt),
+            if (live && minutesToGo >= 0) TripFormat.relative(minutesToGo) else TripFormat.day(trip.departureAt),
             style = TextStyle(color = GlanceTheme.colors.primary, fontSize = 13.sp, fontWeight = FontWeight.Medium),
         )
     }

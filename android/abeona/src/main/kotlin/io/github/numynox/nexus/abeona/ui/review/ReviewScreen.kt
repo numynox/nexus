@@ -63,6 +63,7 @@ import androidx.lifecycle.viewModelScope
 import io.github.numynox.nexus.abeona.AppContainer
 import io.github.numynox.nexus.abeona.data.ClaimsOverview
 import io.github.numynox.nexus.abeona.data.Statistics
+import io.github.numynox.nexus.abeona.data.TopSpeedTrip
 import io.github.numynox.nexus.abeona.data.TravelMapLine
 import io.github.numynox.nexus.abeona.ui.AbeonaType
 import io.github.numynox.nexus.abeona.ui.AppViewModel
@@ -297,6 +298,16 @@ private fun storyCards(stats: Statistics, year: Int, map: List<TravelMapLine>, t
                 )
             }
         },
+        stats.topSpeedKmh?.takeIf { it > 0 }?.let { kmh ->
+            {
+                // The fastest the train's Wi-Fi said on a ride this year, and which ride.
+                StoryCard(top = { Scene(SceneState.Riding, size = SceneSize.Full, speedKmh = kmh.toDouble(), at = todayAt(16)) }) {
+                    Figure(NexusFormat.number(kmh.toDouble()), "km/h")
+                    Line("top speed on board")
+                    stats.topSpeedTrip?.let { ride -> Foot { Small(topSpeedRide(ride)) } }
+                }
+            }
+        },
         {
             val share = stats.punctualShare
             StoryCard(top = { Punctuality(share) }) {
@@ -363,6 +374,13 @@ private fun flag(code: String): String =
     } else ""
 
 /** A beech takes up roughly 12.5 kg of CO₂ a year (an often-quoted rule of thumb); the web says the same. */
+/** "ICE 25 · Frankfurt(Main)Hbf → Würzburg Hbf · 10 Oct": where the top speed was. */
+internal fun topSpeedRide(ride: TopSpeedTrip): String = listOfNotNull(
+    ride.line?.takeIf { it.isNotBlank() },
+    "${ride.from} → ${ride.to}",
+    ride.date?.let { runCatching { LocalDate.parse(it).format(java.time.format.DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH)) }.getOrNull() },
+).joinToString(" · ")
+
 private fun trees(kg: Double): String? {
     val n = Math.round(kg / 12.5).toInt()
     return if (n >= 1) "About what ${NexusFormat.number(n.toDouble())} ${if (n == 1) "beech tree takes" else "beech trees take"} up in a year." else null

@@ -224,9 +224,12 @@ fun Scene(
     at: Instant? = null,
     lat: Double? = null,
     lon: Double? = null,
+    /** A still picture whatever the settings: drawn once, into an image to share. */
+    still: Boolean = false,
 ) {
     val context = LocalContext.current
-    val reduced = remember { Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f }
+    // Animations off (animator duration scale 0) asks for a still picture: the clock never starts.
+    val reduced = still || remember { Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f }
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val density = LocalDensity.current.density
     val scope = rememberCoroutineScope()

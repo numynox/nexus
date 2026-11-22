@@ -62,3 +62,10 @@ androidComponents {
             ?.sources?.resources?.addGeneratedSourceDirectory(transferFixtures, CopyFixtures::outputDir)
     }
 }
+
+// Android 16's runtime under Robolectric (the Live Update screenshots,
+// LiveUpdateScreenshots, run at SDK 36) reaches into the JDK's file
+// descriptors at start-up; Java 17+ allows that only when asked.
+tasks.withType<Test>().configureEach {
+    jvmArgs("--add-exports=java.base/jdk.internal.access=ALL-UNNAMED", "--add-opens=java.base/java.io=ALL-UNNAMED")
+}

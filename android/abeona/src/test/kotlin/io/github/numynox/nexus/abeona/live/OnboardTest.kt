@@ -70,6 +70,46 @@ class OnboardTest {
         assertEquals(Instant.parse("2026-11-03T11:36:00Z"), status.nextStopAt)
     }
 
+    /** Why the train is late: the next stop's first reason, as DB prints it. A stop passed has its own, old ones. */
+    @Test
+    fun readsTheDelayReasonOfTheNextStop() {
+        val trip = """
+            {"trip":{"trainType":"ICE","vzn":"25","stopInfo":{"actualNext":"8000260_00"},
+             "stops":[
+              {"station":{"evaNr":"8000105_00","name":"Frankfurt(Main)Hbf"},"info":{"passed":true},"delayReasons":[{"code":"43","text":"Verspätung eines vorausfahrenden Zuges"}]},
+              {"station":{"evaNr":"8000260_00","name":"Würzburg Hbf"},"info":{"passed":false},"delayReasons":[{"code":"80","text":"Reparatur an einer Weiche"},{"code":"43","text":"Verspätung eines vorausfahrenden Zuges"}]}
+             ]}}
+        """.trimIndent()
+        assertEquals("Reparatur an einer Weiche", parseIcePortal(iceStatus, trip, at)!!.delayReason)
+        // None given: none.
+        assertNull(parseIcePortal(iceStatus, iceTrip, at)!!.delayReason)
+    }
+
+    /** Which side the doors open on, by station: the words Railnet uses, any case; anything else is not known. */
+    @Test
+    fun readsTheExitSides() {
+        val combined = """
+            {"trainType":"RJX","tripNumber":"860",
+             "stations":[
+              {"name":{"de":"Linz Hbf","en":"Linz Hbf"},"exitSide":"right"},
+              {"name":"St. Pölten Hbf","exitSide":"Links"},
+              {"name":"Wien Meidling","exitSide":"R"},
+              {"name":"Wien Hbf","exitSide":"both"},
+              {"name":"Salzburg Hbf"}
+             ]}
+        """.trimIndent()
+        val status = parseRailnet(combined, null, at)!!
+        assertEquals(
+            mapOf("Linz Hbf" to ExitSide.Right, "St. Pölten Hbf" to ExitSide.Left, "Wien Meidling" to ExitSide.Right),
+            status.exitSides,
+        )
+        assertEquals(ExitSide.Left, exitSideAt(status, "St. Pölten Hbf"))
+        // The timetable's name for the same station.
+        assertEquals(ExitSide.Right, exitSideAt(status, "Linz(Donau)Hbf"))
+        assertNull(exitSideAt(status, "Wien Hbf"))
+        assertNull(exitSideAt(null, "Linz Hbf"))
+    }
+
     @Test
     fun matchesTheRideByNumberAndType() {
         fun ride(name: String, product: String) = Leg(mode = LegMode.Train, lineName = name, product = product, from = StopTime(name = "a"), to = StopTime(name = "b"))

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -24,6 +25,8 @@ import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.material.icons.rounded.DoorSliding
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
@@ -68,6 +71,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -88,7 +92,10 @@ import io.github.numynox.nexus.abeona.domain.Transfer
 import io.github.numynox.nexus.abeona.domain.TravelDay
 import io.github.numynox.nexus.abeona.domain.TravelDayKind
 import io.github.numynox.nexus.abeona.domain.TravelDaySource
+import io.github.numynox.nexus.abeona.domain.arrivalDelay
+import io.github.numynox.nexus.abeona.domain.delayMinutes
 import io.github.numynox.nexus.abeona.domain.finalArrivalDelay
+import io.github.numynox.nexus.abeona.domain.intake.seatText
 import io.github.numynox.nexus.abeona.domain.followsReplacement
 import io.github.numynox.nexus.abeona.domain.platformChanged
 import io.github.numynox.nexus.abeona.domain.rideProgress
@@ -97,7 +104,9 @@ import io.github.numynox.nexus.abeona.domain.transfers
 import io.github.numynox.nexus.abeona.live.Evidence
 import io.github.numynox.nexus.abeona.live.EvidenceKind
 import io.github.numynox.nexus.abeona.live.EvidenceState
+import io.github.numynox.nexus.abeona.live.ExitSide
 import io.github.numynox.nexus.abeona.live.OnboardStatus
+import io.github.numynox.nexus.abeona.live.exitSideAt
 import io.github.numynox.nexus.abeona.ui.AbeonaType
 import io.github.numynox.nexus.abeona.ui.bad
 import io.github.numynox.nexus.abeona.ui.brand
@@ -111,6 +120,8 @@ import io.github.numynox.nexus.abeona.ui.common.PlatformBox
 import io.github.numynox.nexus.abeona.ui.common.Rail
 import io.github.numynox.nexus.abeona.ui.common.RailDot
 import io.github.numynox.nexus.abeona.ui.common.RailLine
+import io.github.numynox.nexus.abeona.ui.common.RowGrid
+import io.github.numynox.nexus.abeona.ui.common.SeatFact
 import io.github.numynox.nexus.abeona.ui.common.ShiftedTime
 import io.github.numynox.nexus.abeona.ui.common.StatusChip
 import io.github.numynox.nexus.abeona.ui.common.StatusTone
@@ -210,13 +221,17 @@ fun LiveDashboard(
     }
 }
 
-/** The map under the live card, with the traveller on it. Nothing once arrived. */
+/**
+ * The map under the live card, with the traveller on it. Nothing once
+ * arrived. [fill]: the whole space given (the trip screen's right pane on a
+ * wide screen), else 240 high.
+ */
 @Composable
-fun LiveMap(view: LiveView, modifier: Modifier = Modifier) {
+fun LiveMap(view: LiveView, modifier: Modifier = Modifier, fill: Boolean = false) {
     if (view.day.kind == TravelDayKind.Arrived) return
     TripMap(
         view.trip.legs,
-        modifier.fillMaxWidth().height(240.dp),
+        if (fill) modifier.fillMaxSize() else modifier.fillMaxWidth().height(240.dp),
         marker = view.marker,
         focus = view.leg?.takeIf { view.day.kind == TravelDayKind.OnBoard },
     )
@@ -324,7 +339,9 @@ private val StepNameStyle = AbeonaType.headline.copy(fontSize = 22.sp, lineHeigh
 /**
  * One row of the journey line, drawn by [draw] with its piece of the rail.
  * [above] null: the line from the row before runs on into it; [below] null:
- * it runs on through it. [dim]: after a step that broke.
+ * it runs on through it. [dim]: after a step that broke. Rows of one
+ * [group] (a step: its verb, its row, its countdown, its seat) are one node
+ * for a screen reader, which reads [speech] for all of them.
  */
 private class LineRow(
     val key: String,
@@ -332,8 +349,40 @@ private class LineRow(
     val above: RailLine?,
     val below: RailLine?,
     val dim: Boolean,
+    val group: String? = null,
+    val speech: String? = null,
     val draw: @Composable (Rail) -> Unit,
 )
+
+/** "in 12 minutes", "now": a countdown as a screen reader says it. */
+private fun spokenIn(minutes: Int?): String? = minutes?.let { m ->
+    when {
+        m <= 0 -> "now"
+        m < 60 -> "in $m ${if (m == 1) "minute" else "minutes"}"
+        else -> "in ${m / 60} ${if (m / 60 == 1) "hour" else "hours"} ${m % 60} minutes"
+    }
+}
+
+/** "14:14, 7 minutes late": a time as the row shows it, said. */
+private fun spokenTime(planned: Instant?, expected: Instant?): String? {
+    val shown = expected ?: planned ?: return null
+    val delay = delayMinutes(planned, expected)
+    return if (delay > 0) "${TripFormat.time(shown)}, $delay minutes late" else TripFormat.time(shown)
+}
+
+private fun spokenPlatform(stop: StopTime): String? = stop.shownPlatform?.let { "platform $it" }
+
+/** "Coach 24, seat 66": the seat as the row shows it, said. */
+private fun spokenSeat(leg: Leg): String? = seatText(leg.coach, leg.seats)?.replace(" · S", ", s")
+
+/** "ICE 25 to Wien Hbf". */
+private fun spokenTrain(leg: Leg): String = leg.label + (leg.headsign?.let { " to $it" } ?: "")
+
+/** Parts of a row, said as one sentence: commas between, a full stop at the end, then [after] (more sentences). */
+private fun sentence(vararg parts: String?, after: List<String?> = emptyList()): String =
+    (listOf(parts.filterNotNull().filter { it.isNotBlank() }.joinToString(", ")) + after.filterNotNull())
+        .filter { it.isNotBlank() }
+        .joinToString(" ") { if (it.endsWith(".")) it else "$it." }
 
 /**
  * The live card (abeona-design.md §8): the journey drawn as one line in the
@@ -397,18 +446,46 @@ fun LiveCard(
     }
 }
 
-/** The rows on one continuous line: each row's rail starts where the one before ended. */
+/**
+ * The rows on one continuous line: each row's rail starts where the one
+ * before ended. The rows of a group are one sentence to a screen reader.
+ */
 @Composable
 private fun JourneyLine(rows: List<LineRow>, hole: Color, modifier: Modifier = Modifier) {
+    // Each row's rail first: a group draws several rows at once.
+    val rails = mutableListOf<Rail>()
+    var line = RailLine.None
+    rows.forEach { row ->
+        val above = row.above ?: line
+        val below = row.below ?: above
+        line = below
+        rails += Rail(above, below, row.dot, hole)
+    }
+    @Composable
+    fun draw(i: Int) {
+        val row = rows[i]
+        key(row.key) {
+            Box(if (row.dim) Modifier.alpha(0.45f) else Modifier) { row.draw(rails[i]) }
+        }
+    }
     Column(modifier.fillMaxWidth()) {
-        var line = RailLine.None
-        rows.forEach { row ->
-            val above = row.above ?: line
-            val below = row.below ?: above
-            line = below
-            key(row.key) {
-                Box(if (row.dim) Modifier.alpha(0.45f) else Modifier) { row.draw(Rail(above, below, row.dot, hole)) }
+        var i = 0
+        while (i < rows.size) {
+            val group = rows[i].group
+            if (group == null) {
+                draw(i)
+                i++
+                continue
             }
+            var end = i
+            while (end + 1 < rows.size && rows[end + 1].group == group) end++
+            val speech = (i..end).firstNotNullOfOrNull { rows[it].speech }
+            key("group-$group") {
+                Column(Modifier.fillMaxWidth().clearAndSetSemantics { speech?.let { contentDescription = it } }) {
+                    for (k in i..end) draw(k)
+                }
+            }
+            i = end + 1
         }
     }
 }
@@ -441,8 +518,19 @@ private fun journeyRows(
     var dim = false
     var alternativesShown = false
     var anyTrainShown = false
+    // The step being added, and how a screen reader says it: its rows are one sentence.
+    var group: String? = null
+    var speech: String? = null
     fun add(key: String, dot: RailDot = RailDot.None, above: RailLine? = null, below: RailLine? = null, dimmed: Boolean = dim, draw: @Composable (Rail) -> Unit) {
-        rows += LineRow(key, dot, above, below, dimmed, draw)
+        rows += LineRow(key, dot, above, below, dimmed, group, speech, draw)
+    }
+    /** The rows [block] adds read as [says]. Nothing that can be pressed belongs in one: it would be hidden. */
+    fun spoken(name: String, says: String, block: () -> Unit) {
+        group = name
+        speech = says
+        block()
+        group = null
+        speech = null
     }
 
     // The binding is lifted by the ticket's rules (the caller's), or by a ride that does not run.
@@ -469,6 +557,7 @@ private fun journeyRows(
         val ride = legs[k]
         val action = alternativesFor(k)
         val anyTrain = liftedFor(k)
+        spoken("broken-$k", sentence("${verb.text}: ${spokenTrain(ride)} from ${ride.from.name}", TripFormat.time(ride.from.plannedAt))) {
         verb("broken-$k", verb)
         add("broken-$k", RailDot.Broken, below = below) { rail ->
             StopRow(
@@ -486,7 +575,8 @@ private fun journeyRows(
             )
         }
         // The large one says where: the station it was to leave from.
-        if (large) under("broken-$k-at") { Text(ride.from.name, style = AbeonaType.body, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        if (large) under("broken-$k-at") { Text(ride.from.name, style = AbeonaType.body, color = muted, maxLines = RowGrid.lines, overflow = TextOverflow.Ellipsis) }
+        }
         val button = action?.takeIf { !alternativesShown }
         if (button != null || anyTrain) {
             under("broken-$k") { Actions(button, filled = true, anyTrain = anyTrain) }
@@ -504,24 +594,32 @@ private fun journeyRows(
         val anyTrain = impossible && lifted && !anyTrainShown
         if (action != null) alternativesShown = true
         if (anyTrain) anyTrainShown = true
-        add(key, above = null, below = below) { rail -> ChangeRow(change, legs, rail, action, impossible, anyTrain) }
+        val row = { add(key, above = null, below = below) { rail -> ChangeRow(change, legs, rail, action, impossible, anyTrain) } }
+        if (action == null && !anyTrain) spoken(key, spokenChange(change, legs), row) else row()
         if (impossible) dim = true
     }
 
     /** Where a ride starts or ends, as a stop on the line; [quiet] once it is behind (and its platform no longer matters). */
-    fun stop(key: String, at: StopTime, dot: RailDot, below: RailLine, quiet: Boolean = false) = add(key, dot, below = below) { rail ->
-        StopRow(
-            name = at.name, planned = at.plannedAt, expected = at.expectedAt,
-            platformPlanned = at.plannedPlatform.takeIf { !quiet }, platformCurrent = at.platform.takeIf { !quiet },
-            quiet = quiet, rail = rail,
-        )
-    }
+    fun stop(key: String, at: StopTime, dot: RailDot, below: RailLine, quiet: Boolean = false) =
+        spoken(key, sentence(at.name, spokenTime(at.plannedAt, at.expectedAt), spokenPlatform(at).takeIf { !quiet })) {
+            add(key, dot, below = below) { rail ->
+                StopRow(
+                    name = at.name, planned = at.plannedAt, expected = at.expectedAt,
+                    platformPlanned = at.plannedPlatform.takeIf { !quiet }, platformCurrent = at.platform.takeIf { !quiet },
+                    quiet = quiet, rail = rail,
+                )
+            }
+        }
 
     fun destination(dimmed: Boolean = dim) {
         val end = legs[last].to
         val anyTrain = lifted && !anyTrainShown && !compact
         if (anyTrain) anyTrainShown = true
-        add("destination", below = RailLine.None, dimmed = dimmed) { rail ->
+        val says = sentence(
+            "Destination ${trip.destinationName}", spokenTime(end.plannedAt, end.expectedAt), spokenPlatform(end),
+            after = listOf(if (anyTrain) "Train binding lifted: any train" else null),
+        )
+        spoken("destination", says) { add("destination", below = RailLine.None, dimmed = dimmed) { rail ->
             StopRow(
                 name = trip.destinationName, planned = end.plannedAt, expected = end.expectedAt,
                 platformPlanned = end.plannedPlatform, platformCurrent = end.platform,
@@ -529,7 +627,7 @@ private fun journeyRows(
                 mark = { DestinationMark(rail.hole) },
                 trailing = { if (anyTrain) AnyTrainChip() },
             )
-        }
+        } }
     }
 
     /** Where the ride ends: the destination, or the stop to get off at before a change. */
@@ -539,15 +637,17 @@ private fun journeyRows(
     if (day.kind == TravelDayKind.Arrived || index == null) {
         if (!compact) add("done", RailDot.Done, above = RailLine.None, below = RailLine.Done) { rail -> DoneRow(rides.map(legs::get), trip.followsReplacement, rail) }
         val end = legs[last].to
-        verb("arrived", Verb.Arrived)
-        // The line ends at the flag: nothing is left to do.
-        add("arrived", RailDot.None, below = RailLine.None) { rail ->
-            StopRow(
-                name = "", planned = end.plannedAt, expected = end.expectedAt, rail = rail, timeStyle = StepTimeStyle, minHeight = 44.dp,
-                mark = { DestinationMark(rail.hole) },
-                content = { StepName(trip.destinationName) },
-                trailing = { PlatformBox(end.plannedPlatform, end.platform, lead = true) },
-            )
+        spoken("arrived", sentence("Arrived at ${trip.destinationName}", spokenPlatform(end), spokenTime(end.plannedAt, end.expectedAt))) {
+            verb("arrived", Verb.Arrived)
+            // The line ends at the flag: nothing is left to do.
+            add("arrived", RailDot.None, below = RailLine.None) { rail ->
+                StopRow(
+                    name = "", planned = end.plannedAt, expected = end.expectedAt, rail = rail, timeStyle = StepTimeStyle, minHeight = 44.dp,
+                    mark = { DestinationMark(rail.hole) },
+                    content = { StepName(trip.destinationName) },
+                    trailing = { PlatformBox(end.plannedPlatform, end.platform, lead = true) },
+                )
+            }
         }
         return rows
     }
@@ -568,27 +668,42 @@ private fun journeyRows(
     } else {
         when (day.kind) {
             TravelDayKind.BeforeLeaving -> {
-                verb("leave", Verb.Leave)
-                add("leave", RailDot.Active, below = RailLine.Dashed) { rail ->
-                    StopRow(
-                        name = "", planned = day.leaveAt, expected = day.leaveAt, rail = rail, timeStyle = StepTimeStyle, minHeight = 44.dp,
-                        content = { StepName(countdown(day.minutesToLeave) ?: ride.from.name, color = if (day.minutesToLeave != null) brand else Color.Unspecified) },
-                    )
+                val says = sentence(
+                    "Leave at ${TripFormat.time(day.leaveAt)}", spokenIn(day.minutesToLeave),
+                    after = listOf("Walk to the station: ${view.stationMinutes} minutes"),
+                )
+                spoken("leave", says) {
+                    verb("leave", Verb.Leave)
+                    add("leave", RailDot.Active, below = RailLine.Dashed) { rail ->
+                        StopRow(
+                            name = "", planned = day.leaveAt, expected = day.leaveAt, rail = rail, timeStyle = StepTimeStyle, minHeight = 44.dp,
+                            content = { StepName(countdown(day.minutesToLeave) ?: ride.from.name, color = if (day.minutesToLeave != null) brand else Color.Unspecified) },
+                        )
+                    }
+                    under("leave") { Fact(Icons.AutoMirrored.Rounded.DirectionsWalk, "Walk to the station", "${view.stationMinutes} min") }
                 }
-                under("leave") { Fact(Icons.AutoMirrored.Rounded.DirectionsWalk, "Walk to the station", "${view.stationMinutes} min") }
                 if (!compact) stop("board", ride.from, RailDot.Stop, RailLine.Brand)
             }
             TravelDayKind.AtStation, TravelDayKind.Changing -> {
                 if (day.kind == TravelDayKind.Changing && !compact) changeBefore(index)?.let { change("change-now", it) }
-                verb("board", Verb.Board)
-                add("board", RailDot.Active, below = RailLine.Brand) { rail ->
-                    StopRow(
-                        name = "", planned = ride.from.plannedAt, expected = ride.from.expectedAt, rail = rail, timeStyle = StepTimeStyle, minHeight = 44.dp,
-                        content = { StepName(ride.from.name) },
-                        trailing = { PlatformBox(ride.from.plannedPlatform, ride.from.platform, lead = true) },
-                    )
+                val says = sentence(
+                    "Board ${spokenTrain(ride)} at ${ride.from.name}", spokenPlatform(ride.from),
+                    spokenTime(ride.from.plannedAt, ride.from.expectedAt), spokenIn(day.minutesToDeparture),
+                    after = listOf(spokenSeat(ride).takeIf { !compact }),
+                )
+                spoken("board", says) {
+                    verb("board", Verb.Board)
+                    add("board", RailDot.Active, below = RailLine.Brand) { rail ->
+                        StopRow(
+                            name = "", planned = ride.from.plannedAt, expected = ride.from.expectedAt, rail = rail, timeStyle = StepTimeStyle, minHeight = 44.dp,
+                            content = { StepName(ride.from.name) },
+                            trailing = { PlatformBox(ride.from.plannedPlatform, ride.from.platform, lead = true) },
+                        )
+                    }
+                    countdown(day.minutesToDeparture)?.let { text -> under("board") { Countdown(text) } }
+                    // Where to sit, under the countdown: not on the compact card.
+                    if (!compact && seatText(ride.coach, ride.seats) != null) under("board-seat") { SeatFact(ride.coach, ride.seats) }
                 }
-                countdown(day.minutesToDeparture)?.let { text -> under("board") { Countdown(text) } }
             }
             else -> if (!compact) stop("boarded", ride.from, RailDot.Done, RailLine.Brand, quiet = true)
         }
@@ -627,22 +742,33 @@ private fun journeyRows(
             end.shownPlatform == null && progress?.next == progress?.stops?.lastIndex &&
                 view.onboard.nextStop?.let { n -> n.startsWith(short(end.name)) || end.name.startsWith(n) } != false
         }
-        verb("get-off", if (arrive) Verb.Arrive else Verb.GetOff)
-        add("get-off", RailDot.Active, below = if (arrive) RailLine.None else RailLine.Dashed) { rail ->
-            StopRow(
-                name = "", planned = end.plannedAt, expected = end.expectedAt, rail = rail, timeStyle = StepTimeStyle, minHeight = 44.dp,
-                content = { StepName(if (arrive) trip.destinationName else end.name) },
-                trailing = { PlatformBox(end.plannedPlatform ?: track, end.platform ?: track, lead = true) },
-            )
-        }
         val anyTrain = arrive && lifted
         if (anyTrain) anyTrainShown = true
         val text = countdown(day.minutesToArrival)
-        if (text != null || anyTrain) {
-            under("get-off") {
-                text?.let { Countdown(it) }
-                if (anyTrain) AnyTrainChip()
+        // The train's Wi-Fi knows the side the doors open on: under the countdown.
+        val exit = if (compact) null else exitSideAt(view.onboard, end.name)
+        val step = if (arrive) Verb.Arrive else Verb.GetOff
+        val says = sentence(
+            "${step.text} at ${if (arrive) trip.destinationName else end.name}", (end.shownPlatform ?: track)?.let { "platform $it" },
+            spokenTime(end.plannedAt, end.expectedAt), spokenIn(day.minutesToArrival),
+            after = listOf(exit?.let { "Exit ${it.word}" }, if (anyTrain) "Train binding lifted: any train" else null),
+        )
+        spoken("get-off", says) {
+            verb("get-off", step)
+            add("get-off", RailDot.Active, below = if (arrive) RailLine.None else RailLine.Dashed) { rail ->
+                StopRow(
+                    name = "", planned = end.plannedAt, expected = end.expectedAt, rail = rail, timeStyle = StepTimeStyle, minHeight = 44.dp,
+                    content = { StepName(if (arrive) trip.destinationName else end.name) },
+                    trailing = { PlatformBox(end.plannedPlatform ?: track, end.platform ?: track, lead = true) },
+                )
             }
+            if (text != null || anyTrain) {
+                under("get-off") {
+                    text?.let { Countdown(it) }
+                    if (anyTrain) AnyTrainChip()
+                }
+            }
+            exit?.let { side -> under("get-off-exit") { ExitFact(side) } }
         }
     } else if (!compact) {
         end(index)
@@ -713,7 +839,10 @@ private fun journeyRows(
         if (broken && !brokenHere) {
             brokenStep(k, if (missedNext && k == after.first()) Verb.Missed else if (legs[k].dropped) Verb.NotRunning else Verb.Cancelled, large = false, below = RailLine.Faint)
         } else {
-            add("train-$k", RailDot.Stop, below = RailLine.Faint) { rail -> TrainRow(legs[k], rail) }
+            val train = legs[k]
+            spoken("train-$k", sentence(spokenTrain(train), spokenTime(train.from.plannedAt, train.from.expectedAt), spokenPlatform(train.from), after = listOf(spokenSeat(train)))) {
+                add("train-$k", RailDot.Stop, below = RailLine.Faint) { rail -> TrainRow(train, rail) }
+            }
         }
         if (i < shown.lastIndex) stop("end-$k", legs[k].to, RailDot.Stop, RailLine.Dashed)
     }
@@ -808,7 +937,7 @@ private fun DoneRow(rides: List<Leg>, replanned: Boolean, rail: Rail) {
             onClick = { open = !open },
             content = {
                 Column(Modifier.weight(1f).padding(vertical = 4.dp)) {
-                    Text(first.from.name, style = AbeonaType.body, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(first.from.name, style = AbeonaType.body, color = muted, maxLines = RowGrid.lines, overflow = TextOverflow.Ellipsis)
                     Text(
                         (if (rides.size == 1) "1 ride done" else "${rides.size} rides done") + if (replanned) " · re-planned" else "",
                         style = AbeonaType.meta, color = muted, maxLines = 1,
@@ -828,7 +957,7 @@ private fun DoneRow(rides: List<Leg>, replanned: Boolean, rail: Rail) {
                 }
                 StopRow(name = "", rail = through, minHeight = 32.dp, content = {
                     LineChip(ride, Modifier.alpha(0.7f))
-                    ride.headsign?.let { Text("to $it", style = AbeonaType.meta, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                    ride.headsign?.let { Text("to $it", style = AbeonaType.meta, color = muted, maxLines = RowGrid.lines, overflow = TextOverflow.Ellipsis) }
                 })
                 StopRow(name = ride.to.name, planned = ride.to.plannedAt, expected = ride.to.expectedAt, quiet = true, rail = at)
             }
@@ -871,12 +1000,12 @@ private fun BandRow(
                 lon = skyAt?.second,
             )
             if (caption) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     LineChip(ride)
                     Text(
                         ride.headsign?.let { "to $it" }.orEmpty(),
                         style = AbeonaType.body.copy(fontWeight = FontWeight.SemiBold),
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        maxLines = RowGrid.lines, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
                     speed?.let {
@@ -889,6 +1018,13 @@ private fun BandRow(
                             Icon(Icons.Rounded.Speed, contentDescription = null, modifier = Modifier.size(16.dp))
                             Text(kmh, style = AbeonaType.body.copy(fontWeight = FontWeight.Bold), maxLines = 1)
                         }
+                    }
+                }
+                // Why it is late, from the train's Wi-Fi: only while it is late enough to matter.
+                view.onboard?.delayReason?.takeIf { onBoard && arrivalDelay(ride) >= 5 }?.let { reason ->
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(Icons.Rounded.Info, contentDescription = null, tint = muted, modifier = Modifier.size(16.dp))
+                        Text(reason, style = AbeonaType.meta, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
@@ -927,26 +1063,64 @@ private fun PassingStops(progress: RideProgress) {
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Icon(Icons.Rounded.Check, contentDescription = null, tint = muted, modifier = Modifier.size(14.dp))
-                Text("${stop.name} $time", style = AbeonaType.meta, color = muted, maxLines = 1)
+                Text("${stop.name} $time", style = AbeonaType.meta, color = muted, maxLines = RowGrid.lines)
             }
         } else {
             Spacer(Modifier.width(0.dp))
         }
-        next?.let { Text("Next ${stops[it].name} ${TripFormat.time(stops[it].arrival)}", style = AbeonaType.meta, color = muted, maxLines = 1) }
+        next?.let { Text("Next ${stops[it].name} ${TripFormat.time(stops[it].arrival)}", style = AbeonaType.meta, color = muted, maxLines = RowGrid.lines) }
     }
 }
 
-/** A train ahead on the line: its departure, line, "to" its own destination, and platform. */
+/**
+ * A train ahead on the line: its departure, line, "to" its own destination,
+ * and platform; under them the seat, when the ticket has one.
+ */
 @Composable
 private fun TrainRow(leg: Leg, rail: Rail) {
+    val seated = seatText(leg.coach, leg.seats) != null
     StopRow(
         name = "",
         planned = leg.from.plannedAt, expected = leg.from.expectedAt,
         platformPlanned = leg.from.plannedPlatform, platformCurrent = leg.from.platform,
         rail = rail,
         content = {
-            LineChip(leg)
-            leg.headsign?.let { Text("to $it", style = AbeonaType.body, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false)) }
+            if (seated) {
+                Column(Modifier.weight(1f).padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        LineChip(leg)
+                        leg.headsign?.let { Text("to $it", style = AbeonaType.body, maxLines = RowGrid.lines, overflow = TextOverflow.Ellipsis) }
+                    }
+                    SeatFact(leg.coach, leg.seats)
+                }
+            } else {
+                LineChip(leg)
+                leg.headsign?.let { Text("to $it", style = AbeonaType.body, maxLines = RowGrid.lines, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false)) }
+            }
+        },
+    )
+}
+
+/** The side the doors open on at the stop to get off at: "Exit left", from the train's Wi-Fi. */
+@Composable
+private fun ExitFact(side: ExitSide) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Icon(Icons.Rounded.DoorSliding, contentDescription = null, tint = muted, modifier = Modifier.size(16.dp))
+        Text("Exit ${side.word}", style = AbeonaType.meta, color = muted, maxLines = 1)
+    }
+}
+
+/** "Change, 6 minutes, tight, platform 4 to platform 5": a change row as a screen reader says it. */
+private fun spokenChange(change: Transfer, legs: List<Leg>): String {
+    val from = legs[change.arriving].to.shownPlatform
+    val to = legs[change.departing].from.shownPlatform
+    return sentence(
+        "Change: ${change.availableMinutes} minutes",
+        change.confidence.takeIf { it != Confidence.SAFE }?.label?.lowercase(),
+        when {
+            change.walkMinutes > 0 -> "walk ${change.walkMinutes} minutes"
+            from != null && to != null -> "platform $from to platform $to"
+            else -> null
         },
     )
 }

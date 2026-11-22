@@ -13,7 +13,7 @@ import io.github.numynox.nexus.core.ui.app.NexusApp
 import kotlinx.coroutines.flow.MutableStateFlow
 
 @Composable
-fun AbeonaApp(container: AppContainer, openTrip: MutableStateFlow<String?>, incoming: MutableStateFlow<IncomingShare?>) {
+fun AbeonaApp(container: AppContainer, openTrip: MutableStateFlow<io.github.numynox.nexus.abeona.OpenTrip?>, incoming: MutableStateFlow<IncomingShare?>) {
     val application = LocalContext.current.applicationContext as android.app.Application
     val app = containerViewModel { AppViewModel(it, application) }
     val settings by app.settings.collectAsStateWithLifecycle()

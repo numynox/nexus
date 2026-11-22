@@ -6,7 +6,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onRoot
@@ -30,6 +33,7 @@ import io.github.numynox.nexus.abeona.domain.hasImpossibleChange
 import io.github.numynox.nexus.abeona.domain.missedShortConnection
 import io.github.numynox.nexus.abeona.domain.trainBindingLifted
 import io.github.numynox.nexus.abeona.domain.travelDay
+import io.github.numynox.nexus.abeona.live.ExitSide
 import io.github.numynox.nexus.abeona.live.Fix
 import io.github.numynox.nexus.abeona.live.OnboardStatus
 import io.github.numynox.nexus.abeona.live.evidence
@@ -86,6 +90,8 @@ class LiveDashboardScreenshots {
         tap: String? = null,
         /** While waiting for the train: where it is on its way here. */
         approach: Approach? = null,
+        /** The text size the phone asks for: 2 is Android's largest. */
+        fontScale: Float = 1f,
     ) {
         // As the trip screen does it: the binding on the booked trip, the card on the trip as travelled.
         val booked = of ?: trip()
@@ -104,13 +110,17 @@ class LiveDashboardScreenshots {
         )
         val status = LiveStatus(LiveStatusKind.Live, "Live", TripFormat.time(now.minus(2, ChronoUnit.MINUTES)))
         compose.setContent {
-            NexusTheme(AbeonaPalette, themeMode = mode) {
-                Column(Modifier.background(MaterialTheme.colorScheme.surface).padding(16.dp)) {
-                    Text(caption, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
-                    LiveDashboard(
-                        view, Modifier.fillMaxWidth(), onAlternatives = {}, onUseLocation = {}, status = status, approach = approach, lifted = lifted,
-                        onBackToPlan = if (booked.followsReplacement) ({}) else null,
-                    )
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
+                NexusTheme(AbeonaPalette, themeMode = mode) {
+                    Column(Modifier.background(MaterialTheme.colorScheme.surface).padding(16.dp)) {
+                        Text(caption, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
+                        LiveDashboard(
+                            view, Modifier.fillMaxWidth(), onAlternatives = {}, onUseLocation = {}, status = status, approach = approach, lifted = lifted,
+                            onBackToPlan = if (booked.followsReplacement) ({}) else null,
+                            showMap = fontScale == 1f,
+                        )
+                    }
                 }
             }
         }
@@ -218,6 +228,41 @@ class LiveDashboardScreenshots {
         "59s-live-missed-dark", "Still at Würzburg after the RE 10 left · dark", 86,
         signals = TravelSignals(position = Position(49.8018, 9.9355, 0.0, 10.0)),
         fix = Fix(Position(49.8018, 9.9355, 0.0, 10.0), at(86)), locationOn = true, mode = ThemeMode.Dark,
+    )
+
+    /** Seats reserved on both rides: where to sit under the Board step, and on the next train's row. */
+    private fun seated(): Trip {
+        val base = grandmaTrip(t0)
+        return base.copy(legs = listOf(base.legs[0].copy(coach = "24", seats = "66"), base.legs[1].copy(coach = "7", seats = "45-48")))
+    }
+
+    @Test fun boardWithSeat() = shot(
+        "59z1-live-board-seat", "At the station · coach and seat reserved", 2, of = seated(),
+        approach = Approach("Hanau Hbf", "left", 1),
+    )
+
+    /** From the ICE Portal: why it is late, under the train; from Railnet-style data, the side to get out on. */
+    @Test fun getOffWithExitSide() = shot(
+        "59z2-live-get-off-exit", "On board · why it is late, and the doors on the left at Würzburg", 46, of = seated(),
+        signals = TravelSignals(onboardLegIndex = 0),
+        onboard = OnboardStatus(
+            "ICE Portal", "ICE", "25", 247.0, 49.94, 9.50, "Würzburg Hbf", at(75), "4", at(46),
+            delayReason = "Verspätung eines vorausfahrenden Zuges",
+            exitSides = mapOf("Würzburg Hbf" to ExitSide.Left),
+        ),
+    )
+
+    /** Android's largest text: nothing is cut off, the rows grow instead. */
+    @Test
+    @Config(qualifiers = "w412dp-h2600dp-xhdpi")
+    fun largestText() = shot("59z3-live-font-200", "At the station · text at 200 %", 2, of = seated(), fontScale = 2f)
+
+    @Test
+    @Config(qualifiers = "w412dp-h2600dp-xhdpi")
+    fun largestTextOnBoard() = shot(
+        "59z4-live-font-200-on-board", "On board · text at 200 %", 46, of = seated(), fontScale = 2f,
+        signals = TravelSignals(onboardLegIndex = 0),
+        onboard = OnboardStatus("ICE Portal", "ICE", "25", 247.0, 49.94, 9.50, "Würzburg Hbf", at(75), "4", at(46), exitSides = mapOf("Würzburg Hbf" to ExitSide.Left)),
     )
 
     /** Four rides: the third and fourth fold into "Later". */
