@@ -5,8 +5,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
+  barLayout,
+  type BarJourney,
   hillHeight,
   type HillKind,
+  journeyBar,
   lightPosition,
   mix,
   moonLitPath,
@@ -59,7 +62,10 @@ test("the land, the colours and the rail", () => {
   for (const c of fixtures.mix) assert.equal(mix(c.a, c.b, c.t), c.colour);
   for (const c of fixtures.palette) {
     const p = scenePalette(c.dark, c.light);
-    assert.deepEqual({ sky: p.sky, near: p.near, trainWindow: p.trainWindow, trainRed: p.trainRed, accent: p.accent }, { sky: c.sky, near: c.near, trainWindow: c.trainWindow, trainRed: c.trainRed, accent: c.accent });
+    assert.deepEqual(
+      { sky: p.sky, near: p.near, trainWindow: p.trainWindow, trainRed: p.trainRed, accent: p.accent, ok: p.ok, watch: p.watch, bad: p.bad },
+      { sky: c.sky, near: c.near, trainWindow: c.trainWindow, trainRed: c.trainRed, accent: c.accent, ok: c.ok, watch: c.watch, bad: c.bad },
+    );
   }
   for (const c of fixtures.light) {
     const at = lightPosition(c.across, c.width, c.height);
@@ -76,4 +82,48 @@ test("a ride is drawn as the train it is", () => {
     near(trainLength(c.kind), c.length, `${c.kind} length`);
   }
   for (const c of fixtures.nose) near(trainNoseX(c.kind, c.scale, c.width), c.x, `${c.kind} nose`);
+});
+
+test("the bar is the whole journey: the ride in focus, a dot for every other, the walk into it", () => {
+  for (const c of fixtures.journey) {
+    const journey: BarJourney = {
+      rides: c.rides.map((r: { departure: string; arrival: string; stops: string[] }) => ({
+        departure: Date.parse(r.departure),
+        arrival: Date.parse(r.arrival),
+        stops: r.stops.map((s) => Date.parse(s)),
+      })),
+      current: c.current,
+      state: c.state,
+      leaveAt: c.leaveAt === null ? null : Date.parse(c.leaveAt),
+      confidence: c.confidence,
+    };
+    const bar = journeyBar(journey, Date.parse(c.now));
+    assert.equal(bar.before, c.before, `${c.case}: before`);
+    assert.equal(bar.after, c.after, `${c.case}: after`);
+    assert.equal(bar.stops.length, c.stops.length, `${c.case}: stops`);
+    bar.stops.forEach((f, i) => near(f, c.stops[i], `${c.case}: stop ${i}`));
+    near(bar.fraction, c.fraction, `${c.case}: fraction`);
+    if (c.walk === null) assert.equal(bar.walk, null, `${c.case}: no walk`);
+    else {
+      assert.ok(bar.walk, `${c.case}: a walk`);
+      near(bar.walk.fraction, c.walk.fraction, `${c.case}: walk`);
+      assert.equal(bar.walk.tone, c.walk.tone, `${c.case}: tone`);
+    }
+  }
+});
+
+test("the bar's parts: the ride on its rail, the dots beside it, crowding closer when there are many", () => {
+  for (const c of fixtures.barLayout) {
+    const layout = barLayout({ before: c.before, after: c.after, walk: c.walk ? { fraction: 0, tone: "neutral" } : null }, c.width);
+    assert.equal(layout.rides.length, c.rides.length, `${c.case}: rides`);
+    layout.rides.forEach((r, i) => {
+      near(r.from, c.rides[i][0], `${c.case}: ride ${i} from`);
+      near(r.to, c.rides[i][1], `${c.case}: ride ${i} to`);
+    });
+    if (c.walkFrom === null) assert.equal(layout.walk, null, `${c.case}: no walk`);
+    else {
+      near(layout.walk!.from, c.walkFrom, `${c.case}: walk from`);
+      near(layout.walk!.to, c.walkTo, `${c.case}: walk to`);
+    }
+  }
 });

@@ -2,12 +2,31 @@
   /**
    * The scene (abeona-design.md §7): a landscape with a railway through it,
    * under the real sky of the moment. Large when nothing is urgent; on the
-   * travel day a strip whose track is the ride's rail. The web's copy of
-   * Android's ui/scene/Scene.kt, in the same units, from lib/scene.ts.
+   * travel day a strip whose bar under the track is the whole journey: the
+   * ride in focus with its stops, a dot for every other ride, the walk into
+   * it. The web's copy of Android's ui/scene/Scene.kt, in the same units,
+   * from lib/scene.ts.
+   *
+   * The bar and the train move by the frame clock (lib/frameClock.ts), from
+   * the expected times: continuously, not minute by minute. A time moved by
+   * live data glides to its new place; a new state morphs the bar (the ride
+   * done shrinks into its dot, the next grows out of its own) while the old
+   * train drives out and the next one in. With less motion asked for, all of
+   * it is simply set.
    */
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
+  import { frameClock } from "../../lib/frameClock.svelte";
   import {
+    barLayout,
+    type BarJourney,
+    type BarLayout,
+    type BarTone,
     FRANKFURT,
+    GLIDE_MS,
+    journeyBar,
+    type JourneyBar,
+    MORPH_MS,
+    RIDE_DOT,
     hillHeight,
     hillPath,
     LAND_SCALE,
@@ -23,7 +42,6 @@
     BAR_UP,
     RAIL,
     RAIL_WITH_BAR,
-    railX,
     SCENE_HEIGHT,
     scenePalette,
     type SceneSize,
@@ -44,11 +62,10 @@
   interface Props {
     state: SceneState;
     size?: SceneSize;
-    /** The strip as the ride's rail: every stop as a fraction of the ride, and where the train is. */
     /** Which train the ride is (lib/scene.ts trainKind). */
     train?: TrainKind;
-    stops?: { fraction: number; name?: string }[] | null;
-    fraction?: number;
+    /** The strip's bar: the journey's rides with their expected times, and where the traveller is in it. */
+    journey?: BarJourney | null;
     /** The train's speed, when its Wi-Fi tells: the land passes faster. */
     speedKmh?: number | null;
     /** The moment the sky shows; the clock when left out. */
@@ -63,8 +80,7 @@
     state: sceneState,
     size = "header",
     train: kind = "ice",
-    stops = null,
-    fraction = 0,
+    journey = null,
     speedKmh = null,
     at,
     lat = null,
@@ -88,16 +104,149 @@
   const moment = $derived(at ?? clock);
   const sky = $derived(skyLight(moment, lat ?? FRANKFURT.lat, lon ?? FRANKFURT.lon));
   const colours = $derived(scenePalette(dark, sky.light));
-  const rail = $derived(stops != null && stops.length > 1 && size === "strip");
+  const rail = $derived(!!journey && journey.rides.length > 0 && size === "strip");
   const scale = $derived(TRAIN_SCALE[size]);
   const ground = $derived(rail ? RAIL_WITH_BAR : RAIL);
   const railY = $derived(height - ground);
   const barY = $derived(height - BAR_UP);
   const hasTrain = $derived(sceneState !== "idle" && !(sceneState === "stopped" && !rail));
   const atPlatform = $derived(!rail && (sceneState === "parked" || sceneState === "waiting" || sceneState === "arrived"));
-  /** Where the train's nose is: on the rail where the ride is, else a little past the middle, its cars running off to the left. */
-  const trainX = $derived(rail ? railX(fraction, width) : trainNoseX(kind, scale, width));
-  const spec = $derived(TRAINS[kind]);
+
+  // ------------------------------------------------------------ the bar, frame by frame
+
+  /** The bar as drawn: every ride's stretch (a dot that grows into the ride in focus), its stops and how much is done; the walk. */
+  interface Drawn {
+    rides: { from: number; to: number; grow: number; done: boolean; stops: number[]; fill: number }[];
+    walk: { from: number; to: number; at: number; tone: BarTone; shown: number } | null;
+    current: number;
+  }
+
+  function drawn(bar: JourneyBar, layout: BarLayout): Drawn {
+    return {
+      rides: layout.rides.map((r, i) => ({
+        ...r,
+        grow: i === bar.before ? 1 : 0,
+        done: i < bar.before,
+        stops: i === bar.before ? bar.stops : [],
+        fill: i < bar.before ? 1 : i === bar.before ? bar.fraction : 0,
+      })),
+      walk: layout.walk && bar.walk ? { ...layout.walk, at: bar.walk.fraction, tone: bar.walk.tone, shown: 1 } : null,
+      current: bar.before,
+    };
+  }
+
+  const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+  const easeOut = (t: number) => 1 - (1 - t) ** 3;
+  /** The standard easing (Material's 0.2, 0, 0, 1), near enough. */
+  const standard = (t: number) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
+  const progressOf = (since: number, now: number, ms: number) => Math.max(0, Math.min(1, (now - since) / ms));
+
+  /** Between two bars: each ride's stretch, its growth and fill, and the walk fading in or out. A different number of rides is a cut. */
+  function between(a: Drawn, b: Drawn, t: number): Drawn {
+    if (a.rides.length !== b.rides.length) return b;
+    const walk = a.walk && b.walk
+      ? { ...b.walk, from: lerp(a.walk.from, b.walk.from, t), to: lerp(a.walk.to, b.walk.to, t), at: lerp(a.walk.at, b.walk.at, t) }
+      : b.walk
+        ? { ...b.walk, shown: t }
+        : a.walk
+          ? { ...a.walk, shown: 1 - t }
+          : null;
+    return {
+      rides: b.rides.map((r, i) => {
+        const o = a.rides[i];
+        return { from: lerp(o.from, r.from, t), to: lerp(o.to, r.to, t), grow: lerp(o.grow, r.grow, t), done: r.done, stops: r.stops.length ? r.stops : o.stops, fill: lerp(o.fill, r.fill, t) };
+      }),
+      walk,
+      current: b.current,
+    };
+  }
+
+  $effect(() => {
+    if (rail) return frameClock.use();
+  });
+  const still = $derived(rail && frameClock.still);
+  /** The moment of this frame: the shared frame clock while there is a bar. */
+  const tick = $derived(rail ? frameClock.now : 0);
+  const live = $derived(rail && journey ? journeyBar(journey, tick) : null);
+
+  /** A state change being drawn: the bar as it was, and when the change came. */
+  let morph = $state<{ from: Drawn; at: number } | null>(null);
+  /** Live data moved a time: how far the shown positions were from the new ones, fading out. */
+  let glide = $state<{ fraction: number; walk: number; at: number } | null>(null);
+  /** The next ride's train instead of this one: the old drives out, the new one in. */
+  let swap = $state<{ kind: TrainKind; x: number; at: number } | null>(null);
+  const SWAP_MS = 1200;
+
+  const target = $derived.by((): Drawn | null => {
+    if (!live) return null;
+    let bar = live;
+    if (glide && !still) {
+      const left = 1 - easeOut(progressOf(glide.at, tick, GLIDE_MS));
+      bar = { ...bar, fraction: bar.fraction + glide.fraction * left, walk: bar.walk && { ...bar.walk, fraction: bar.walk.fraction + glide.walk * left } };
+    }
+    return drawn(bar, barLayout(bar, width));
+  });
+  const shown = $derived(target && morph && !still ? between(morph.from, target, standard(progressOf(morph.at, tick, MORPH_MS))) : target);
+
+  /** Where the train's nose is: on the bar where the ride is, else a little past the middle, its cars running off to the left. */
+  const restX = $derived.by(() => {
+    if (!rail || !shown) return trainNoseX(kind, scale, width);
+    const r = shown.rides[shown.current];
+    return r.from + (r.to - r.from) * Math.max(0, Math.min(1, r.fill));
+  });
+  /** The train as drawn: during a swap the old one on its way out, then the new one on its way in. */
+  const drawnTrain = $derived.by((): { kind: TrainKind; x: number } => {
+    if (!swap || still) return { kind, x: restX };
+    const p = progressOf(swap.at, tick, SWAP_MS);
+    const out = 0.45;
+    if (p < out) {
+      const gone = width + trainLength(swap.kind) * scale + 8;
+      return { kind: swap.kind, x: lerp(swap.x, gone, (p / out) ** 2) };
+    }
+    return { kind, x: lerp(0, restX, easeOut((p - out) / (1 - out))) };
+  });
+  const trainX = $derived(drawnTrain.x);
+
+  /** What the last frame drew, for the next change to start from. */
+  let painted: { bar: Drawn | null; train: { kind: TrainKind; x: number } } = { bar: null, train: { kind: "ice", x: 0 } };
+  $effect(() => {
+    painted = { bar: shown, train: drawnTrain };
+    if (morph && tick - morph.at > MORPH_MS) morph = null;
+    if (glide && tick - glide.at > GLIDE_MS) glide = null;
+    if (swap && tick - swap.at > SWAP_MS) swap = null;
+  });
+
+  /** A new journey: the same state with moved times glides; another state, or another ride, morphs. */
+  let lastKey = "";
+  let lastTimes = "";
+  $effect.pre(() => {
+    const j = journey;
+    const k = kind;
+    const key = j && size === "strip" ? `${j.state}|${j.current}|${j.rides.length}` : "";
+    const times = j ? JSON.stringify(j.rides) + j.leaveAt : "";
+    untrack(() => {
+      const before = painted;
+      const at = Date.now();
+      if (key && lastKey && before.bar && !frameClock.still) {
+        if (key !== lastKey) {
+          morph = { from: before.bar, at };
+          glide = null;
+          const [, oldCurrent] = lastKey.split("|");
+          if (oldCurrent !== String(j!.current) || before.train.kind !== k) swap = { kind: before.train.kind, x: before.train.x, at };
+        } else if (times !== lastTimes) {
+          const next = journeyBar(j!, at);
+          const was = before.bar.rides[before.bar.current]?.fill ?? next.fraction;
+          glide = { fraction: was - next.fraction, walk: (before.bar.walk?.at ?? 0) - (next.walk?.fraction ?? 0), at };
+        }
+      }
+      lastKey = key;
+      lastTimes = times;
+    });
+  });
+
+  function toneColour(tone: BarTone): string {
+    return tone === "neutral" ? colours.rail : colours[tone];
+  }
   const lightAt = $derived(lightPosition(sky.across, width, height));
   const lightR = $derived(size === "strip" ? 8 : size === "header" ? 11 : 16);
   const lit = $derived(sceneState !== "parked" && sceneState !== "idle");
@@ -236,29 +385,42 @@
   {/if}
 {/snippet}
 
-{#snippet train(x: number, s: number)}
+{#snippet train(k: TrainKind, x: number, s: number)}
   <!-- Drawn at scale 1 with its wheels on y = 0, its nose at x = 0, the cars trailing to the left. -->
+  {@const spec = TRAINS[k]}
   <g transform="translate({x} {railY}) scale({s})">
     {#each { length: Math.max(0, spec.cars - 2) } as _, c (c)}
-      {@render car(kind, -spec.head - spec.gap - c * (spec.car + spec.gap), spec.car)}
+      {@render car(k, -spec.head - spec.gap - c * (spec.car + spec.gap), spec.car)}
     {/each}
     {#if spec.cars > 1}
-      <g transform="translate({-trainLength(kind)} 0) scale(-1 1)">
-        {@render endCar(kind)}
+      <g transform="translate({-trainLength(k)} 0) scale(-1 1)">
+        {@render endCar(k)}
         {#if lit}<circle cx="-1.8" cy="-4.2" r="0.9" fill="#ff6a5a" />{/if}
       </g>
     {/if}
-    {@render endCar(kind)}
+    {@render endCar(k)}
     {#if lit}
       <circle cx="-1.8" cy="-4.2" r={flash ? 2.4 : 0.9} fill="#ffe3a6" class="transition-all duration-200 motion-reduce:transition-none" />
     {/if}
     <!-- The whole train is the thing to tap. -->
-    <rect x={-trainLength(kind)} y={-spec.height} width={trainLength(kind)} height={spec.height} fill="transparent" onpointerdown={tapTrain} role="presentation" />
+    <rect x={-trainLength(k)} y={-spec.height} width={trainLength(k)} height={spec.height} fill="transparent" onpointerdown={tapTrain} role="presentation" />
   </g>
 {/snippet}
 
+{#snippet walker(x: number, colour: string)}
+  <!-- A small walking figure standing on the bar (Material's directions_walk, as on Android), its middle at x. -->
+  <path
+    transform="translate({x - 6.5} {barY - 12}) scale(0.55)"
+    d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7"
+    fill={colour}
+    stroke={colours.ground}
+    stroke-width="1.2"
+    paint-order="stroke"
+  />
+{/snippet}
+
 <div class="relative w-full overflow-hidden {className}" style="height: {height}px" bind:clientWidth={width} aria-hidden={rail ? undefined : "true"}>
-  <svg viewBox="0 0 {width} {height}" {width} {height} class="block" role={rail ? "img" : undefined} aria-label={rail ? `${Math.round(fraction * 100)} % of the ride done` : undefined}>
+  <svg viewBox="0 0 {width} {height}" {width} {height} class="block" role={rail ? "img" : undefined} aria-label={rail && live ? `${Math.round(live.fraction * 100)} % of the ride done` : undefined}>
     <defs>
       <linearGradient id="{uid}-sky" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0" stop-color={colours.sky} stop-opacity="0" />
@@ -371,30 +533,54 @@
     {/if}
 
     <line x1="0" x2={width} y1={railY} y2={railY} stroke={colours.rail} stroke-width="2" opacity="0.85" />
-    {#if rail && stops}
-      <!-- The ride's progress: a bar under the track with a dot per stop, the done part burgundy up to the train's nose. -->
-      <line x1={railX(0, width)} x2={railX(1, width)} y1={barY} y2={barY} stroke={colours.rail} stroke-width={BAR} stroke-linecap="round" opacity="0.28" />
-      {#if fraction > 0 && sceneState !== "waiting"}
-        <line x1={railX(0, width)} x2={railX(fraction, width)} y1={barY} y2={barY} stroke={colours.accent} stroke-width={BAR} stroke-linecap="round" />
+    {#if rail && shown}
+      <!-- The journey under the track: the walk into the ride in focus, every ride a dot, the one in focus a bar with its stops, done in burgundy up to the train's nose. -->
+      {#if shown.walk}
+        {@const w = shown.walk}
+        <g opacity={w.shown}>
+          <line x1={w.from} x2={w.to} y1={barY} y2={barY} stroke={toneColour(w.tone)} stroke-width="2.5" stroke-dasharray="4 3" />
+          {@render walker(lerp(w.from, w.to, Math.max(0, Math.min(1, w.at))), toneColour(w.tone))}
+        </g>
       {/if}
-      {#each stops as stop, i (i)}
-        {@const end = i === 0 || i === stops.length - 1}
-        {@const passed = sceneState !== "waiting" && stop.fraction <= fraction}
-        <circle
-          cx={railX(stop.fraction, width)}
-          cy={barY}
-          r={end ? BAR_DOT_END : BAR_DOT}
-          fill={passed ? colours.accent : colours.dot}
-          stroke={passed || end ? colours.accent : colours.rail}
-          stroke-width="2"
-        >
-          {#if stop.name}<title>{stop.name}</title>{/if}
-        </circle>
+      {#each shown.rides as r, i (i)}
+        {#if r.grow > 0.001}
+          {@const fill = sceneState === "waiting" && i === shown.current ? 0 : Math.max(0, Math.min(1, r.fill))}
+          {@const x = (f: number) => r.from + (r.to - r.from) * f}
+          <line x1={r.from} x2={r.to} y1={barY} y2={barY} stroke={colours.rail} stroke-width={BAR} stroke-linecap="round" opacity={0.28 * Math.min(1, r.grow * 2)} />
+          {#if fill > 0}
+            <line x1={r.from} x2={x(fill)} y1={barY} y2={barY} stroke={colours.accent} stroke-width={BAR} stroke-linecap="round" />
+          {/if}
+          {#each r.stops as stop, k (k)}
+            {@const end = k === 0 || k === r.stops.length - 1}
+            {@const passed = fill > 0 && stop <= fill}
+            <circle
+              cx={x(stop)}
+              cy={barY}
+              r={(end ? BAR_DOT_END : BAR_DOT) * Math.min(1, 0.5 + r.grow / 2)}
+              fill={passed ? colours.accent : colours.dot}
+              stroke={passed || end ? colours.accent : colours.rail}
+              stroke-width="2"
+              opacity={r.grow}
+            />
+          {/each}
+        {/if}
+        {#if r.grow < 0.999}
+          <!-- Another ride: done, a filled dot; still to come, a hollow one. -->
+          <circle
+            cx={(r.from + r.to) / 2}
+            cy={barY}
+            r={RIDE_DOT}
+            fill={r.done ? colours.accent : colours.dot}
+            stroke={r.done ? colours.accent : colours.rail}
+            stroke-width="1.5"
+            opacity={1 - r.grow}
+          />
+        {/if}
       {/each}
     {/if}
 
     {#if hasTrain && !(rail && sceneState === "stopped")}
-      {@render train(trainX, scale)}
+      {@render train(drawnTrain.kind, trainX, scale)}
     {/if}
   </svg>
 </div>
