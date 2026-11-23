@@ -183,6 +183,69 @@ function stopover(place: Json): Stopover {
   };
 }
 
+// ── Stops named without their town ─────────────────────────────────────────
+// Some feeds name a stop by itself: DELFI calls Stuttgart's main station
+// "Hauptbahnhof" and München-Pasing "Pasing" in a train's list of stops, so a
+// traveller sees "✓ Hauptbahnhof 21:52" and cannot tell which. The town comes
+// from Transitous's reverse geocoder (the stop's administrative areas), once
+// per stop and cached for a month. Only the stops a ride passes are renamed:
+// a ride's own start and end are matched by name elsewhere.
+
+const STATION_WORD = /^(haupt)?(bahnhof|bf\.?|hbf\.?)(\s+(süd|nord|ost|west|mitte|tief|oben))?$|^(süd|nord|ost|west|mitte|zob|busbahnhof)$/i;
+
+/** A name that may lack its town: one word ("Pasing"), or a station word alone ("Hauptbahnhof"). Never one with a comma. */
+export function mayLackTown(name: string): boolean {
+  const bare = name.replace(/\([^)]*\)/g, " ").replace(/\s+/g, " ").trim();
+  if (bare === "" || bare.includes(",")) return false;
+  return !bare.includes(" ") || STATION_WORD.test(bare);
+}
+
+/**
+ * The town of a reverse-geocoder match's areas: the municipality (level 8),
+ * else a city that is its own district (level 6, "München", "Stuttgart"),
+ * never a district, county or region.
+ */
+export function townOf(areas: unknown): string | null {
+  if (!Array.isArray(areas)) return null;
+  const at = (level: number) => areas.find((a) => num(a?.adminLevel) === level && str(a?.name));
+  const municipality = at(8);
+  if (municipality) return str(municipality.name);
+  const city = at(6);
+  const name = city ? str(city.name) : null;
+  return name && !/^(landkreis|kreis|region|regierungsbezirk|bezirk|provin|arrondissement)/i.test(name) ? name : null;
+}
+
+/** "Hauptbahnhof" in Stuttgart → "Stuttgart, Hauptbahnhof"; a name that already says its town stays. */
+export function withTown(name: string, town: string | null): string {
+  if (!town) return name;
+  const key = town.split(/[\s(,/-]/)[0].toLowerCase();
+  return key.length < 3 || name.toLowerCase().includes(key) ? name : `${town}, ${name}`;
+}
+
+/** Renames the passed stops of [legs] that lack their town, in place. A failed lookup keeps the name. */
+async function nameTowns(legs: Leg[]): Promise<void> {
+  const byPlace = new Map<string, Stopover[]>();
+  for (const leg of legs) {
+    for (const stop of leg.stopovers) {
+      if (stop.lat === null || stop.lon === null || !mayLackTown(stop.name)) continue;
+      const place = `${stop.lat.toFixed(4)},${stop.lon.toFixed(4)}`;
+      byPlace.set(place, [...(byPlace.get(place) ?? []), stop]);
+    }
+  }
+  const places = [...byPlace.keys()];
+  for (let i = 0; i < places.length; i += 6) {
+    await Promise.all(places.slice(i, i + 6).map(async (place) => {
+      try {
+        const matches: Json[] = await get("/api/v1/reverse-geocode", { place, type: "STOP" });
+        const town = Array.isArray(matches) && matches.length > 0 ? townOf(matches[0]?.areas) : null;
+        for (const stop of byPlace.get(place) ?? []) stop.name = withTown(stop.name, town);
+      } catch {
+        // The bare name is still a name.
+      }
+    }));
+  }
+}
+
 function polylineOf(leg: Json): [number, number][] | null {
   const geometry = leg?.legGeometry;
   if (!geometry || typeof geometry.points !== "string" || geometry.points === "") return null;
@@ -262,6 +325,7 @@ export async function journeys(input: {
     pageCursor: input.cursor,
   });
   const itineraries: Json[] = Array.isArray(payload?.itineraries) ? payload.itineraries : [];
+  // No towns looked up here: a search has to be quick, and a saved trip gets them on its first refresh.
   return {
     journeys: itineraries.map(normaliseItinerary).filter((j) => j.legs.some((l) => l.mode !== "walk")),
     next_cursor: str(payload?.nextPageCursor),
@@ -276,7 +340,9 @@ export async function refreshItinerary(token: string): Promise<Journey> {
     detailedTransfers: "false",
     detailedLegs: "false",
   });
-  return normaliseItinerary(payload);
+  const journey = normaliseItinerary(payload);
+  await nameTowns(journey.legs);
+  return journey;
 }
 
 function sameStop(place: Json, id: string | null, name: string): boolean {
@@ -311,6 +377,7 @@ export async function refreshLeg(saved: {
     intermediateStops: stops.slice(start + 1, end),
     legGeometry: null,
   });
+  await nameTowns([normalised]);
   return normalised;
 }
 
