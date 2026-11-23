@@ -7,6 +7,8 @@
    * is); the next thing to do is the one large row with a verb; the rest
    * runs down to the destination, which is always last. Words only where
    * nothing shorter works (decisions/2026-11-20-abeona-live-journey-line.md).
+   * A ride's stops between its ends are there on request: "5 stops" under
+   * the band, the next train and the later ones opens them on its line.
    * How Abeona knows sits behind the footer's source button. The map with
    * the traveller on it is the trip page's (TripPanel), so that it can stand
    * beside the card in tray-table mode.
@@ -37,7 +39,7 @@
     Wifi,
   } from "lucide-svelte";
   import { untrack } from "svelte";
-  import type { Approach, Leg, StopTime } from "../../lib/transit";
+  import type { Approach, Leg, StopTime, Stopover } from "../../lib/transit";
   import { fetchApproach, type Trip } from "../../lib/data";
   import { formatDuration, formatTime, legLabel } from "../../lib/format";
   import { seatSpoken } from "../../lib/intake/seat";
@@ -57,6 +59,7 @@
   import ShiftedTime from "../common/ShiftedTime.svelte";
   import StatusChip from "../common/StatusChip.svelte";
   import StopRow from "../common/StopRow.svelte";
+  import StopsToggle from "../common/StopsToggle.svelte";
 
   interface Props {
     trip: Trip;
@@ -219,7 +222,7 @@
 
   /** The line below a row (above it, the one of the row before): this ride, a ride ahead, done, on foot between trains. */
   type Seg = "cur" | "plain" | "past" | "walk" | "bad" | "none";
-  type NodeKind = "plain" | "done" | "active" | "bad" | "flag";
+  type NodeKind = "plain" | "done" | "through" | "active" | "bad" | "flag";
 
   interface Step {
     verb: string;
@@ -249,6 +252,8 @@
     | { kind: "done"; seg: Seg }
     | { kind: "doneRide"; index: number; first: boolean; seg: Seg }
     | { kind: "stop"; stop: StopTime; name: string; node: NodeKind; muted: boolean; platform: boolean; seg: Seg; boarded?: boolean }
+    /** One of a ride's stops between its ends, opened from its "n stops"; on board the ones reached are done. */
+    | { kind: "stopover"; stop: Stopover; done: boolean; seg: Seg }
     | { kind: "band"; seg: Seg }
     | { kind: "step"; step: Step; seg: Seg }
     | { kind: "change"; t: Transfer; seg: Seg }
@@ -261,6 +266,35 @@
 
   let doneOpen = $state(false);
   let laterOpen = $state(false);
+  /**
+   * The rides whose stops are open, by index: closed at first, kept through
+   * the minute's tick and the refreshes (another trip is another page).
+   */
+  let stopsOpen = $state<ReadonlySet<number>>(new Set());
+
+  function toggleStops(i: number) {
+    const next = new Set(stopsOpen);
+    if (!next.delete(i)) next.add(i);
+    stopsOpen = next;
+  }
+
+  /**
+   * Ride i's stops between its ends, for the rows. On board the ones the
+   * train has reached are done: up to the one it stands at or last left, as
+   * the passing stops say it (rideProgress's rule: arrived at by the expected
+   * time). A cancelled stop goes with the ones around it.
+   */
+  function stopoverRows(i: number, line: Seg): Extract<Row, { kind: "stopover" }>[] {
+    const stops = legs[i].stopovers ?? [];
+    const reached =
+      onBoard && i === focusIdx
+        ? stops.findLastIndex((s) => {
+            const at = Date.parse(s.arrival ?? s.planned_arrival ?? s.departure ?? s.planned_departure ?? "");
+            return !s.cancelled && !Number.isNaN(at) && now >= at;
+          })
+        : -1;
+    return stops.map((stop, k) => ({ kind: "stopover", stop, done: k <= reached, seg: line }));
+  }
 
   /** A station name that may wrap after its brackets and slashes: "Frankfurt(Main)Hbf" has no space to break at. */
   function breakable(name: string | null): string | null {
@@ -332,6 +366,15 @@
 
   function spokenStop(r: Extract<Row, { kind: "stop" }>): string {
     return sentence(r.boarded ? `Boarded at ${r.name}` : r.name, r.platform && spokenPlatform(r.stop), spokenTime(r.stop));
+  }
+
+  /** "Stuttgart Hbf, 21:52, 2 minutes late"; reached: "Passed …". */
+  function spokenStopover(r: Extract<Row, { kind: "stopover" }>): string {
+    const s = r.stop;
+    const name = r.done ? `Passed ${s.name}` : s.name;
+    const planned = s.planned_arrival ?? s.planned_departure;
+    if (s.cancelled) return sentence(name, planned && formatTime(planned), "cancelled");
+    return sentence(name, spokenTime({ planned, current: s.arrival ?? s.departure }));
   }
 
   function spokenTrain(i: number): string {
@@ -482,6 +525,8 @@
         out.push({ kind: "stop", stop: leg.from, name: leg.from.name, node: "done", muted: true, platform: false, seg: ride, boarded: true });
     }
     out.push({ kind: "band", seg: ride });
+    // Its stops on request, on its line right under the band (not when it broke: the band has no caption then).
+    if (!focusBroken && stopsOpen.has(focusIdx)) out.push(...stopoverRows(focusIdx, ride));
 
     const more = aheadRides.length > 0;
     if (onBoard) out.push({ kind: "step", step: active, seg: more ? "walk" : "none" });
@@ -494,7 +539,10 @@
       if (t) out.push({ kind: "change", t, seg: "walk" });
       const why = brokenOf(r.i);
       if (why) out.push({ kind: "step", step: brokenStep(r.i, why, false), seg: "plain" });
-      else out.push({ kind: "train", index: r.i, seg: "plain" });
+      else {
+        out.push({ kind: "train", index: r.i, seg: "plain" });
+        if (stopsOpen.has(r.i)) out.push(...stopoverRows(r.i, "plain"));
+      }
       if (k === 0 && laterFolds) {
         out.push({ kind: "later", indices: aheadRides.slice(1).map((x) => x.i), seg: "plain" });
         if (!laterOpen) break;
@@ -658,7 +706,10 @@
   {:else if kind === "bad"}
     <span class="relative h-3.5 w-3.5 rounded-full border-[3px] border-bad bg-brand-soft ring-4 ring-bad/30" aria-hidden="true"></span>
   {:else if kind === "done"}
-    <span class="relative h-2.5 w-2.5 rounded-full bg-muted/60" aria-hidden="true"></span>
+    <!-- On the card's colour, so a line running through it does not show. -->
+    <span class="relative h-2.5 w-2.5 rounded-full bg-brand-soft" aria-hidden="true"><span class="absolute inset-0 rounded-full bg-muted/60"></span></span>
+  {:else if kind === "through"}
+    <span class="relative h-2 w-2 rounded-full border-2 border-ink bg-brand-soft" aria-hidden="true"></span>
   {:else}
     <span class="relative h-2.5 w-2.5 rounded-full border-2 border-ink bg-brand-soft" aria-hidden="true"></span>
   {/if}
@@ -754,50 +805,57 @@
       <!-- First in the card (the Trips card): the line starts with the scene. -->
       <span class="absolute inset-x-0 bottom-0 {first ? 'top-3' : 'top-0'}">{@render seg(through, "through")}</span>
     </span>
-    <div class="b-body min-w-0 py-1.5" aria-hidden={spoken ? "true" : undefined}>
-      <div class="overflow-hidden rounded-xl">
-        <Scene
-          state={sceneState}
-          size="strip"
-          train={sceneTrain}
-          stops={showRail && progress ? progress.stops.map((stop) => ({ fraction: stop.fraction, name: stop.name })) : null}
-          fraction={onBoard && progress ? progress.fraction : 0}
-          speedKmh={speed}
-          at={now}
-          lat={skyAt?.lat}
-          lon={skyAt?.lon}
-        />
-      </div>
-      {#if caption && leg}
-        <div class="b-cap mt-2 flex min-w-0 items-center gap-2">
-          <LegChip {leg} size="md" />
-          {#if leg.headsign}<span class="b-head t-body min-w-0 truncate font-semibold text-ink">to {leg.headsign}</span>{/if}
-          {#if speed !== null}<Fact icon={Gauge} label="Speed" value={`${speed} km/h`} class="ml-auto font-semibold text-ink" />{/if}
+    <div class="b-body min-w-0 py-1.5">
+      <div aria-hidden={spoken ? "true" : undefined}>
+        <div class="overflow-hidden rounded-xl">
+          <Scene
+            state={sceneState}
+            size="strip"
+            train={sceneTrain}
+            stops={showRail && progress ? progress.stops.map((stop) => ({ fraction: stop.fraction, name: stop.name })) : null}
+            fraction={onBoard && progress ? progress.fraction : 0}
+            speedKmh={speed}
+            at={now}
+            lat={skyAt?.lat}
+            lon={skyAt?.lon}
+          />
         </div>
-      {/if}
-      {#if caption && !summary}
-        {#if passing}
-          <div class="b-pass t-meta mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5">
-            {#if passing.reached}
-              <span class="inline-flex min-w-0 max-w-full items-center gap-1">
-                <Check class="h-3.5 w-3.5 shrink-0" aria-hidden="true" /><span class="sr-only">Passed</span>
-                <span class="truncate">{passing.reached.name}</span>
-                <span class="tabular shrink-0">{passing.reached.time}</span>
-              </span>
-            {:else}
-              <span></span>
-            {/if}
-            {#if passing.next}
-              <span class="ml-auto inline-flex min-w-0 max-w-full items-center gap-1">
-                <span class="shrink-0">Next</span>
-                <span class="truncate">{passing.next.name}</span>
-                <span class="tabular shrink-0">{passing.next.time}</span>
-              </span>
-            {/if}
+        {#if caption && leg}
+          <div class="b-cap mt-2 flex min-w-0 items-center gap-2">
+            <LegChip {leg} size="md" />
+            {#if leg.headsign}<span class="b-head t-body min-w-0 truncate font-semibold text-ink">to {leg.headsign}</span>{/if}
+            {#if speed !== null}<Fact icon={Gauge} label="Speed" value={`${speed} km/h`} class="ml-auto font-semibold text-ink" />{/if}
           </div>
-        {:else if approach && waitingFor}
-          <p class="t-meta mt-1">{approachText(approach)}</p>
         {/if}
+        {#if caption && !summary}
+          {#if passing}
+            <div class="b-pass t-meta mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5">
+              {#if passing.reached}
+                <span class="inline-flex min-w-0 max-w-full items-center gap-1">
+                  <Check class="h-3.5 w-3.5 shrink-0" aria-hidden="true" /><span class="sr-only">Passed</span>
+                  <span class="truncate">{passing.reached.name}</span>
+                  <span class="tabular shrink-0">{passing.reached.time}</span>
+                </span>
+              {:else}
+                <span></span>
+              {/if}
+              {#if passing.next}
+                <span class="ml-auto inline-flex min-w-0 max-w-full items-center gap-1">
+                  <span class="shrink-0">Next</span>
+                  <span class="truncate">{passing.next.name}</span>
+                  <span class="tabular shrink-0">{passing.next.time}</span>
+                </span>
+              {/if}
+            </div>
+          {:else if approach && waitingFor}
+            <p class="t-meta mt-1">{approachText(approach)}</p>
+          {/if}
+        {/if}
+      </div>
+      {#if caption && !summary && leg && focusIdx !== null && leg.stopovers.length > 0}
+        {@const i = focusIdx}
+        <!-- Last in the caption: the ride's stops, opened under the band. Outside the drawing, so a screen reader finds it. -->
+        <StopsToggle count={leg.stopovers.length} open={stopsOpen.has(i)} ride={legLabel(leg)} ontoggle={() => toggleStops(i)} class="-mb-1.5" />
       {/if}
     </div>
   </div>
@@ -973,6 +1031,22 @@
                 </StopRow>
               </div>
             </div>
+          {:else if r.kind === "stopover"}
+            <div role="listitem">
+              <span class="sr-only">{spokenStopover(r)}</span>
+              <div aria-hidden="true">
+                <StopRow
+                  planned={r.stop.planned_arrival ?? r.stop.planned_departure}
+                  current={r.stop.arrival ?? r.stop.departure}
+                  cancelled={r.stop.cancelled}
+                  name={r.stop.name}
+                  muted={r.done}
+                  class="min-h-8 {dim ? 'opacity-50' : ''}"
+                >
+                  {#snippet mark()}{@render seg(above, "above")}{@render seg(r.seg, "below")}{@render node(r.done ? "done" : "through")}{/snippet}
+                </StopRow>
+              </div>
+            </div>
           {:else if r.kind === "band"}
             {@render band(r.seg, k === 0)}
           {:else if r.kind === "step"}
@@ -999,6 +1073,15 @@
                   <Seat coach={train.coach} seats={train.seats} />
                 </StopRow>
               </div>
+              {#if train.stopovers.length > 0}
+                <!-- Under the row, on its line: the train's stops, which open below. Drawn close to it; its line starts where the row's ends. -->
+                <div class="{GRID} -mt-2 {dim ? 'opacity-50' : ''}">
+                  <span class="relative col-start-2 self-stretch"><span class="absolute inset-x-0 top-2 bottom-0">{@render seg(r.seg, "through")}</span></span>
+                  <span class="col-start-3 flex">
+                    <StopsToggle count={train.stopovers.length} open={stopsOpen.has(r.index)} ride={legLabel(train)} ontoggle={() => toggleStops(r.index)} />
+                  </span>
+                </div>
+              {/if}
             </div>
           {:else if r.kind === "later"}
             <div role="listitem">
