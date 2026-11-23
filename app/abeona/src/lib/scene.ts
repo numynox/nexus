@@ -200,9 +200,13 @@ export interface ScenePalette {
   trainLine: string;
   platform: string;
   dot: string;
+  /** The change's confidence on the bar's walk (safe, tight, at risk): dark enough on the ground in a light theme, light in a dark one. */
+  ok: string;
+  watch: string;
+  bad: string;
 }
 
-type Tones = Omit<ScenePalette, "trainRed" | "accent" | "trainLine" | "dot">;
+type Tones = Omit<ScenePalette, "trainRed" | "accent" | "trainLine" | "dot" | "ok" | "watch" | "bad">;
 
 const LIGHT_DAY: Tones = {
   sky: "#d9e7ea", glow: "#ffc48f", far: "#c7d8c6", near: "#a6c2a0", tree: "#86a983", ground: "#e7ded3", rail: "#6b5f57",
@@ -251,6 +255,9 @@ export function scenePalette(dark: boolean, light: number): ScenePalette {
     accent: dark ? "#f08ca8" : "#8c1d40",
     trainLine: dark ? "#00000000" : "#2a211c40",
     dot: dark ? "#26201c" : "#ffffff",
+    ok: dark ? "#7fd3a8" : "#1f7a50",
+    watch: dark ? "#f2c94c" : "#9a6a00",
+    bad: dark ? "#ff8a7a" : "#b3261e",
   };
 }
 
@@ -311,3 +318,144 @@ export function travelSpeed(kmh: number | null | undefined): number {
 export function railX(fraction: number, width: number): number {
   return RAIL_START + (width - RAIL_START - RAIL_END) * clamp01(fraction);
 }
+
+// ------------------------------------------------------------------ the journey bar
+
+/**
+ * The strip's bar is the whole journey (abeona-design.md §7, §8). The
+ * current ride, the one on board or else the one to board next, takes the
+ * middle with its stops and its progress; every earlier ride is one small
+ * filled dot at the left, every later one a hollow dot at the right. On foot
+ * into the current ride (a change, or the way to the first train) a dashed
+ * connector leads from the last ride done to it, with a walker on it as far
+ * along as the time allows, in the change's confidence colour (neutral on
+ * the way to the station).
+ *
+ * Worked out from the clock with the expected times, on every frame of the
+ * scene, so the train and the walker move continuously rather than minute by
+ * minute.
+ */
+export type BarState = "before_leaving" | "at_station" | "changing" | "on_board" | "arrived";
+export type BarTone = "ok" | "watch" | "bad" | "neutral";
+
+/** A ride as the bar reads it: its expected departure and arrival, and the expected arrivals at the stops between (ms). */
+export interface BarRide {
+  departure: number;
+  arrival: number;
+  stops: number[];
+}
+
+export interface BarJourney {
+  /** The rides, walks left out. */
+  rides: BarRide[];
+  /** The ride on board, or the one to board next; the last one once arrived. */
+  current: number;
+  state: BarState;
+  /** Before leaving: when to set off (ms). */
+  leaveAt: number | null;
+  /** Changing: the change into the current ride. */
+  confidence: "safe" | "tight" | "at_risk" | "impossible" | null;
+}
+
+export interface JourneyBar {
+  /** Rides before the current one: a filled dot each. */
+  before: number;
+  /** Rides after it: a hollow dot each. */
+  after: number;
+  /** The current ride's stops as fractions of it: 0, those between by time, 1. */
+  stops: number[];
+  /** How far along the current ride the train is: 0 until it leaves (and while waiting for it), 1 once arrived. */
+  fraction: number;
+  /** On foot into the current ride: how far along the time on foot, and the colour of the connector. */
+  walk: { fraction: number; tone: BarTone } | null;
+}
+
+const TONE: Record<NonNullable<BarJourney["confidence"]>, BarTone> = { safe: "ok", tight: "watch", at_risk: "bad", impossible: "bad" };
+
+/** The share of [from, to] that lies behind `now`; a span of nothing counts as a millisecond. */
+function along(now: number, from: number, to: number): number {
+  return clamp01((now - from) / Math.max(to - from, 1));
+}
+
+/** The bar at `now`. */
+export function journeyBar(j: BarJourney, now: number): JourneyBar {
+  const n = j.rides.length;
+  if (n === 0) return { before: 0, after: 0, stops: [], fraction: 0, walk: null };
+  const arrived = j.state === "arrived";
+  const c = arrived ? n - 1 : Math.max(0, Math.min(n - 1, j.current));
+  const ride = j.rides[c];
+  const stops = [0, ...ride.stops.map((t) => along(t, ride.departure, ride.arrival)), 1];
+  const fraction = arrived ? 1 : j.state === "on_board" ? along(now, ride.departure, ride.arrival) : 0;
+  let walk: JourneyBar["walk"] = null;
+  if (j.state === "before_leaving") {
+    // The walker waits at the start until it is time to leave, then walks to the train.
+    walk = { fraction: j.leaveAt === null ? 0 : along(now, j.leaveAt, ride.departure), tone: "neutral" };
+  } else if (j.state === "changing" && c > 0) {
+    walk = { fraction: along(now, j.rides[c - 1].arrival, ride.departure), tone: j.confidence ? TONE[j.confidence] : "neutral" };
+  }
+  return { before: c, after: n - 1 - c, stops, fraction, walk };
+}
+
+/** A ride's dot on the bar (radius), the distance between two, and from a dot to the current ride's end. */
+export const RIDE_DOT = 3;
+export const RIDE_PITCH = 11;
+export const RIDE_GAP = 14;
+/** The walk's connector: from the last ride done (or the bar's start) to the current ride. */
+export const WALK_LENGTH = 40;
+/** The bar keeps this much clear at both edges of the strip. */
+export const BAR_PAD = 16;
+/** The current ride keeps at least this share of the bar (the strip less its pads): the dots crowd closer first. */
+export const SEGMENT_SHARE = 0.75;
+
+export interface BarLayout {
+  /** Every ride's stretch of the bar, left to right (x): a dot where from = to, the current ride from its first stop to its last. */
+  rides: { from: number; to: number }[];
+  /** The walk's connector into the current ride, when on foot. */
+  walk: { from: number; to: number } | null;
+}
+
+/**
+ * Where the bar's parts lie on a strip `width` wide. With nothing before it
+ * and no walk, the current ride runs from RAIL_START to RAIL_END as the
+ * ride's rail always did; the dots and the walk sit beside it, and crowd
+ * closer when there are so many that the ride would get less than
+ * SEGMENT_SHARE of the bar.
+ */
+export function barLayout(bar: Pick<JourneyBar, "before" | "after" | "walk">, width: number): BarLayout {
+  const { before, after } = bar;
+  const walking = bar.walk !== null;
+  const lead = walking ? WALK_LENGTH : before > 0 ? RIDE_GAP : 0;
+  const left = lead + Math.max(0, before - 1) * RIDE_PITCH;
+  const right = after > 0 ? RIDE_GAP + (after - 1) * RIDE_PITCH : 0;
+  const end0 = after > 0 ? width - BAR_PAD : width - RAIL_END;
+  let k = 1;
+  let start = Math.max(RAIL_START, BAR_PAD + left);
+  const least = SEGMENT_SHARE * (width - 2 * BAR_PAD);
+  if (end0 - right - start < least && left + right > 0) {
+    k = clamp01((end0 - BAR_PAD - least) / (left + right));
+    start = BAR_PAD + left * k;
+  }
+  const end = end0 - right * k;
+  const rides: BarLayout["rides"] = [];
+  const lastBefore = start - lead * k;
+  for (let i = 0; i < before; i++) {
+    const x = lastBefore - (before - 1 - i) * RIDE_PITCH * k;
+    rides.push({ from: x, to: x });
+  }
+  rides.push({ from: start, to: end });
+  for (let i = 0; i < after; i++) {
+    const x = end + (RIDE_GAP + i * RIDE_PITCH) * k;
+    rides.push({ from: x, to: x });
+  }
+  return { rides, walk: walking ? { from: start - WALK_LENGTH * k, to: start } : null };
+}
+
+/** Where on the current ride a fraction of it lies: where the train's nose is. */
+export function segmentX(layout: BarLayout, current: number, fraction: number): number {
+  const r = layout.rides[current];
+  return r.from + (r.to - r.from) * clamp01(fraction);
+}
+
+/** How long the bar glides to a value live data moved, and morphs from one state to the next (ms). */
+export const GLIDE_MS = 1000;
+export const MORPH_MS = 600;

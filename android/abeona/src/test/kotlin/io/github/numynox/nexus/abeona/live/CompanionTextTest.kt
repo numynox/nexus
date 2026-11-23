@@ -327,6 +327,11 @@ class CompanionTextTest {
         assertEquals(emptyList<BarPoint>(), alone.points)
         assertEquals(25, alone.progress)
         assertEquals(before, companionStatus(trip, t0.minusSeconds(25 * 60)).bar)
+        // A train missed: the travel day keeps the traveller at the change, where the clock alone would put them on the ICE.
+        val signals = TravelSignals(position = Position(50.1071, 8.6636, 0.0, 10.0))
+        val placed = trip.copy(legs = trip.legs.map { it.copy(from = it.from.copy(lat = 50.1071, lon = 8.6636)) })
+        assertEquals(105, journeyBar(placed.legs, t0.plusSeconds(52 * 60))!!.progress)
+        assertEquals(100, companionStatus(placed, t0.plusSeconds(52 * 60), signals = signals).bar!!.progress)
     }
 
     @Test

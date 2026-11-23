@@ -652,18 +652,19 @@ private fun journeyRows(
 
     /**
      * Ride [k]'s stops on the line it is on: "n stops" under its row, then,
-     * unfolded, one quiet row each; those the train has reached [behind]
-     * done. Nothing for a ride without stops, and nothing on the compact card.
+     * unfolded, a row each. [onBoard]: those the train has reached muted
+     * with the done dot, as the passing stops count them; the ones ahead in
+     * full. Nothing for a ride without stops, and nothing on the compact card.
      */
-    fun stopovers(key: String, k: Int, behind: (Stopover) -> Boolean = { false }, dimmed: Boolean = dim) {
+    fun stopovers(key: String, k: Int, onBoard: Boolean = false, dimmed: Boolean = dim) {
         val ride = legs[k]
         if (compact || ride.stopovers.isEmpty()) return
         val open = k in openStops
         add("$key-stops", dimmed = dimmed) { rail -> StopsToggle(ride.stopovers.size, open, ride.label, rail) { openStops.toggle(k) } }
-        if (open) {
-            ride.stopovers.forEachIndexed { i, stop ->
-                add("$key-stop-$i", RailDot.Through, dimmed = dimmed) { rail -> StopoverRow(stop, rail, passed = behind(stop)) }
-            }
+        if (!open) return
+        ride.stopovers.forEachIndexed { i, stop ->
+            val passed = onBoard && reached(stop, view.now)
+            add("$key-stop-$i", RailDot.Through, dimmed = dimmed) { rail -> StopoverRow(stop, rail, passed = passed, quiet = false) }
         }
     }
 
@@ -757,6 +758,7 @@ private fun journeyRows(
             // Before leaving the rail stays empty: the ride is not the question yet.
             stops = progress?.takeIf { !brokenHere && day.kind != TravelDayKind.BeforeLeaving }?.stops?.map { SceneStop(it.fraction, it.name) },
             caption = !brokenHere,
+            stopsUnder = !compact && !brokenHere && ride.stopovers.isNotEmpty(),
             second = when {
                 compact || brokenHere -> null
                 onBoard && progress != null -> { -> PassingStops(progress) }
@@ -765,8 +767,8 @@ private fun journeyRows(
             },
         )
     }
-    // Its stops, on the band's line under it: on board those passed done, as the passing stops say.
-    if (!brokenHere) stopovers("band", index, behind = { onBoard && reached(it, view.now) }, dimmed = false)
+    // Its stops, on the band's line under it.
+    if (!brokenHere) stopovers("band", index, onBoard = onBoard, dimmed = false)
     if (brokenHere) dim = true
 
     // Where the band's ride ends: on board the step to do next.
@@ -1008,6 +1010,8 @@ private fun DoneRow(rides: List<Leg>, replanned: Boolean, rail: Rail) {
  * ride's stops, the train where it is), under it the train with "to" its
  * own destination and, from its Wi-Fi, the speed; then [second]: on board
  * the stop just passed and the next, waiting where the train is.
+ * [stopsUnder]: the ride's "n stops" follows as the next row, the end of
+ * the caption, so the band leaves no gap before it.
  */
 @Composable
 private fun BandRow(
@@ -1017,6 +1021,7 @@ private fun BandRow(
     state: SceneState,
     stops: List<SceneStop>?,
     caption: Boolean,
+    stopsUnder: Boolean,
     second: (@Composable () -> Unit)?,
 ) {
     val onBoard = view.day.kind == TravelDayKind.OnBoard
@@ -1025,7 +1030,7 @@ private fun BandRow(
     val skyAt = view.marker?.let { it.lat to it.lon }
         ?: (if (onBoard) ride.to else ride.from).let { stop -> stop.lat?.let { lat -> stop.lon?.let { lat to it } } }
     StopRow(name = "", rail = rail, content = {
-        Column(Modifier.weight(1f).padding(top = 6.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(Modifier.weight(1f).padding(top = 6.dp, bottom = if (stopsUnder) 0.dp else 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Scene(
                 state = state,
                 modifier = Modifier.clip(RoundedCornerShape(12.dp)),
@@ -1277,7 +1282,7 @@ private fun LaterRow(legs: List<Leg>, from: Int, later: List<Int>, changes: List
                 if (train.stopovers.isNotEmpty()) {
                     val line = Rail(RailLine.Faint, RailLine.Faint, RailDot.None, rail.hole)
                     StopsToggle(train.stopovers.size, k in openStops, train.label, line) { openStops.toggle(k) }
-                    if (k in openStops) train.stopovers.forEach { StopoverRow(it, line) }
+                    if (k in openStops) train.stopovers.forEach { StopoverRow(it, line, quiet = false) }
                 }
                 before = k
             }

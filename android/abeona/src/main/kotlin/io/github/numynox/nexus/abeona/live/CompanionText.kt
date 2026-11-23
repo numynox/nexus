@@ -5,6 +5,7 @@ import io.github.numynox.nexus.abeona.data.FareType
 import io.github.numynox.nexus.abeona.data.Leg
 import io.github.numynox.nexus.abeona.data.Trip
 import io.github.numynox.nexus.abeona.domain.Confidence
+import io.github.numynox.nexus.abeona.domain.TravelDay
 import io.github.numynox.nexus.abeona.domain.TravelDayKind
 import io.github.numynox.nexus.abeona.domain.TravelDayRules
 import io.github.numynox.nexus.abeona.domain.RideProgress
@@ -106,32 +107,46 @@ internal fun barTone(confidence: Confidence): BarTone = when (confidence) {
  * segment of [JourneyBar.RIDE] in the brand, the changes points on the
  * boundaries in their confidence's colour, at most [maxPoints] (the next
  * ones ahead first, then the ones passed, nearest first; in the order they
- * come on the bar). Where the trip is, by the expected times: 0 before the
- * first departure; on a ride, its start and the share of its minutes gone
- * by; at a change, on its boundary; arrived, the end. Rides beyond
- * [maxSegments] (Android draws no more) make one segment, still with their
- * boundaries. Null without a ride or a time to start from.
+ * come on the bar). Where the trip is: 0 before the first departure; on a
+ * ride, its start and the share of its minutes gone by (expected times); at
+ * a change, on its boundary; arrived, the end. On a ride or at a change as
+ * the travel [day] says it when there is one, so a train missed leaves the
+ * traveller at the change; else by the clock. Rides beyond [maxSegments]
+ * (Android draws no more) make one segment, still with their boundaries.
+ * Null without a ride or a time to start from.
  */
-fun journeyBar(legs: List<Leg>, now: Instant, maxSegments: Int = 15, maxPoints: Int = 4): JourneyBar? {
+fun journeyBar(legs: List<Leg>, now: Instant, day: TravelDay? = null, maxSegments: Int = 15, maxPoints: Int = 4): JourneyBar? {
     val rides = legs.indices.filter { !legs[it].isWalk }
     if (rides.isEmpty() || legs[rides.first()].from.expectedAt == null) return null
     val ride = JourneyBar.RIDE
     val end = rides.size * ride
 
-    // The first ride not yet over: before it leaves the trip stands on its start, on it at the share gone by.
-    val progress = rides.withIndex().firstNotNullOfOrNull { (n, k) ->
-        val from = legs[k].from.expectedAt
-        val to = legs[k].to.expectedAt
+    /** How far along ride [n] the clock is: short of its end, so the train stays on it until it is off. */
+    fun along(n: Int): Int {
+        val from = legs[rides[n]].from.expectedAt ?: return 0
+        val to = legs[rides[n]].to.expectedAt ?: return 0
+        val span = Duration.between(from, to).toMinutes().takeIf { it > 0 } ?: return 0
+        return (Duration.between(from, now).toMinutes() * ride / span).toInt().coerceIn(0, ride - 1)
+    }
+    val progress = if (day != null) {
+        val n = day.legIndex?.let(rides::indexOf)?.takeIf { it >= 0 }
         when {
-            from != null && now.isBefore(from) -> n * ride
-            to != null && now.isBefore(to) -> {
-                val span = from?.let { Duration.between(it, to).toMinutes() }?.takeIf { it > 0 }
-                val gone = from?.let { Duration.between(it, now).toMinutes() } ?: 0
-                n * ride + (span?.let { (gone * ride / it).toInt().coerceIn(0, ride - 1) } ?: 0)
-            }
-            else -> null
+            day.kind == TravelDayKind.Arrived || n == null -> end
+            day.kind == TravelDayKind.OnBoard -> n * ride + along(n)
+            else -> n * ride
         }
-    } ?: end
+    } else {
+        // The first ride not yet over: before it leaves the trip stands on its start, on it at the share gone by.
+        rides.indices.firstNotNullOfOrNull { n ->
+            val from = legs[rides[n]].from.expectedAt
+            val to = legs[rides[n]].to.expectedAt
+            when {
+                from != null && now.isBefore(from) -> n * ride
+                to != null && now.isBefore(to) -> n * ride + along(n)
+                else -> null
+            }
+        } ?: end
+    }
 
     val changes = transfers(legs)
     val boundaries = (1 until rides.size).map { n ->
@@ -218,7 +233,7 @@ fun companionStatus(
 ): CompanionStatus {
     val day = travelDay(trip.legs, now, stationMinutes, signals)
     val index = day.legIndex
-    val bar = journeyBar(trip.legs, now)
+    val bar = journeyBar(trip.legs, now, day)
     if (day.kind == TravelDayKind.Arrived || index == null) {
         val last = trip.legs.lastOrNull { !it.isWalk }
         val text = withDelay("${trip.displayTitle} · ${TripFormat.time(trip.expectedArrival)}", last?.let(::arrivalDelay) ?: 0)
