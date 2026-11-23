@@ -1,5 +1,6 @@
 package io.github.numynox.nexus.abeona.ui.scene
 
+import io.github.numynox.nexus.abeona.domain.Confidence
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.Locale
@@ -24,6 +25,59 @@ import kotlin.math.tan
 // milliseconds and colours "#rrggbb" strings, as on the web.
 
 enum class SceneState { Idle, Parked, Waiting, Riding, Stopped, Arrived }
+
+// The strip's bar is the whole journey (abeona-design.md §7, §8): the ride in
+// focus, the one on board or else the one to board next, takes the middle
+// with its stops and its progress; every earlier ride is one small filled dot
+// at the left, every later one a hollow dot at the right. On foot into the
+// ride in focus (a change, or the way to the first train) a dashed connector
+// leads from the last ride done to it, with a walker on it as far along as
+// the time allows, in the change's confidence colour (neutral on the way to
+// the station). Worked out from the clock with the expected times on every
+// frame of the scene, so the train and the walker move continuously rather
+// than minute by minute.
+
+/** What the traveller is doing, as the bar reads it (the travel day's kind). */
+enum class BarState { BeforeLeaving, AtStation, Changing, OnBoard, Arrived }
+
+/** The walk's colour: the change's confidence, neutral on the way to the station. */
+enum class WalkTone { Ok, Watch, Bad, Neutral }
+
+/** A ride as the bar reads it: its expected departure and arrival, and the expected arrivals at the stops between (ms). */
+data class BarRide(val departure: Long, val arrival: Long, val stops: List<Long>)
+
+data class BarJourney(
+    /** The rides, walks left out. */
+    val rides: List<BarRide>,
+    /** The ride on board, or the one to board next; the last one once arrived. */
+    val current: Int,
+    val state: BarState,
+    /** Before leaving: when to set off (ms). */
+    val leaveAt: Long?,
+    /** Changing: the change into the current ride. */
+    val confidence: Confidence?,
+)
+
+/** On foot into the ride in focus: how far along the time on foot, and the connector's colour. */
+data class BarWalk(val fraction: Double, val tone: WalkTone)
+
+data class SceneBar(
+    /** Rides before the one in focus: a filled dot each. */
+    val before: Int,
+    /** Rides after it: a hollow dot each. */
+    val after: Int,
+    /** The ride in focus's stops as fractions of it: 0, those between by time, 1. */
+    val stops: List<Double>,
+    /** How far along that ride the train is: 0 until it leaves (and while waiting for it), 1 once arrived. */
+    val fraction: Double,
+    val walk: BarWalk?,
+)
+
+/** A stretch of the bar, in units: a dot where [from] = [to]. */
+data class BarSpan(val from: Double, val to: Double)
+
+/** Every ride's stretch of the bar left to right (the ride in focus from its first stop to its last), and the walk's connector into it. */
+data class BarLayout(val rides: List<BarSpan>, val walk: BarSpan?)
 
 /** [height] of the box; how much larger than the strip's the train ([trainScale]) and the hills and trees ([landScale]) are drawn. */
 enum class SceneSize(val height: Int, val trainScale: Double, val landScale: Double) {
@@ -223,6 +277,10 @@ object SceneModel {
         val trainRed: String,
         /** The brand burgundy: the rail behind the train, passed stops, the flag. */
         val accent: String,
+        /** The change's confidence on the bar's walk (safe, tight, at risk): dark enough on the ground in a light theme, light in a dark one. */
+        val ok: String,
+        val watch: String,
+        val bad: String,
         /** "#rrggbbaa". */
         val trainLine: String,
         val trainWindow: String,
@@ -263,6 +321,9 @@ object SceneModel {
             sun = tone("sun"), moon = tone("moon"), trainBody = tone("trainBody"),
             trainRed = if (dark) "#d9584e" else "#d9342b",
             accent = if (dark) "#f08ca8" else "#8c1d40",
+            ok = if (dark) "#7fd3a8" else "#1f7a50",
+            watch = if (dark) "#f2c94c" else "#9a6a00",
+            bad = if (dark) "#ff8a7a" else "#b3261e",
             trainLine = if (dark) "#00000000" else "#2a211c40",
             trainWindow = (if (light < 0.5) night else day).getValue("trainWindow"),
             platform = tone("platform"),
@@ -336,4 +397,79 @@ object SceneModel {
 
     /** Where on the strip's rail a fraction of the ride lies: the train's nose. */
     fun railX(fraction: Double, width: Double): Double = RAIL_START + (width - RAIL_START - RAIL_END) * clamp01(fraction)
+
+    // -------------------------------------------------------------- the journey bar
+
+    private fun walkTone(confidence: Confidence): WalkTone = when (confidence) {
+        Confidence.SAFE -> WalkTone.Ok
+        Confidence.TIGHT -> WalkTone.Watch
+        Confidence.AT_RISK, Confidence.IMPOSSIBLE -> WalkTone.Bad
+    }
+
+    /** The share of [from, to] that lies behind [now]; a span of nothing counts as a millisecond. */
+    private fun along(now: Long, from: Long, to: Long): Double = clamp01((now - from).toDouble() / max(to - from, 1L))
+
+    /** The bar at [now] (ms). */
+    fun journeyBar(j: BarJourney, now: Long): SceneBar {
+        val n = j.rides.size
+        if (n == 0) return SceneBar(0, 0, emptyList(), 0.0, null)
+        val arrived = j.state == BarState.Arrived
+        val c = if (arrived) n - 1 else j.current.coerceIn(0, n - 1)
+        val ride = j.rides[c]
+        val stops = listOf(0.0) + ride.stops.map { along(it, ride.departure, ride.arrival) } + 1.0
+        val fraction = when {
+            arrived -> 1.0
+            j.state == BarState.OnBoard -> along(now, ride.departure, ride.arrival)
+            else -> 0.0
+        }
+        val walk = when {
+            // The walker waits at the start until it is time to leave, then walks to the train.
+            j.state == BarState.BeforeLeaving -> BarWalk(j.leaveAt?.let { along(now, it, ride.departure) } ?: 0.0, WalkTone.Neutral)
+            j.state == BarState.Changing && c > 0 -> BarWalk(along(now, j.rides[c - 1].arrival, ride.departure), j.confidence?.let(::walkTone) ?: WalkTone.Neutral)
+            else -> null
+        }
+        return SceneBar(c, n - 1 - c, stops, fraction, walk)
+    }
+
+    /** A ride's dot on the bar (radius), the distance between two, and from a dot to the ride in focus's end. */
+    const val RIDE_DOT = 3.0
+    const val RIDE_PITCH = 11.0
+    const val RIDE_GAP = 14.0
+    /** The walk's connector: from the last ride done (or the bar's start) to the ride in focus. */
+    const val WALK_LENGTH = 40.0
+    /** The bar keeps this much clear at both edges of the strip. */
+    const val BAR_PAD = 16.0
+    /** The ride in focus keeps at least this share of the bar (the strip less its pads): the dots crowd closer first. */
+    const val SEGMENT_SHARE = 0.75
+
+    /** How long the bar glides to a value live data moved, and morphs from one state to the next (ms). */
+    const val GLIDE_MS = 1000
+    const val MORPH_MS = 600
+
+    /**
+     * Where the bar's parts lie on a strip [width] wide. With nothing before
+     * it and no walk, the ride in focus runs from RAIL_START to RAIL_END as
+     * the ride's rail always did; the dots and the walk sit beside it, and
+     * crowd closer when there are so many that the ride would get less than
+     * SEGMENT_SHARE of the bar.
+     */
+    fun barLayout(before: Int, after: Int, walking: Boolean, width: Double): BarLayout {
+        val lead = if (walking) WALK_LENGTH else if (before > 0) RIDE_GAP else 0.0
+        val left = lead + max(0, before - 1) * RIDE_PITCH
+        val right = if (after > 0) RIDE_GAP + (after - 1) * RIDE_PITCH else 0.0
+        val end0 = if (after > 0) width - BAR_PAD else width - RAIL_END
+        var k = 1.0
+        var start = max(RAIL_START.toDouble(), BAR_PAD + left)
+        val least = SEGMENT_SHARE * (width - 2 * BAR_PAD)
+        if (end0 - right - start < least && left + right > 0) {
+            k = clamp01((end0 - BAR_PAD - least) / (left + right))
+            start = BAR_PAD + left * k
+        }
+        val end = end0 - right * k
+        val lastBefore = start - lead * k
+        val rides = (0 until before).map { i -> (lastBefore - (before - 1 - i) * RIDE_PITCH * k).let { BarSpan(it, it) } } +
+            BarSpan(start, end) +
+            (0 until after).map { i -> (end + (RIDE_GAP + i * RIDE_PITCH) * k).let { BarSpan(it, it) } }
+        return BarLayout(rides, if (walking) BarSpan(start - WALK_LENGTH * k, start) else null)
+    }
 }

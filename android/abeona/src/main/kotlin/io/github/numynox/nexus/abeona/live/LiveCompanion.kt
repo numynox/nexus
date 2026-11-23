@@ -247,14 +247,18 @@ object LiveCompanion {
         },
     )
 
-    /** The journey as Android 16's progress bar: a segment per ride, the changes between them, the train moving along it, a flag at its end. */
+    /**
+     * The journey as Android 16's progress bar: a segment per ride, the
+     * changes between them, the train moving along it (on foot a walker, on
+     * the change's point), a flag at its end.
+     */
     internal fun progressStyle(context: Context, bar: JourneyBar): NotificationCompat.ProgressStyle =
         NotificationCompat.ProgressStyle()
             .setStyledByProgress(true)
             .setProgressSegments(bar.segments.map { NotificationCompat.ProgressStyle.Segment(it.length).setColor(barColour(context, it.tone)) })
             .setProgressPoints(bar.points.map { NotificationCompat.ProgressStyle.Point(it.position).setColor(barColour(context, it.tone)) })
             .setProgress(bar.progress)
-            .setProgressTrackerIcon(IconCompat.createWithResource(context, R.drawable.ic_progress_train))
+            .setProgressTrackerIcon(IconCompat.createWithResource(context, if (bar.walking) R.drawable.ic_progress_walk else R.drawable.ic_progress_train))
             .setProgressEndIcon(IconCompat.createWithResource(context, R.drawable.ic_progress_flag))
 
     /** The expanded notification's lines, with [freshness] at the end of the last one. */

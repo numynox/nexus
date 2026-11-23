@@ -1,5 +1,8 @@
 package io.github.numynox.nexus.abeona.ui.live
 
+import android.provider.Settings
+import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,14 +18,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.DirectionsWalk
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.Block
-import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.DoorSliding
@@ -33,6 +35,7 @@ import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.MeetingRoom
 import androidx.compose.material.icons.rounded.MyLocation
+import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.Speed
@@ -58,6 +61,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -67,8 +71,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -95,6 +104,7 @@ import io.github.numynox.nexus.abeona.domain.TravelDay
 import io.github.numynox.nexus.abeona.domain.TravelDayKind
 import io.github.numynox.nexus.abeona.domain.TravelDaySource
 import io.github.numynox.nexus.abeona.domain.arrivalDelay
+import io.github.numynox.nexus.abeona.domain.delayMinutes
 import io.github.numynox.nexus.abeona.domain.finalArrivalDelay
 import io.github.numynox.nexus.abeona.domain.intake.seatText
 import io.github.numynox.nexus.abeona.domain.followsReplacement
@@ -129,6 +139,7 @@ import io.github.numynox.nexus.abeona.ui.common.StatusTone
 import io.github.numynox.nexus.abeona.ui.common.StopRow
 import io.github.numynox.nexus.abeona.ui.common.StopoverRow
 import io.github.numynox.nexus.abeona.ui.common.StopsToggle
+import io.github.numynox.nexus.abeona.ui.common.StopsToggleInline
 import io.github.numynox.nexus.abeona.ui.common.TripFormat
 import io.github.numynox.nexus.abeona.ui.common.spokenTime
 import io.github.numynox.nexus.abeona.ui.hairline
@@ -137,13 +148,17 @@ import io.github.numynox.nexus.abeona.ui.scene.Scene
 import io.github.numynox.nexus.abeona.ui.scene.SceneModel
 import io.github.numynox.nexus.abeona.ui.scene.SceneSize
 import io.github.numynox.nexus.abeona.ui.scene.SceneState
-import io.github.numynox.nexus.abeona.ui.scene.SceneStop
+import io.github.numynox.nexus.abeona.ui.scene.BarJourney
+import io.github.numynox.nexus.abeona.ui.scene.BarRide
+import io.github.numynox.nexus.abeona.ui.scene.BarState
 import io.github.numynox.nexus.abeona.ui.scene.TrainKind
 import io.github.numynox.nexus.abeona.ui.trip.MapMarker
 import io.github.numynox.nexus.abeona.ui.trip.TripMap
 import io.github.numynox.nexus.abeona.ui.watch
 import io.github.numynox.nexus.abeona.ui.well
+import io.github.numynox.nexus.core.ui.theme.tabular
 import java.time.Instant
+import kotlin.math.floor
 import kotlin.math.roundToInt
 
 /** Everything the dashboard shows, worked out once from the trip, the clock and the signals. */
@@ -346,12 +361,70 @@ private class OpenStops(private val open: List<Int>, val toggle: (Int) -> Unit) 
 }
 
 /**
- * The train has reached [stop] by [now]: it stands there or has gone on. As
- * the passing-stops line counts it (domain/RideProgress.kt): the stop it
- * stands at is ticked off, the next one is the one it heads for.
+ * The train has left [stop] by [now], by its expected departure (its arrival
+ * without one): the stop it stands at is not behind yet, as the marker on
+ * the line stands on it.
  */
-private fun reached(stop: Stopover, now: Instant): Boolean =
-    (stop.arrival ?: stop.plannedArrival ?: stop.departure ?: stop.plannedDeparture).toInstantOrNull()?.let { !now.isBefore(it) } ?: false
+private fun left(stop: Stopover, now: Instant): Boolean =
+    (stop.departure ?: stop.plannedDeparture ?: stop.arrival ?: stop.plannedArrival).toInstantOrNull()?.let { !now.isBefore(it) } ?: false
+
+/** When the train is at a stop between a ride's ends, by the expected times: arrival, then departure (the arrival again without one). Null when the train does not stop there, or nobody knows when. */
+private fun stopTimes(stop: Stopover): Pair<Instant, Instant>? {
+    if (stop.cancelled) return null
+    val arrival = (stop.arrival ?: stop.plannedArrival).toInstantOrNull()
+    val departure = (stop.departure ?: stop.plannedDeparture).toInstantOrNull()
+    val a = arrival ?: departure ?: return null
+    return a to (departure?.takeIf { !it.isBefore(a) } ?: a)
+}
+
+/** Where the train is among a ride's stops between its ends: [standing] at stop [index], else heading for it. */
+internal class StopAhead(val index: Int, val standing: Boolean)
+
+/**
+ * The stop between [leg]'s ends the train stands at or heads for at [now],
+ * as domain/RideProgress.kt has it; null when the next is where the ride
+ * ends (the step to get off says that one).
+ */
+internal fun stopAhead(leg: Leg, now: Instant): StopAhead? {
+    leg.stopovers.forEachIndexed { i, stop ->
+        val (arrival, departure) = stopTimes(stop) ?: return@forEachIndexed
+        if (now.isBefore(arrival)) return StopAhead(i, standing = false)
+        if (now.isBefore(departure)) return StopAhead(i, standing = true)
+    }
+    return null
+}
+
+/**
+ * Where the train is along stops that each have an arrival and a departure
+ * ([times], in order): a stop's index while it stands there, between two
+ * the share of the time from the one's departure to the other's arrival
+ * ("2.25": a quarter of the way from the third stop to the fourth). Before
+ * the first departure at the first, after the last arrival at the last.
+ */
+internal fun trackPosition(times: List<Pair<Instant, Instant>>, now: Instant): Double {
+    times.forEachIndexed { i, (arrival, departure) ->
+        if (now.isBefore(arrival)) {
+            if (i == 0) return 0.0
+            val from = times[i - 1].second
+            val span = java.time.Duration.between(from, arrival).toMillis()
+            if (span <= 0) return i.toDouble()
+            return i - 1 + (java.time.Duration.between(from, now).toMillis().toDouble() / span).coerceIn(0.0, 1.0)
+        }
+        if (now.isBefore(departure)) return i.toDouble()
+    }
+    return (times.size - 1).coerceAtLeast(0).toDouble()
+}
+
+/**
+ * The ride on board along the line while its stops are unfolded: the rows
+ * its stops stand on ([keys]: where it was boarded, each stop it serves,
+ * where to get off) with when the train is at each ([times]), so the line
+ * can show how far it is, in full down to the train and faded after.
+ */
+private class RideTrack(val keys: List<String>, val times: List<Pair<Instant, Instant>>, val now: Instant)
+
+/** The rows of the journey line, and the ride on board along them when its stops are unfolded. */
+private class JourneyLines(val rows: List<LineRow>, val track: RideTrack?)
 
 /**
  * One row of the journey line, drawn by [draw] with its piece of the rail.
@@ -394,21 +467,95 @@ private fun sentence(vararg parts: String?, after: List<String?> = emptyList()):
         .filter { it.isNotBlank() }
         .joinToString(" ") { if (it.endsWith(".")) it else "$it." }
 
+/** The ride in focus broke where the traveller is: missed (not on board), or cancelled. */
+private fun focusBroken(view: LiveView): Boolean {
+    val ride = view.leg ?: return false
+    return (view.day.missedChange && view.day.kind != TravelDayKind.OnBoard) || ride.cancelled
+}
+
 /**
- * The live card (abeona-design.md §8): the journey drawn as one line in the
- * row grid. Done rides fold into one row; the ride on board, or the one to
- * board, is the band (the scene strip on its stretch of line, the train and
- * where it is); the step to do next is the one large row, with its verb, its
- * time, station, countdown and platform; then the rest of the way down to
- * the destination, always last; then how fresh it all is and, as an icon,
- * how Abeona knows (it opens the sheet). A step that broke turns red, with
- * the way to the alternatives under it, and dims what follows.
+ * The header's bar (SceneModel.journeyBar): every ride's expected times, the
+ * ride in focus and what the traveller is doing; the scene works out the
+ * rest on every frame. None when the step broke (the signal is red), once
+ * arrived, or when a ride has no time.
+ */
+internal fun barJourney(view: LiveView): BarJourney? {
+    val legs = view.trip.legs
+    val day = view.day
+    val index = day.legIndex ?: return null
+    if (day.kind == TravelDayKind.Arrived || focusBroken(view)) return null
+    val rides = legs.indices.filter { !legs[it].isWalk }
+    val list = rides.map { k ->
+        val ride = legs[k]
+        BarRide(
+            ride.from.expectedAt?.toEpochMilli() ?: return null,
+            ride.to.expectedAt?.toEpochMilli() ?: return null,
+            ride.stopovers.mapNotNull { stopTimes(it)?.first?.toEpochMilli() },
+        )
+    }
+    val current = rides.indexOf(index).takeIf { it >= 0 } ?: return null
+    val state = when (day.kind) {
+        TravelDayKind.BeforeLeaving -> BarState.BeforeLeaving
+        TravelDayKind.AtStation -> BarState.AtStation
+        TravelDayKind.Changing -> BarState.Changing
+        TravelDayKind.OnBoard -> BarState.OnBoard
+        TravelDayKind.Arrived -> BarState.Arrived
+    }
+    // Changing: how the change into the ride in focus looks, unless a ride of it does not run.
+    val confidence = if (day.kind == TravelDayKind.Changing) {
+        transfers(legs).firstOrNull { it.departing == index }?.takeIf { !legs[it.arriving].cancelled && !legs[it.departing].cancelled }?.confidence
+    } else {
+        null
+    }
+    return BarJourney(list, current, state, day.leaveAt?.toEpochMilli(), confidence)
+}
+
+/**
+ * The card's header (abeona-design.md §7, §8): the scene strip, flush with
+ * the card's top and sides, its bar under the track the whole journey. The
+ * train is the ride in focus; on board the land passes with its speed from
+ * the train's Wi-Fi. A step that broke stops it: the signal at red, no bar.
+ */
+@Composable
+private fun LiveHeader(view: LiveView) {
+    val ride = view.leg
+    val onBoard = view.day.kind == TravelDayKind.OnBoard
+    val broken = focusBroken(view)
+    // Where the sky is reckoned: the phone or the train, else the stop the step is about.
+    val skyAt = view.marker?.let { it.lat to it.lon }
+        ?: ride?.let { if (onBoard) it.to else it.from }?.let { stop -> stop.lat?.let { lat -> stop.lon?.let { lat to it } } }
+    Scene(
+        state = when {
+            broken -> SceneState.Stopped
+            onBoard -> SceneState.Riding
+            else -> SceneState.Waiting
+        },
+        size = SceneSize.Strip,
+        train = sceneTrain(ride),
+        journey = barJourney(view),
+        now = view.now,
+        speedKmh = view.onboard?.speedKmh?.takeIf { it >= 1 && onBoard },
+        lat = skyAt?.first,
+        lon = skyAt?.second,
+    )
+}
+
+/**
+ * The live card (abeona-design.md §8): the scene as its header, its bar the
+ * whole journey (LiveHeader), then the journey drawn as one line in the row
+ * grid. Done rides fold into one row; the ride on board, or the one to
+ * board, is the band (the train, where it goes, where it is); the step to do
+ * next is the one large row, with its verb, its time, station, countdown and
+ * platform; then the rest of the way down to the destination, always last;
+ * then how fresh it all is and, as an icon, how Abeona knows (it opens the
+ * sheet). A step that broke turns red, with the way to the alternatives
+ * under it, and dims what follows.
  *
- * [summary] is the compact form on the Trips screen: the band without its
- * second line, the step to do next, and one row with the change, the next
- * train and the arrival; nothing else.
+ * [summary] is the compact form on the Trips screen: the same header, the
+ * band without its second line, the step to do next, and one row with the
+ * change, the next train and the arrival; nothing else.
  *
- * A ride's stops are folded behind "n stops" under the band and under each
+ * A ride's stops are folded behind "n stops" in the band and under each
  * train ahead; unfolded, they stand on that ride's stretch of the line.
  */
 @Composable
@@ -442,15 +589,17 @@ fun LiveCard(
     // The rides whose stops are unfolded, by index: kept through the minute's tick and the refreshes, not into another trip.
     var openStops by rememberSaveable(view.trip.id) { mutableStateOf(emptyList<Int>()) }
     val stops = OpenStops(openStops) { k -> openStops = if (k in openStops) openStops - k else openStops + k }
-    val rows = journeyRows(view, summary, approach, lifted, onAlternatives, onDroppedAlternatives, onBackToPlan, stops)
+    val journey = journeyRows(view, summary, approach, lifted, onAlternatives, onDroppedAlternatives, onBackToPlan, stops)
 
     val content: @Composable () -> Unit = {
         Column {
             if (arrived) {
                 val at = lastRide?.to
                 Scene(SceneState.Arrived, size = SceneSize.Header, train = sceneTrain(lastRide), lat = at?.lat, lon = at?.lon)
+            } else {
+                LiveHeader(view)
             }
-            JourneyLine(rows, hole, Modifier.padding(start = 16.dp, end = 16.dp, top = if (arrived) 0.dp else 12.dp, bottom = if (summary) 12.dp else 4.dp))
+            JourneyLine(journey.rows, hole, Modifier.padding(start = 16.dp, end = 16.dp, top = if (arrived) 0.dp else 8.dp, bottom = if (summary) 12.dp else 4.dp), journey.track)
             if (!summary) Footer(status, view.day.source) { showSource = true }
         }
     }
@@ -465,9 +614,18 @@ fun LiveCard(
 /**
  * The rows on one continuous line: each row's rail starts where the one
  * before ended. The rows of a group are one sentence to a screen reader.
+ *
+ * With a [track] (the ride on board, its stops unfolded) the line shows how
+ * far the train is: in full from where it was boarded down to the train,
+ * faded after it ([RailLine.Ahead], the rows' own), and the train as a
+ * small brand disc on the line, between the stop it left and the next one,
+ * or on a stop it stands at. It moves on with the frames from the card's
+ * moment, so it glides rather than jumping each minute; only the two
+ * drawings over and under the rows read that clock. With animations off it
+ * moves with the card's minute.
  */
 @Composable
-private fun JourneyLine(rows: List<LineRow>, hole: Color, modifier: Modifier = Modifier) {
+private fun JourneyLine(rows: List<LineRow>, hole: Color, modifier: Modifier = Modifier, track: RideTrack? = null) {
     // Each row's rail first: a group draws several rows at once.
     val rails = mutableListOf<Rail>()
     var line = RailLine.None
@@ -477,31 +635,82 @@ private fun JourneyLine(rows: List<LineRow>, hole: Color, modifier: Modifier = M
         line = below
         rails += Rail(above, below, row.dot, hole)
     }
+    // Where the rows are, for the train's place between them: read when drawing, never composing.
+    val placed = remember { HashMap<String, LayoutCoordinates>() }
+    val column = remember { arrayOfNulls<LayoutCoordinates>(1) }
+    val context = LocalContext.current
+    val reduced = remember { Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f }
+    // How long since the card's moment, from the frames.
+    var since by remember(track?.now) { mutableLongStateOf(0L) }
+    LaunchedEffect(track?.now, track != null, reduced) {
+        if (track == null || reduced) return@LaunchedEffect
+        val start = withInfiniteAnimationFrameMillis { it }
+        while (true) since = withInfiniteAnimationFrameMillis { it } - start
+    }
+    val accent = brand
+    val railX = RowGrid.time + RowGrid.Gap + RowGrid.Mark / 2
+
+    /** Where the train is on the line, down from its top; null until the rows are placed. */
+    fun trainY(t: RideTrack): Float? {
+        val origin = column[0]?.takeIf { it.isAttached } ?: return null
+        val centres = t.keys.map { key ->
+            val row = placed[key]?.takeIf { it.isAttached } ?: return null
+            origin.localPositionOf(row, Offset.Zero).y + row.size.height / 2f
+        }
+        val at = trackPosition(t.times, t.now.plusMillis(since))
+        val i = floor(at).toInt().coerceIn(0, centres.lastIndex)
+        val j = minOf(i + 1, centres.lastIndex)
+        return centres[i] + (centres[j] - centres[i]) * (at - i).toFloat()
+    }
+
     @Composable
     fun draw(i: Int) {
         val row = rows[i]
         key(row.key) {
-            Box(if (row.dim) Modifier.alpha(0.45f) else Modifier) { row.draw(rails[i]) }
+            val place = if (track != null && row.key in track.keys) Modifier.onPlaced { placed[row.key] = it } else Modifier
+            Box((if (row.dim) Modifier.alpha(0.45f) else Modifier).then(place)) { row.draw(rails[i]) }
         }
     }
-    Column(modifier.fillMaxWidth()) {
-        var i = 0
-        while (i < rows.size) {
-            val group = rows[i].group
-            if (group == null) {
-                draw(i)
-                i++
-                continue
+    Box(modifier.fillMaxWidth()) {
+        // Under the rows: the line done, down to the train; the rows' dots stand on it.
+        if (track != null) {
+            Canvas(Modifier.matchParentSize()) {
+                val top = track.keys.firstOrNull()?.let { placed[it] }?.takeIf { it.isAttached } ?: return@Canvas
+                val origin = column[0]?.takeIf { it.isAttached } ?: return@Canvas
+                val y = trainY(track) ?: return@Canvas
+                val x = railX.toPx()
+                drawLine(accent, Offset(x, origin.localPositionOf(top, Offset.Zero).y + top.size.height / 2f), Offset(x, y), strokeWidth = 4.dp.toPx())
             }
-            var end = i
-            while (end + 1 < rows.size && rows[end + 1].group == group) end++
-            val speech = (i..end).firstNotNullOfOrNull { rows[it].speech }
-            key("group-$group") {
-                Column(Modifier.fillMaxWidth().clearAndSetSemantics { speech?.let { contentDescription = it } }) {
-                    for (k in i..end) draw(k)
+        }
+        Column(Modifier.fillMaxWidth().onPlaced { column[0] = it }) {
+            var i = 0
+            while (i < rows.size) {
+                val group = rows[i].group
+                if (group == null) {
+                    draw(i)
+                    i++
+                    continue
                 }
+                var end = i
+                while (end + 1 < rows.size && rows[end + 1].group == group) end++
+                val speech = (i..end).firstNotNullOfOrNull { rows[it].speech }
+                key("group-$group") {
+                    Column(Modifier.fillMaxWidth().clearAndSetSemantics { speech?.let { contentDescription = it } }) {
+                        for (k in i..end) draw(k)
+                    }
+                }
+                i = end + 1
             }
-            i = end + 1
+        }
+        // Over the rows: the train, a brand disc in the active step's halo, smaller.
+        if (track != null) {
+            Canvas(Modifier.matchParentSize()) {
+                val y = trainY(track) ?: return@Canvas
+                val at = Offset(railX.toPx(), y)
+                drawCircle(accent.copy(alpha = 0.22f), radius = 8.dp.toPx(), center = at)
+                drawCircle(hole, radius = 5.5.dp.toPx(), center = at)
+                drawCircle(accent, radius = 4.5.dp.toPx(), center = at)
+            }
         }
     }
 }
@@ -521,17 +730,19 @@ private fun journeyRows(
     onDroppedAlternatives: (() -> Unit)?,
     onBackToPlan: (() -> Unit)?,
     openStops: OpenStops,
-): List<LineRow> {
+): JourneyLines {
     val trip = view.trip
     val legs = trip.legs
     val day = view.day
     val rides = legs.indices.filter { !legs[it].isWalk }
-    val last = rides.lastOrNull() ?: return emptyList()
+    val last = rides.lastOrNull() ?: return JourneyLines(emptyList(), null)
     val changes = transfers(legs)
     fun changeBefore(k: Int) = changes.firstOrNull { it.departing == k }
     fun changeAfter(k: Int) = changes.firstOrNull { it.arriving == k }
 
     val rows = mutableListOf<LineRow>()
+    // The ride on board along the line, once its stops are unfolded.
+    var track: RideTrack? = null
     var dim = false
     var alternativesShown = false
     var anyTrainShown = false
@@ -651,19 +862,19 @@ private fun journeyRows(
     fun end(k: Int) = if (k == last) destination() else stop("end-$k", legs[k].to, RailDot.Stop, RailLine.Dashed)
 
     /**
-     * Ride [k]'s stops on the line it is on: "n stops" under its row, then,
-     * unfolded, a row each. [onBoard]: those the train has reached muted
-     * with the done dot, as the passing stops count them; the ones ahead in
-     * full. Nothing for a ride without stops, and nothing on the compact card.
+     * Ride [k]'s stops on the line it is on: "n stops" under its row
+     * ([toggle]; the band has its own in its caption), then, unfolded, a row
+     * each, in full. [onBoard]: those the train has left muted. Nothing
+     * for a ride without stops, and nothing on the compact card.
      */
-    fun stopovers(key: String, k: Int, onBoard: Boolean = false, dimmed: Boolean = dim) {
+    fun stopovers(key: String, k: Int, onBoard: Boolean = false, toggle: Boolean = true, dimmed: Boolean = dim) {
         val ride = legs[k]
         if (compact || ride.stopovers.isEmpty()) return
         val open = k in openStops
-        add("$key-stops", dimmed = dimmed) { rail -> StopsToggle(ride.stopovers.size, open, ride.label, rail) { openStops.toggle(k) } }
+        if (toggle) add("$key-stops", dimmed = dimmed) { rail -> StopsToggle(ride.stopovers.size, open, ride.label, rail) { openStops.toggle(k) } }
         if (!open) return
         ride.stopovers.forEachIndexed { i, stop ->
-            val passed = onBoard && reached(stop, view.now)
+            val passed = onBoard && left(stop, view.now)
             add("$key-stop-$i", RailDot.Through, dimmed = dimmed) { rail -> StopoverRow(stop, rail, passed = passed, quiet = false) }
         }
     }
@@ -684,7 +895,7 @@ private fun journeyRows(
                 )
             }
         }
-        return rows
+        return JourneyLines(rows, track)
     }
 
     val ride = legs[index]
@@ -695,6 +906,12 @@ private fun journeyRows(
     if (done.isNotEmpty() && !compact) {
         add("done", RailDot.Done, above = RailLine.None, below = RailLine.Done) { rail -> DoneRow(done.map(legs::get), trip.followsReplacement, rail) }
     }
+
+    // The band's ride's stops: folded in its caption, unfolded on its line under it. On board,
+    // unfolded, the line shows how far the train is: in full down to it, faded after.
+    val folds = !compact && !brokenHere && ride.stopovers.isNotEmpty()
+    val tracked = folds && onBoard && index in openStops
+    val rideLine = if (tracked) RailLine.Ahead else RailLine.Brand
 
     // The step to do before the band's ride, or the one that broke in its place.
     if (brokenHere) {
@@ -740,35 +957,49 @@ private fun journeyRows(
                     if (!compact && seatText(ride.coach, ride.seats) != null) under("board-seat") { SeatFact(ride.coach, ride.seats) }
                 }
             }
-            else -> if (!compact) stop("boarded", ride.from, RailDot.Done, RailLine.Brand, quiet = true)
+            else -> if (!compact) stop("boarded", ride.from, RailDot.Done, rideLine, quiet = true)
         }
     }
 
     // The band: the ride on board, or the one to board, on its stretch of line.
     val progress = view.progress
-    val line = if (brokenHere) RailLine.Faint else RailLine.Brand
-    add("band", above = line, below = line, dimmed = false) { rail ->
+    val line = rideLine
+    val fold: (@Composable () -> Unit)? = if (folds) {
+        { StopsToggleInline(ride.stopovers.size, index in openStops, ride.label) { openStops.toggle(index) } }
+    } else {
+        null
+    }
+    // A step that broke has nothing for the band to say: the header stops, the step says what.
+    if (!brokenHere) add("band", above = line, below = line, dimmed = false) { rail ->
         BandRow(
             view, ride, rail,
-            state = when {
-                brokenHere -> SceneState.Stopped
-                onBoard -> SceneState.Riding
-                else -> SceneState.Waiting
-            },
-            // Before leaving the rail stays empty: the ride is not the question yet.
-            stops = progress?.takeIf { !brokenHere && day.kind != TravelDayKind.BeforeLeaving }?.stops?.map { SceneStop(it.fraction, it.name) },
-            caption = !brokenHere,
-            stopsUnder = !compact && !brokenHere && ride.stopovers.isNotEmpty(),
             second = when {
-                compact || brokenHere -> null
-                onBoard && progress != null -> { -> PassingStops(progress) }
-                approach != null -> { -> Text(approachText(approach), style = AbeonaType.meta, color = muted, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+                compact -> null
+                // On board: the stop the train heads for, or stands at, then the fold.
+                onBoard -> { -> NextStopLine(ride, stopAhead(ride, view.now), fold) }
+                approach != null || fold != null -> { ->
+                    approach?.let { Text(approachText(it), style = AbeonaType.meta, color = muted, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+                    fold?.invoke()
+                }
                 else -> null
             },
         )
     }
     // Its stops, on the band's line under it.
-    if (!brokenHere) stopovers("band", index, onBoard = onBoard, dimmed = false)
+    if (!brokenHere) stopovers("band", index, onBoard = onBoard, toggle = false, dimmed = false)
+    if (tracked) {
+        // The train along them: from where it was boarded, by each stop it serves, to where to get off.
+        val from = ride.from.expectedAt
+        val to = ride.to.expectedAt
+        if (from != null && to != null) {
+            val served = ride.stopovers.indices.mapNotNull { i -> stopTimes(ride.stopovers[i])?.let { "band-stop-$i" to it } }
+            track = RideTrack(
+                listOf("boarded") + served.map { it.first } + "get-off",
+                listOf(from to from) + served.map { it.second } + (to to to),
+                view.now,
+            )
+        }
+    }
     if (brokenHere) dim = true
 
     // Where the band's ride ends: on board the step to do next.
@@ -848,12 +1079,12 @@ private fun journeyRows(
                 StopRow(name = "", rail = rail, content = { Actions(onAlternatives, filled = true, anyTrain = false) })
             }
         }
-        return rows
+        return JourneyLines(rows, track)
     }
     if (after.isEmpty()) {
         // The band's ride ends at the destination: the row above is the last.
         onBackToPlan?.let { back -> add("back", above = RailLine.None, below = RailLine.None, dimmed = false) { rail -> BackToPlanRow(back, rail) } }
-        return rows
+        return JourneyLines(rows, track)
     }
 
     // The rest of the way: the next train in full, and anything up to a ride or change that will not work; the others folded.
@@ -892,7 +1123,7 @@ private fun journeyRows(
     }
     destination()
     onBackToPlan?.let { back -> add("back", above = RailLine.None, below = RailLine.None, dimmed = false) { rail -> BackToPlanRow(back, rail) } }
-    return rows
+    return JourneyLines(rows, track)
 }
 
 // ---------------------------------------------------------------- the rows
@@ -1006,76 +1237,54 @@ private fun DoneRow(rides: List<Leg>, replanned: Boolean, rail: Rail) {
 }
 
 /**
- * The band: the scene strip on the ride's stretch of line (its rail the
- * ride's stops, the train where it is), under it the train with "to" its
- * own destination and, from its Wi-Fi, the speed; then [second]: on board
- * the stop just passed and the next, waiting where the train is.
- * [stopsUnder]: the ride's "n stops" follows as the next row, the end of
- * the caption, so the band leaves no gap before it.
+ * The band: the ride on board, or the one to board, on its stretch of line
+ * (the picture of it is the card's header): the train with "to" its own
+ * destination and, from its Wi-Fi, the speed; then [second]: on board the
+ * stop it heads for and its stops' fold, waiting where the train is.
  */
 @Composable
 private fun BandRow(
     view: LiveView,
     ride: Leg,
     rail: Rail,
-    state: SceneState,
-    stops: List<SceneStop>?,
-    caption: Boolean,
-    stopsUnder: Boolean,
     second: (@Composable () -> Unit)?,
 ) {
     val onBoard = view.day.kind == TravelDayKind.OnBoard
     val speed = view.onboard?.speedKmh?.takeIf { it >= 1 && onBoard }
-    // Where the sky is reckoned: the phone or the train, else the stop the step is about.
-    val skyAt = view.marker?.let { it.lat to it.lon }
-        ?: (if (onBoard) ride.to else ride.from).let { stop -> stop.lat?.let { lat -> stop.lon?.let { lat to it } } }
     StopRow(name = "", rail = rail, content = {
-        Column(Modifier.weight(1f).padding(top = 6.dp, bottom = if (stopsUnder) 0.dp else 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Scene(
-                state = state,
-                modifier = Modifier.clip(RoundedCornerShape(12.dp)),
-                size = SceneSize.Strip,
-                train = sceneTrain(ride),
-                stops = stops,
-                fraction = if (onBoard) view.progress?.fraction ?: 0.0 else 0.0,
-                speedKmh = speed,
-                lat = skyAt?.first,
-                lon = skyAt?.second,
-            )
-            if (caption) {
-                val kmh = speed?.let { "${it.roundToInt()} km/h" }
-                val speedFact: @Composable () -> Unit = {
-                    kmh?.let {
-                        Row(
-                            Modifier.clearAndSetSemantics { contentDescription = "Speed $it" },
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            Icon(Icons.Rounded.Speed, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Text(it, style = AbeonaType.body.copy(fontWeight = FontWeight.Bold), maxLines = 1)
-                        }
+        Column(Modifier.weight(1f).padding(top = 4.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            val kmh = speed?.let { "${it.roundToInt()} km/h" }
+            val speedFact: @Composable () -> Unit = {
+                kmh?.let {
+                    Row(
+                        Modifier.clearAndSetSemantics { contentDescription = "Speed $it" },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Icon(Icons.Rounded.Speed, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Text(it, style = AbeonaType.body.copy(fontWeight = FontWeight.Bold), maxLines = 1)
                     }
                 }
-                Column(Modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        LineChip(ride)
-                        Text(
-                            ride.headsign?.let { "to $it" }.orEmpty(),
-                            style = AbeonaType.body.copy(fontWeight = FontWeight.SemiBold),
-                            maxLines = RowGrid.lines, overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f),
-                        )
-                        // Large text: the speed takes a line of its own rather than pushing the train off.
-                        if (!RowGrid.large) speedFact()
-                    }
-                    if (RowGrid.large) speedFact()
+            }
+            Column(Modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LineChip(ride)
+                    Text(
+                        ride.headsign?.let { "to $it" }.orEmpty(),
+                        style = AbeonaType.body.copy(fontWeight = FontWeight.SemiBold),
+                        maxLines = RowGrid.lines, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    // Large text: the speed takes a line of its own rather than pushing the train off.
+                    if (!RowGrid.large) speedFact()
                 }
-                // Why it is late, from the train's Wi-Fi: only while it is late enough to matter.
-                view.onboard?.delayReason?.takeIf { onBoard && arrivalDelay(ride) >= 5 }?.let { reason ->
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Icon(Icons.Rounded.Info, contentDescription = null, tint = muted, modifier = Modifier.size(16.dp))
-                        Text(reason, style = AbeonaType.meta, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
+                if (RowGrid.large) speedFact()
+            }
+            // Why it is late, from the train's Wi-Fi: only while it is late enough to matter.
+            view.onboard?.delayReason?.takeIf { onBoard && arrivalDelay(ride) >= 5 }?.let { reason ->
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Icon(Icons.Rounded.Info, contentDescription = null, tint = muted, modifier = Modifier.size(16.dp))
+                    Text(reason, style = AbeonaType.meta, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             second?.invoke()
@@ -1084,41 +1293,85 @@ private fun BandRow(
 }
 
 /**
- * On board, under the train: the stop it last reached on the left, the next
- * on the right ("Next Würzburg Hbf 11:15"), left out when the next is where
- * the traveller gets off (the step below says it). Not the ride's first stop:
- * the row above has it.
+ * On board, the band's last line, from the left: the stop the train heads
+ * for with its arrival ("→ Aschaffenburg Hbf 21:47 +7"), or the one it
+ * stands at with its departure (a pin), then " · " and the ride's stops'
+ * [fold], which takes a line of its own when it does not fit. The stop is
+ * left out when the next is where the traveller gets off (the step below
+ * says it); the stops just passed are in the fold. One sentence to a screen
+ * reader: "Next stop Aschaffenburg Hbf, 21:47, 7 minutes late."
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun PassingStops(progress: RideProgress) {
-    val stops = progress.stops
-    val lastIndex = stops.lastIndex
-    val current = progress.current?.takeIf { it in 1 until lastIndex }
-    val reached = current ?: stops.indexOfLast { it.passed }.takeIf { it in 1 until lastIndex }
-    val next = progress.next?.takeIf { it < lastIndex }
-    if (reached == null && next == null) return
-    FlowRow(
-        Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-        itemVerticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (reached != null) {
-            val stop = stops[reached]
-            val time = TripFormat.time(if (reached == current) stop.arrival else stop.departure)
-            Row(
-                Modifier.clearAndSetSemantics { contentDescription = "Passed ${stop.name} $time" },
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Icon(Icons.Rounded.Check, contentDescription = null, tint = muted, modifier = Modifier.size(14.dp))
-                Text("${stop.name} $time", style = AbeonaType.meta, color = muted, maxLines = RowGrid.lines)
+private fun NextStopLine(ride: Leg, ahead: StopAhead?, fold: (@Composable () -> Unit)?) {
+    if (ahead == null) {
+        fold?.invoke()
+        return
+    }
+    val stop = ride.stopovers[ahead.index]
+    val standing = ahead.standing
+    val planned = (if (standing) stop.plannedDeparture ?: stop.plannedArrival else stop.plannedArrival ?: stop.plannedDeparture).toInstantOrNull()
+    val expected = (if (standing) stop.departure ?: stop.arrival else stop.arrival ?: stop.departure).toInstantOrNull() ?: planned
+    val time = spokenTime(planned, expected)
+    val says = if (standing) sentence("At ${stop.name}", time?.let { "departs $it" }) else sentence("Next stop ${stop.name}", time)
+    val delay = delayMinutes(planned, expected)
+    val quiet = muted
+    val late = watch.soft.content
+    val where: @Composable () -> Unit = {
+        Row(
+            Modifier.clearAndSetSemantics { contentDescription = says },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Icon(if (standing) Icons.Rounded.Place else Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null, tint = muted, modifier = Modifier.size(16.dp))
+            // One text, so a long name wraps with its time rather than pushing it off; the time as ShiftedTime's inline form.
+            Text(
+                buildAnnotatedString {
+                    append(stop.name)
+                    withStyle(SpanStyle(color = quiet)) { append(" ${TripFormat.time(if (delay > 0) expected else planned ?: expected)}") }
+                    if (delay > 0) withStyle(SpanStyle(color = late, fontWeight = FontWeight.Bold)) { append(" +$delay") }
+                },
+                style = AbeonaType.meta.tabular(),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+    if (fold == null) where() else LineThenFold(where, fold)
+}
+
+/**
+ * [first], " · " and [fold] on one line when they fit; else [fold] on a line
+ * of its own under [first], with nothing to start it.
+ */
+@Composable
+private fun LineThenFold(first: @Composable () -> Unit, fold: @Composable () -> Unit) {
+    val quiet = muted
+    Layout(
+        content = {
+            first()
+            Text("·", style = AbeonaType.meta, color = quiet, modifier = Modifier.clearAndSetSemantics {})
+            fold()
+        },
+    ) { parts, constraints ->
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val gap = 6.dp.roundToPx()
+        val a = parts[0].measure(loose)
+        val dot = parts[1].measure(loose)
+        val b = parts[2].measure(loose)
+        val inline = a.width + gap + dot.width + gap + b.width <= constraints.maxWidth
+        if (inline) {
+            val h = maxOf(a.height, dot.height, b.height)
+            layout(a.width + gap + dot.width + gap + b.width, h) {
+                a.place(0, (h - a.height) / 2)
+                dot.place(a.width + gap, (h - dot.height) / 2)
+                b.place(a.width + gap + dot.width + gap, (h - b.height) / 2)
             }
         } else {
-            Spacer(Modifier.width(0.dp))
+            layout(maxOf(a.width, b.width), a.height + b.height) {
+                a.place(0, 0)
+                b.place(0, a.height)
+            }
         }
-        next?.let { Text("Next ${stops[it].name} ${TripFormat.time(stops[it].arrival)}", style = AbeonaType.meta, color = muted, maxLines = RowGrid.lines) }
     }
 }
 

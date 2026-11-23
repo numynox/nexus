@@ -57,4 +57,7 @@ class LiveUpdateScreenshots {
     )
 
     @Test fun missed() = shot("44k-live-update-missed", 86, TravelSignals(position = Position(49.8018, 9.9355, 0.0, 10.0)))
+
+    /** Changing at Würzburg, a tight change: a walker on the change's point instead of the train. */
+    @Test fun changing() = shot("44l-live-update-changing", 77)
 }

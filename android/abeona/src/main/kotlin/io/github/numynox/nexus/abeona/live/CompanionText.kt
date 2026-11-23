@@ -85,9 +85,11 @@ data class BarPoint(val position: Int, val tone: BarTone)
  * The whole journey as Android 16's progress bar: one segment per ride, all
  * as long, so a three-hour ICE and a quarter of an hour on the S-Bahn are
  * both readable; the changes as points on the boundaries between them; and
- * [progress] where the trip is.
+ * [progress] where the trip is. [walking]: the traveller is on foot (a
+ * change, or the way to the first train), so the tracker is a walker on the
+ * point rather than the train.
  */
-data class JourneyBar(val segments: List<BarSegment>, val points: List<BarPoint>, val progress: Int) {
+data class JourneyBar(val segments: List<BarSegment>, val points: List<BarPoint>, val progress: Int, val walking: Boolean = false) {
     val max: Int get() = segments.sumOf { it.length }
 
     companion object {
@@ -111,7 +113,8 @@ internal fun barTone(confidence: Confidence): BarTone = when (confidence) {
  * ride, its start and the share of its minutes gone by (expected times); at
  * a change, on its boundary; arrived, the end. On a ride or at a change as
  * the travel [day] says it when there is one, so a train missed leaves the
- * traveller at the change; else by the clock. Rides beyond [maxSegments]
+ * traveller at the change; else by the clock. On foot (changing, or before
+ * leaving) it is [JourneyBar.walking]. Rides beyond [maxSegments]
  * (Android draws no more) make one segment, still with their boundaries.
  * Null without a ride or a time to start from.
  */
@@ -128,8 +131,10 @@ fun journeyBar(legs: List<Leg>, now: Instant, day: TravelDay? = null, maxSegment
         val span = Duration.between(from, to).toMinutes().takeIf { it > 0 } ?: return 0
         return (Duration.between(from, now).toMinutes() * ride / span).toInt().coerceIn(0, ride - 1)
     }
+    var walking = false
     val progress = if (day != null) {
         val n = day.legIndex?.let(rides::indexOf)?.takeIf { it >= 0 }
+        walking = day.kind == TravelDayKind.Changing || day.kind == TravelDayKind.BeforeLeaving
         when {
             day.kind == TravelDayKind.Arrived || n == null -> end
             day.kind == TravelDayKind.OnBoard -> n * ride + along(n)
@@ -141,7 +146,11 @@ fun journeyBar(legs: List<Leg>, now: Instant, day: TravelDay? = null, maxSegment
             val from = legs[rides[n]].from.expectedAt
             val to = legs[rides[n]].to.expectedAt
             when {
-                from != null && now.isBefore(from) -> n * ride
+                from != null && now.isBefore(from) -> {
+                    // Between two rides: changing, on foot.
+                    walking = n > 0
+                    n * ride
+                }
                 to != null && now.isBefore(to) -> n * ride + along(n)
                 else -> null
             }
@@ -156,7 +165,7 @@ fun journeyBar(legs: List<Leg>, now: Instant, day: TravelDay? = null, maxSegment
     val (ahead, passed) = boundaries.partition { it.position >= progress }
     val points = (ahead.take(maxPoints) + passed.reversed().take((maxPoints - ahead.size).coerceAtLeast(0))).sortedBy { it.position }
     val segments = if (rides.size > maxSegments) listOf(BarSegment(end, BarTone.Ride)) else rides.map { BarSegment(ride, BarTone.Ride) }
-    return JourneyBar(segments, points, progress)
+    return JourneyBar(segments, points, progress, walking)
 }
 
 /** "4 min", "1 h 05": short enough for the status bar chip. */
