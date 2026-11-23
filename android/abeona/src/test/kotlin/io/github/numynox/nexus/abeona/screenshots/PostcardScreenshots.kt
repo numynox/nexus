@@ -57,12 +57,9 @@ class PostcardScreenshots {
                 }
             }
         }
-        // The picture to share is made while the card shows: "Share" works once it is ready.
-        // Robolectric draws only when asked: a first capture draws it.
-        compose.onRoot().captureRoboImage("build/outputs/roborazzi/app/$name.png")
-        compose.waitUntil(10_000) {
-            compose.onAllNodes(hasContentDescription("Share postcard") and isEnabled()).fetchSemanticsNodes().isNotEmpty()
-        }
+        // The picture to share is made only when "Share" is pressed (a hardware layer, which
+        // Robolectric cannot read back): the card shows nothing off screen meanwhile.
+        compose.onNode(hasContentDescription("Share postcard") and isEnabled()).assertExists()
         compose.onRoot().captureRoboImage("build/outputs/roborazzi/app/$name.png")
     }
 
