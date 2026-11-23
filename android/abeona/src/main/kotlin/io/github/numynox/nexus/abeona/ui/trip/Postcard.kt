@@ -4,7 +4,6 @@ import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.Picture
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,8 +35,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.graphics.drawscope.draw
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -156,14 +156,21 @@ private fun Figure(figure: PostcardFigure, modifier: Modifier = Modifier, style:
 @Composable
 internal fun PostcardCard(trip: Trip, summary: TripSummary, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val file = rememberPostcardFile(trip, summary)
+    // The picture is made only when "Share" is pressed, not while the card shows.
+    var sharing by remember(trip.id) { mutableStateOf(false) }
+    if (sharing) {
+        PostcardCapture(trip, summary) { file ->
+            sharing = false
+            file?.let { sharePostcard(context, it) }
+        }
+    }
     SurfaceCard(modifier) {
         Row(verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f).padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(route(trip), style = AbeonaType.title, maxLines = 3, overflow = TextOverflow.Ellipsis)
                 Text(postcardDate(trip), style = AbeonaType.meta, color = muted)
             }
-            IconButton(onClick = { file?.let { sharePostcard(context, it) } }, enabled = file != null) {
+            IconButton(onClick = { sharing = true }, enabled = !sharing) {
                 Icon(Icons.Rounded.Share, contentDescription = "Share postcard")
             }
         }
@@ -210,49 +217,44 @@ fun PostcardImage(trip: Trip, summary: TripSummary, modifier: Modifier = Modifie
 
 /**
  * The postcard's picture, drawn off screen once and written to the cache
- * (cacheDir/shared/, which FileProvider serves): ready before "Share" is
- * pressed. Null until then. Recorded as a Picture and drawn into a plain
- * bitmap: a software canvas works on every phone, and in the screenshot
- * tests, where a hardware layer cannot be read back.
+ * (cacheDir/shared/, which FileProvider serves), then [onDone] with the file
+ * (null when it could not be made). Recorded into a graphics layer and read
+ * back with toImageBitmap(): the scene is drawn through render nodes
+ * (clipToBounds), which a software canvas such as an android.graphics.Picture
+ * refuses with an exception, on the main thread. The layer is never drawn
+ * onto the screen.
  */
 @Composable
-private fun rememberPostcardFile(trip: Trip, summary: TripSummary): File? {
+private fun PostcardCapture(trip: Trip, summary: TripSummary, onDone: (File?) -> Unit) {
     val context = LocalContext.current
-    var file by remember(trip.id, summary) { mutableStateOf<File?>(null) }
-    if (file != null) return file
-    val picture = remember(trip.id, summary) { Picture() }
-    var drawn by remember(trip.id, summary) { mutableStateOf(false) }
+    val layer = rememberGraphicsLayer()
+    var recorded by remember { mutableStateOf(false) }
     val size = with(LocalDensity.current) { DpSize(SHARE_WIDTH.toDp(), SHARE_HEIGHT.toDp()) }
-    // A box of no size holds it: laid out and recorded, never drawn onto the screen.
+    // A box of no size holds it: laid out and recorded, never shown.
     Box(Modifier.size(0.dp)) {
         Box(
             Modifier
                 .requiredSize(size)
-                .drawWithCache {
-                    val width = this.size.width.toInt()
-                    val height = this.size.height.toInt()
-                    onDrawWithContent {
-                        val canvas = androidx.compose.ui.graphics.Canvas(picture.beginRecording(width, height))
-                        draw(this, layoutDirection, canvas, this.size) { this@onDrawWithContent.drawContent() }
-                        picture.endRecording()
-                        if (!drawn) drawn = true
-                    }
+                .drawWithContent {
+                    layer.record { this@drawWithContent.drawContent() }
+                    if (!recorded) recorded = true
                 },
         ) {
             CompositionLocalProvider(LocalDensity provides Density(SHARE_DENSITY, fontScale = 1f)) { PostcardImage(trip, summary) }
         }
     }
-    LaunchedEffect(drawn) {
-        if (!drawn) return@LaunchedEffect
-        file = runCatching {
+    LaunchedEffect(recorded) {
+        if (!recorded) return@LaunchedEffect
+        val file = runCatching {
+            val image = layer.toImageBitmap().asAndroidBitmap()
             withContext(Dispatchers.IO) {
-                val bitmap = Bitmap.createBitmap(SHARE_WIDTH, SHARE_HEIGHT, Bitmap.Config.ARGB_8888)
-                android.graphics.Canvas(bitmap).drawPicture(picture)
+                // A hardware bitmap cannot be written out: a plain copy can.
+                val bitmap = if (image.config == Bitmap.Config.HARDWARE) image.copy(Bitmap.Config.ARGB_8888, false) else image
                 writePostcard(context, trip, bitmap)
             }
-        }.getOrNull()
+        }.onFailure { android.util.Log.w("AbeonaPostcard", "Could not make the postcard picture", it) }.getOrNull()
+        onDone(file)
     }
-    return null
 }
 
 private fun writePostcard(context: Context, trip: Trip, bitmap: Bitmap): File {
