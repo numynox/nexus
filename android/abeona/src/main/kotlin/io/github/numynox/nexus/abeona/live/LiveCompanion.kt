@@ -181,11 +181,12 @@ object LiveCompanion {
      * pill).
      *
      * Android 16+ ([sdk] 36) draws the journey as a bar (ProgressStyle):
-     * the rides and changes as segments, the changes ahead as points, the
-     * train where the trip is; under the title the most important line of
-     * [CompanionStatus.info], the rest in the header with how fresh it is,
-     * only when it is not live. Android 15 and older keep the expanded lines,
-     * with how fresh at the end of the last one, after the speed.
+     * one segment per ride, the changes as points between them, the train
+     * where the trip is; under the title the most important line of
+     * [CompanionStatus.info] and the rest on a second line. The header has
+     * only how fresh it is, when it is not live: a promoted Live Update does
+     * not show the header at all. Android 15 and older keep the expanded
+     * lines, with how fresh at the end of the last one, after the speed.
      *
      * Actions: "Ticket" when the trip has one ([ticket]), "Alternatives"
      * when something broke, and "Stop".
@@ -246,7 +247,7 @@ object LiveCompanion {
         },
     )
 
-    /** The journey as Android 16's progress bar: the train moves along it, a flag at its end. */
+    /** The journey as Android 16's progress bar: a segment per ride, the changes between them, the train moving along it, a flag at its end. */
     internal fun progressStyle(context: Context, bar: JourneyBar): NotificationCompat.ProgressStyle =
         NotificationCompat.ProgressStyle()
             .setStyledByProgress(true)

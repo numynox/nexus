@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.EventSeat
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -37,14 +39,21 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.collapse
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.expand
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import io.github.numynox.nexus.abeona.data.Stopover
+import io.github.numynox.nexus.abeona.data.toInstantOrNull
 import io.github.numynox.nexus.abeona.domain.delayMinutes
 import io.github.numynox.nexus.abeona.domain.intake.seatText
 import io.github.numynox.nexus.abeona.ui.AbeonaType
@@ -256,6 +265,68 @@ fun StopRow(
         }
         PlatformBox(platformPlanned, platformCurrent)
     }
+}
+
+/** "14:14, 7 minutes late": a time as a row shows it, said. */
+fun spokenTime(planned: Instant?, expected: Instant?): String? {
+    val shown = expected ?: planned ?: return null
+    val delay = delayMinutes(planned, expected)
+    return if (delay > 0) "${TripFormat.time(shown)}, $delay minutes late" else TripFormat.time(shown)
+}
+
+/**
+ * A ride's stops folded behind a quiet "5 stops ⌄" in the brand colour, a
+ * row on the ride's [rail]: in the trip's timeline and on the live card
+ * (abeona-design.md §8, §9). The stops it opens are [StopoverRow]s on the
+ * same rail. To a screen reader it says what it does and to which train
+ * ([ride], as its line chip says it): "Show 5 stops of ICE 510".
+ */
+@Composable
+fun StopsToggle(count: Int, open: Boolean, ride: String, rail: Rail, modifier: Modifier = Modifier, onToggle: () -> Unit) {
+    val stops = "$count ${if (count == 1) "stop" else "stops"}"
+    StopRow(
+        name = "",
+        modifier = modifier.semantics {
+            contentDescription = "${if (open) "Hide" else "Show"} $stops of $ride"
+            role = Role.Button
+            // What aria-expanded is on the web: the fold's state, as the action it offers.
+            if (open) collapse { onToggle(); true } else expand { onToggle(); true }
+        },
+        rail = rail,
+        onClick = onToggle,
+        content = {
+            Text(stops, style = AbeonaType.meta, color = brand)
+            Icon(if (open) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, contentDescription = null, tint = brand, modifier = Modifier.size(20.dp))
+        },
+    )
+}
+
+/**
+ * One stop a ride passes through, quiet, with a small through-dot on the
+ * ride's [rail]: its time with the delay, its name, struck when the train
+ * does not stop there. [passed]: the train has reached it (the live card,
+ * on board), with the done dot of what is behind. One sentence to a screen
+ * reader: "Hanau Hbf, 06:26, 2 minutes late", "Passed Hanau Hbf, …".
+ */
+@Composable
+fun StopoverRow(stop: Stopover, rail: Rail, passed: Boolean = false) {
+    val planned = (stop.plannedArrival ?: stop.plannedDeparture).toInstantOrNull()
+    val expected = (stop.arrival ?: stop.departure).toInstantOrNull()
+    val says = listOfNotNull(
+        stop.name,
+        if (stop.cancelled) planned?.let(TripFormat::time) else spokenTime(planned, expected),
+        "cancelled".takeIf { stop.cancelled },
+    ).joinToString(", ")
+    StopRow(
+        name = stop.name,
+        modifier = Modifier.clearAndSetSemantics { contentDescription = if (passed) "Passed $says" else says },
+        planned = planned,
+        expected = expected,
+        cancelled = stop.cancelled,
+        quiet = true,
+        rail = rail.copy(dot = if (passed) RailDot.Done else RailDot.Through),
+        minHeight = 36.dp,
+    )
 }
 
 /**
