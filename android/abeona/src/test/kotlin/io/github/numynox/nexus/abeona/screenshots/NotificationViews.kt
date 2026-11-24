@@ -9,7 +9,8 @@ import android.widget.RemoteViews
 
 /**
  * What the shade draws for [notification]: its expanded view, else its
- * collapsed one, with a white card behind it as the system draws.
+ * collapsed one, with a card behind it as the system draws ([background]:
+ * white, or the dark shade's).
  *
  * The small icon goes in as a bitmap. Given a resource, the template's icon
  * view (LocalImageResolver) first tries to decode it with ImageDecoder, and
@@ -18,7 +19,7 @@ import android.widget.RemoteViews
  * (SIGSEGV in libc, ImageDecoder.nCreate from an asset stream). A bitmap
  * icon is drawn as it is, with no decoder involved.
  */
-internal fun notificationViews(context: Context, notification: Notification): RemoteViews {
+internal fun notificationViews(context: Context, notification: Notification, background: Int = android.graphics.Color.WHITE): RemoteViews {
     val icon = notification.smallIcon?.loadDrawable(context)?.let { drawable ->
         val size = 96
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
@@ -29,6 +30,6 @@ internal fun notificationViews(context: Context, notification: Notification): Re
     fun builder() = Notification.Builder.recoverBuilder(context, notification).also { b -> icon?.let(b::setSmallIcon) }
     val views = builder().createBigContentView() ?: builder().createContentView()
     val root = context.resources.getIdentifier("status_bar_latest_event_content", "id", "android")
-    if (root != 0) views.setInt(root, "setBackgroundColor", android.graphics.Color.WHITE)
+    if (root != 0) views.setInt(root, "setBackgroundColor", background)
     return views
 }

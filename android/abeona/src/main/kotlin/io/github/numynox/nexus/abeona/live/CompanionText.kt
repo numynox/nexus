@@ -5,6 +5,7 @@ import io.github.numynox.nexus.abeona.data.FareType
 import io.github.numynox.nexus.abeona.data.Leg
 import io.github.numynox.nexus.abeona.data.Trip
 import io.github.numynox.nexus.abeona.domain.Confidence
+import io.github.numynox.nexus.abeona.domain.TravelDay
 import io.github.numynox.nexus.abeona.domain.TravelDayKind
 import io.github.numynox.nexus.abeona.domain.TravelDayRules
 import io.github.numynox.nexus.abeona.domain.RideProgress
@@ -37,9 +38,9 @@ import kotlin.math.roundToInt
  * Android 16+ draws the journey as a bar instead ([bar]), so its lines are
  * fewer: [info] is what the bar cannot say, most important first (the
  * change, the seat before boarding, the next stop, the speed), and
- * [compact] makes the line under the title and the header's small text of
- * it. [broken] is a ride missed or cancelled, or a change that cannot be
- * made: the notification offers the alternatives.
+ * [compact] makes the text under the title of it. [broken] is a ride missed
+ * or cancelled, or a change that cannot be made: the notification offers
+ * the alternatives.
  */
 data class CompanionStatus(
     val title: String,
@@ -52,36 +53,49 @@ data class CompanionStatus(
     val bar: JourneyBar? = null,
     val broken: Boolean = false,
 ) {
-    /** The Live Update's line under the title and its header text, with how fresh it is when that is worth saying. */
+    /** The Live Update's text under the title, and in its header how fresh it is when that is worth saying. */
     fun compact(freshness: String?): CompactText = compactText(info, freshness)
 }
 
-/** A Live Update's two lines: [text] under the title, [subText] in the header. */
+/** A Live Update's text: [text] under the title, [subText] in the header. */
 data class CompactText(val text: String, val subText: String?)
 
-/** The first of [info] under the title; the rest, then [freshness], in the header, joined by " · ". */
+/**
+ * The first of [info] under the title, the rest on a second line joined by
+ * " · " ("Next: Würzburg Hbf 07:15 · 247 km/h"). The header is for
+ * [freshness] only: a promoted Live Update does not show it, so nothing the
+ * traveller needs may stand there.
+ */
 fun compactText(info: List<String>, freshness: String?): CompactText {
-    val all = info.filter { it.isNotBlank() } + listOfNotNull(freshness)
-    return CompactText(all.firstOrNull().orEmpty(), all.drop(1).joinToString(" · ").ifEmpty { null })
+    val lines = info.filter { it.isNotBlank() }
+    val rest = lines.drop(1).joinToString(" · ")
+    return CompactText(lines.firstOrNull().orEmpty() + if (rest.isEmpty()) "" else "\n$rest", freshness)
 }
 
 /** What a piece of the journey bar is: a ride (the brand), or a change in its confidence's status colour. */
 enum class BarTone { Ride, Ok, Watch, Bad }
 
-/** A stretch of the bar, [length] minutes long. */
+/** A stretch of the bar, [length] long: a ride is [JourneyBar.RIDE]. */
 data class BarSegment(val length: Int, val tone: BarTone)
 
-/** A mark on the bar: a change ahead, where the ride before it ends. */
+/** A mark on the bar: a change, on the boundary between the rides before and after it. */
 data class BarPoint(val position: Int, val tone: BarTone)
 
 /**
- * The whole journey as Android 16's progress bar: in minutes from the first
- * ride's expected departure to the last one's expected arrival, each ride
- * and each change between two rides a segment, the changes ahead marked
- * with points, and [progress] the minutes gone by.
+ * The whole journey as Android 16's progress bar: one segment per ride, all
+ * as long, so a three-hour ICE and a quarter of an hour on the S-Bahn are
+ * both readable; the changes as points on the boundaries between them; and
+ * [progress] where the trip is. [walking]: the traveller is on foot (a
+ * change, or the way to the first train), so the tracker is a walker on the
+ * point rather than the train.
  */
-data class JourneyBar(val segments: List<BarSegment>, val points: List<BarPoint>, val progress: Int) {
+data class JourneyBar(val segments: List<BarSegment>, val points: List<BarPoint>, val progress: Int, val walking: Boolean = false) {
     val max: Int get() = segments.sumOf { it.length }
+
+    companion object {
+        /** A ride's length on the bar. */
+        const val RIDE = 100
+    }
 }
 
 internal fun barTone(confidence: Confidence): BarTone = when (confidence) {
@@ -91,54 +105,67 @@ internal fun barTone(confidence: Confidence): BarTone = when (confidence) {
 }
 
 /**
- * The journey bar for [legs] (the journey followed) at [now]. Segments: each
- * ride, and each change between rides (its walk included) in its
- * confidence's colour. More than [maxSegments]: the changes become mere
- * boundaries between the rides, which keep their lengths; still more, one
- * segment. Points: the next [maxPoints] changes whose train has not left yet.
+ * The journey bar for [legs] (the journey followed) at [now]: each ride a
+ * segment of [JourneyBar.RIDE] in the brand, the changes points on the
+ * boundaries in their confidence's colour, at most [maxPoints] (the next
+ * ones ahead first, then the ones passed, nearest first; in the order they
+ * come on the bar). Where the trip is: 0 before the first departure; on a
+ * ride, its start and the share of its minutes gone by (expected times); at
+ * a change, on its boundary; arrived, the end. On a ride or at a change as
+ * the travel [day] says it when there is one, so a train missed leaves the
+ * traveller at the change; else by the clock. On foot (changing, or before
+ * leaving) it is [JourneyBar.walking]. Rides beyond [maxSegments]
+ * (Android draws no more) make one segment, still with their boundaries.
  * Null without a ride or a time to start from.
  */
-fun journeyBar(legs: List<Leg>, now: Instant, maxSegments: Int = 10, maxPoints: Int = 4): JourneyBar? {
+fun journeyBar(legs: List<Leg>, now: Instant, day: TravelDay? = null, maxSegments: Int = 15, maxPoints: Int = 4): JourneyBar? {
     val rides = legs.indices.filter { !legs[it].isWalk }
-    if (rides.isEmpty()) return null
-    val start = legs[rides.first()].from.expectedAt ?: return null
-    fun minute(at: Instant?): Long? = at?.let { Duration.between(start, it).toMinutes() }
-    val changes = transfers(legs)
+    if (rides.isEmpty() || legs[rides.first()].from.expectedAt == null) return null
+    val ride = JourneyBar.RIDE
+    val end = rides.size * ride
 
-    // The pieces in time order, each from where the one before ended: a
-    // change that cannot be made has no length; a ride at least a minute.
-    class Piece(val from: Long, val to: Long, val tone: BarTone, val change: Boolean) {
-        val length: Long get() = to - from
+    /** How far along ride [n] the clock is: short of its end, so the train stays on it until it is off. */
+    fun along(n: Int): Int {
+        val from = legs[rides[n]].from.expectedAt ?: return 0
+        val to = legs[rides[n]].to.expectedAt ?: return 0
+        val span = Duration.between(from, to).toMinutes().takeIf { it > 0 } ?: return 0
+        return (Duration.between(from, now).toMinutes() * ride / span).toInt().coerceIn(0, ride - 1)
     }
-    val pieces = mutableListOf<Piece>()
-    var t = 0L
-    rides.forEachIndexed { n, k ->
-        val ride = legs[k]
-        if (n > 0) {
-            val departs = maxOf(t, minute(ride.from.expectedAt) ?: t)
-            val confidence = changes.firstOrNull { it.departing == k }?.confidence ?: Confidence.SAFE
-            pieces += Piece(t, departs, barTone(confidence), change = true)
-            t = departs
+    var walking = false
+    val progress = if (day != null) {
+        val n = day.legIndex?.let(rides::indexOf)?.takeIf { it >= 0 }
+        walking = day.kind == TravelDayKind.Changing || day.kind == TravelDayKind.BeforeLeaving
+        when {
+            day.kind == TravelDayKind.Arrived || n == null -> end
+            day.kind == TravelDayKind.OnBoard -> n * ride + along(n)
+            else -> n * ride
         }
-        val arrives = maxOf(t + 1, minute(ride.to.expectedAt) ?: (t + 1))
-        pieces += Piece(t, arrives, BarTone.Ride, change = false)
-        t = arrives
+    } else {
+        // The first ride not yet over: before it leaves the trip stands on its start, on it at the share gone by.
+        rides.indices.firstNotNullOfOrNull { n ->
+            val from = legs[rides[n]].from.expectedAt
+            val to = legs[rides[n]].to.expectedAt
+            when {
+                from != null && now.isBefore(from) -> {
+                    // Between two rides: changing, on foot.
+                    walking = n > 0
+                    n * ride
+                }
+                to != null && now.isBefore(to) -> n * ride + along(n)
+                else -> null
+            }
+        } ?: end
     }
 
-    var drawn = pieces.filter { it.length > 0 }
-    val compressed = drawn.size > maxSegments
-    if (compressed) drawn = drawn.filter { !it.change }
-    // A minute of the journey on the bar: with the changes left out, the time spent changing does not move it.
-    fun position(minute: Long): Int =
-        pieces.filter { !(compressed && it.change) }.sumOf { (minOf(minute, it.to) - it.from).coerceAtLeast(0) }.toInt()
-    val segments = if (drawn.size > maxSegments) {
-        listOf(BarSegment(position(t), BarTone.Ride))
-    } else {
-        drawn.map { BarSegment(it.length.toInt(), it.tone) }
+    val changes = transfers(legs)
+    val boundaries = (1 until rides.size).map { n ->
+        BarPoint(n * ride, barTone(changes.firstOrNull { it.departing == rides[n] }?.confidence ?: Confidence.SAFE))
     }
-    val elapsed = (minute(now) ?: 0).coerceIn(0, t)
-    val points = pieces.filter { it.change && it.to > elapsed }.take(maxPoints).map { BarPoint(position(it.from), it.tone) }
-    return JourneyBar(segments, points, position(elapsed))
+    // A change being made stands where the trip is: still ahead until its train has left.
+    val (ahead, passed) = boundaries.partition { it.position >= progress }
+    val points = (ahead.take(maxPoints) + passed.reversed().take((maxPoints - ahead.size).coerceAtLeast(0))).sortedBy { it.position }
+    val segments = if (rides.size > maxSegments) listOf(BarSegment(end, BarTone.Ride)) else rides.map { BarSegment(ride, BarTone.Ride) }
+    return JourneyBar(segments, points, progress, walking)
 }
 
 /** "4 min", "1 h 05": short enough for the status bar chip. */
@@ -215,7 +242,7 @@ fun companionStatus(
 ): CompanionStatus {
     val day = travelDay(trip.legs, now, stationMinutes, signals)
     val index = day.legIndex
-    val bar = journeyBar(trip.legs, now)
+    val bar = journeyBar(trip.legs, now, day)
     if (day.kind == TravelDayKind.Arrived || index == null) {
         val last = trip.legs.lastOrNull { !it.isWalk }
         val text = withDelay("${trip.displayTitle} · ${TripFormat.time(trip.expectedArrival)}", last?.let(::arrivalDelay) ?: 0)
@@ -324,7 +351,10 @@ fun companionStatus(
                     // Safe goes without saying; tight, at risk or impossible does not.
                     "${change.availableMinutes} min change" + if (change.confidence == Confidence.SAFE) "" else " (${change.confidence.label})",
                 )).joinToString(" · ")
-                info += (listOf("Change at ${leg.to.name} → ${next.label}") + nextTrain + listOf("${change.availableMinutes} min") +
+                // The Live Update has two lines under the title: the change must fit one, so the next
+                // stop and the speed keep the other. The arrow says "change"; the minutes say when.
+                info += (listOf("${leg.to.name} → ${next.label}") + listOfNotNull(TripFormat.platform(next.from.shownPlatform)) +
+                    listOf("${change.availableMinutes} min") +
                     listOfNotNull(change.confidence.takeIf { it != Confidence.SAFE }?.label?.lowercase())).joinToString(" · ")
             }
             // The stop coming up; not "Next stop: <where the title arrives>".

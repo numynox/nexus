@@ -1,5 +1,6 @@
 package io.github.numynox.nexus.abeona.ui.scene
 
+import io.github.numynox.nexus.abeona.domain.Confidence
 import java.time.Instant
 import kotlin.math.abs
 import kotlinx.serialization.json.Json
@@ -81,8 +82,8 @@ class SceneModelFixturesTest {
         for (c in cases("palette")) {
             val p = SceneModel.scenePalette(c.flag("dark"), c.number("light"))
             assertEquals(
-                listOf(c.text("sky"), c.text("near"), c.text("trainWindow"), c.text("trainRed"), c.text("accent")),
-                listOf(p.sky, p.near, p.trainWindow, p.trainRed, p.accent),
+                listOf(c.text("sky"), c.text("near"), c.text("trainWindow"), c.text("trainRed"), c.text("accent"), c.text("ok"), c.text("watch"), c.text("bad")),
+                listOf(p.sky, p.near, p.trainWindow, p.trainRed, p.accent, p.ok, p.watch, p.bad),
             )
         }
         for (c in cases("light")) {
@@ -93,6 +94,53 @@ class SceneModelFixturesTest {
         for (c in cases("speed")) near(SceneModel.travelSpeed(c.getValue("kmh").jsonPrimitive.doubleOrNull), c.number("units"), "speed at ${c["kmh"]}")
         for (c in cases("rail")) near(SceneModel.railX(c.number("fraction"), c.number("width")), c.number("x"), "rail at ${c.number("fraction")}")
     }
+
+    @Test
+    fun theBarIsTheWholeJourneyEveryRideAndChangeOneInFocus() {
+        for (c in cases("journey")) {
+            val what = c.text("case")
+            val journey = BarJourney(
+                rides = c.getValue("rides").jsonArray.map { it.jsonObject }.map { r ->
+                    BarRide(r.moment("departure"), r.moment("arrival"), r.getValue("stops").jsonArray.map { Instant.parse(it.jsonPrimitive.content).toEpochMilli() })
+                },
+                current = c.number("current").toInt(),
+                state = BarState.entries.first { it.name == snakeToPascal(c.text("state")) },
+                confidence = c.getValue("confidence").jsonPrimitive.contentOrNull?.let { name -> Confidence.entries.first { it.name == name.uppercase() } },
+            )
+            val bar = SceneModel.journeyBar(journey, c.moment("now"))
+            assertEquals("$what: parts", c.getValue("parts").jsonArray.map { it.jsonPrimitive.content }, bar.parts.map { it.name.lowercase() })
+            assertEquals("$what: focus", c.getValue("focus").jsonPrimitive.doubleOrNull?.toInt(), bar.focus)
+            near(bar.fraction, c.number("fraction"), "$what: fraction")
+            assertEquals("$what: tone", c.getValue("tone").jsonPrimitive.contentOrNull, bar.tone?.name?.lowercase())
+            assertEquals("$what: done", c.number("done").toInt(), bar.done)
+            assertEquals("$what: walker at the start", c.flag("walkerAtStart"), bar.walkerAtStart)
+            val stops = c.getValue("stops").jsonArray.map { it.jsonPrimitive.double }
+            assertEquals("$what: stops", stops.size, bar.stops.size)
+            stops.forEachIndexed { i, f -> near(bar.stops[i], f, "$what: stop $i") }
+        }
+    }
+
+    @Test
+    fun theBarsFrameNeverMovesTheFocusTakesTheRoomTheOthersAreStubs() {
+        for (c in cases("barLayout")) {
+            val what = c.text("case")
+            val parts = c.getValue("parts").jsonArray.map { p -> BarPart.entries.first { it.name.lowercase() == p.jsonPrimitive.content } }
+            val at = SceneModel.barLayout(parts, c.getValue("focus").jsonPrimitive.doubleOrNull?.toInt(), c.number("width"))
+            val expected = c.getValue("at").jsonArray.map { it.jsonArray.map { x -> x.jsonPrimitive.double } }
+            assertEquals("$what: parts", expected.size, at.size)
+            expected.forEachIndexed { i, (from, to) ->
+                near(at[i].from, from, "$what: part $i from")
+                near(at[i].to, to, "$what: part $i to")
+            }
+        }
+        for (c in cases("trainOnBar")) {
+            val kind = TrainKind.entries.first { it.name.lowercase() == c.text("kind") }
+            near(SceneModel.trainOnBar(c.number("x"), kind, c.number("scale")), c.number("nose"), "$kind over ${c.number("x")}")
+        }
+    }
+
+    /** "before_leaving" → "BeforeLeaving": the fixtures' state names, as the web spells them. */
+    private fun snakeToPascal(name: String) = name.split('_').joinToString("") { part -> part.replaceFirstChar { it.uppercase() } }
 
     @Test
     fun aRideIsDrawnAsTheTrainItIs() {

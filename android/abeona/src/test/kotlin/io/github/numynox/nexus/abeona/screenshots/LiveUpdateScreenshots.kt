@@ -38,8 +38,8 @@ class LiveUpdateScreenshots {
         return LiveCompanion.ongoing(context, trip.id, companionStatus(trip, now, 15, signals, onboard), now.minusSeconds(40), now, ticket = true)
     }
 
-    private fun shot(name: String, minutes: Long, signals: TravelSignals = TravelSignals(), onboard: OnboardStatus? = null) =
-        shotWidget(notificationViews(context, ongoing(minutes, signals, onboard)), 380, 200, name)
+    private fun shot(name: String, minutes: Long, signals: TravelSignals = TravelSignals(), onboard: OnboardStatus? = null, background: Int = android.graphics.Color.WHITE) =
+        shotWidget(notificationViews(context, ongoing(minutes, signals, onboard), background), 380, 200, name)
 
     @Test
     fun theJourneyIsTheBar() {
@@ -57,4 +57,19 @@ class LiveUpdateScreenshots {
     )
 
     @Test fun missed() = shot("44k-live-update-missed", 86, TravelSignals(position = Position(49.8018, 9.9355, 0.0, 10.0)))
+
+    /** Changing at Würzburg, a tight change: the walker's badge on the change's point instead of the train's. */
+    @Test fun changing() = shot("44l-live-update-changing", 77)
+
+    /** Before leaving: the walker's badge waits at the start. */
+    @Test fun beforeLeaving() = shot("44m-live-update-before-leaving", -25)
+
+    /** The dark shade: the badges in the night colours, still clear of the bar. */
+    @Test
+    @Config(qualifiers = "w412dp-h915dp-night-xxhdpi")
+    fun onBoardDark() = shot(
+        "44n-live-update-on-board-dark", 46, TravelSignals(onboardLegIndex = 0),
+        OnboardStatus("ICE Portal", "ICE", "25", 247.0, 49.94, 9.50, "Würzburg Hbf", at(75), "4", at(46)),
+        background = 0xFF2B2B2B.toInt(),
+    )
 }

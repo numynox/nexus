@@ -2,6 +2,7 @@ package io.github.numynox.nexus.abeona.ui.scene
 
 import android.provider.Settings
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
 import androidx.compose.foundation.Canvas
@@ -13,13 +14,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -28,6 +29,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -65,8 +67,56 @@ object SceneClock {
     fun now(): Long = clock.millis()
 }
 
-/** A stop on the strip's rail: where on the ride it lies, 0 to 1. */
-data class SceneStop(val fraction: Double, val name: String? = null)
+/**
+ * The bar as drawn: where each part lies ([at]), and the state it shows;
+ * during a morph also the bar it comes from ([was]) and how far along the
+ * morph is ([t], 1 when settled), for the focus to hand over.
+ */
+private class DrawnBar(val at: List<BarSpan>, val bar: SceneBar, val was: SceneBar? = null, val t: Double = 1.0)
+
+private fun lerp(a: Double, b: Double, t: Double) = a + (b - a) * t
+
+private fun clamp01(v: Double) = v.coerceIn(0.0, 1.0)
+
+/**
+ * Between two bars of the same journey, [t] of the way: each part from its
+ * old stretch to its new one, so the part losing the focus shrinks into its
+ * stub as the next grows; the ends stay put. Another journey is a cut.
+ */
+private fun between(a: DrawnBar, b: DrawnBar, t: Double): DrawnBar {
+    if (a.at.size != b.at.size) return b
+    return DrawnBar(b.at.mapIndexed { i, r -> BarSpan(lerp(a.at[i].from, r.from, t), lerp(a.at[i].to, r.to, t)) }, b.bar, a.bar, t)
+}
+
+/** What the last frame drew, for the next change to start from, and where the train was (for a tap). */
+private class Painted {
+    var bar: DrawnBar? = null
+    var train: TrainKind = TrainKind.Ice
+    var trainX: Float = 0f
+}
+
+/** How the bar changes: from a picture of the old one, and the glide's distance left. */
+private class Changes {
+    var key: String? = null
+    var times: List<BarRide>? = null
+    var morphFrom: DrawnBar? = null
+    var glideFraction = 0.0
+    var swapKind: TrainKind = TrainKind.Ice
+    var swapX = 0f
+}
+
+/** How long the old train takes to drive out and the next one in. */
+private const val SWAP_MS = 1200
+
+/** Material's standard easing, near enough: (0.2, 0, 0, 1). */
+private fun standard(t: Double) = if (t < 0.5) 4 * t * t * t else 1 - Math.pow(-2 * t + 2, 3.0) / 2
+
+private fun easeOut(t: Double) = 1 - Math.pow(1 - t, 3.0)
+
+/** The walking figure in the bar's badge (Material's directions_walk, as the web draws it), at scale 1 in a 24 box. */
+private val Walker = svg(
+    "M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7",
+)
 
 private fun svg(d: String): Path = PathParser().parsePathString(d).toPath()
 
@@ -201,15 +251,24 @@ private fun mod(v: Double, m: Double) = ((v % m) + m) % m
 /**
  * The scene (abeona-design.md §7): a landscape with a railway through it,
  * under the real sky of the moment. Large when nothing is urgent; on the
- * travel day a strip whose track is the ride's rail ([stops] and [fraction]).
- * The web's Scene.svelte draws the same layers in the same units, both from
- * the model in SceneModel.kt / scene.ts.
+ * travel day a strip whose bar under the track is the whole [journey], in a
+ * frame that never moves: every ride and change, the one in focus taking the
+ * room, the others stubs (SceneModel.journeyBar, barLayout). The web's Scene.svelte draws the same layers
+ * in the same units, both from the model in SceneModel.kt / scene.ts.
  *
  * The sky is reckoned at [lat]/[lon] (the trip's current stop), Frankfurt
  * when there is none, at [at] or the clock. Clouds drift and, while riding,
  * the land passes, faster with [speedKmh]. That clock is an infinite
  * animation to Compose: with animations off it never starts, and the test
  * policy holds it still, so screenshots are a still picture.
+ *
+ * The bar and the train move by the same frames, on from [now] (the card's
+ * moment) with the expected times: continuously, not minute by minute. A
+ * time moved by live data glides to its new place; when the focus moves,
+ * each part grows or shrinks to its new width (the bar's ends stay put)
+ * while the old train drives out and the next one in. With animations off
+ * all of it is simply set, at [now]. Only the drawing reads the frames. A
+ * figure on the bar is a badge, so it never vanishes into the line under it.
  */
 @Composable
 fun Scene(
@@ -218,8 +277,10 @@ fun Scene(
     size: SceneSize = SceneSize.Header,
     /** Which train the ride is (SceneModel.trainKind). */
     train: TrainKind = TrainKind.Ice,
-    stops: List<SceneStop>? = null,
-    fraction: Double = 0.0,
+    /** The strip's bar: the journey's rides with their expected times, and where the traveller is in it. */
+    journey: BarJourney? = null,
+    /** The moment [journey] is drawn at; the frames carry it on. The clock when left out. */
+    now: Instant? = null,
     speedKmh: Double? = null,
     at: Instant? = null,
     lat: Double? = null,
@@ -259,6 +320,51 @@ fun Scene(
     val currentState by rememberUpdatedState(state)
     val currentSpeed by rememberUpdatedState(speedKmh)
 
+    // The bar's moment: [now], carried on by the frames since it was given.
+    val rail = journey != null && journey.rides.isNotEmpty() && size == SceneSize.Strip
+    val base = remember(now) { now?.toEpochMilli() ?: System.currentTimeMillis() }
+    var since by remember(base) { mutableLongStateOf(0L) }
+    LaunchedEffect(base, rail, reduced) {
+        if (!rail || reduced) return@LaunchedEffect
+        val start = withInfiniteAnimationFrameMillis { it }
+        while (true) since = withInfiniteAnimationFrameMillis { it } - start
+    }
+    val painted = remember { Painted() }
+    val changes = remember { Changes() }
+    val morph = remember { Animatable(1f) }
+    val glide = remember { Animatable(1f) }
+    val swap = remember { Animatable(1f) }
+    // A new journey: the same state with moved times glides; another state, or another ride, morphs.
+    val key = journey?.takeIf { rail }?.let { "${it.state}|${it.current}|${it.rides.size}" }
+    val times = journey?.rides
+    LaunchedEffect(key, times) {
+        val lastKey = changes.key
+        val lastTimes = changes.times
+        changes.key = key
+        changes.times = times
+        val before = painted.bar
+        if (key == null || lastKey == null || before == null || reduced || journey == null) return@LaunchedEffect
+        if (key != lastKey) {
+            changes.morphFrom = before
+            changes.glideFraction = 0.0
+            glide.snapTo(1f)
+            if (lastKey.split('|')[1] != journey.current.toString() || painted.train != train) {
+                changes.swapKind = painted.train
+                changes.swapX = painted.trainX
+                launch {
+                    swap.snapTo(0f)
+                    swap.animateTo(1f, tween(SWAP_MS, easing = LinearEasing))
+                }
+            }
+            morph.snapTo(0f)
+            morph.animateTo(1f, tween(SceneModel.MORPH_MS, easing = LinearEasing))
+        } else if (times != lastTimes) {
+            changes.glideFraction = before.bar.fraction - SceneModel.journeyBar(journey, base + since).fraction
+            glide.snapTo(0f)
+            glide.animateTo(1f, tween(SceneModel.GLIDE_MS, easing = LinearEasing))
+        }
+    }
+
     LaunchedEffect(reduced) {
         if (reduced) return@LaunchedEffect
         var last = withInfiniteAnimationFrameMillis { it }
@@ -290,7 +396,6 @@ fun Scene(
         }
     }
 
-    val rail = stops != null && stops.size > 1 && size == SceneSize.Strip
     val ground = if (rail) SceneModel.RAIL_WITH_BAR else SceneModel.RAIL
     val trainScale = size.trainScale.toFloat()
     val lightR = when (size) {
@@ -301,12 +406,14 @@ fun Scene(
     val hasTrain = state != SceneState.Idle && state != SceneState.Stopped
     val atPlatform = !rail && (state == SceneState.Parked || state == SceneState.Waiting || state == SceneState.Arrived)
     val lit = state != SceneState.Parked && state != SceneState.Idle
-    // Where the train's nose is: on the rail where the ride is, else a little past the middle, its cars running off to the left.
+    // Where the train's nose is: on the bar where the ride is (as last drawn), else a little past the middle, its cars running off to the left.
     fun trainX(width: Float): Float =
-        if (rail) SceneModel.railX(fraction, width.toDouble()).toFloat() else SceneModel.trainNoseX(train, size.trainScale, width.toDouble()).toFloat()
+        if (rail) painted.trainX else SceneModel.trainNoseX(train, size.trainScale, width.toDouble()).toFloat()
 
     val label = when {
-        rail -> "${(fraction.coerceIn(0.0, 1.0) * 100).roundToInt()} % of the ride done"
+        rail && journey != null -> SceneModel.journeyBar(journey, base).let { bar ->
+            if (bar.focus != null && bar.parts[bar.focus] == BarPart.Change) "Changing trains" else "${(bar.fraction * 100).roundToInt()} % of the ride done"
+        }
         sky.night -> SceneModel.moonPhaseName(phase)
         sky.glow > 0.5 -> if (sky.across < 0.5) "Sunrise" else "Sunset"
         else -> "Daylight"
@@ -316,10 +423,8 @@ fun Scene(
         modifier
             .fillMaxWidth()
             .height(height.dp)
-            // The land's tiles and a train at the first stop reach past the box.
-            .clipToBounds()
             .semantics { contentDescription = label }
-            .pointerInput(size, rail, hasTrain, fraction, sky.across, train) {
+            .pointerInput(size, rail, hasTrain, sky.across, train) {
                 detectTapGestures { tap ->
                     val x = tap.x / density
                     val y = tap.y / density
@@ -353,6 +458,13 @@ fun Scene(
             val accent = colour(c.accent)
             val railColour = colour(c.rail)
             val mast = colour(c.mast)
+
+            // The land's tiles and a train at the strip's edge reach past the box: all of it is cut to the box but the walker's
+            // badge, which sits on the bar near the bottom edge and may reach a little below it, into the card.
+            var badge: Triple<Float, Color, Float>? = null
+            val badgeY = h - SceneModel.BAR_UP
+            drawContext.canvas.save()
+            drawContext.transform.clipRect(0f, 0f, width, h)
 
             // The sky fades into the surface behind it at its top edge, so the scene has no box.
             val skyColour = colour(c.sky)
@@ -459,11 +571,11 @@ fun Scene(
                 }
             }
 
-            val tx = trainX(width)
+            val platformX = SceneModel.trainNoseX(train, size.trainScale, width.toDouble()).toFloat()
             if (atPlatform) {
                 // The platform under the train, its shelter and lamp.
                 val from = -4f
-                val to = tx + 52
+                val to = platformX + 52
                 val top = railY - 3
                 drawRoundRect(colour(c.platform), Offset(from, top), Size(to - from, 5f), CornerRadius(1.5f))
                 drawLine(mast, Offset(to - 30, top), Offset(to - 30, top - 13 * trainScale), strokeWidth = 1.4f, cap = StrokeCap.Round)
@@ -494,19 +606,133 @@ fun Scene(
             }
 
             drawLine(railColour.copy(alpha = 0.85f), Offset(0f, railY), Offset(width, railY), strokeWidth = 2f)
-            if (rail && stops != null) {
-                // The ride's progress: a bar under the track with a dot per stop, the done part burgundy up to the train's nose.
-                val bar = SceneModel.BAR.toFloat()
-                fun at(f: Double) = Offset(SceneModel.railX(f, width.toDouble()).toFloat(), h - SceneModel.BAR_UP)
-                drawLine(railColour.copy(alpha = 0.28f), at(0.0), at(1.0), strokeWidth = bar, cap = StrokeCap.Round)
-                if (fraction > 0 && state != SceneState.Waiting) drawLine(accent, at(0.0), at(fraction), strokeWidth = bar, cap = StrokeCap.Round)
-                stops.forEachIndexed { i, stop ->
-                    val end = i == 0 || i == stops.lastIndex
-                    val passed = state != SceneState.Waiting && stop.fraction <= fraction
-                    val r = (if (end) SceneModel.BAR_DOT_END else SceneModel.BAR_DOT).toFloat()
-                    drawCircle(if (passed) accent else colour(c.dot), r, at(stop.fraction))
-                    drawCircle(if (passed || end) accent else railColour, r, at(stop.fraction), style = Stroke(2f))
+
+            // The bar this frame: the journey at the moment, gliding from where live data moved it, morphing from the last focus.
+            var trainKind = train
+            var tx = SceneModel.trainNoseX(train, size.trainScale, width.toDouble()).toFloat()
+            if (rail && journey != null) {
+                var bar = SceneModel.journeyBar(journey, base + since)
+                if (!reduced && glide.value < 1f) {
+                    bar = bar.copy(fraction = clamp01(bar.fraction + changes.glideFraction * (1 - easeOut(glide.value.toDouble()))))
                 }
+                val target = DrawnBar(SceneModel.barLayout(bar.parts, bar.focus, width.toDouble()), bar)
+                val from = changes.morphFrom
+                val shown = if (from != null && !reduced && morph.value < 1f) between(from, target, standard(morph.value.toDouble())) else target
+                painted.bar = shown
+                val b = shown.bar
+                val at = shown.at
+                val focus = b.focus
+                // How far the train has gone on the focused ride: nothing yet while waiting for it.
+                val fill = if (focus == null || b.parts[focus] != BarPart.Ride || state == SceneState.Waiting) 0.0 else b.fraction
+
+                // The journey under the track, its ends where they always are; each element with one meaning. The train in
+                // focus is a line with its stops as dots and a dot at either end ("board here … get off here"), filled up to the
+                // train; every other train a capsule without dots; a change out of focus the gap between two capsules, the
+                // change in focus a dashed line in its confidence colour. Done in burgundy, ahead in the track's colour. The
+                // destination at the far right: the end ring on the train in focus, else a ring cap on the last capsule.
+                val barY = h - SceneModel.BAR_UP
+                fun x(part: BarSpan, f: Double) = lerp(part.from, part.to, f).toFloat()
+                fun tone(t: BarTone) = when (t) {
+                    BarTone.Ok -> colour(c.ok)
+                    BarTone.Watch -> colour(c.watch)
+                    BarTone.Bad -> colour(c.bad)
+                    BarTone.Neutral -> railColour
+                }
+                fun node(x: Float, passed: Boolean, alpha: Float) {
+                    if (alpha <= 0f) return
+                    drawCircle((if (passed) accent else colour(c.dot)).copy(alpha = alpha), SceneModel.BAR_NODE.toFloat(), Offset(x, barY))
+                    drawCircle((if (passed) accent else railColour).copy(alpha = alpha), SceneModel.BAR_NODE.toFloat(), Offset(x, barY), style = Stroke(1.5f))
+                }
+                val was = shown.was
+                val moved = shown.t
+                // How much part i shows of being in focus (its dots, a change's dashes and walker): gained over the last 40 % of
+                // a morph, lost over the first 40 %.
+                fun focusShown(i: Int): Float {
+                    val now = i == focus
+                    val then = if (was != null) was.focus == i else now
+                    return when {
+                        now && then -> 1.0
+                        now -> clamp01((moved - 0.6) / 0.4)
+                        then -> clamp01(1 - moved / 0.4)
+                        else -> 0.0
+                    }.toFloat()
+                }
+                at.forEachIndexed { i, part ->
+                    val shows = focusShown(i)
+                    if (b.parts[i] == BarPart.Ride) {
+                        // Thick in focus, a capsule otherwise; round caps inside the part's stretch, so the bar's ends stay put.
+                        val inFocus = lerp(if (was != null) (if (was.focus == i) 1.0 else 0.0) else (if (i == focus) 1.0 else 0.0), if (i == focus) 1.0 else 0.0, moved)
+                        val thick = lerp(SceneModel.CAPSULE, SceneModel.BAR.toDouble(), inFocus).toFloat()
+                        val done = i < b.done
+                        val last = i == at.lastIndex
+                        val capped = last && inFocus < 0.5
+                        val alpha = if (done) 1f else lerp(0.45, 0.3, inFocus).toFloat()
+                        val ink = if (done) accent else railColour
+                        val x1 = part.from.toFloat() + thick / 2
+                        val x2 = if (capped) part.to.toFloat() else maxOf(x1, part.to.toFloat() - thick / 2)
+                        drawLine(ink.copy(alpha = ink.alpha * alpha), Offset(x1, barY), Offset(x2, barY), strokeWidth = thick, cap = StrokeCap.Round)
+                        if (i == focus && !done && fill > 0) {
+                            drawLine(accent, Offset(x1, barY), Offset(maxOf(x1, x(part, fill) - thick / 2), barY), strokeWidth = thick, cap = StrokeCap.Round)
+                        }
+                        if (shows > 0f) {
+                            // Its stops and its two ends as dots; at the destination the ring below instead.
+                            val stops = if (i == focus) b.stops else was?.stops.orEmpty()
+                            val reached = if (i == focus) (if (done) 1.0 else fill) else 1.0
+                            stops.forEachIndexed { k, stop ->
+                                if (!(last && k == stops.lastIndex)) node(x(part, stop), reached > 0 && stop <= reached, shows)
+                            }
+                        }
+                        if (last) {
+                            // The destination: the end ring on the ride in focus, else a small ring capping the last capsule.
+                            val end = Offset(part.to.toFloat(), barY)
+                            if (capped) {
+                                drawCircle(colour(c.dot), SceneModel.DESTINATION_CAP.toFloat(), end)
+                                drawCircle(ink.copy(alpha = if (done) 1f else maxOf(alpha, 0.6f)), SceneModel.DESTINATION_CAP.toFloat(), end, style = Stroke(2f))
+                            } else {
+                                drawCircle(colour(c.dot), SceneModel.BAR_DOT_END.toFloat(), end)
+                                drawCircle(accent, SceneModel.BAR_DOT_END.toFloat(), end, style = Stroke(2f))
+                            }
+                        }
+                    } else if (shows > 0f && (b.tone ?: was?.tone) != null) {
+                        // The change in focus: its line in the change's confidence colour.
+                        drawLine(
+                            tone(b.tone ?: was!!.tone!!).copy(alpha = shows), Offset(part.from.toFloat(), barY), Offset(part.to.toFloat(), barY),
+                            strokeWidth = 3f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 4f)),
+                        )
+                    }
+                }
+                // The walker as a badge, so it never vanishes into the line under it: a disc of the card's surface, a ring and
+                // the figure in the colour of the part it is on, lifted by a soft shadow. On the change, from the arrival to the
+                // next departure as the change time passes; before leaving, waiting on the origin.
+                badge = when {
+                    // It comes and goes with the change's focus, as the dashes do.
+                    focus != null && b.parts[focus] == BarPart.Change -> Triple(x(at[focus], b.fraction), tone(b.tone ?: BarTone.Neutral), focusShown(focus))
+                    b.walkerAtStart -> Triple(at[0].from.toFloat(), tone(BarTone.Neutral), 1f)
+                    else -> null
+                }
+
+                // The train over the point of the focused ride it has reached; while changing at the start of the next ride,
+                // waiting; during a swap the old one on its way out, then the new one on its way in.
+                val over = when {
+                    focus == null -> null
+                    b.parts[focus] == BarPart.Ride -> lerp(at[focus].from, at[focus].to, fill)
+                    else -> at.getOrNull(focus + 1)?.from ?: at[focus].to
+                }
+                val rest = over?.let { SceneModel.trainOnBar(it, train, size.trainScale).toFloat() } ?: tx
+                tx = rest
+                if (!reduced && swap.value < 1f) {
+                    val p = swap.value.toDouble()
+                    val out = 0.45
+                    if (p < out) {
+                        trainKind = changes.swapKind
+                        val gone = width + SceneModel.trainLength(trainKind).toFloat() * trainScale + 8
+                        tx = lerp(changes.swapX.toDouble(), gone.toDouble(), (p / out) * (p / out)).toFloat()
+                    } else {
+                        tx = lerp(0.0, rest.toDouble(), easeOut((p - out) / (1 - out))).toFloat()
+                    }
+                }
+                painted.train = train
+                painted.trainX = rest
             }
 
             if (hasTrain) {
@@ -515,18 +741,30 @@ fun Scene(
                     scale(trainScale, trainScale, pivot = Offset.Zero)
                 }) {
                     drawTrain(
-                        train,
+                        trainKind,
                         TrainPaint(
                             body = colour(c.trainBody),
                             line = colour(c.trainLine),
                             red = colour(c.trainRed),
-                            window = colour(c.trainWindow).copy(alpha = if (lit) 1f else if (train == TrainKind.Ice) 0.55f else 0.6f),
+                            window = colour(c.trainWindow).copy(alpha = if (lit) 1f else if (trainKind == TrainKind.Ice) 0.55f else 0.6f),
                             bogie = railColour,
                         ),
                         lit,
                     )
                     if (lit) drawCircle(Color(0xFFFFE3A6), 0.9f + 1.5f * flash.value, Offset(-1.8f, -4.2f))
                 }
+            }
+            drawContext.canvas.restore()
+
+            badge?.takeIf { it.third > 0f }?.let { (wx, ink, a) ->
+                val d = SceneModel.BADGE.toFloat()
+                drawCircle(Color.Black.copy(alpha = (if (dark) 0.45f else 0.16f) * a), d / 2 + 0.6f, Offset(wx, badgeY + 0.8f))
+                drawCircle(colour(c.dot).copy(alpha = a), d / 2 - 1, Offset(wx, badgeY))
+                drawCircle(ink.copy(alpha = ink.alpha * a), d / 2 - 1, Offset(wx, badgeY), style = Stroke(2f))
+                withTransform({
+                    translate(wx - 5.4f, badgeY - 5.5f)
+                    scale(0.45f, 0.45f, pivot = Offset.Zero)
+                }) { drawPath(Walker, ink.copy(alpha = ink.alpha * a)) }
             }
         }
     }

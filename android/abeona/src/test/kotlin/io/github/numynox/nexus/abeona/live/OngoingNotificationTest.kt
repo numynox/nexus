@@ -69,6 +69,41 @@ class OngoingNotificationTest {
     }
 
     /**
+     * Android 16's Live Update: the journey as one segment per ride with the
+     * change between them, and the text under the title in two lines. The
+     * header says only how fresh, when it is not live: a promoted Live
+     * Update does not show it.
+     */
+    @Test
+    @Config(sdk = [36])
+    fun theLiveUpdateSaysItAllUnderTheTitle() {
+        LiveCompanion.createChannels(context)
+        val now = Instant.now()
+        val bar = JourneyBar(listOf(BarSegment(100, BarTone.Ride), BarSegment(100, BarTone.Ride)), listOf(BarPoint(100, BarTone.Watch)), 40)
+        val status = CompanionStatus(
+            "ICE 25 arrives in 29 min · Pl. 4 · 07:15 (+7)", "Change at Würzburg Hbf", false, "29 min",
+            info = listOf("Würzburg Hbf → RE 10 · Pl. 5 · 6 min · tight", "Next: Aschaffenburg Hbf 06:39", "247 km/h"),
+            bar = bar,
+        )
+        val live = LiveCompanion.ongoing(context, "t", status, now, now)
+        assertEquals(
+            "Würzburg Hbf → RE 10 · Pl. 5 · 6 min · tight\nNext: Aschaffenburg Hbf 06:39 · 247 km/h",
+            live.extras.getCharSequence(Notification.EXTRA_TEXT).toString(),
+        )
+        assertNull("live: nothing in the header", live.extras.getCharSequence(Notification.EXTRA_SUB_TEXT))
+        val style = Notification.Builder.recoverBuilder(context, live).style as Notification.ProgressStyle
+        assertEquals(listOf(100, 100), style.progressSegments.map { it.length })
+        assertEquals(listOf(100), style.progressPoints.map { it.position })
+        assertEquals(40, style.progress)
+        assertTrue("the bar fills up to the train", style.isStyledByProgress)
+        // Refreshes not getting through: the header says since when.
+        val stale = LiveCompanion.ongoing(context, "t", status, now.minusSeconds(10 * 60), now)
+        assertTrue(stale.extras.getCharSequence(Notification.EXTRA_SUB_TEXT).toString().startsWith("Offline "))
+        // Android 15 keeps its lines.
+        assertEquals("Change at Würzburg Hbf", LiveCompanion.ongoing(context, "t", status, now, now, sdk = 35).extras.getCharSequence(Notification.EXTRA_TEXT).toString())
+    }
+
+    /**
      * What Notification.hasPromotableCharacteristics() asks on Android 17
      * (read from its framework jar): promotion requested, ongoing, a title, a
      * promotable style (standard, BigText, Call, Progress), not a group

@@ -86,8 +86,8 @@ class LiveDashboardScreenshots {
         companion: Boolean = true,
         mode: ThemeMode = ThemeMode.Light,
         of: Trip? = null,
-        /** A content description to tap before the picture: a fold on the line. */
-        tap: String? = null,
+        /** Content descriptions to tap before the picture, in turn: folds on the line. */
+        tap: List<String> = emptyList(),
         /** While waiting for the train: where it is on its way here. */
         approach: Approach? = null,
         /** The text size the phone asks for: 2 is Android's largest. */
@@ -124,7 +124,7 @@ class LiveDashboardScreenshots {
                 }
             }
         }
-        tap?.let { compose.onNodeWithContentDescription(it).performClick() }
+        tap.forEach { compose.onNodeWithContentDescription(it).performClick() }
         compose.onRoot().captureRoboImage("build/outputs/roborazzi/app/$name.png")
     }
 
@@ -198,6 +198,20 @@ class LiveDashboardScreenshots {
 
     @Test fun arrived() = shot("59i-live-arrived", "Arrived, 22 min late", 180)
 
+    // The header in the dark theme through the day: on foot to the train, waiting, on the last ride (a dot for the ride done), arrived.
+
+    @Test fun beforeLeavingDark() = shot("59zd-live-before-leaving-dark", "Before leaving · dark", -25, mode = ThemeMode.Dark)
+
+    @Test fun atTheStationDark() = shot(
+        "59ze-live-at-the-station-dark", "At the station · dark", 2, mode = ThemeMode.Dark,
+        signals = TravelSignals(position = Position(50.1068, 8.6630, 0.0, 10.0)),
+        fix = Fix(Position(50.1068, 8.6630, 0.0, 10.0), at(2)), locationOn = true,
+    )
+
+    @Test fun lastRideDark() = shot("59zf-live-last-ride-dark", "The last ride · dark", 128, mode = ThemeMode.Dark)
+
+    @Test fun arrivedDark() = shot("59zg-live-arrived-dark", "Arrived · dark", 180, mode = ThemeMode.Dark)
+
     @Test fun onBoardDark() = shot("59j-live-on-board-dark", "On board · dark", 46, mode = ThemeMode.Dark)
 
     /** The ICE is cancelled while waiting for it: the step to board turns red, the rest is dimmed. */
@@ -260,6 +274,54 @@ class LiveDashboardScreenshots {
         ),
     )
 
+    /**
+     * The ICE's stops unfolded under the band, between Hanau and
+     * Aschaffenburg: the line in full down to the train, faded after it; the
+     * stops passed muted, every stop the same dot.
+     */
+    @Test fun bandStopsOpen() {
+        shot("59z5-live-band-stops-open", "On board, between Hanau and Aschaffenburg · the ICE's stops unfolded", 30, tap = listOf("Show 3 stops of ICE 25"))
+        // The fold says what it does, and to which train; each stop is one sentence.
+        compose.onNodeWithContentDescription("Hide 3 stops of ICE 25").assertExists()
+        compose.onNodeWithContentDescription("Passed Hanau Hbf, ${TripFormat.time(at(24))}, 7 minutes late").assertExists()
+        compose.onNodeWithContentDescription("Aschaffenburg Hbf, ${TripFormat.time(at(37))}, 7 minutes late").assertExists()
+    }
+
+    @Test fun bandStopsOpenDark() = shot(
+        "59z6-live-band-stops-open-dark", "On board, between Hanau and Aschaffenburg · the ICE's stops unfolded · dark", 30,
+        mode = ThemeMode.Dark, tap = listOf("Show 3 stops of ICE 25"),
+    )
+
+    /** Under the train, from the left: the stop it heads for with its time, then the fold. */
+    @Test fun nextStop() {
+        shot("59z9-live-next-stop", "On board, between Hanau and Aschaffenburg", 30)
+        compose.onNodeWithContentDescription("Next stop Aschaffenburg Hbf, ${TripFormat.time(at(37))}, 7 minutes late.").assertExists()
+    }
+
+    @Test fun nextStopDark() = shot("59za-live-next-stop-dark", "On board, between Hanau and Aschaffenburg · dark", 30, mode = ThemeMode.Dark)
+
+    /** Standing at a stop: where, and when the train goes on. */
+    @Test fun atAStop() {
+        shot("59zb-live-at-a-stop", "On board, standing at Hanau", 25)
+        compose.onNodeWithContentDescription("At Hanau Hbf, departs ${TripFormat.time(at(26))}, 7 minutes late.").assertExists()
+    }
+
+    @Test fun atAStopDark() = shot("59zc-live-at-a-stop-dark", "On board, standing at Hanau · dark", 25, mode = ThemeMode.Dark)
+
+    /** The next train's stops unfolded under its row, on its stretch of the line. */
+    @Test fun nextTrainStopsOpen() = shot(
+        "59z7-live-next-train-stops-open", "On board · the RE 10's stops unfolded", 46,
+        signals = TravelSignals(onboardLegIndex = 0),
+        onboard = OnboardStatus("ICE Portal", "ICE", "25", 247.0, 49.94, 9.50, "Würzburg Hbf", at(75), "4", at(46)),
+        tap = listOf("Show 3 stops of RE 10"),
+    )
+
+    /** A later ride unfolded, then its stops. */
+    @Test fun laterStopsOpen() = shot(
+        "59z8-live-later-stops-open", "Before leaving · a later ride's stops unfolded", -20, of = louvainTrip(t0),
+        tap = listOf("Show the later rides", "Show 2 stops of ICE 16"),
+    )
+
     /** Android's largest text: nothing is cut off, the rows grow instead. */
     @Test
     @Config(qualifiers = "w412dp-h2600dp-xhdpi")
@@ -278,7 +340,7 @@ class LiveDashboardScreenshots {
 
     @Test fun longBeforeLeavingDark() = shot("59y-live-long-before-leaving-dark", "Before leaving · four rides · dark", -20, of = louvainTrip(t0), mode = ThemeMode.Dark)
 
-    @Test fun longLaterOpen() = shot("59x-live-later-open", "Before leaving · the later rides unfolded", -20, of = louvainTrip(t0), tap = "Show the later rides")
+    @Test fun longLaterOpen() = shot("59x-live-later-open", "Before leaving · the later rides unfolded", -20, of = louvainTrip(t0), tap = listOf("Show the later rides"))
 
     private fun portal(now: Long) = OnboardStatus("ICE Portal", "ICE", "16", 197.0, 50.80, 6.40, "Aachen Hbf", at(356), "2", at(now))
 
@@ -288,9 +350,14 @@ class LiveDashboardScreenshots {
         signals = TravelSignals(onboardLegIndex = 2), onboard = portal(330),
     )
 
+    @Test fun longOnBoardDark() = shot(
+        "59zh-live-long-on-board-dark", "On board the ICE 16, ride 3 of 4 · dark", 330, of = louvainTrip(t0), mode = ThemeMode.Dark,
+        signals = TravelSignals(onboardLegIndex = 2), onboard = portal(330),
+    )
+
     @Test fun longDoneOpen() = shot(
         "59w-live-done-open", "On board the ICE 16 · what is done, unfolded", 330, of = louvainTrip(t0),
-        signals = TravelSignals(onboardLegIndex = 2), onboard = portal(330), tap = "Show what is done",
+        signals = TravelSignals(onboardLegIndex = 2), onboard = portal(330), tap = listOf("Show what is done"),
     )
 
     /** The IC 535 replaced by an IC 3 from the alternatives: "re-planned", and the way back to the plan. */

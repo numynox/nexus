@@ -265,18 +265,27 @@ class CompanionTextTest {
         val seated = trip.copy(legs = listOf(trip.legs[0].copy(coach = "24", seats = "66"), trip.legs[1]))
         val atStation = companionStatus(seated, t0.minusSeconds(10 * 60))
         assertEquals(listOf("to Frankfurt Hbf · departs 08:00", "Coach 24 · Seat 66"), atStation.info)
-        assertEquals(CompactText("to Frankfurt Hbf · departs 08:00", "Coach 24 · Seat 66"), atStation.compact(null))
+        // Two lines under the title: the header is not shown on a promoted Live Update.
+        assertEquals(CompactText("to Frankfurt Hbf · departs 08:00\nCoach 24 · Seat 66", null), atStation.compact(null))
         // On board with a change ahead: the change in one line; no stops left (the bar has them).
         val onBoard = companionStatus(trip, t0.plusSeconds(28 * 60))
-        assertEquals(listOf("Change at Frankfurt Hbf → ICE 25 · Pl. 7 · 08:48 · 8 min"), onBoard.info)
-        assertEquals(CompactText("Change at Frankfurt Hbf → ICE 25 · Pl. 7 · 08:48 · 8 min", "Offline 08:20"), onBoard.compact("Offline 08:20"))
+        assertEquals(listOf("Frankfurt Hbf → ICE 25 · Pl. 7 · 8 min"), onBoard.info)
+        // The header says only how fresh, and only when it is not live.
+        assertEquals(CompactText("Frankfurt Hbf → ICE 25 · Pl. 7 · 8 min", "Offline 08:20"), onBoard.compact("Offline 08:20"))
         val tight = trip.copy(legs = listOf(trip.legs[0], trip.legs[1].copy(from = trip.legs[1].from.copy(planned = at(46)))))
-        assertEquals("Change at Frankfurt Hbf → ICE 25 · Pl. 7 · 08:46 · 6 min · tight", companionStatus(tight, t0.plusSeconds(28 * 60)).info[0])
+        assertEquals("Frankfurt Hbf → ICE 25 · Pl. 7 · 6 min · tight", companionStatus(tight, t0.plusSeconds(28 * 60)).info[0])
         // On the last ride, from its Wi-Fi: the destination, the speed.
         val portal = OnboardStatus("ICE Portal", "ICE", "25", 247.4, null, null, "Würzburg Hbf", null, "5", t0)
         val last = companionStatus(trip, t0.plusSeconds(60 * 60), signals = TravelSignals(onboardLegIndex = 1), onboard = portal)
         assertEquals(listOf("Würzburg Hbf", "247 km/h"), last.info)
-        assertEquals(CompactText("Würzburg Hbf", "247 km/h"), last.compact(null))
+        assertEquals(CompactText("Würzburg Hbf\n247 km/h", null), last.compact(null))
+        // With a stop on the way and the train's Wi-Fi: the change, then the next stop and the speed on one line.
+        val stopping = trip.copy(legs = listOf(trip.legs[0].copy(stopovers = listOf(Stopover("r", "Rüsselsheim", plannedArrival = at(15), plannedDeparture = at(16)))), trip.legs[1]))
+        val re = OnboardStatus("Railnet", "RE", "4", 160.0, null, null, "Rüsselsheim", null, null, t0)
+        assertEquals(
+            CompactText("Frankfurt Hbf → ICE 25 · Pl. 7 · 8 min\nNext: Rüsselsheim 08:15 · 160 km/h", null),
+            companionStatus(stopping, t0.plusSeconds(10 * 60), signals = TravelSignals(onboardLegIndex = 0), onboard = re).compact(null),
+        )
         // Changing: the margin, the seat.
         val changing = companionStatus(seated.copy(legs = listOf(trip.legs[0], trip.legs[1].copy(coach = "7", seats = "45-48"))), t0.plusSeconds(44 * 60))
         assertEquals(listOf("to Würzburg Hbf · departs 08:48", "8 min to change · from Pl. 11", "Coach 7 · Seats 45–48"), changing.info)
@@ -291,26 +300,49 @@ class CompanionTextTest {
 
     @Test
     fun theBarIsTheWholeJourney() {
+        // A ride is a segment of 100, however long: 40 minutes on the RE 4, 72 on the ICE 25.
         val before = journeyBar(trip.legs, t0.minusSeconds(25 * 60))!!
-        assertEquals(listOf(BarSegment(40, BarTone.Ride), BarSegment(8, BarTone.Ok), BarSegment(72, BarTone.Ride)), before.segments)
-        assertEquals(120, before.max)
+        assertEquals(listOf(BarSegment(100, BarTone.Ride), BarSegment(100, BarTone.Ride)), before.segments)
+        assertEquals(200, before.max)
         assertEquals(0, before.progress)
-        assertEquals(listOf(BarPoint(40, BarTone.Ok)), before.points)
-        assertEquals(28, journeyBar(trip.legs, t0.plusSeconds(28 * 60))!!.progress)
-        // On the last ride: the change is behind, no point left.
+        // The change on the boundary, in its confidence's colour.
+        assertEquals(listOf(BarPoint(100, BarTone.Ok)), before.points)
+        // 28 of the RE's 40 minutes.
+        assertEquals(70, journeyBar(trip.legs, t0.plusSeconds(28 * 60))!!.progress)
+        // Changing: on the boundary.
+        assertEquals(100, journeyBar(trip.legs, t0.plusSeconds(44 * 60))!!.progress)
+        // 12 of the ICE's 72 minutes; the change passed stays as a point.
         val last = journeyBar(trip.legs, t0.plusSeconds(60 * 60))!!
-        assertEquals(60, last.progress)
-        assertEquals(emptyList<BarPoint>(), last.points)
-        // A change at risk is red, on the bar and as its point.
+        assertEquals(116, last.progress)
+        assertEquals(listOf(BarPoint(100, BarTone.Ok)), last.points)
+        // Arrived: the end.
+        assertEquals(200, journeyBar(trip.legs, t0.plusSeconds(130 * 60))!!.progress)
+        // A change at risk is a red point; the rides stay the brand.
         val risky = trip.copy(legs = listOf(trip.legs[0].copy(to = trip.legs[0].to.copy(current = at(47))), trip.legs[1]))
-        assertEquals(BarTone.Bad, journeyBar(risky.legs, t0)!!.segments[1].tone)
-        assertEquals(listOf(BarPoint(47, BarTone.Bad)), journeyBar(risky.legs, t0)!!.points)
-        assertEquals(before, companionStatus(trip, t0.minusSeconds(25 * 60)).bar)
+        assertEquals(List(2) { BarSegment(100, BarTone.Ride) }, journeyBar(risky.legs, t0)!!.segments)
+        assertEquals(listOf(BarPoint(100, BarTone.Bad)), journeyBar(risky.legs, t0)!!.points)
+        // One ride: one segment, nothing to mark.
+        val alone = journeyBar(listOf(trip.legs[0]), t0.plusSeconds(10 * 60))!!
+        assertEquals(listOf(BarSegment(100, BarTone.Ride)), alone.segments)
+        assertEquals(emptyList<BarPoint>(), alone.points)
+        assertEquals(25, alone.progress)
+        // The companion's bar, by the travel day: before leaving the traveller is on foot.
+        val leaving = companionStatus(trip, t0.minusSeconds(25 * 60)).bar!!
+        assertEquals(before.copy(walking = true), leaving)
+        // Changing, by the clock or the day: a walker on the change's point; on board the train.
+        assertTrue(journeyBar(trip.legs, t0.plusSeconds(44 * 60))!!.walking)
+        assertTrue(companionStatus(trip, t0.plusSeconds(44 * 60)).bar!!.walking)
+        assertEquals(false, companionStatus(trip, t0.plusSeconds(28 * 60)).bar!!.walking)
+        // A train missed: the travel day keeps the traveller at the change, where the clock alone would put them on the ICE.
+        val signals = TravelSignals(position = Position(50.1071, 8.6636, 0.0, 10.0))
+        val placed = trip.copy(legs = trip.legs.map { it.copy(from = it.from.copy(lat = 50.1071, lon = 8.6636)) })
+        assertEquals(105, journeyBar(placed.legs, t0.plusSeconds(52 * 60))!!.progress)
+        assertEquals(100, companionStatus(placed, t0.plusSeconds(52 * 60), signals = signals).bar!!.progress)
     }
 
     @Test
-    fun aLongJourneyKeepsItsRidesOnTheBar() {
-        // Six rides of 20 minutes with 10-minute changes: eleven segments, one too many.
+    fun aLongJourneyMarksTheChangesAhead() {
+        // Six rides of 20 minutes with 10-minute changes: five changes, four points.
         val legs = (0 until 6).map { n ->
             Leg(
                 lineName = "RB $n", product = "RB",
@@ -318,15 +350,21 @@ class CompanionTextTest {
                 to = StopTime("s${n + 1}", "Stop ${n + 1}", planned = at(n * 30 + 20), plannedPlatform = "2"),
             )
         }
-        val bar = journeyBar(legs, t0.plusSeconds(55 * 60))!!
-        // The changes become boundaries; the rides keep their lengths.
-        assertEquals(List(6) { BarSegment(20, BarTone.Ride) }, bar.segments)
-        // 55 minutes in: two rides and five minutes of the second change: the bar stands at the end of the second ride.
-        assertEquals(40, bar.progress)
-        // The changes ahead, at most four, at the ride boundaries.
-        assertEquals(listOf(40, 60, 80, 100), bar.points.map { it.position })
-        // Still too many rides: one segment.
-        assertEquals(listOf(BarSegment(120, BarTone.Ride)), journeyBar(legs, t0, maxSegments = 5)!!.segments)
+        assertEquals(List(6) { BarSegment(100, BarTone.Ride) }, journeyBar(legs, t0)!!.segments)
+        // On the first ride: the next four changes.
+        val early = journeyBar(legs, t0.plusSeconds(5 * 60))!!
+        assertEquals(25, early.progress)
+        assertEquals(listOf(100, 200, 300, 400), early.points.map { it.position })
+        // On the fifth: the one change ahead, then the nearest ones passed.
+        val late = journeyBar(legs, t0.plusSeconds(125 * 60))!!
+        assertEquals(425, late.progress)
+        assertEquals(listOf(200, 300, 400, 500), late.points.map { it.position })
+        // 55 minutes in, between the second and third rides: on their boundary.
+        assertEquals(200, journeyBar(legs, t0.plusSeconds(55 * 60))!!.progress)
+        // More rides than Android draws segments: one, the changes still marked.
+        val one = journeyBar(legs, t0, maxSegments = 5)!!
+        assertEquals(listOf(BarSegment(600, BarTone.Ride)), one.segments)
+        assertEquals(listOf(100, 200, 300, 400), one.points.map { it.position })
     }
 
     @Test

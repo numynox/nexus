@@ -15,7 +15,10 @@ import io.github.numynox.nexus.abeona.ui.AbeonaPalette
 import io.github.numynox.nexus.abeona.ui.scene.Scene
 import io.github.numynox.nexus.abeona.ui.scene.SceneSize
 import io.github.numynox.nexus.abeona.ui.scene.SceneState
-import io.github.numynox.nexus.abeona.ui.scene.SceneStop
+import io.github.numynox.nexus.abeona.domain.Confidence
+import io.github.numynox.nexus.abeona.ui.scene.BarJourney
+import io.github.numynox.nexus.abeona.ui.scene.BarRide
+import io.github.numynox.nexus.abeona.ui.scene.BarState
 import io.github.numynox.nexus.abeona.ui.scene.TrainKind
 import io.github.numynox.nexus.core.ui.theme.NexusTheme
 import io.github.numynox.nexus.core.ui.theme.ThemeMode
@@ -44,7 +47,21 @@ class SceneScreenshots {
     private val dusk = Instant.parse("2026-11-15T15:25:00Z")
     private val night = Instant.parse("2026-11-15T21:00:00Z")
 
-    private val stops = listOf(0.0, 0.22, 0.41, 0.63, 0.8, 1.0).map { SceneStop(it) }
+    /**
+     * The strip's journey at [at]: [rides] of them, the one in focus ([current])
+     * a hundred minutes with four stops between, [fraction] of it gone by;
+     * the others a ten-minute change before and after it.
+     */
+    private fun journey(at: Instant, state: BarState, rides: Int = 1, current: Int = 0, fraction: Double = 0.0, confidence: Confidence? = null): BarJourney {
+        val minute = 60_000L
+        val departure = at.toEpochMilli() - (fraction * 100 * minute).toLong() + if (state == BarState.OnBoard) 0 else 6 * minute
+        val focus = BarRide(departure, departure + 100 * minute, listOf(22L, 41L, 63L, 80L).map { departure + it * minute })
+        val list = (0 until rides).map { i ->
+            val shift = (i - current) * 110 * minute
+            BarRide(focus.departure + shift, focus.arrival + shift, focus.stops.map { it + shift })
+        }
+        return BarJourney(list, current, state, confidence)
+    }
 
     private fun shot(name: String, at: Instant, mode: ThemeMode = ThemeMode.Light) {
         compose.setContent {
@@ -62,18 +79,47 @@ class SceneScreenshots {
                     Scene(SceneState.Stopped, size = SceneSize.Header, at = at)
                     caption("header · arrived · suburban")
                     Scene(SceneState.Arrived, size = SceneSize.Header, train = TrainKind.Suburban, at = at)
-                    caption("strip · waiting, the ride's rail")
-                    Scene(SceneState.Waiting, size = SceneSize.Strip, stops = stops, at = at)
-                    caption("strip · riding, half way")
-                    Scene(SceneState.Riding, size = SceneSize.Strip, stops = stops, fraction = 0.5, at = at)
+                    caption("strip · before leaving: the walker waits on the origin")
+                    Scene(SceneState.Waiting, size = SceneSize.Strip, journey = journey(at, BarState.BeforeLeaving, rides = 2), now = at, at = at)
+                    caption("strip · waiting at the station, the ride's rail")
+                    Scene(SceneState.Waiting, size = SceneSize.Strip, journey = journey(at, BarState.AtStation), now = at, at = at)
+                    caption("strip · riding ride 2 of 3, half way")
+                    Scene(SceneState.Riding, size = SceneSize.Strip, journey = journey(at, BarState.OnBoard, rides = 3, current = 1, fraction = 0.5), now = at, at = at)
+                    caption("strip · changing, tight")
+                    Scene(
+                        SceneState.Waiting, size = SceneSize.Strip, train = TrainKind.Regional,
+                        journey = journey(at, BarState.Changing, rides = 2, current = 1, confidence = Confidence.TIGHT), now = at, at = at,
+                    )
                     caption("strip · riding · bus, nearly there")
-                    Scene(SceneState.Riding, size = SceneSize.Strip, train = TrainKind.Bus, stops = stops, fraction = 0.9, at = at)
+                    Scene(SceneState.Riding, size = SceneSize.Strip, train = TrainKind.Bus, journey = journey(at, BarState.OnBoard, fraction = 0.9), now = at, at = at)
                     caption("strip · stopped")
-                    Scene(SceneState.Stopped, size = SceneSize.Strip, stops = stops, at = at)
+                    Scene(SceneState.Stopped, size = SceneSize.Strip, at = at)
                 }
             }
         }
         compose.onRoot().captureRoboImage("build/outputs/roborazzi/app/$name.png")
+    }
+
+    /**
+     * Smooth, not by the minute: one four-minute hop drawn at its moment and
+     * 20 and 40 seconds on. The train and the bar move within the minute;
+     * in the app the frames carry the moment on between the card's ticks.
+     */
+    @Test
+    fun withinTheMinute() {
+        val start = day.toEpochMilli()
+        val hop = BarJourney(listOf(BarRide(start, start + 4 * 60_000, emptyList())), 0, BarState.OnBoard, null)
+        compose.setContent {
+            NexusTheme(AbeonaPalette, themeMode = ThemeMode.Light) {
+                Column(Modifier.background(MaterialTheme.colorScheme.surface).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(60L, 80L, 100L).forEach { s ->
+                        Text("strip · a four-minute hop, ${s - 60} s after the minute", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Scene(SceneState.Riding, size = SceneSize.Strip, train = TrainKind.Suburban, journey = hop, now = day.plusSeconds(s), at = day)
+                    }
+                }
+            }
+        }
+        compose.onRoot().captureRoboImage("build/outputs/roborazzi/app/95-scene-within-the-minute.png")
     }
 
     @Test fun byDay() = shot("90-scene-day", day)

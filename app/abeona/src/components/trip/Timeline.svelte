@@ -6,8 +6,8 @@
    * row; a walk to the first train or from the last one is one row. A
    * ride's seat, when the ticket gave one, goes with its line.
    */
-  import { ArrowRightLeft, Ban, ChevronDown, Clock, Footprints, GitCommitHorizontal } from "lucide-svelte";
-  import { formatDuration, minutesBetween } from "../../lib/format";
+  import { ArrowRightLeft, Ban, Clock, Footprints } from "lucide-svelte";
+  import { formatDuration, legLabel, minutesBetween } from "../../lib/format";
   import { transfers } from "../../lib/transfer";
   import type { Leg } from "../../lib/transit";
   import ConfidenceChip from "../common/ConfidenceChip.svelte";
@@ -16,6 +16,7 @@
   import Seat from "../common/Seat.svelte";
   import StatusChip from "../common/StatusChip.svelte";
   import StopRow from "../common/StopRow.svelte";
+  import StopsToggle from "../common/StopsToggle.svelte";
 
   interface Props {
     legs: Leg[];
@@ -114,16 +115,7 @@
         {/if}
         <Fact icon={Clock} label="Duration" value={formatDuration(minutesBetween(leg.from.planned, leg.to.planned))} />
         {#if stops.length > 0}
-          <button
-            type="button"
-            class="t-meta inline-flex min-h-8 items-center gap-1 rounded-full hover:text-brand"
-            aria-expanded={open.has(i)}
-            onclick={() => toggle(i)}
-          >
-            <GitCommitHorizontal class="h-4 w-4" aria-hidden="true" />
-            {stops.length} {stops.length === 1 ? "stop" : "stops"}
-            <ChevronDown class="h-4 w-4 transition-transform {open.has(i) ? 'rotate-180' : ''}" aria-hidden="true" />
-          </button>
+          <StopsToggle count={stops.length} open={open.has(i)} ride={legLabel(leg)} ontoggle={() => toggle(i)} />
         {:else}
           <span class="t-meta">non-stop</span>
         {/if}

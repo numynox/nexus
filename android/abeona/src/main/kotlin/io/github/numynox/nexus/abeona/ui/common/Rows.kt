@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.EventSeat
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -37,14 +39,20 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.collapse
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.expand
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import io.github.numynox.nexus.abeona.data.Stopover
+import io.github.numynox.nexus.abeona.data.toInstantOrNull
 import io.github.numynox.nexus.abeona.domain.delayMinutes
 import io.github.numynox.nexus.abeona.domain.intake.seatText
 import io.github.numynox.nexus.abeona.ui.AbeonaType
@@ -102,9 +110,11 @@ fun SurfaceCard(
 /**
  * How the rail passes through a row's mark column, for rows that follow each
  * other on one continuous rail. The live card's journey line adds [Brand]
- * (the ride on board, or the one to board) and [Done] (rides behind).
+ * (the ride on board, or the one to board), [Done] (rides behind) and
+ * [Ahead]: the part of the ride on board still to come, while its stops are
+ * unfolded (the card draws the part done over it, down to the train).
  */
-enum class RailLine { None, Solid, Faint, Dashed, Brand, Done }
+enum class RailLine { None, Solid, Faint, Dashed, Brand, Done, Ahead }
 
 /**
  * What sits on the rail in a row: a stop where the traveller gets on or off,
@@ -185,6 +195,7 @@ fun StopRow(
                         )
                         RailLine.Brand -> drawLine(accent, Offset(x, from), Offset(x, to), strokeWidth = 4.dp.toPx())
                         RailLine.Done -> drawLine(railColor.copy(alpha = 0.16f), Offset(x, from), Offset(x, to), strokeWidth = 3.dp.toPx())
+                        RailLine.Ahead -> drawLine(accent.copy(alpha = 0.35f), Offset(x, from), Offset(x, to), strokeWidth = 2.5.dp.toPx())
                     }
                 }
                 line(rail.above, 0f, y)
@@ -256,6 +267,93 @@ fun StopRow(
         }
         PlatformBox(platformPlanned, platformCurrent)
     }
+}
+
+/** "14:14, 7 minutes late": a time as a row shows it, said. */
+fun spokenTime(planned: Instant?, expected: Instant?): String? {
+    val shown = expected ?: planned ?: return null
+    val delay = delayMinutes(planned, expected)
+    return if (delay > 0) "${TripFormat.time(shown)}, $delay minutes late" else TripFormat.time(shown)
+}
+
+/** How a ride's stops fold, as a screen reader hears it: "Show 5 stops of ICE 510", and the action that does it. */
+private fun Modifier.stopsFold(count: Int, open: Boolean, ride: String, onToggle: () -> Unit): Modifier =
+    clickable(role = Role.Button, onClick = onToggle).semantics {
+        contentDescription = "${if (open) "Hide" else "Show"} ${stopsWord(count)} of $ride"
+        // What aria-expanded is on the web: the fold's state, as the action it offers.
+        if (open) collapse { onToggle(); true } else expand { onToggle(); true }
+    }
+
+private fun stopsWord(count: Int) = "$count ${if (count == 1) "stop" else "stops"}"
+
+@Composable
+private fun RowScope.StopsLabel(count: Int, open: Boolean) {
+    Text(stopsWord(count), style = AbeonaType.meta, color = brand, maxLines = 1)
+    Icon(if (open) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, contentDescription = null, tint = brand, modifier = Modifier.size(20.dp))
+}
+
+/**
+ * A ride's stops folded behind a quiet "5 stops ⌄" in the brand colour, a
+ * row on the ride's [rail]: in the trip's timeline and on the live card
+ * under a train ahead (abeona-design.md §8, §9). The whole row is the
+ * button, 36 high: it sits between the rows of one ride and must not push
+ * them apart. The stops it opens are [StopoverRow]s on the same rail. To a
+ * screen reader it says what it does and to which train ([ride], as its
+ * line chip says it): "Show 5 stops of ICE 510".
+ */
+@Composable
+fun StopsToggle(count: Int, open: Boolean, ride: String, rail: Rail, modifier: Modifier = Modifier, onToggle: () -> Unit) {
+    StopRow(
+        name = "",
+        modifier = modifier.stopsFold(count, open, ride, onToggle),
+        rail = rail,
+        minHeight = 36.dp,
+        content = { StopsLabel(count, open) },
+    )
+}
+
+/**
+ * The same fold inside a line of text: the end of the live card's band,
+ * after the stop the train heads for ("→ Aschaffenburg Hbf 21:47 · 4 stops
+ * ⌄"). 36 high, so it can be pressed without spreading the line.
+ */
+@Composable
+fun StopsToggleInline(count: Int, open: Boolean, ride: String, modifier: Modifier = Modifier, onToggle: () -> Unit) {
+    Row(
+        modifier.heightIn(min = 36.dp).stopsFold(count, open, ride, onToggle),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) { StopsLabel(count, open) }
+}
+
+/**
+ * One stop a ride passes through, with the small through-dot every stop
+ * between a ride's ends has on its [rail]: its time with the delay, its
+ * name, struck when the train does not stop there. [quiet] in the trip's
+ * timeline, where the ride's ends matter more; in full on the live card,
+ * where they were asked for. [passed]: the train has left it (the live
+ * card, on board): muted; the rail tells the rest. One sentence to a screen
+ * reader: "Hanau Hbf, 06:26, 2 minutes late", "Passed Hanau Hbf, …".
+ */
+@Composable
+fun StopoverRow(stop: Stopover, rail: Rail, passed: Boolean = false, quiet: Boolean = true) {
+    val planned = (stop.plannedArrival ?: stop.plannedDeparture).toInstantOrNull()
+    val expected = (stop.arrival ?: stop.departure).toInstantOrNull()
+    val says = listOfNotNull(
+        stop.name,
+        if (stop.cancelled) planned?.let(TripFormat::time) else spokenTime(planned, expected),
+        "cancelled".takeIf { stop.cancelled },
+    ).joinToString(", ")
+    StopRow(
+        name = stop.name,
+        modifier = Modifier.clearAndSetSemantics { contentDescription = if (passed) "Passed $says" else says },
+        planned = planned,
+        expected = expected,
+        cancelled = stop.cancelled,
+        quiet = quiet || passed,
+        rail = rail.copy(dot = RailDot.Through),
+        minHeight = 36.dp,
+    )
 }
 
 /**

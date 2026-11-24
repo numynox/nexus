@@ -41,8 +41,6 @@ import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.ExpandLess
-import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.MyLocation
@@ -154,6 +152,8 @@ import io.github.numynox.nexus.abeona.domain.intake.seatText
 import io.github.numynox.nexus.abeona.ui.common.StatusChip
 import io.github.numynox.nexus.abeona.ui.common.StatusTone
 import io.github.numynox.nexus.abeona.ui.common.StopRow
+import io.github.numynox.nexus.abeona.ui.common.StopoverRow
+import io.github.numynox.nexus.abeona.ui.common.StopsToggle
 import io.github.numynox.nexus.abeona.ui.common.SurfaceCard
 import io.github.numynox.nexus.abeona.ui.common.bahnCardsShort
 import io.github.numynox.nexus.abeona.ui.live.LiveStatusKind
@@ -919,28 +919,10 @@ private fun RideRows(leg: Leg, timetableOnly: Boolean, walkBefore: Boolean, walk
         StopRow(name = "", rail = Rail(line, line, RailDot.None), minHeight = 28.dp, content = { SeatFact(leg.coach, leg.seats) })
     }
     if (leg.stopovers.isNotEmpty()) {
-        StopRow(
-            name = "",
-            rail = Rail(line, line, RailDot.None),
-            onClick = { expanded = !expanded },
-            content = {
-                Text("${leg.stopovers.size} ${if (leg.stopovers.size == 1) "stop" else "stops"}", style = AbeonaType.meta, color = brand)
-                Icon(if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, contentDescription = null, tint = brand, modifier = Modifier.size(20.dp))
-            },
-        )
+        StopsToggle(leg.stopovers.size, expanded, leg.label, Rail(line, line, RailDot.None)) { expanded = !expanded }
         AnimatedVisibility(expanded) {
             Column {
-                leg.stopovers.forEach { stop ->
-                    StopRow(
-                        name = stop.name,
-                        planned = (stop.plannedArrival ?: stop.plannedDeparture).toInstantOrNull(),
-                        expected = (stop.arrival ?: stop.departure).toInstantOrNull(),
-                        cancelled = stop.cancelled,
-                        quiet = true,
-                        rail = Rail(line, line, RailDot.Through),
-                        minHeight = 36.dp,
-                    )
-                }
+                leg.stopovers.forEach { stop -> StopoverRow(stop, Rail(line, line)) }
             }
         }
     }

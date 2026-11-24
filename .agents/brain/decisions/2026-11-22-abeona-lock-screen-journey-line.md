@@ -1,7 +1,7 @@
 # ADR: On Android 16 the companion's notification draws the journey
 
 **Date:** 2026-11-22
-**Status:** Accepted
+**Status:** Accepted; its bar and texts superseded by `2026-11-24-abeona-journey-header.md`
 
 ## Context
 Since November the live card has been the journey drawn as one line

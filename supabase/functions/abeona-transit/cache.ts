@@ -11,6 +11,8 @@
 /** Seconds a provider path's answer stays fresh. */
 export const TTL_SECONDS: Record<string, number> = {
   "/api/v1/geocode": 24 * 3600,
+  // A stop's town does not move: a month.
+  "/api/v1/reverse-geocode": 30 * 24 * 3600,
   "/api/v6/plan": 120,
   "/api/v6/refresh-itinerary": 60,
   "/api/v6/trip": 60,

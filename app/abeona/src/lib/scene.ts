@@ -26,7 +26,7 @@ export const RAIL = 12;
  * deep then; the bar's centre is BAR_UP above the bottom edge.
  */
 export const RAIL_WITH_BAR = 20;
-export const BAR_UP = 8;
+export const BAR_UP = 10;
 export const BAR = 6;
 export const BAR_DOT = 4.6;
 export const BAR_DOT_END = 6;
@@ -200,9 +200,13 @@ export interface ScenePalette {
   trainLine: string;
   platform: string;
   dot: string;
+  /** The change's confidence on the bar's walk (safe, tight, at risk): dark enough on the ground in a light theme, light in a dark one. */
+  ok: string;
+  watch: string;
+  bad: string;
 }
 
-type Tones = Omit<ScenePalette, "trainRed" | "accent" | "trainLine" | "dot">;
+type Tones = Omit<ScenePalette, "trainRed" | "accent" | "trainLine" | "dot" | "ok" | "watch" | "bad">;
 
 const LIGHT_DAY: Tones = {
   sky: "#d9e7ea", glow: "#ffc48f", far: "#c7d8c6", near: "#a6c2a0", tree: "#86a983", ground: "#e7ded3", rail: "#6b5f57",
@@ -251,6 +255,9 @@ export function scenePalette(dark: boolean, light: number): ScenePalette {
     accent: dark ? "#f08ca8" : "#8c1d40",
     trainLine: dark ? "#00000000" : "#2a211c40",
     dot: dark ? "#26201c" : "#ffffff",
+    ok: dark ? "#7fd3a8" : "#1f7a50",
+    watch: dark ? "#f2c94c" : "#9a6a00",
+    bad: dark ? "#ff8a7a" : "#b3261e",
   };
 }
 
@@ -311,3 +318,157 @@ export function travelSpeed(kmh: number | null | undefined): number {
 export function railX(fraction: number, width: number): number {
   return RAIL_START + (width - RAIL_START - RAIL_END) * clamp01(fraction);
 }
+
+// ------------------------------------------------------------------ the journey bar
+
+/**
+ * The strip's bar is the whole journey (abeona-design.md §7, §8), in a frame
+ * that never changes during the trip: from BAR_PAD to BAR_PAD off either
+ * edge, in every state. Its parts are the journey's parts, always all of
+ * them, left to right: ride 1, change 1, ride 2, … ride n. One part is in
+ * focus and takes the room (the ride on board, else the ride to board; while
+ * changing, the change itself); the others are short stubs. Each element has
+ * one meaning: dots are the stops of the train in focus, and only that (its
+ * two ends too, "board here … get off here"); every other train is a capsule
+ * without dots; a change out of focus is the gap between two capsules. A
+ * focused change is a dashed line in its confidence colour with the walker on
+ * it, as far along as the change time allows. The destination is always the
+ * far right: the end ring on the ride in focus, else a small ring capping the
+ * last capsule. Before leaving the walker waits on the origin.
+ *
+ * Worked out from the clock with the expected times, on every frame of the
+ * scene, so nothing moves minute by minute.
+ */
+export type BarState = "before_leaving" | "at_station" | "changing" | "on_board" | "arrived";
+export type BarTone = "ok" | "watch" | "bad" | "neutral";
+export type BarPart = "ride" | "change";
+
+/** A ride as the bar reads it: its expected departure and arrival, and the expected arrivals at the stops between (ms). */
+export interface BarRide {
+  departure: number;
+  arrival: number;
+  stops: number[];
+}
+
+export interface BarJourney {
+  /** The rides, walks left out. */
+  rides: BarRide[];
+  /** The ride on board, or the one to board next (while changing: the one after the change). */
+  current: number;
+  state: BarState;
+  /** Changing: the change into the current ride. */
+  confidence: "safe" | "tight" | "at_risk" | "impossible" | null;
+}
+
+export interface JourneyBar {
+  /** Ride, change, ride, … ride: 2n - 1 parts for n rides. */
+  parts: BarPart[];
+  /** The part in focus (an index into parts); null once arrived. */
+  focus: number | null;
+  /** How far along the focused part: the train on a ride (0 until it leaves), the walker on a change. */
+  fraction: number;
+  /** A focused change's colour, from its confidence; null otherwise. */
+  tone: BarTone | null;
+  /** How many parts, from the left, are done. */
+  done: number;
+  /** Before leaving: the walker waits on the origin. */
+  walkerAtStart: boolean;
+  /** A focused ride's stops as fractions of it: 0, those between by time, 1. Empty otherwise. */
+  stops: number[];
+}
+
+const TONE: Record<NonNullable<BarJourney["confidence"]>, BarTone> = { safe: "ok", tight: "watch", at_risk: "bad", impossible: "bad" };
+
+/** The share of [from, to] that lies behind `now`; a span of nothing counts as a millisecond. */
+function along(now: number, from: number, to: number): number {
+  return clamp01((now - from) / Math.max(to - from, 1));
+}
+
+/** The bar at `now`. */
+export function journeyBar(j: BarJourney, now: number): JourneyBar {
+  const n = j.rides.length;
+  const parts: BarPart[] = Array.from({ length: Math.max(0, 2 * n - 1) }, (_, i) => (i % 2 === 0 ? "ride" : "change"));
+  const none = { parts, focus: null, fraction: 1, tone: null, done: parts.length, walkerAtStart: false, stops: [] };
+  if (n === 0 || j.state === "arrived") return none;
+  const c = Math.max(0, Math.min(n - 1, j.current));
+  if (j.state === "changing" && c > 0) {
+    return {
+      parts,
+      focus: 2 * c - 1,
+      fraction: along(now, j.rides[c - 1].arrival, j.rides[c].departure),
+      tone: j.confidence ? TONE[j.confidence] : "neutral",
+      done: 2 * c - 1,
+      walkerAtStart: false,
+      stops: [],
+    };
+  }
+  const ride = j.rides[c];
+  return {
+    parts,
+    focus: 2 * c,
+    fraction: j.state === "on_board" ? along(now, ride.departure, ride.arrival) : 0,
+    tone: null,
+    done: 2 * c,
+    walkerAtStart: j.state === "before_leaving",
+    stops: [0, ...ride.stops.map((t) => along(t, ride.departure, ride.arrival)), 1],
+  };
+}
+
+/** A ride out of focus (a capsule) and a change out of focus (the gap between two capsules): their lengths, and the least they shrink to. */
+export const RIDE_STUB = 24;
+export const CHANGE_STUB = 8;
+export const RIDE_STUB_MIN = 12;
+export const CHANGE_STUB_MIN = 6;
+/** A capsule's thickness (the ride in focus is BAR thick), and the ring capping the last one at the destination (radius). */
+export const CAPSULE = 4;
+export const DESTINATION_CAP = 5;
+/** The stubs take at most this share of the bar; beyond it they all shrink in proportion. */
+export const STUB_SHARE = 0.4;
+/** The bar keeps this much clear at both edges of the strip, in every state. */
+export const BAR_PAD = 16;
+/** The focused ride's stops and its two ends on the bar (radius); at the destination BAR_DOT_END's ring instead. */
+export const BAR_NODE = 3.5;
+/** A figure on the bar (the walker) sits in a badge this wide: a disc, a ring, the glyph. */
+export const BADGE = 18;
+
+/**
+ * Each part's stretch of the bar (x), left to right, on a strip `width`
+ * wide. The stubs at their widths (shrunk together when they would take more
+ * than STUB_SHARE), the part in focus the rest. Without a focus (arrived) the
+ * rides share the room and the changes keep their stubs.
+ */
+export function barLayout(bar: Pick<JourneyBar, "parts" | "focus">, width: number): { from: number; to: number }[] {
+  const room = width - 2 * BAR_PAD;
+  const { parts, focus } = bar;
+  if (parts.length === 0) return [];
+  let widths: number[];
+  if (focus === null) {
+    const rides = parts.filter((p) => p === "ride").length;
+    const changes = (parts.length - rides) * CHANGE_STUB;
+    widths = parts.map((p) => (p === "ride" ? (room - changes) / rides : CHANGE_STUB));
+  } else {
+    const stub = (p: BarPart) => (p === "ride" ? RIDE_STUB : CHANGE_STUB);
+    const stubs = parts.reduce((sum, p, i) => (i === focus ? sum : sum + stub(p)), 0);
+    const k = stubs > STUB_SHARE * room ? (STUB_SHARE * room) / stubs : 1;
+    widths = parts.map((p) => (p === "ride" ? Math.max(RIDE_STUB_MIN, RIDE_STUB * k) : Math.max(CHANGE_STUB_MIN, CHANGE_STUB * k)));
+    widths[focus] = room - widths.reduce((sum, w, i) => (i === focus ? sum : sum + w), 0);
+  }
+  let x = BAR_PAD;
+  return widths.map((w) => {
+    const part = { from: x, to: x + w };
+    x += w;
+    return part;
+  });
+}
+
+/**
+ * Where the train's nose stands over a point x of the bar: there, but never
+ * so far left that its leading car would be cut off by the strip's edge.
+ */
+export function trainOnBar(x: number, kind: TrainKind, scale: number): number {
+  return Math.max(x, TRAINS[kind].head * scale + 6);
+}
+
+/** How long the bar glides to a value live data moved, and morphs from one focus to the next (ms). */
+export const GLIDE_MS = 1000;
+export const MORPH_MS = 600;

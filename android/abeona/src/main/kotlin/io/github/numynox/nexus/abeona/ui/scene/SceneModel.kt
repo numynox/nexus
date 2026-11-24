@@ -1,5 +1,6 @@
 package io.github.numynox.nexus.abeona.ui.scene
 
+import io.github.numynox.nexus.abeona.domain.Confidence
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.Locale
@@ -24,6 +25,60 @@ import kotlin.math.tan
 // milliseconds and colours "#rrggbb" strings, as on the web.
 
 enum class SceneState { Idle, Parked, Waiting, Riding, Stopped, Arrived }
+
+// The strip's bar is the whole journey (abeona-design.md §7, §8), in a frame
+// that never changes during the trip: from BAR_PAD to BAR_PAD off either
+// edge, in every state. Its parts are the journey's parts, always all of
+// them, left to right: ride 1, change 1, ride 2, … ride n. One part is in
+// focus and takes the room (the ride on board, else the ride to board; while
+// changing, the change itself); the others are short stubs. A focused ride
+// shows its stops and how far the train is; a focused change is a dashed line
+// in its confidence colour with the walker on it, as far along as the change
+// time allows. Before leaving the walker waits on the origin. Worked out from
+// the clock with the expected times on every frame of the scene, so nothing
+// moves minute by minute.
+
+/** What the traveller is doing, as the bar reads it (the travel day's kind). */
+enum class BarState { BeforeLeaving, AtStation, Changing, OnBoard, Arrived }
+
+/** A focused change's colour: its confidence; neutral when it is not known. */
+enum class BarTone { Ok, Watch, Bad, Neutral }
+
+/** A part of the journey on the bar. */
+enum class BarPart { Ride, Change }
+
+/** A ride as the bar reads it: its expected departure and arrival, and the expected arrivals at the stops between (ms). */
+data class BarRide(val departure: Long, val arrival: Long, val stops: List<Long>)
+
+data class BarJourney(
+    /** The rides, walks left out. */
+    val rides: List<BarRide>,
+    /** The ride on board, or the one to board next (while changing: the one after the change). */
+    val current: Int,
+    val state: BarState,
+    /** Changing: the change into the current ride. */
+    val confidence: Confidence?,
+)
+
+data class SceneBar(
+    /** Ride, change, ride, … ride: 2n - 1 parts for n rides. */
+    val parts: List<BarPart>,
+    /** The part in focus (an index into [parts]); null once arrived. */
+    val focus: Int?,
+    /** How far along the focused part: the train on a ride (0 until it leaves), the walker on a change. */
+    val fraction: Double,
+    /** A focused change's colour, from its confidence; null otherwise. */
+    val tone: BarTone?,
+    /** How many parts, from the left, are done. */
+    val done: Int,
+    /** Before leaving: the walker waits on the origin. */
+    val walkerAtStart: Boolean,
+    /** A focused ride's stops as fractions of it: 0, those between by time, 1. Empty otherwise. */
+    val stops: List<Double>,
+)
+
+/** A part's stretch of the bar, in units. */
+data class BarSpan(val from: Double, val to: Double)
 
 /** [height] of the box; how much larger than the strip's the train ([trainScale]) and the hills and trees ([landScale]) are drawn. */
 enum class SceneSize(val height: Int, val trainScale: Double, val landScale: Double) {
@@ -223,6 +278,10 @@ object SceneModel {
         val trainRed: String,
         /** The brand burgundy: the rail behind the train, passed stops, the flag. */
         val accent: String,
+        /** The change's confidence on the bar's walk (safe, tight, at risk): dark enough on the ground in a light theme, light in a dark one. */
+        val ok: String,
+        val watch: String,
+        val bad: String,
         /** "#rrggbbaa". */
         val trainLine: String,
         val trainWindow: String,
@@ -263,6 +322,9 @@ object SceneModel {
             sun = tone("sun"), moon = tone("moon"), trainBody = tone("trainBody"),
             trainRed = if (dark) "#d9584e" else "#d9342b",
             accent = if (dark) "#f08ca8" else "#8c1d40",
+            ok = if (dark) "#7fd3a8" else "#1f7a50",
+            watch = if (dark) "#f2c94c" else "#9a6a00",
+            bad = if (dark) "#ff8a7a" else "#b3261e",
             trainLine = if (dark) "#00000000" else "#2a211c40",
             trainWindow = (if (light < 0.5) night else day).getValue("trainWindow"),
             platform = tone("platform"),
@@ -336,4 +398,91 @@ object SceneModel {
 
     /** Where on the strip's rail a fraction of the ride lies: the train's nose. */
     fun railX(fraction: Double, width: Double): Double = RAIL_START + (width - RAIL_START - RAIL_END) * clamp01(fraction)
+
+    // -------------------------------------------------------------- the journey bar
+
+    private fun barTone(confidence: Confidence): BarTone = when (confidence) {
+        Confidence.SAFE -> BarTone.Ok
+        Confidence.TIGHT -> BarTone.Watch
+        Confidence.AT_RISK, Confidence.IMPOSSIBLE -> BarTone.Bad
+    }
+
+    /** The share of [from, to] that lies behind [now]; a span of nothing counts as a millisecond. */
+    private fun along(now: Long, from: Long, to: Long): Double = clamp01((now - from).toDouble() / max(to - from, 1L))
+
+    /** The bar at [now] (ms). */
+    fun journeyBar(j: BarJourney, now: Long): SceneBar {
+        val n = j.rides.size
+        val parts = (0 until max(0, 2 * n - 1)).map { if (it % 2 == 0) BarPart.Ride else BarPart.Change }
+        if (n == 0 || j.state == BarState.Arrived) return SceneBar(parts, null, 1.0, null, parts.size, false, emptyList())
+        val c = j.current.coerceIn(0, n - 1)
+        if (j.state == BarState.Changing && c > 0) {
+            return SceneBar(
+                parts, 2 * c - 1,
+                fraction = along(now, j.rides[c - 1].arrival, j.rides[c].departure),
+                tone = j.confidence?.let(::barTone) ?: BarTone.Neutral,
+                done = 2 * c - 1,
+                walkerAtStart = false,
+                stops = emptyList(),
+            )
+        }
+        val ride = j.rides[c]
+        return SceneBar(
+            parts, 2 * c,
+            fraction = if (j.state == BarState.OnBoard) along(now, ride.departure, ride.arrival) else 0.0,
+            tone = null,
+            done = 2 * c,
+            walkerAtStart = j.state == BarState.BeforeLeaving,
+            stops = listOf(0.0) + ride.stops.map { along(it, ride.departure, ride.arrival) } + 1.0,
+        )
+    }
+
+    /** A ride out of focus (a capsule) and a change out of focus (the gap between two): their lengths, and the least they shrink to. */
+    const val RIDE_STUB = 24.0
+    const val CHANGE_STUB = 8.0
+    const val RIDE_STUB_MIN = 12.0
+    const val CHANGE_STUB_MIN = 6.0
+    /** The stubs take at most this share of the bar; beyond it they all shrink in proportion. */
+    const val STUB_SHARE = 0.4
+    /** The bar keeps this much clear at both edges of the strip, in every state. */
+    const val BAR_PAD = 16.0
+    /** The focused ride's stops and its two ends on the bar (radius); at the destination BAR_DOT_END's ring instead. */
+    const val BAR_NODE = 3.5
+    /** A capsule's thickness (the ride in focus is BAR thick), and the ring capping the last one at the destination (radius). */
+    const val CAPSULE = 4.0
+    const val DESTINATION_CAP = 5.0
+    /** A figure on the bar (the walker) sits in a badge this wide: a disc, a ring, the glyph. */
+    const val BADGE = 18.0
+
+    /** How long the bar glides to a value live data moved, and morphs from one focus to the next (ms). */
+    const val GLIDE_MS = 1000
+    const val MORPH_MS = 600
+
+    /**
+     * Each part's stretch of the bar, left to right, on a strip [width]
+     * wide. The stubs at their widths (shrunk together when they would take
+     * more than STUB_SHARE), the part in [focus] the rest. Without a focus
+     * (arrived) the rides share the room and the changes keep their stubs.
+     */
+    fun barLayout(parts: List<BarPart>, focus: Int?, width: Double): List<BarSpan> {
+        if (parts.isEmpty()) return emptyList()
+        val room = width - 2 * BAR_PAD
+        val widths = if (focus == null) {
+            val rides = parts.count { it == BarPart.Ride }
+            val changes = (parts.size - rides) * CHANGE_STUB
+            parts.map { if (it == BarPart.Ride) (room - changes) / rides else CHANGE_STUB }
+        } else {
+            fun stub(p: BarPart) = if (p == BarPart.Ride) RIDE_STUB else CHANGE_STUB
+            val stubs = parts.withIndex().sumOf { (i, p) -> if (i == focus) 0.0 else stub(p) }
+            val k = if (stubs > STUB_SHARE * room) STUB_SHARE * room / stubs else 1.0
+            val sized = parts.map { if (it == BarPart.Ride) max(RIDE_STUB_MIN, RIDE_STUB * k) else max(CHANGE_STUB_MIN, CHANGE_STUB * k) }.toMutableList()
+            sized[focus] = room - sized.withIndex().sumOf { (i, w) -> if (i == focus) 0.0 else w }
+            sized
+        }
+        var x = BAR_PAD
+        return widths.map { w -> BarSpan(x, x + w).also { x += w } }
+    }
+
+    /** Where the train's nose stands over a point [x] of the bar: there, but never so far left that its leading car is cut off by the strip's edge. */
+    fun trainOnBar(x: Double, kind: TrainKind, scale: Double): Double = max(x, kind.spec.head * scale + 6)
 }
