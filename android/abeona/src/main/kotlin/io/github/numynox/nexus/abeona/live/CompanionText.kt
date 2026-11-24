@@ -351,7 +351,10 @@ fun companionStatus(
                     // Safe goes without saying; tight, at risk or impossible does not.
                     "${change.availableMinutes} min change" + if (change.confidence == Confidence.SAFE) "" else " (${change.confidence.label})",
                 )).joinToString(" · ")
-                info += (listOf("Change at ${leg.to.name} → ${next.label}") + nextTrain + listOf("${change.availableMinutes} min") +
+                // The Live Update has two lines under the title: the change must fit one, so the next
+                // stop and the speed keep the other. The arrow says "change"; the minutes say when.
+                info += (listOf("${leg.to.name} → ${next.label}") + listOfNotNull(TripFormat.platform(next.from.shownPlatform)) +
+                    listOf("${change.availableMinutes} min") +
                     listOfNotNull(change.confidence.takeIf { it != Confidence.SAFE }?.label?.lowercase())).joinToString(" · ")
             }
             // The stop coming up; not "Next stop: <where the title arrives>".

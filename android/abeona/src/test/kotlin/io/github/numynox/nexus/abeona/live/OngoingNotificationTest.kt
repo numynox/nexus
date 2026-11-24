@@ -82,12 +82,12 @@ class OngoingNotificationTest {
         val bar = JourneyBar(listOf(BarSegment(100, BarTone.Ride), BarSegment(100, BarTone.Ride)), listOf(BarPoint(100, BarTone.Watch)), 40)
         val status = CompanionStatus(
             "ICE 25 arrives in 29 min · Pl. 4 · 07:15 (+7)", "Change at Würzburg Hbf", false, "29 min",
-            info = listOf("Change at Würzburg Hbf → RE 10 · Pl. 5 · 07:21 · 6 min · tight", "Next: Aschaffenburg Hbf 06:39", "247 km/h"),
+            info = listOf("Würzburg Hbf → RE 10 · Pl. 5 · 6 min · tight", "Next: Aschaffenburg Hbf 06:39", "247 km/h"),
             bar = bar,
         )
         val live = LiveCompanion.ongoing(context, "t", status, now, now)
         assertEquals(
-            "Change at Würzburg Hbf → RE 10 · Pl. 5 · 07:21 · 6 min · tight\nNext: Aschaffenburg Hbf 06:39 · 247 km/h",
+            "Würzburg Hbf → RE 10 · Pl. 5 · 6 min · tight\nNext: Aschaffenburg Hbf 06:39 · 247 km/h",
             live.extras.getCharSequence(Notification.EXTRA_TEXT).toString(),
         )
         assertNull("live: nothing in the header", live.extras.getCharSequence(Notification.EXTRA_SUB_TEXT))

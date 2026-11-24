@@ -269,11 +269,11 @@ class CompanionTextTest {
         assertEquals(CompactText("to Frankfurt Hbf · departs 08:00\nCoach 24 · Seat 66", null), atStation.compact(null))
         // On board with a change ahead: the change in one line; no stops left (the bar has them).
         val onBoard = companionStatus(trip, t0.plusSeconds(28 * 60))
-        assertEquals(listOf("Change at Frankfurt Hbf → ICE 25 · Pl. 7 · 08:48 · 8 min"), onBoard.info)
+        assertEquals(listOf("Frankfurt Hbf → ICE 25 · Pl. 7 · 8 min"), onBoard.info)
         // The header says only how fresh, and only when it is not live.
-        assertEquals(CompactText("Change at Frankfurt Hbf → ICE 25 · Pl. 7 · 08:48 · 8 min", "Offline 08:20"), onBoard.compact("Offline 08:20"))
+        assertEquals(CompactText("Frankfurt Hbf → ICE 25 · Pl. 7 · 8 min", "Offline 08:20"), onBoard.compact("Offline 08:20"))
         val tight = trip.copy(legs = listOf(trip.legs[0], trip.legs[1].copy(from = trip.legs[1].from.copy(planned = at(46)))))
-        assertEquals("Change at Frankfurt Hbf → ICE 25 · Pl. 7 · 08:46 · 6 min · tight", companionStatus(tight, t0.plusSeconds(28 * 60)).info[0])
+        assertEquals("Frankfurt Hbf → ICE 25 · Pl. 7 · 6 min · tight", companionStatus(tight, t0.plusSeconds(28 * 60)).info[0])
         // On the last ride, from its Wi-Fi: the destination, the speed.
         val portal = OnboardStatus("ICE Portal", "ICE", "25", 247.4, null, null, "Würzburg Hbf", null, "5", t0)
         val last = companionStatus(trip, t0.plusSeconds(60 * 60), signals = TravelSignals(onboardLegIndex = 1), onboard = portal)
@@ -283,7 +283,7 @@ class CompanionTextTest {
         val stopping = trip.copy(legs = listOf(trip.legs[0].copy(stopovers = listOf(Stopover("r", "Rüsselsheim", plannedArrival = at(15), plannedDeparture = at(16)))), trip.legs[1]))
         val re = OnboardStatus("Railnet", "RE", "4", 160.0, null, null, "Rüsselsheim", null, null, t0)
         assertEquals(
-            CompactText("Change at Frankfurt Hbf → ICE 25 · Pl. 7 · 08:48 · 8 min\nNext: Rüsselsheim 08:15 · 160 km/h", null),
+            CompactText("Frankfurt Hbf → ICE 25 · Pl. 7 · 8 min\nNext: Rüsselsheim 08:15 · 160 km/h", null),
             companionStatus(stopping, t0.plusSeconds(10 * 60), signals = TravelSignals(onboardLegIndex = 0), onboard = re).compact(null),
         )
         // Changing: the margin, the seat.
