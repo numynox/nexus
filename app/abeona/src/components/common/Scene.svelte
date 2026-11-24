@@ -4,8 +4,10 @@
    * under the real sky of the moment. Large when nothing is urgent; on the
    * travel day a strip whose bar under the track is the whole journey, in a
    * frame that never moves: every ride and change, the one in focus taking
-   * the room, the others stubs. The web's copy of Android's
-   * ui/scene/Scene.kt, in the same units, from lib/scene.ts.
+   * the room. Dots are the stops of the train in focus and only that; every
+   * other train is a capsule, every other change the gap between two. The
+   * web's copy of Android's ui/scene/Scene.kt, in the same units, from
+   * lib/scene.ts.
    *
    * The bar and the train move by the frame clock (lib/frameClock.ts), from
    * the expected times: continuously, not minute by minute. A time moved by
@@ -22,12 +24,13 @@
     type BarJourney,
     BAR_NODE,
     type BarTone,
+    CAPSULE,
+    DESTINATION_CAP,
     FRANKFURT,
     GLIDE_MS,
     journeyBar,
     type JourneyBar,
     MORPH_MS,
-    RIDE_STUB,
     hillHeight,
     hillPath,
     LAND_SCALE,
@@ -156,7 +159,23 @@
     if (glide && !still) bar = { ...bar, fraction: clamp01(bar.fraction + glide.fraction * (1 - easeOut(progressOf(glide.at, tick, GLIDE_MS)))) };
     return { at: barLayout(bar, width), bar };
   });
-  const shown = $derived(target && morph && !still ? between(morph.from, target, standard(progressOf(morph.at, tick, MORPH_MS))) : target);
+  /** How far the focus has moved (1 when it is not moving), and the bar it moves from. */
+  const moved = $derived(target && morph && !still ? standard(progressOf(morph.at, tick, MORPH_MS)) : 1);
+  const was = $derived(target && morph && !still ? morph.from.bar : null);
+  const shown = $derived(target && morph && !still ? between(morph.from, target, moved) : target);
+
+  /**
+   * How much part i shows of being in focus: its dots, a change's dashes and
+   * walker. Gained over the last 40 % of a morph, lost over the first 40 %.
+   */
+  function focusShown(i: number): number {
+    const now = shown?.bar.focus === i;
+    const then = was ? was.focus === i : now;
+    if (now && then) return 1;
+    if (now) return clamp01((moved - 0.6) / 0.4);
+    if (then) return clamp01(1 - moved / 0.4);
+    return 0;
+  }
 
   /** How far the train has gone on the focused ride: nothing yet while waiting for it. */
   const fill = $derived(!shown || shown.bar.parts[shown.bar.focus ?? -1] !== "ride" || sceneState === "waiting" ? 0 : shown.bar.fraction);
@@ -520,48 +539,57 @@
     {#if rail && shown}
       {@const bar = shown.bar}
       {@const last = shown.at.length - 1}
-      <!-- The journey under the track, its ends where they always are: rides solid, changes dashed; done in burgundy, ahead in the track's colour. -->
+      <!--
+        The journey under the track, its ends where they always are. The train in focus: its line, filled up to
+        the train, its stops and two ends as dots. Every other train a capsule without dots, burgundy when done,
+        the track's colour ahead; a change out of focus the gap between two; the change in focus dashed in its
+        confidence colour.
+      -->
       {#each shown.at as part, i (i)}
-        {@const focused = i === bar.focus}
-        {@const done = i < bar.done}
+        {@const shows = focusShown(i)}
         {#if bar.parts[i] === "ride"}
-          <!-- A ride: thick while in focus (its stops on it, filled up to the train), a thinner stub otherwise. -->
-          {@const grow = clamp01((part.to - part.from - RIDE_STUB) / 40)}
-          {@const thick = lerp(4, BAR, grow)}
-          {#if done}
-            <line x1={part.from} x2={part.to} y1={barY} y2={barY} stroke={colours.accent} stroke-width={thick} />
-          {:else}
-            <line x1={part.from} x2={part.to} y1={barY} y2={barY} stroke={colours.rail} stroke-width={thick} opacity="0.3" />
-            {#if focused && fill > 0}
-              <line x1={part.from} x2={lerp(part.from, part.to, fill)} y1={barY} y2={barY} stroke={colours.accent} stroke-width={thick} />
+          {@const focus = lerp(was ? (was.focus === i ? 1 : 0) : i === bar.focus ? 1 : 0, i === bar.focus ? 1 : 0, moved)}
+          {@const thick = lerp(CAPSULE, BAR, focus)}
+          {@const done = i < bar.done}
+          {@const capped = i === last && focus < 0.5}
+          {@const colour = done ? colours.accent : colours.rail}
+          {@const opacity = done ? 1 : lerp(0.45, 0.3, focus)}
+          <!-- Inside the bar a capsule keeps clear of the gaps beside it; at the bar's ends it is centred on them, as the dots and rings are. -->
+          {@const x1 = i === 0 ? part.from : part.from + thick / 2}
+          {@const x2 = capped || i === last ? part.to : Math.max(x1, part.to - thick / 2)}
+          <line {x1} {x2} y1={barY} y2={barY} stroke={colour} stroke-width={thick} stroke-linecap="round" {opacity} />
+          {#if i === bar.focus && !done && fill > 0}
+            <line {x1} x2={Math.max(x1, lerp(part.from, part.to, fill) - thick / 2)} y1={barY} y2={barY} stroke={colours.accent} stroke-width={thick} stroke-linecap="round" />
+          {/if}
+          {#if shows > 0}
+            {@const stops = i === bar.focus ? bar.stops : (was?.stops ?? [])}
+            {@const reached = i === bar.focus ? (done ? 1 : fill) : 1}
+            <g opacity={shows}>
+              {#each stops as stop, k (k)}
+                {#if !(i === last && k === stops.length - 1)}
+                  {@render node(lerp(part.from, part.to, stop), reached > 0 && stop <= reached)}
+                {/if}
+              {/each}
+            </g>
+          {/if}
+          {#if i === last}
+            <!-- The destination: the end ring on the ride in focus, else a small ring capping the last capsule. -->
+            {#if capped}
+              <circle cx={part.to} cy={barY} r={DESTINATION_CAP} fill={colours.dot} stroke={colour} stroke-opacity={done ? 1 : Math.max(opacity, 0.6)} stroke-width="2" />
+            {:else}
+              <circle cx={part.to} cy={barY} r={BAR_DOT_END} fill={colours.dot} stroke={colours.accent} stroke-width="2" />
             {/if}
           {/if}
-          {#if focused}
-            {#each bar.stops.slice(1, -1) as stop, k (k)}
-              <g opacity={grow}>{@render node(lerp(part.from, part.to, stop), fill > 0 && stop <= fill)}</g>
-            {/each}
-          {/if}
-        {:else if focused && bar.tone}
+        {:else if shows > 0 && (bar.tone ?? was?.tone)}
           <!-- The change in focus: its line in the change's confidence colour. -->
-          <line x1={part.from} x2={part.to} y1={barY} y2={barY} stroke={toneColour(bar.tone)} stroke-width="3" stroke-dasharray="5 4" />
-        {:else}
-          <line x1={part.from} x2={part.to} y1={barY} y2={barY} stroke={done ? colours.accent : colours.rail} stroke-width="2.5" stroke-dasharray="3 3" opacity={done ? 1 : 0.6} />
-        {/if}
-      {/each}
-      <!-- Every ride's ends, filled once passed; at the far right the destination's ring, and only there. -->
-      {#each shown.at as part, i (i)}
-        {#if bar.parts[i] === "ride"}
-          {@render node(part.from, i < bar.done || (i === bar.focus && fill > 0))}
-          {#if i === last}
-            <circle cx={part.to} cy={barY} r={BAR_DOT_END} fill={colours.dot} stroke={colours.accent} stroke-width="2" />
-          {:else}
-            {@render node(part.to, i < bar.done || (i === bar.focus && fill >= 1))}
-          {/if}
+          <line x1={part.from} x2={part.to} y1={barY} y2={barY} stroke={toneColour((bar.tone ?? was?.tone)!)} stroke-width="3" stroke-dasharray="5 4" opacity={shows} />
         {/if}
       {/each}
       {#if bar.focus !== null && bar.parts[bar.focus] === "change"}
         <!-- On the change: the walker, from the arrival to the next departure as the change time passes. -->
-        {@render badge(lerp(shown.at[bar.focus].from, shown.at[bar.focus].to, bar.fraction), toneColour(bar.tone ?? "neutral"))}
+        <g opacity={focusShown(bar.focus)}>
+          {@render badge(lerp(shown.at[bar.focus].from, shown.at[bar.focus].to, bar.fraction), toneColour(bar.tone ?? "neutral"))}
+        </g>
       {:else if bar.walkerAtStart}
         <!-- Before leaving: the walker waits on the origin. -->
         {@render badge(shown.at[0].from, toneColour("neutral"))}

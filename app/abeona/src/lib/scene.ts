@@ -327,10 +327,14 @@ export function railX(fraction: number, width: number): number {
  * edge, in every state. Its parts are the journey's parts, always all of
  * them, left to right: ride 1, change 1, ride 2, … ride n. One part is in
  * focus and takes the room (the ride on board, else the ride to board; while
- * changing, the change itself); the others are short stubs. A focused ride
- * shows its stops and how far the train is; a focused change is a dashed line
- * in its confidence colour with the walker on it, as far along as the change
- * time allows. Before leaving the walker waits on the origin.
+ * changing, the change itself); the others are short stubs. Each element has
+ * one meaning: dots are the stops of the train in focus, and only that (its
+ * two ends too, "board here … get off here"); every other train is a capsule
+ * without dots; a change out of focus is the gap between two capsules. A
+ * focused change is a dashed line in its confidence colour with the walker on
+ * it, as far along as the change time allows. The destination is always the
+ * far right: the end ring on the ride in focus, else a small ring capping the
+ * last capsule. Before leaving the walker waits on the origin.
  *
  * Worked out from the clock with the expected times, on every frame of the
  * scene, so nothing moves minute by minute.
@@ -410,16 +414,19 @@ export function journeyBar(j: BarJourney, now: number): JourneyBar {
   };
 }
 
-/** A ride and a change out of focus: their stubs, and the least they shrink to. */
+/** A ride out of focus (a capsule) and a change out of focus (the gap between two capsules): their lengths, and the least they shrink to. */
 export const RIDE_STUB = 24;
-export const CHANGE_STUB = 12;
+export const CHANGE_STUB = 8;
 export const RIDE_STUB_MIN = 12;
-export const CHANGE_STUB_MIN = 8;
+export const CHANGE_STUB_MIN = 6;
+/** A capsule's thickness (the ride in focus is BAR thick), and the ring capping the last one at the destination (radius). */
+export const CAPSULE = 4;
+export const DESTINATION_CAP = 5;
 /** The stubs take at most this share of the bar; beyond it they all shrink in proportion. */
 export const STUB_SHARE = 0.4;
 /** The bar keeps this much clear at both edges of the strip, in every state. */
 export const BAR_PAD = 16;
-/** A ride's ends and the focused ride's stops on the bar (radius); the destination keeps BAR_DOT_END's ring. */
+/** The focused ride's stops and its two ends on the bar (radius); at the destination BAR_DOT_END's ring instead. */
 export const BAR_NODE = 3.5;
 /** A figure on the bar (the walker) sits in a badge this wide: a disc, a ring, the glyph. */
 export const BADGE = 18;
