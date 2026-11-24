@@ -32,14 +32,16 @@ München → Mannheim, S3 to Heidelberg):
   Hauptbahnhof" and "München, Pasing". A ride's own ends and the search stay
   untouched.
 - **The journey header:** the scene strip is the live card's header, flush
-  with the card. Its bar is the whole journey:
-  - the current ride with its stops, a filled dot per earlier ride and a
-    hollow dot per later one;
-  - a change is a dashed connector in its confidence colour with a walker
-    moving through the change time;
-  - the walk to the station is the same connector, neutral.
-
-  This replaces the scene inside the band (`2026-11-20-abeona-live-journey-line.md`).
+  with the card. Its bar is the whole journey, in a frame that never moves
+  (the first version added a walk lead and ride dots at the ends, so the bar
+  shifted and its margins differed between states, and its trackers had no
+  contrast). Every ride and change is always a part; the part in focus takes
+  the room. Each mark has one meaning: dots are the stops of the train in
+  focus; another train is a dot-less capsule; a change is the gap between two
+  capsules, or, in focus, a dashed line in its confidence colour with a walker
+  badge; the destination is always the right end. Figures on a bar are badges
+  (disc, ring, glyph), on the Live Update too. This replaces the scene inside
+  the band (`2026-11-20-abeona-live-journey-line.md`).
 - **Smooth:** one frame clock moves the train, the bar, the walker and the
   rail marker from the expected times.
   - Live times glide in over 1 s.
@@ -57,7 +59,8 @@ München → Mannheim, S3 to Heidelberg):
     passed are muted.
 - **The Live Update:**
   - One equal segment per ride, the changes as points in their colour.
-  - The train is the tracker on a ride, a walker on a change.
+  - The tracker is a badge: the train on a ride, the walker before leaving
+    and on a change.
   - Two text lines: the change, compact ("Würzburg Hbf → RE 10 · Pl. 5 · 6 min
     · tight"), then the next stop and the speed.
 

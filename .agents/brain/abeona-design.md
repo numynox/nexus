@@ -262,21 +262,32 @@ Sizes:
 | strip | 64 | the live card's header, flush with the card's top, and its compact form's |
 
 **The strip is the whole journey.** It is the live card's header, flush with
-the card's top and sides. Under its track runs the progress bar: the current
-ride (on board, else the one to board) thick, a dot per stop, the part done
-in burgundy up to where the train's nose is; a small filled dot for each ride
-before it and a small hollow dot for each after it. A change is a dashed
-connector between the ride done and the next, in the change's confidence
-colour, with a walker moving along it as the change time passes; before
-leaving the same connector, neutral, walks to the station from the leave
-time. The bar lies in the ground below the train, so the train never hides
-it. Before boarding the bar is empty and the train stands at the first dot.
+the card's top and sides. Under its track runs the journey bar, in a frame
+that never moves: 16 dp from both edges, in every state from before leaving
+to the last ride. Its parts are always all the journey's rides and changes;
+the part in focus takes the room, the rest are short:
+- **dots mean the stops of the train in focus, and only that**: its line,
+  the burgundy fill up to the train's nose, a dot per stop and one at each
+  end (the train in the scene above moves in sync);
+- **another train is a capsule**: a short rounded line without dots,
+  burgundy once done, muted ahead;
+- **a change is the gap between two capsules**; while changing it is the part
+  in focus: a dashed line in its confidence colour with a walker badge moving
+  through the change time;
+- **the destination** is always the right end: the end ring, or a ring cap on
+  the last capsule;
+- before leaving the walker badge waits on the first dot.
+
+A figure on a bar is always a **badge**: a disc in the surface colour, a ring
+and the glyph in the colour of the part it sits on, a soft shadow; the Live
+Update's train and walker trackers are the same badges. The bar lies in the
+ground below the train, so the train never hides it.
 
 **It moves, never jumps.** The train, the bar, the walker and the stop
 rail's marker (below) move from one frame clock, from the expected times, not
 the minute tick; a new live time glides in (1 s), a new state morphs (the
-ride done shrinks into its dot, the next grows out of its own, 600 ms) while
-the old train drives out and the next drives in. With less motion asked for,
+parts take their new widths, dots and dashes fading in and out, 600 ms)
+while the old train drives out and the next drives in. With less motion asked for,
 it all stands still and updates in place
 (`decisions/2026-11-24-abeona-journey-header.md`).
 
