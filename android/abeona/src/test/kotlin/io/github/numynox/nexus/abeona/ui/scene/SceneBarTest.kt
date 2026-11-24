@@ -24,7 +24,7 @@ class SceneBarTest {
 
     @Test
     fun theTrainMovesBySliversAcrossTheMinute() {
-        val j = BarJourney(listOf(ride, next), 0, BarState.OnBoard, null, null)
+        val j = BarJourney(listOf(ride, next), 0, BarState.OnBoard, null)
         // Two seconds of frames either side of a full minute: no jump at it.
         val (step, total) = frames(t0 + 10 * minute - 1_000, 125) { SceneModel.journeyBar(j, it).fraction }
         val perFrame = 16.0 / (32 * minute)
@@ -34,10 +34,13 @@ class SceneBarTest {
 
     @Test
     fun theWalkerMovesBySliversThroughTheChange() {
-        val j = BarJourney(listOf(ride, next), 1, BarState.Changing, null, Confidence.TIGHT)
-        val (step, total) = frames(t0 + 34 * minute, 125) { SceneModel.journeyBar(j, it).walk!!.fraction }
+        val j = BarJourney(listOf(ride, next), 1, BarState.Changing, Confidence.TIGHT)
+        val (step, total) = frames(t0 + 34 * minute, 125) { SceneModel.journeyBar(j, it).fraction }
         assertTrue("step $step", step <= 16.0 / (8 * minute) * 1.01)
         assertEquals(2_000.0 / (8 * minute), total, 1e-9)
-        assertEquals(WalkTone.Watch, SceneModel.journeyBar(j, t0 + 34 * minute).walk!!.tone)
+        // On the change, in focus, in its confidence's colour.
+        val bar = SceneModel.journeyBar(j, t0 + 34 * minute)
+        assertEquals(1, bar.focus)
+        assertEquals(BarTone.Watch, bar.tone)
     }
 }

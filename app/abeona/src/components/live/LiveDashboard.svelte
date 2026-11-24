@@ -225,14 +225,10 @@
     const current = rides.findIndex((r) => r.i === focusIdx);
     if (current < 0) return null;
     const t = day.kind === "changing" ? changeInto(focusIdx) : null;
-    // By the clock alone, from the leave time to the departure the traveller is on the way: the walk to the
-    // first train goes on. Only the location says they are at the station.
-    const walking = day.kind === "at_station" && day.source !== "location" && current === 0;
     return {
       rides: list,
       current,
-      state: walking ? "before_leaving" : day.kind,
-      leaveAt: day.leaveAt ? ms(day.leaveAt) : null,
+      state: day.kind,
       confidence: t && !legs[t.fromIndex].cancelled && !legs[t.toIndex].cancelled ? t.confidence : null,
     };
   });

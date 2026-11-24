@@ -60,7 +60,7 @@ class SceneScreenshots {
             val shift = (i - current) * 110 * minute
             BarRide(focus.departure + shift, focus.arrival + shift, focus.stops.map { it + shift })
         }
-        return BarJourney(list, current, state, if (state == BarState.BeforeLeaving) at.toEpochMilli() - 2 * minute else null, confidence)
+        return BarJourney(list, current, state, confidence)
     }
 
     private fun shot(name: String, at: Instant, mode: ThemeMode = ThemeMode.Light) {
@@ -79,7 +79,7 @@ class SceneScreenshots {
                     Scene(SceneState.Stopped, size = SceneSize.Header, at = at)
                     caption("header · arrived · suburban")
                     Scene(SceneState.Arrived, size = SceneSize.Header, train = TrainKind.Suburban, at = at)
-                    caption("strip · before leaving: on foot to the train")
+                    caption("strip · before leaving: the walker waits on the origin")
                     Scene(SceneState.Waiting, size = SceneSize.Strip, journey = journey(at, BarState.BeforeLeaving, rides = 2), now = at, at = at)
                     caption("strip · waiting at the station, the ride's rail")
                     Scene(SceneState.Waiting, size = SceneSize.Strip, journey = journey(at, BarState.AtStation), now = at, at = at)
@@ -108,7 +108,7 @@ class SceneScreenshots {
     @Test
     fun withinTheMinute() {
         val start = day.toEpochMilli()
-        val hop = BarJourney(listOf(BarRide(start, start + 4 * 60_000, emptyList())), 0, BarState.OnBoard, null, null)
+        val hop = BarJourney(listOf(BarRide(start, start + 4 * 60_000, emptyList())), 0, BarState.OnBoard, null)
         compose.setContent {
             NexusTheme(AbeonaPalette, themeMode = ThemeMode.Light) {
                 Column(Modifier.background(MaterialTheme.colorScheme.surface).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

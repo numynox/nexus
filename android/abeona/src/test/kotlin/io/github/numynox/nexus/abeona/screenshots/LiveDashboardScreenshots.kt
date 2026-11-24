@@ -350,6 +350,11 @@ class LiveDashboardScreenshots {
         signals = TravelSignals(onboardLegIndex = 2), onboard = portal(330),
     )
 
+    @Test fun longOnBoardDark() = shot(
+        "59zh-live-long-on-board-dark", "On board the ICE 16, ride 3 of 4 · dark", 330, of = louvainTrip(t0), mode = ThemeMode.Dark,
+        signals = TravelSignals(onboardLegIndex = 2), onboard = portal(330),
+    )
+
     @Test fun longDoneOpen() = shot(
         "59w-live-done-open", "On board the ICE 16 · what is done, unfolded", 330, of = louvainTrip(t0),
         signals = TravelSignals(onboardLegIndex = 2), onboard = portal(330), tap = listOf("Show what is done"),

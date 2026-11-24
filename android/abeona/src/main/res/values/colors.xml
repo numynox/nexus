@@ -11,4 +11,11 @@
     <color name="abeona_bar_watch">#F2C230</color>
     <color name="abeona_bar_bad">#C4372B</color>
     <color name="abeona_progress_icon">#8C1D40</color>
+    <!-- The Live Update's tracker (the train, or the walker while on foot) is a
+         badge, so it stands clear of the bar it sits on: a disc in the shade's
+         surface, a ring and the glyph in the brand, a soft shadow round it. The
+         tracker is drawn untinted, so these show as designed. -->
+    <color name="abeona_progress_badge">#FFFFFF</color>
+    <color name="abeona_progress_badge_ink">#8C1D40</color>
+    <color name="abeona_progress_badge_shadow">#2E000000</color>
 </resources>

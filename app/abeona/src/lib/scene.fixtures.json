@@ -1,5 +1,5 @@
 {
-  "note": "Cases for the scene's model, run by scene.test.ts and Android's SceneModelFixturesTest. Regenerate neither by hand: change both implementations and these together. Numbers are compared to 0.002; times to the minute. journey: journeyBar(rides, current, state, leaveAt, confidence) at now (times ISO, rides' stops their expected arrivals). barLayout: barLayout(before, after, walk present) on a strip that wide; rides as [from, to], walkFrom/walkTo null without a walk.",
+  "note": "Cases for the scene's model, run by scene.test.ts and Android's SceneModelFixturesTest. Regenerate neither by hand: change both implementations and these together. Numbers are compared to 0.002; times to the minute. journey: journeyBar(rides, current, state, confidence) at now (times ISO; a ride's stops are their expected arrivals). barLayout: barLayout(parts, focus) on a strip that wide, each part as [from, to]. trainOnBar: where the train's nose stands over x.",
   "sky": [
     {
       "at": "2026-11-15T05:00:00Z",
@@ -585,19 +585,22 @@
       ],
       "current": 0,
       "state": "on_board",
-      "leaveAt": null,
       "confidence": null,
       "now": "2026-11-23T10:20:30Z",
-      "before": 0,
-      "after": 0,
+      "parts": [
+        "ride"
+      ],
+      "focus": 0,
+      "fraction": 0.341667,
+      "tone": null,
+      "done": 0,
+      "walkerAtStart": false,
       "stops": [
         0,
         0.25,
         0.5,
         1
-      ],
-      "fraction": 0.341667,
-      "walk": null
+      ]
     },
     {
       "case": "one ride, at the station",
@@ -613,19 +616,22 @@
       ],
       "current": 0,
       "state": "at_station",
-      "leaveAt": null,
       "confidence": null,
       "now": "2026-11-23T09:52:00Z",
-      "before": 0,
-      "after": 0,
+      "parts": [
+        "ride"
+      ],
+      "focus": 0,
+      "fraction": 0,
+      "tone": null,
+      "done": 0,
+      "walkerAtStart": false,
       "stops": [
         0,
         0.25,
         0.5,
         1
-      ],
-      "fraction": 0,
-      "walk": null
+      ]
     },
     {
       "case": "on board ride 2 of 3",
@@ -653,18 +659,25 @@
       ],
       "current": 1,
       "state": "on_board",
-      "leaveAt": null,
       "confidence": null,
       "now": "2026-11-23T11:24:00Z",
-      "before": 1,
-      "after": 1,
+      "parts": [
+        "ride",
+        "change",
+        "ride",
+        "change",
+        "ride"
+      ],
+      "focus": 2,
+      "fraction": 0.5,
+      "tone": null,
+      "done": 2,
+      "walkerAtStart": false,
       "stops": [
         0,
         0.375,
         1
-      ],
-      "fraction": 0.5,
-      "walk": null
+      ]
     },
     {
       "case": "on board ride 1 of 2, not left yet",
@@ -687,19 +700,24 @@
       ],
       "current": 0,
       "state": "on_board",
-      "leaveAt": null,
       "confidence": null,
       "now": "2026-11-23T09:59:00Z",
-      "before": 0,
-      "after": 1,
+      "parts": [
+        "ride",
+        "change",
+        "ride"
+      ],
+      "focus": 0,
+      "fraction": 0,
+      "tone": null,
+      "done": 0,
+      "walkerAtStart": false,
       "stops": [
         0,
         0.25,
         0.5,
         1
-      ],
-      "fraction": 0,
-      "walk": null
+      ]
     },
     {
       "case": "changing, safe",
@@ -727,21 +745,21 @@
       ],
       "current": 1,
       "state": "changing",
-      "leaveAt": null,
       "confidence": "safe",
       "now": "2026-11-23T11:02:00Z",
-      "before": 1,
-      "after": 1,
-      "stops": [
-        0,
-        0.375,
-        1
+      "parts": [
+        "ride",
+        "change",
+        "ride",
+        "change",
+        "ride"
       ],
-      "fraction": 0,
-      "walk": {
-        "fraction": 0.25,
-        "tone": "ok"
-      }
+      "focus": 1,
+      "fraction": 0.25,
+      "tone": "ok",
+      "done": 1,
+      "walkerAtStart": false,
+      "stops": []
     },
     {
       "case": "changing, tight",
@@ -764,21 +782,19 @@
       ],
       "current": 1,
       "state": "changing",
-      "leaveAt": null,
       "confidence": "tight",
       "now": "2026-11-23T11:03:30Z",
-      "before": 1,
-      "after": 0,
-      "stops": [
-        0,
-        0.428571,
-        1
+      "parts": [
+        "ride",
+        "change",
+        "ride"
       ],
-      "fraction": 0,
-      "walk": {
-        "fraction": 0.7,
-        "tone": "watch"
-      }
+      "focus": 1,
+      "fraction": 0.7,
+      "tone": "watch",
+      "done": 1,
+      "walkerAtStart": false,
+      "stops": []
     },
     {
       "case": "changing, at risk (the first train late)",
@@ -801,21 +817,19 @@
       ],
       "current": 1,
       "state": "changing",
-      "leaveAt": null,
       "confidence": "at_risk",
       "now": "2026-11-23T11:07:00Z",
-      "before": 1,
-      "after": 0,
-      "stops": [
-        0,
-        0.375,
-        1
+      "parts": [
+        "ride",
+        "change",
+        "ride"
       ],
-      "fraction": 0,
-      "walk": {
-        "fraction": 0.5,
-        "tone": "bad"
-      }
+      "focus": 1,
+      "fraction": 0.5,
+      "tone": "bad",
+      "done": 1,
+      "walkerAtStart": false,
+      "stops": []
     },
     {
       "case": "changing, impossible (the next train gone)",
@@ -838,21 +852,19 @@
       ],
       "current": 1,
       "state": "changing",
-      "leaveAt": null,
       "confidence": "impossible",
       "now": "2026-11-23T11:06:30Z",
-      "before": 1,
-      "after": 0,
-      "stops": [
-        0,
-        0.444444,
-        1
+      "parts": [
+        "ride",
+        "change",
+        "ride"
       ],
-      "fraction": 0,
-      "walk": {
-        "fraction": 1,
-        "tone": "bad"
-      }
+      "focus": 1,
+      "fraction": 1,
+      "tone": "bad",
+      "done": 1,
+      "walkerAtStart": false,
+      "stops": []
     },
     {
       "case": "changing, the change unknown",
@@ -875,24 +887,22 @@
       ],
       "current": 1,
       "state": "changing",
-      "leaveAt": null,
       "confidence": null,
       "now": "2026-11-23T11:06:00Z",
-      "before": 1,
-      "after": 0,
-      "stops": [
-        0,
-        0.375,
-        1
+      "parts": [
+        "ride",
+        "change",
+        "ride"
       ],
-      "fraction": 0,
-      "walk": {
-        "fraction": 0.75,
-        "tone": "neutral"
-      }
+      "focus": 1,
+      "fraction": 0.75,
+      "tone": "neutral",
+      "done": 1,
+      "walkerAtStart": false,
+      "stops": []
     },
     {
-      "case": "before leaving, not yet time",
+      "case": "before leaving",
       "rides": [
         {
           "departure": "2026-11-23T10:00:00Z",
@@ -912,25 +922,27 @@
       ],
       "current": 0,
       "state": "before_leaving",
-      "leaveAt": "2026-11-23T09:40:00Z",
       "confidence": null,
       "now": "2026-11-23T09:30:00Z",
-      "before": 0,
-      "after": 1,
+      "parts": [
+        "ride",
+        "change",
+        "ride"
+      ],
+      "focus": 0,
+      "fraction": 0,
+      "tone": null,
+      "done": 0,
+      "walkerAtStart": true,
       "stops": [
         0,
         0.25,
         0.5,
         1
-      ],
-      "fraction": 0,
-      "walk": {
-        "fraction": 0,
-        "tone": "neutral"
-      }
+      ]
     },
     {
-      "case": "before leaving, on the way",
+      "case": "on board ride 3 of 4",
       "rides": [
         {
           "departure": "2026-11-23T10:00:00Z",
@@ -946,26 +958,42 @@
           "stops": [
             "2026-11-23T11:20:00Z"
           ]
+        },
+        {
+          "departure": "2026-11-23T11:50:00Z",
+          "arrival": "2026-11-23T12:10:00Z",
+          "stops": []
+        },
+        {
+          "departure": "2026-11-23T12:20:00Z",
+          "arrival": "2026-11-23T12:50:00Z",
+          "stops": [
+            "2026-11-23T12:35:00Z"
+          ]
         }
       ],
-      "current": 0,
-      "state": "before_leaving",
-      "leaveAt": "2026-11-23T09:40:00Z",
+      "current": 2,
+      "state": "on_board",
       "confidence": null,
-      "now": "2026-11-23T09:50:00Z",
-      "before": 0,
-      "after": 1,
+      "now": "2026-11-23T12:00:00Z",
+      "parts": [
+        "ride",
+        "change",
+        "ride",
+        "change",
+        "ride",
+        "change",
+        "ride"
+      ],
+      "focus": 4,
+      "fraction": 0.5,
+      "tone": null,
+      "done": 4,
+      "walkerAtStart": false,
       "stops": [
         0,
-        0.25,
-        0.5,
         1
-      ],
-      "fraction": 0,
-      "walk": {
-        "fraction": 0.5,
-        "tone": "neutral"
-      }
+      ]
     },
     {
       "case": "arrived",
@@ -993,180 +1021,247 @@
       ],
       "current": 2,
       "state": "arrived",
-      "leaveAt": null,
       "confidence": null,
       "now": "2026-11-23T12:30:00Z",
-      "before": 2,
-      "after": 0,
-      "stops": [
-        0,
-        1
+      "parts": [
+        "ride",
+        "change",
+        "ride",
+        "change",
+        "ride"
       ],
+      "focus": null,
       "fraction": 1,
-      "walk": null
+      "tone": null,
+      "done": 5,
+      "walkerAtStart": false,
+      "stops": []
     }
   ],
   "barLayout": [
     {
       "case": "one ride",
       "width": 360,
-      "before": 0,
-      "after": 0,
-      "walk": false,
-      "rides": [
-        [
-          64,
-          338
-        ]
+      "parts": [
+        "ride"
       ],
-      "walkFrom": null,
-      "walkTo": null
-    },
-    {
-      "case": "on board ride 2 of 3",
-      "width": 360,
-      "before": 1,
-      "after": 1,
-      "walk": false,
-      "rides": [
-        [
-          50,
-          50
-        ],
-        [
-          64,
-          330
-        ],
-        [
-          344,
-          344
-        ]
-      ],
-      "walkFrom": null,
-      "walkTo": null
-    },
-    {
-      "case": "on board ride 1 of 2",
-      "width": 360,
-      "before": 0,
-      "after": 1,
-      "walk": false,
-      "rides": [
-        [
-          64,
-          330
-        ],
-        [
-          344,
-          344
-        ]
-      ],
-      "walkFrom": null,
-      "walkTo": null
-    },
-    {
-      "case": "changing into ride 2 of 2",
-      "width": 360,
-      "before": 1,
-      "after": 0,
-      "walk": true,
-      "rides": [
-        [
-          24,
-          24
-        ],
-        [
-          64,
-          338
-        ]
-      ],
-      "walkFrom": 24,
-      "walkTo": 64
-    },
-    {
-      "case": "before leaving, 2 rides",
-      "width": 360,
-      "before": 0,
-      "after": 1,
-      "walk": true,
-      "rides": [
-        [
-          64,
-          330
-        ],
-        [
-          344,
-          344
-        ]
-      ],
-      "walkFrom": 24,
-      "walkTo": 64
-    },
-    {
-      "case": "changing into ride 3 of 4",
-      "width": 380,
-      "before": 2,
-      "after": 1,
-      "walk": true,
-      "rides": [
+      "focus": 0,
+      "at": [
         [
           16,
-          16
-        ],
-        [
-          27,
-          27
-        ],
-        [
-          67,
-          350
-        ],
-        [
-          364,
-          364
+          344
         ]
-      ],
-      "walkFrom": 27,
-      "walkTo": 67
+      ]
     },
     {
-      "case": "many rides on a narrow strip: the dots crowd closer",
-      "width": 240,
-      "before": 3,
-      "after": 3,
-      "walk": true,
-      "rides": [
+      "case": "two rides, on ride 1",
+      "width": 360,
+      "parts": [
+        "ride",
+        "change",
+        "ride"
+      ],
+      "focus": 0,
+      "at": [
         [
           16,
-          16
+          308
         ],
         [
-          21.836735,
-          21.836735
+          308,
+          320
         ],
         [
-          27.673469,
-          27.673469
-        ],
-        [
-          48.897959,
-          204.897959
-        ],
-        [
-          212.326531,
-          212.326531
-        ],
-        [
-          218.163265,
-          218.163265
-        ],
-        [
-          224,
-          224
+          320,
+          344
         ]
+      ]
+    },
+    {
+      "case": "two rides, changing",
+      "width": 360,
+      "parts": [
+        "ride",
+        "change",
+        "ride"
       ],
-      "walkFrom": 27.673469,
-      "walkTo": 48.897959
+      "focus": 1,
+      "at": [
+        [
+          16,
+          40
+        ],
+        [
+          40,
+          320
+        ],
+        [
+          320,
+          344
+        ]
+      ]
+    },
+    {
+      "case": "two rides, on ride 2",
+      "width": 360,
+      "parts": [
+        "ride",
+        "change",
+        "ride"
+      ],
+      "focus": 2,
+      "at": [
+        [
+          16,
+          40
+        ],
+        [
+          40,
+          52
+        ],
+        [
+          52,
+          344
+        ]
+      ]
+    },
+    {
+      "case": "four rides, the second change: the stubs shrink",
+      "width": 300,
+      "parts": [
+        "ride",
+        "change",
+        "ride",
+        "change",
+        "ride",
+        "change",
+        "ride"
+      ],
+      "focus": 3,
+      "at": [
+        [
+          16,
+          37.44
+        ],
+        [
+          37.44,
+          48.16
+        ],
+        [
+          48.16,
+          69.6
+        ],
+        [
+          69.6,
+          230.4
+        ],
+        [
+          230.4,
+          251.84
+        ],
+        [
+          251.84,
+          262.56
+        ],
+        [
+          262.56,
+          284
+        ]
+      ]
+    },
+    {
+      "case": "a narrow strip, four rides, on ride 3: the change stubs at their least",
+      "width": 200,
+      "parts": [
+        "ride",
+        "change",
+        "ride",
+        "change",
+        "ride",
+        "change",
+        "ride"
+      ],
+      "focus": 4,
+      "at": [
+        [
+          16,
+          30.933333
+        ],
+        [
+          30.933333,
+          38.933333
+        ],
+        [
+          38.933333,
+          53.866667
+        ],
+        [
+          53.866667,
+          61.866667
+        ],
+        [
+          61.866667,
+          161.066667
+        ],
+        [
+          161.066667,
+          169.066667
+        ],
+        [
+          169.066667,
+          184
+        ]
+      ]
+    },
+    {
+      "case": "arrived: the rides share the room",
+      "width": 360,
+      "parts": [
+        "ride",
+        "change",
+        "ride"
+      ],
+      "focus": null,
+      "at": [
+        [
+          16,
+          174
+        ],
+        [
+          174,
+          186
+        ],
+        [
+          186,
+          344
+        ]
+      ]
+    }
+  ],
+  "trainOnBar": [
+    {
+      "x": 16,
+      "kind": "ice",
+      "scale": 1,
+      "nose": 50
+    },
+    {
+      "x": 120,
+      "kind": "ice",
+      "scale": 1,
+      "nose": 120
+    },
+    {
+      "x": 16,
+      "kind": "bus",
+      "scale": 1,
+      "nose": 36
+    },
+    {
+      "x": 40,
+      "kind": "regional",
+      "scale": 1,
+      "nose": 44
     }
   ]
 }

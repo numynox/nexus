@@ -26,22 +26,26 @@ import kotlin.math.tan
 
 enum class SceneState { Idle, Parked, Waiting, Riding, Stopped, Arrived }
 
-// The strip's bar is the whole journey (abeona-design.md §7, §8): the ride in
-// focus, the one on board or else the one to board next, takes the middle
-// with its stops and its progress; every earlier ride is one small filled dot
-// at the left, every later one a hollow dot at the right. On foot into the
-// ride in focus (a change, or the way to the first train) a dashed connector
-// leads from the last ride done to it, with a walker on it as far along as
-// the time allows, in the change's confidence colour (neutral on the way to
-// the station). Worked out from the clock with the expected times on every
-// frame of the scene, so the train and the walker move continuously rather
-// than minute by minute.
+// The strip's bar is the whole journey (abeona-design.md §7, §8), in a frame
+// that never changes during the trip: from BAR_PAD to BAR_PAD off either
+// edge, in every state. Its parts are the journey's parts, always all of
+// them, left to right: ride 1, change 1, ride 2, … ride n. One part is in
+// focus and takes the room (the ride on board, else the ride to board; while
+// changing, the change itself); the others are short stubs. A focused ride
+// shows its stops and how far the train is; a focused change is a dashed line
+// in its confidence colour with the walker on it, as far along as the change
+// time allows. Before leaving the walker waits on the origin. Worked out from
+// the clock with the expected times on every frame of the scene, so nothing
+// moves minute by minute.
 
 /** What the traveller is doing, as the bar reads it (the travel day's kind). */
 enum class BarState { BeforeLeaving, AtStation, Changing, OnBoard, Arrived }
 
-/** The walk's colour: the change's confidence, neutral on the way to the station. */
-enum class WalkTone { Ok, Watch, Bad, Neutral }
+/** A focused change's colour: its confidence; neutral when it is not known. */
+enum class BarTone { Ok, Watch, Bad, Neutral }
+
+/** A part of the journey on the bar. */
+enum class BarPart { Ride, Change }
 
 /** A ride as the bar reads it: its expected departure and arrival, and the expected arrivals at the stops between (ms). */
 data class BarRide(val departure: Long, val arrival: Long, val stops: List<Long>)
@@ -49,35 +53,32 @@ data class BarRide(val departure: Long, val arrival: Long, val stops: List<Long>
 data class BarJourney(
     /** The rides, walks left out. */
     val rides: List<BarRide>,
-    /** The ride on board, or the one to board next; the last one once arrived. */
+    /** The ride on board, or the one to board next (while changing: the one after the change). */
     val current: Int,
     val state: BarState,
-    /** Before leaving: when to set off (ms). */
-    val leaveAt: Long?,
     /** Changing: the change into the current ride. */
     val confidence: Confidence?,
 )
 
-/** On foot into the ride in focus: how far along the time on foot, and the connector's colour. */
-data class BarWalk(val fraction: Double, val tone: WalkTone)
-
 data class SceneBar(
-    /** Rides before the one in focus: a filled dot each. */
-    val before: Int,
-    /** Rides after it: a hollow dot each. */
-    val after: Int,
-    /** The ride in focus's stops as fractions of it: 0, those between by time, 1. */
-    val stops: List<Double>,
-    /** How far along that ride the train is: 0 until it leaves (and while waiting for it), 1 once arrived. */
+    /** Ride, change, ride, … ride: 2n - 1 parts for n rides. */
+    val parts: List<BarPart>,
+    /** The part in focus (an index into [parts]); null once arrived. */
+    val focus: Int?,
+    /** How far along the focused part: the train on a ride (0 until it leaves), the walker on a change. */
     val fraction: Double,
-    val walk: BarWalk?,
+    /** A focused change's colour, from its confidence; null otherwise. */
+    val tone: BarTone?,
+    /** How many parts, from the left, are done. */
+    val done: Int,
+    /** Before leaving: the walker waits on the origin. */
+    val walkerAtStart: Boolean,
+    /** A focused ride's stops as fractions of it: 0, those between by time, 1. Empty otherwise. */
+    val stops: List<Double>,
 )
 
-/** A stretch of the bar, in units: a dot where [from] = [to]. */
+/** A part's stretch of the bar, in units. */
 data class BarSpan(val from: Double, val to: Double)
-
-/** Every ride's stretch of the bar left to right (the ride in focus from its first stop to its last), and the walk's connector into it. */
-data class BarLayout(val rides: List<BarSpan>, val walk: BarSpan?)
 
 /** [height] of the box; how much larger than the strip's the train ([trainScale]) and the hills and trees ([landScale]) are drawn. */
 enum class SceneSize(val height: Int, val trainScale: Double, val landScale: Double) {
@@ -400,10 +401,10 @@ object SceneModel {
 
     // -------------------------------------------------------------- the journey bar
 
-    private fun walkTone(confidence: Confidence): WalkTone = when (confidence) {
-        Confidence.SAFE -> WalkTone.Ok
-        Confidence.TIGHT -> WalkTone.Watch
-        Confidence.AT_RISK, Confidence.IMPOSSIBLE -> WalkTone.Bad
+    private fun barTone(confidence: Confidence): BarTone = when (confidence) {
+        Confidence.SAFE -> BarTone.Ok
+        Confidence.TIGHT -> BarTone.Watch
+        Confidence.AT_RISK, Confidence.IMPOSSIBLE -> BarTone.Bad
     }
 
     /** The share of [from, to] that lies behind [now]; a span of nothing counts as a millisecond. */
@@ -412,64 +413,73 @@ object SceneModel {
     /** The bar at [now] (ms). */
     fun journeyBar(j: BarJourney, now: Long): SceneBar {
         val n = j.rides.size
-        if (n == 0) return SceneBar(0, 0, emptyList(), 0.0, null)
-        val arrived = j.state == BarState.Arrived
-        val c = if (arrived) n - 1 else j.current.coerceIn(0, n - 1)
+        val parts = (0 until max(0, 2 * n - 1)).map { if (it % 2 == 0) BarPart.Ride else BarPart.Change }
+        if (n == 0 || j.state == BarState.Arrived) return SceneBar(parts, null, 1.0, null, parts.size, false, emptyList())
+        val c = j.current.coerceIn(0, n - 1)
+        if (j.state == BarState.Changing && c > 0) {
+            return SceneBar(
+                parts, 2 * c - 1,
+                fraction = along(now, j.rides[c - 1].arrival, j.rides[c].departure),
+                tone = j.confidence?.let(::barTone) ?: BarTone.Neutral,
+                done = 2 * c - 1,
+                walkerAtStart = false,
+                stops = emptyList(),
+            )
+        }
         val ride = j.rides[c]
-        val stops = listOf(0.0) + ride.stops.map { along(it, ride.departure, ride.arrival) } + 1.0
-        val fraction = when {
-            arrived -> 1.0
-            j.state == BarState.OnBoard -> along(now, ride.departure, ride.arrival)
-            else -> 0.0
-        }
-        val walk = when {
-            // The walker waits at the start until it is time to leave, then walks to the train.
-            j.state == BarState.BeforeLeaving -> BarWalk(j.leaveAt?.let { along(now, it, ride.departure) } ?: 0.0, WalkTone.Neutral)
-            j.state == BarState.Changing && c > 0 -> BarWalk(along(now, j.rides[c - 1].arrival, ride.departure), j.confidence?.let(::walkTone) ?: WalkTone.Neutral)
-            else -> null
-        }
-        return SceneBar(c, n - 1 - c, stops, fraction, walk)
+        return SceneBar(
+            parts, 2 * c,
+            fraction = if (j.state == BarState.OnBoard) along(now, ride.departure, ride.arrival) else 0.0,
+            tone = null,
+            done = 2 * c,
+            walkerAtStart = j.state == BarState.BeforeLeaving,
+            stops = listOf(0.0) + ride.stops.map { along(it, ride.departure, ride.arrival) } + 1.0,
+        )
     }
 
-    /** A ride's dot on the bar (radius), the distance between two, and from a dot to the ride in focus's end. */
-    const val RIDE_DOT = 3.0
-    const val RIDE_PITCH = 11.0
-    const val RIDE_GAP = 14.0
-    /** The walk's connector: from the last ride done (or the bar's start) to the ride in focus. */
-    const val WALK_LENGTH = 40.0
-    /** The bar keeps this much clear at both edges of the strip. */
+    /** A ride and a change out of focus: their stubs, and the least they shrink to. */
+    const val RIDE_STUB = 24.0
+    const val CHANGE_STUB = 12.0
+    const val RIDE_STUB_MIN = 12.0
+    const val CHANGE_STUB_MIN = 8.0
+    /** The stubs take at most this share of the bar; beyond it they all shrink in proportion. */
+    const val STUB_SHARE = 0.4
+    /** The bar keeps this much clear at both edges of the strip, in every state. */
     const val BAR_PAD = 16.0
-    /** The ride in focus keeps at least this share of the bar (the strip less its pads): the dots crowd closer first. */
-    const val SEGMENT_SHARE = 0.75
+    /** A ride's ends and the focused ride's stops on the bar (radius); the destination keeps BAR_DOT_END's ring. */
+    const val BAR_NODE = 3.5
+    /** A figure on the bar (the walker) sits in a badge this wide: a disc, a ring, the glyph. */
+    const val BADGE = 18.0
 
-    /** How long the bar glides to a value live data moved, and morphs from one state to the next (ms). */
+    /** How long the bar glides to a value live data moved, and morphs from one focus to the next (ms). */
     const val GLIDE_MS = 1000
     const val MORPH_MS = 600
 
     /**
-     * Where the bar's parts lie on a strip [width] wide. With nothing before
-     * it and no walk, the ride in focus runs from RAIL_START to RAIL_END as
-     * the ride's rail always did; the dots and the walk sit beside it, and
-     * crowd closer when there are so many that the ride would get less than
-     * SEGMENT_SHARE of the bar.
+     * Each part's stretch of the bar, left to right, on a strip [width]
+     * wide. The stubs at their widths (shrunk together when they would take
+     * more than STUB_SHARE), the part in [focus] the rest. Without a focus
+     * (arrived) the rides share the room and the changes keep their stubs.
      */
-    fun barLayout(before: Int, after: Int, walking: Boolean, width: Double): BarLayout {
-        val lead = if (walking) WALK_LENGTH else if (before > 0) RIDE_GAP else 0.0
-        val left = lead + max(0, before - 1) * RIDE_PITCH
-        val right = if (after > 0) RIDE_GAP + (after - 1) * RIDE_PITCH else 0.0
-        val end0 = if (after > 0) width - BAR_PAD else width - RAIL_END
-        var k = 1.0
-        var start = max(RAIL_START.toDouble(), BAR_PAD + left)
-        val least = SEGMENT_SHARE * (width - 2 * BAR_PAD)
-        if (end0 - right - start < least && left + right > 0) {
-            k = clamp01((end0 - BAR_PAD - least) / (left + right))
-            start = BAR_PAD + left * k
+    fun barLayout(parts: List<BarPart>, focus: Int?, width: Double): List<BarSpan> {
+        if (parts.isEmpty()) return emptyList()
+        val room = width - 2 * BAR_PAD
+        val widths = if (focus == null) {
+            val rides = parts.count { it == BarPart.Ride }
+            val changes = (parts.size - rides) * CHANGE_STUB
+            parts.map { if (it == BarPart.Ride) (room - changes) / rides else CHANGE_STUB }
+        } else {
+            fun stub(p: BarPart) = if (p == BarPart.Ride) RIDE_STUB else CHANGE_STUB
+            val stubs = parts.withIndex().sumOf { (i, p) -> if (i == focus) 0.0 else stub(p) }
+            val k = if (stubs > STUB_SHARE * room) STUB_SHARE * room / stubs else 1.0
+            val sized = parts.map { if (it == BarPart.Ride) max(RIDE_STUB_MIN, RIDE_STUB * k) else max(CHANGE_STUB_MIN, CHANGE_STUB * k) }.toMutableList()
+            sized[focus] = room - sized.withIndex().sumOf { (i, w) -> if (i == focus) 0.0 else w }
+            sized
         }
-        val end = end0 - right * k
-        val lastBefore = start - lead * k
-        val rides = (0 until before).map { i -> (lastBefore - (before - 1 - i) * RIDE_PITCH * k).let { BarSpan(it, it) } } +
-            BarSpan(start, end) +
-            (0 until after).map { i -> (end + (RIDE_GAP + i * RIDE_PITCH) * k).let { BarSpan(it, it) } }
-        return BarLayout(rides, if (walking) BarSpan(start - WALK_LENGTH * k, start) else null)
+        var x = BAR_PAD
+        return widths.map { w -> BarSpan(x, x + w).also { x += w } }
     }
+
+    /** Where the train's nose stands over a point [x] of the bar: there, but never so far left that its leading car is cut off by the strip's edge. */
+    fun trainOnBar(x: Double, kind: TrainKind, scale: Double): Double = max(x, kind.spec.head * scale + 6)
 }

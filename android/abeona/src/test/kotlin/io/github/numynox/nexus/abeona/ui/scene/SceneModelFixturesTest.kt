@@ -96,7 +96,7 @@ class SceneModelFixturesTest {
     }
 
     @Test
-    fun theBarIsTheWholeJourney() {
+    fun theBarIsTheWholeJourneyEveryRideAndChangeOneInFocus() {
         for (c in cases("journey")) {
             val what = c.text("case")
             val journey = BarJourney(
@@ -105,40 +105,37 @@ class SceneModelFixturesTest {
                 },
                 current = c.number("current").toInt(),
                 state = BarState.entries.first { it.name == snakeToPascal(c.text("state")) },
-                leaveAt = c.getValue("leaveAt").jsonPrimitive.contentOrNull?.let { Instant.parse(it).toEpochMilli() },
                 confidence = c.getValue("confidence").jsonPrimitive.contentOrNull?.let { name -> Confidence.entries.first { it.name == name.uppercase() } },
             )
             val bar = SceneModel.journeyBar(journey, c.moment("now"))
-            assertEquals("$what: before", c.number("before").toInt(), bar.before)
-            assertEquals("$what: after", c.number("after").toInt(), bar.after)
+            assertEquals("$what: parts", c.getValue("parts").jsonArray.map { it.jsonPrimitive.content }, bar.parts.map { it.name.lowercase() })
+            assertEquals("$what: focus", c.getValue("focus").jsonPrimitive.doubleOrNull?.toInt(), bar.focus)
+            near(bar.fraction, c.number("fraction"), "$what: fraction")
+            assertEquals("$what: tone", c.getValue("tone").jsonPrimitive.contentOrNull, bar.tone?.name?.lowercase())
+            assertEquals("$what: done", c.number("done").toInt(), bar.done)
+            assertEquals("$what: walker at the start", c.flag("walkerAtStart"), bar.walkerAtStart)
             val stops = c.getValue("stops").jsonArray.map { it.jsonPrimitive.double }
             assertEquals("$what: stops", stops.size, bar.stops.size)
             stops.forEachIndexed { i, f -> near(bar.stops[i], f, "$what: stop $i") }
-            near(bar.fraction, c.number("fraction"), "$what: fraction")
-            val walk = c.getValue("walk") as? JsonObject
-            if (walk == null) {
-                assertNull("$what: no walk", bar.walk)
-            } else {
-                near(bar.walk!!.fraction, walk.number("fraction"), "$what: walk")
-                assertEquals("$what: tone", walk.text("tone"), bar.walk!!.tone.name.lowercase())
-            }
         }
+    }
+
+    @Test
+    fun theBarsFrameNeverMovesTheFocusTakesTheRoomTheOthersAreStubs() {
         for (c in cases("barLayout")) {
             val what = c.text("case")
-            val layout = SceneModel.barLayout(c.number("before").toInt(), c.number("after").toInt(), c.flag("walk"), c.number("width"))
-            val rides = c.getValue("rides").jsonArray.map { it.jsonArray.map { x -> x.jsonPrimitive.double } }
-            assertEquals("$what: rides", rides.size, layout.rides.size)
-            rides.forEachIndexed { i, (from, to) ->
-                near(layout.rides[i].from, from, "$what: ride $i from")
-                near(layout.rides[i].to, to, "$what: ride $i to")
+            val parts = c.getValue("parts").jsonArray.map { p -> BarPart.entries.first { it.name.lowercase() == p.jsonPrimitive.content } }
+            val at = SceneModel.barLayout(parts, c.getValue("focus").jsonPrimitive.doubleOrNull?.toInt(), c.number("width"))
+            val expected = c.getValue("at").jsonArray.map { it.jsonArray.map { x -> x.jsonPrimitive.double } }
+            assertEquals("$what: parts", expected.size, at.size)
+            expected.forEachIndexed { i, (from, to) ->
+                near(at[i].from, from, "$what: part $i from")
+                near(at[i].to, to, "$what: part $i to")
             }
-            val from = c.getValue("walkFrom").jsonPrimitive.doubleOrNull
-            if (from == null) {
-                assertNull("$what: no walk", layout.walk)
-            } else {
-                near(layout.walk!!.from, from, "$what: walk from")
-                near(layout.walk!!.to, c.number("walkTo"), "$what: walk to")
-            }
+        }
+        for (c in cases("trainOnBar")) {
+            val kind = TrainKind.entries.first { it.name.lowercase() == c.text("kind") }
+            near(SceneModel.trainOnBar(c.number("x"), kind, c.number("scale")), c.number("nose"), "$kind over ${c.number("x")}")
         }
     }
 

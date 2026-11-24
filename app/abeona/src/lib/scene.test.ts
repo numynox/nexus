@@ -22,6 +22,7 @@ import {
   trainKind,
   trainLength,
   trainNoseX,
+  trainOnBar,
   travelSpeed,
 } from "./scene.ts";
 
@@ -84,7 +85,7 @@ test("a ride is drawn as the train it is", () => {
   for (const c of fixtures.nose) near(trainNoseX(c.kind, c.scale, c.width), c.x, `${c.kind} nose`);
 });
 
-test("the bar is the whole journey: the ride in focus, a dot for every other, the walk into it", () => {
+test("the bar is the whole journey: every ride and change, one in focus", () => {
   for (const c of fixtures.journey) {
     const journey: BarJourney = {
       rides: c.rides.map((r: { departure: string; arrival: string; stops: string[] }) => ({
@@ -94,36 +95,28 @@ test("the bar is the whole journey: the ride in focus, a dot for every other, th
       })),
       current: c.current,
       state: c.state,
-      leaveAt: c.leaveAt === null ? null : Date.parse(c.leaveAt),
       confidence: c.confidence,
     };
     const bar = journeyBar(journey, Date.parse(c.now));
-    assert.equal(bar.before, c.before, `${c.case}: before`);
-    assert.equal(bar.after, c.after, `${c.case}: after`);
+    assert.deepEqual(bar.parts, c.parts, `${c.case}: parts`);
+    assert.equal(bar.focus, c.focus, `${c.case}: focus`);
+    near(bar.fraction, c.fraction, `${c.case}: fraction`);
+    assert.equal(bar.tone, c.tone, `${c.case}: tone`);
+    assert.equal(bar.done, c.done, `${c.case}: done`);
+    assert.equal(bar.walkerAtStart, c.walkerAtStart, `${c.case}: walker at the start`);
     assert.equal(bar.stops.length, c.stops.length, `${c.case}: stops`);
     bar.stops.forEach((f, i) => near(f, c.stops[i], `${c.case}: stop ${i}`));
-    near(bar.fraction, c.fraction, `${c.case}: fraction`);
-    if (c.walk === null) assert.equal(bar.walk, null, `${c.case}: no walk`);
-    else {
-      assert.ok(bar.walk, `${c.case}: a walk`);
-      near(bar.walk.fraction, c.walk.fraction, `${c.case}: walk`);
-      assert.equal(bar.walk.tone, c.walk.tone, `${c.case}: tone`);
-    }
   }
 });
 
-test("the bar's parts: the ride on its rail, the dots beside it, crowding closer when there are many", () => {
+test("the bar's frame never moves: the part in focus takes the room, the others are stubs", () => {
   for (const c of fixtures.barLayout) {
-    const layout = barLayout({ before: c.before, after: c.after, walk: c.walk ? { fraction: 0, tone: "neutral" } : null }, c.width);
-    assert.equal(layout.rides.length, c.rides.length, `${c.case}: rides`);
-    layout.rides.forEach((r, i) => {
-      near(r.from, c.rides[i][0], `${c.case}: ride ${i} from`);
-      near(r.to, c.rides[i][1], `${c.case}: ride ${i} to`);
+    const at = barLayout({ parts: c.parts, focus: c.focus }, c.width);
+    assert.equal(at.length, c.at.length, `${c.case}: parts`);
+    at.forEach((r, i) => {
+      near(r.from, c.at[i][0], `${c.case}: part ${i} from`);
+      near(r.to, c.at[i][1], `${c.case}: part ${i} to`);
     });
-    if (c.walkFrom === null) assert.equal(layout.walk, null, `${c.case}: no walk`);
-    else {
-      near(layout.walk!.from, c.walkFrom, `${c.case}: walk from`);
-      near(layout.walk!.to, c.walkTo, `${c.case}: walk to`);
-    }
   }
+  for (const c of fixtures.trainOnBar) near(trainOnBar(c.x, c.kind, c.scale), c.nose, `${c.kind} over ${c.x}`);
 });

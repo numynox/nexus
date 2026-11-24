@@ -507,7 +507,7 @@ internal fun barJourney(view: LiveView): BarJourney? {
     } else {
         null
     }
-    return BarJourney(list, current, state, day.leaveAt?.toEpochMilli(), confidence)
+    return BarJourney(list, current, state, confidence)
 }
 
 /**

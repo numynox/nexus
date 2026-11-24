@@ -4,4 +4,7 @@
     <color name="abeona_bar_ride">#F08CA8</color>
     <color name="abeona_bar_ok">#A6E3C4</color>
     <color name="abeona_progress_icon">#F08CA8</color>
+    <color name="abeona_progress_badge">#2B2023</color>
+    <color name="abeona_progress_badge_ink">#F08CA8</color>
+    <color name="abeona_progress_badge_shadow">#73000000</color>
 </resources>
