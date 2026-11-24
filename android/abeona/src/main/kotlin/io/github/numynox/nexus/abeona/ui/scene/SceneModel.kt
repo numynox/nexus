@@ -437,17 +437,20 @@ object SceneModel {
         )
     }
 
-    /** A ride and a change out of focus: their stubs, and the least they shrink to. */
+    /** A ride out of focus (a capsule) and a change out of focus (the gap between two): their lengths, and the least they shrink to. */
     const val RIDE_STUB = 24.0
-    const val CHANGE_STUB = 12.0
+    const val CHANGE_STUB = 8.0
     const val RIDE_STUB_MIN = 12.0
-    const val CHANGE_STUB_MIN = 8.0
+    const val CHANGE_STUB_MIN = 6.0
     /** The stubs take at most this share of the bar; beyond it they all shrink in proportion. */
     const val STUB_SHARE = 0.4
     /** The bar keeps this much clear at both edges of the strip, in every state. */
     const val BAR_PAD = 16.0
-    /** A ride's ends and the focused ride's stops on the bar (radius); the destination keeps BAR_DOT_END's ring. */
+    /** The focused ride's stops and its two ends on the bar (radius); at the destination BAR_DOT_END's ring instead. */
     const val BAR_NODE = 3.5
+    /** A capsule's thickness (the ride in focus is BAR thick), and the ring capping the last one at the destination (radius). */
+    const val CAPSULE = 4.0
+    const val DESTINATION_CAP = 5.0
     /** A figure on the bar (the walker) sits in a badge this wide: a disc, a ring, the glyph. */
     const val BADGE = 18.0
 
