@@ -1,7 +1,7 @@
 # ADR: Abeona's live card is the journey drawn as one line
 
 **Date:** 2026-11-20
-**Status:** Accepted
+**Status:** Accepted; the scene inside the band superseded by `2026-11-24-abeona-journey-header.md` (the scene is the card's header)
 
 ## Context
 On a real ride the live card had everything but was hard to read: the

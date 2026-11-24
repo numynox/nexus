@@ -259,14 +259,26 @@ Sizes:
 | :--- | :--- | :--- |
 | full | 200 | empty Trips, year-in-review cards, the status page |
 | header | 96 | top of the next-trip card off the travel day; arrived |
-| strip | 64 | top of the live card and of its compact form |
+| strip | 64 | the live card's header, flush with the card's top, and its compact form's |
 
-**The strip is the ride's rail.** Under its track runs the progress bar:
-thick, a dot per stop, the part done in burgundy up to where the train's nose
-is. It lies in the ground below the train, so the train never hides it and it
-is the strongest line in the strip. So the strip costs the travel day no
-room: it takes the place of the stop rail the card had. Before boarding the
-bar is empty and the train stands at the first dot.
+**The strip is the whole journey.** It is the live card's header, flush with
+the card's top and sides. Under its track runs the progress bar: the current
+ride (on board, else the one to board) thick, a dot per stop, the part done
+in burgundy up to where the train's nose is; a small filled dot for each ride
+before it and a small hollow dot for each after it. A change is a dashed
+connector between the ride done and the next, in the change's confidence
+colour, with a walker moving along it as the change time passes; before
+leaving the same connector, neutral, walks to the station from the leave
+time. The bar lies in the ground below the train, so the train never hides
+it. Before boarding the bar is empty and the train stands at the first dot.
+
+**It moves, never jumps.** The train, the bar, the walker and the stop
+rail's marker (below) move from one frame clock, from the expected times, not
+the minute tick; a new live time glides in (1 s), a new state morphs (the
+ride done shrinks into its dot, the next grows out of its own, 600 ms) while
+the old train drives out and the next drives in. With less motion asked for,
+it all stands still and updates in place
+(`decisions/2026-11-24-abeona-journey-header.md`).
 
 Small things, both clients: tapping the train flashes its headlight; tapping
 the sun or moon makes it swell for a moment (its accessibility label names
@@ -291,9 +303,8 @@ icon does.
 ┌────────────────────────────────────────────┐
 │ 06:29 ○  Erlangen               ⌄          │  done (muted): "2 rides done"
 │ 10:52 ○  Frankfurt Flughafen               │  where you boarded (muted)
-│      ┃  [scene strip: the rail, the train] │  band: your train
-│      ┃  [ICE 16] to Bruxelles-Midi 197 km/h│
-│      ┃  ✓ Köln Hbf 11:46   Next Aachen 12:21│
+│      ┃  [ICE 16] to Bruxelles-Midi 197 km/h│  band: your train
+│      ┃  → Aachen 12:21 · 3 stops ⌄         │
 │ 12:47 ◉  GET OFF                    ┌──┐   │  the active step: verb,
 │  +4      Liège-Guillemins           │ 3│   │  station, countdown,
 │          in 49 min                  └──┘   │  platform
@@ -311,10 +322,10 @@ Rows, top to bottom; a row with nothing to say is left out:
 | :--- | :--- | :--- |
 | Done | a ride is done | first departure time and station, muted; "n rides done"; expands to the done rows |
 | Boarded | on board | the current ride's departure (time, station), muted |
-| Band | always, except arrived | the scene strip (§7) on the current ride's stretch of line: the ride on board, else the one to board; under it the line chip, "to" its direction and, from the train's Wi-Fi, the speed; on board a second line: "✓ last stop time" left, "Next stop time" right (left out when the next stop is the active step); waiting for the train, where it is ("Left Aschaffenburg Hbf · 3 stops"); on board an ICE at least 5 min late, DB's delay reason from the train's Wi-Fi as one muted line with an info icon |
+| Band | always, except arrived or broken | the current ride (the scene strip above it is the card's header, §7): the line chip, "to" its direction and, from the train's Wi-Fi, the speed; under it one left-aligned line: → the next stop with its time and delay (standing at a stop: 📍 it and its departure), then "· n stops ⌄", which opens the ride's stops on its rail: the same dot for each, the rail full burgundy down to a marker where the train is and faded after it, the stops passed muted; waiting for the train, where it is ("Left Aschaffenburg Hbf · 3 stops"); on board an ICE at least 5 min late, DB's delay reason from the train's Wi-Fi as one muted line with an info icon |
 | Active step | always, exactly one | the verb (Leave · Board · Get off · Arrive · Arrived), the time with its delay, the station (Leave: none), "in 12 min", the platform big; Board adds the seat ("Coach 24 · Seat 66"), Get off and Arrive the exit side when the train's Wi-Fi gives it ("Exit left") |
 | Change | after a Get off, or before a Board at a change | the status chip with the minutes (word only when not safe: "6 min · tight"), "3 → 5" or the walk with its minutes |
-| Next train | after the change | time, line chip, "to" direction, platform; the seat under it when known |
+| Next train | after the change | time, line chip, "to" direction, platform; the seat under it when known; "n stops ⌄" opens its stops |
 | Later | rides beyond the next train | their line chips, "n changes", the worst change's chip unless all are safe; expands to their rows |
 | Destination | unless it is the active step | time with delay, name, platform |
 | Footer | always | where the times come from and when: "Live 12:37", "Timetable 12:37" (no live data for the trip), "Offline 12:37" (`watch`); the source as an icon button that opens How Abeona knows |
@@ -344,8 +355,8 @@ Rows, top to bottom; a row with nothing to say is left out:
   unknown, and a Share icon button that makes a 1080×1350 image of the
   arrival scene, the route and the figures. Never while something is broken
   (`decisions/2026-11-22-abeona-arrival-postcard.md`).
-- **Compact form** (the Trips card on the travel day): the band without its
-  second line and the active step, in time order (before boarding the step
+- **Compact form** (the Trips card on the travel day): the header, the band
+  without its second line and the active step, in time order (before boarding the step
   comes first), and one row: the change chip, the next line chip, "⚑ 13:32",
   "Any train" when the binding is lifted. Nothing else, and no banner under
   it.
@@ -355,14 +366,14 @@ Rows, top to bottom; a row with nothing to say is left out:
 - **The notification** follows the same order: your train and the active step
   as the title, then the change, the next train, the next stop, and the band's
   line (`decisions/2026-11-20-abeona-notification-names-the-train.md`). On
-  Android 16 and newer it is a Live Update that draws the journey: a bar from
-  the first departure to the arrival, rides in burgundy, changes in their
-  confidence colour, the change stations ahead as points, a train moving along
-  it, a flag at the end. Under the title one line and the header carry, in
-  this order, the change, the seat before boarding, the next stop, the speed
-  and, only when not live, how fresh. "n stops left" and "Live 12:37" are
-  left out. Actions: Ticket, Alternatives (only when broken), Stop
-  (`decisions/2026-11-22-abeona-lock-screen-journey-line.md`).
+  Android 16 and newer it is a Live Update that draws the journey: one equal
+  burgundy segment per ride, the changes as points on their boundaries in
+  their confidence colour, a train moving along the ride (a walker on the
+  point while changing or walking to the station), a flag at the end. Under
+  the title two lines: the change ("Würzburg Hbf → RE 10 · Pl. 5 · 6 min ·
+  tight") or the seat before boarding; then the next stop and the speed. How
+  fresh only when not live, in the header. Actions: Ticket, Alternatives (only
+  when broken), Stop (`decisions/2026-11-24-abeona-journey-header.md`).
 - **Alerts wake the traveller only to act** ("Act now": platform change,
   change at risk or impossible, cancelled, missed, get off in 5 min, you may
   take another train). Delays, "back on track" and the compensation thresholds
