@@ -18,7 +18,8 @@ class SeenTest {
 
     @Test
     fun aFullListLetsGoOfWhatWasSeenLongestAgo() {
-        assertEquals(listOf(3L, 4L, 5L), withSeen(listOf(3L, 2L, 1L), listOf(4L, 5L), max = 3))
+        // 3 was seen first, then 2, then 1: 3 and 2 go, whatever their ids.
+        assertEquals(listOf(1L, 4L, 5L), withSeen(listOf(3L, 2L, 1L), listOf(4L, 5L), max = 3))
     }
 
     /** A liveblog keeps its old, low id while it tops today's feed; it must stay seen. */
