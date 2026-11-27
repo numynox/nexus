@@ -60,7 +60,10 @@ class NoctuaPreferences(private val context: Context) {
         val SortOrder = stringPreferencesKey("sort_order")
         val OpenInApp = booleanPreferencesKey("open_in_app")
         val SelectedSection = longPreferencesKey("selected_section_id")
-        val Seen = stringSetPreferencesKey("seen_articles")
+        /** Before seen kept its order: a set, which could only be capped by id. Read once, then removed. */
+        val LegacySeen = stringSetPreferencesKey("seen_articles")
+        /** Seen article ids, space-separated, in the order they were seen — the longest ago first. */
+        val Seen = stringPreferencesKey("seen_articles_order")
         val Resurfaced = stringSetPreferencesKey("resurfaced_recommendations")
         val CachedSections = stringPreferencesKey("cached_sections")
     }
@@ -68,8 +71,18 @@ class NoctuaPreferences(private val context: Context) {
     val settings: Flow<NoctuaSettings> = context.noctuaStore.data.map { it.toSettings() }
 
     /** Article ids seen on this phone. */
-    val seen: Flow<Set<Long>> = context.noctuaStore.data.map { prefs ->
-        prefs[Keys.Seen].orEmpty().mapNotNullTo(HashSet()) { it.toLongOrNull() }
+    val seen: Flow<Set<Long>> = context.noctuaStore.data.map { prefs -> prefs.seenOrder().toHashSet() }
+
+    /** The seen ids, the longest ago first; the old unordered set counts as seen before all of them. */
+    private fun Preferences.seenOrder(): List<Long> {
+        val legacy = this[Keys.LegacySeen].orEmpty().mapNotNull { it.toLongOrNull() }.sorted()
+        val ordered = this[Keys.Seen].orEmpty().split(' ').mapNotNull { it.toLongOrNull() }
+        return if (legacy.isEmpty()) ordered else (legacy + ordered).distinct()
+    }
+
+    private fun MutablePreferences.setSeenOrder(ids: List<Long>) {
+        remove(Keys.LegacySeen)
+        this[Keys.Seen] = ids.joinToString(" ")
     }
 
     private fun Preferences.toSettings() = NoctuaSettings(
@@ -94,22 +107,20 @@ class NoctuaPreferences(private val context: Context) {
     suspend fun setOpenInApp(value: Boolean) = edit { it[Keys.OpenInApp] = value }
     suspend fun setSelectedSection(id: Long?) = edit { if (id == null) it.remove(Keys.SelectedSection) else it[Keys.SelectedSection] = id }
 
-    /**
-     * Adds to the seen set in one write. The set is capped: ids only grow, so
-     * the oldest are dropped first, and the server prunes unread articles after
-     * 90 days anyway.
-     */
+    /** Adds to the seen list in one write, capped by [withSeen]. */
     suspend fun markSeen(ids: Collection<Long>) {
         if (ids.isEmpty()) return
         edit { prefs ->
-            val current = prefs[Keys.Seen].orEmpty().mapNotNullTo(HashSet()) { it.toLongOrNull() }
-            if (current.containsAll(ids)) return@edit
-            current += ids
-            prefs[Keys.Seen] = current.sortedDescending().take(MAX_SEEN).mapTo(HashSet()) { it.toString() }
+            val current = prefs.seenOrder()
+            val updated = withSeen(current, ids, MAX_SEEN)
+            if (updated != current || prefs[Keys.LegacySeen] != null) prefs.setSeenOrder(updated)
         }
     }
 
-    suspend fun clearSeen() = edit { it.remove(Keys.Seen) }
+    suspend fun clearSeen() = edit {
+        it.remove(Keys.Seen)
+        it.remove(Keys.LegacySeen)
+    }
 
     /**
      * Someone else's recommendation makes an article unseen again — once per
@@ -122,7 +133,8 @@ class NoctuaPreferences(private val context: Context) {
             val done = prefs[Keys.Resurfaced].orEmpty()
             val fresh = ids.map { it.toString() }.filter { it !in done }
             if (fresh.isEmpty()) return@edit
-            prefs[Keys.Seen] = prefs[Keys.Seen].orEmpty() - fresh.toSet()
+            val unseen = fresh.mapNotNullTo(HashSet()) { it.toLongOrNull() }
+            prefs.setSeenOrder(prefs.seenOrder().filter { it !in unseen })
             // Capped like the seen set; recommendations older than a month are not returned anyway.
             prefs[Keys.Resurfaced] = (done + fresh).mapNotNull { it.toLongOrNull() }.sortedDescending().take(MAX_SEEN).mapTo(HashSet()) { it.toString() }
         }
@@ -154,6 +166,20 @@ class NoctuaPreferences(private val context: Context) {
     private companion object {
         const val MAX_SEEN = 5_000
     }
+}
+
+/**
+ * [order] with [ids] seen now, at its end, and no more than [max] long: the
+ * ids seen longest ago are the ones let go. Not the lowest ids — an article
+ * keeps its id while its feed updates it, so a liveblog first fetched months
+ * ago has one of the lowest ids and is still at the top of today's feed;
+ * capped by id, it was dropped the moment it was marked and never stayed seen.
+ */
+internal fun withSeen(order: List<Long>, ids: Collection<Long>, max: Int): List<Long> {
+    val known = order.toHashSet()
+    val fresh = ids.distinct().filter { it !in known }
+    if (fresh.isEmpty()) return order
+    return (order + fresh).takeLast(max)
 }
 
 @Serializable
